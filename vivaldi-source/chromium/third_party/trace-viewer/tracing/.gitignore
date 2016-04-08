@@ -1,0 +1,14 @@
+*.pyc
+*.swp
+.idea
+.DS_Store
+*~
+.project
+.settings
+bin/trace_viewer*.html
+test_data/measurmt-traces
+
+*.bak
+*.sln
+*.vcxproj
+*.vcxproj.*
