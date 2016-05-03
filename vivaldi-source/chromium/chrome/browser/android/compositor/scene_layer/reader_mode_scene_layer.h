@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,14 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
-#include "base/basictypes.h"
+#include "base/macros.h"
 #include "base/memory/scoped_ptr.h"
 #include "chrome/browser/android/compositor/scene_layer/scene_layer.h"
+#include "ui/android/resources/resource_manager_impl.h"
 
 namespace chrome {
 namespace android {
+
 class ReaderModeLayer;
 
 class ReaderModeSceneLayer : public SceneLayer {
@@ -23,21 +25,36 @@ class ReaderModeSceneLayer : public SceneLayer {
   ReaderModeSceneLayer(JNIEnv* env, jobject jobj);
   ~ReaderModeSceneLayer() override;
 
-  void UpdateReaderModeLayer(JNIEnv* env,
-                             jobject object,
-                             jint panel_background_resource_id,
-                             jint panel_text_resource_id,
-                             jobject jreader_mode_content_view_core,
-                             jfloat panel_y,
-                             jfloat panel_width,
-                             jfloat panel_margin_top,
-                             jfloat panel_height,
-                             jfloat distilled_y,
-                             jfloat distilled_height,
-                             jfloat x,
-                             jfloat panel_text_opacity,
-                             jint header_background_color,
-                             jobject jresource_manager);
+  void CreateReaderModeLayer(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& object,
+      const base::android::JavaParamRef<jobject>& jresource_manager);
+
+  void SetResourceIds(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& object,
+      jint text_resource_id,
+      jint bar_background_resource_id,
+      jint bar_shadow_resource_id,
+      jint panel_icon_resource_id,
+      jint close_icon_resource_id);
+
+  void Update(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& object,
+      jfloat dp_to_px,
+      const base::android::JavaParamRef<jobject>& jcontent_view_core,
+      jfloat panel_X,
+      jfloat panel_y,
+      jfloat panel_width,
+      jfloat panel_height,
+      jfloat bar_margin_side,
+      jfloat bar_height,
+      jfloat text_opacity,
+      jboolean bar_border_visible,
+      jfloat bar_border_height,
+      jboolean bar_shadow_visible,
+      jfloat bar_shadow_opacity);
 
  private:
   scoped_refptr<ReaderModeLayer> reader_mode_layer_;

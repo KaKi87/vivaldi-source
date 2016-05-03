@@ -4,9 +4,12 @@
 
 #include "content/shell/app/blink_test_platform_support.h"
 
+#include <stddef.h>
+
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "ui/gfx/test/fontconfig_util_linux.h"
 

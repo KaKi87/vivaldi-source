@@ -1,54 +1,75 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.compositor.scene_layer;
 
-import org.chromium.base.JNINamespace;
+import org.chromium.base.annotations.JNINamespace;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.dom_distiller.ReaderModePanel;
+import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel;
 import org.chromium.content.browser.ContentViewCore;
 import org.chromium.ui.resources.ResourceManager;
 
 /**
- * A SceneLayer to render layers for ReaderModeLayout.
+ * A SceneLayer to render layers for Reader Mode.
  */
 @JNINamespace("chrome::android")
 public class ReaderModeSceneLayer extends SceneLayer {
 
-    // NOTE: If you use SceneLayer's native pointer here, the JNI generator will try to
-    // downcast using reinterpret_cast<>. We keep a separate pointer to avoid it.
+    /** Pointer to native ReaderModeSceneLayer. */
     private long mNativePtr;
 
+    /** If the scene layer has been initialized. */
+    private boolean mIsInitialized;
+
+    /** The conversion multiple from dp to px. */
     private final float mDpToPx;
 
+    /**
+     * @param dpToPx The conversion multiple from dp to px for the device.
+     */
     public ReaderModeSceneLayer(float dpToPx) {
         mDpToPx = dpToPx;
     }
 
     /**
-     * Update reader mode's layer tree using the parameters.
-     *
-     * @param panel
-     * @param resourceManager
+     * Update the scene layer to draw an OverlayPanel.
+     * @param resourceManager Manager to get view and image resources.
+     * @param panel The OverlayPanel to render.
+     * @param barTextViewId The ID of the view containing the Reader Mode text.
+     * @param barTextOpacity The opacity of the text specified by {@code barTextViewId}.
      */
-    public void update(ReaderModePanel panel, ResourceManager resourceManager) {
-        if (panel == null) return;
-        if (!panel.isShowing()) return;
+    public void update(ResourceManager resourceManager, OverlayPanel panel, int barTextViewId,
+            float barTextOpacity) {
+        if (!mIsInitialized && resourceManager != null) {
+            nativeCreateReaderModeLayer(mNativePtr, resourceManager);
+            // TODO(mdjones): Rename contextual search resources below to be generic to overlay
+            // panels.
+            nativeSetResourceIds(mNativePtr,
+                    barTextViewId,
+                    R.drawable.contextual_search_bar_background,
+                    R.drawable.contextual_search_bar_shadow,
+                    R.drawable.infobar_mobile_friendly,
+                    R.drawable.btn_close);
+            mIsInitialized = true;
+        }
 
-        nativeUpdateReaderModeLayer(mNativePtr,
-                R.drawable.reader_mode_bar_background, R.id.reader_mode_view,
-                panel.didFirstNonEmptyDistilledPaint() ? panel.getDistilledContentViewCore() : null,
-                panel.getPanelY() * mDpToPx,
+        // Don't try to update the layer if not initialized.
+        if (!mIsInitialized) return;
+        nativeUpdate(mNativePtr,
+                mDpToPx,
+                panel.getContentViewCore(),
+                panel.getOffsetX() * mDpToPx,
+                panel.getOffsetY() * mDpToPx,
                 panel.getWidth() * mDpToPx,
-                panel.getMarginTop() * mDpToPx,
-                panel.getPanelHeight() * mDpToPx,
-                panel.getDistilledContentY() * mDpToPx,
-                panel.getDistilledHeight() * mDpToPx,
-                panel.getX() * mDpToPx,
-                panel.getTextOpacity(),
-                panel.getReaderModeHeaderBackgroundColor(),
-                resourceManager);
+                panel.getHeight() * mDpToPx,
+                panel.getBarMarginSide() * mDpToPx,
+                panel.getBarHeight() * mDpToPx,
+                barTextOpacity,
+                panel.isBarBorderVisible(),
+                panel.getBarBorderHeight() * mDpToPx,
+                panel.getBarShadowVisible(),
+                panel.getBarShadowOpacity());
     }
 
     @Override
@@ -65,16 +86,34 @@ public class ReaderModeSceneLayer extends SceneLayer {
     @Override
     public void destroy() {
         super.destroy();
+        mIsInitialized = false;
         mNativePtr = 0;
     }
 
     private native long nativeInit();
-    private native void nativeUpdateReaderModeLayer(long nativeReaderModeSceneLayer,
-            int panelBackgroundResourceId, int panelTextResourceId,
-            ContentViewCore readerModeContentViewCore,
-            float panelY, float panelWidth, float panelMarginTop, float panelHeight,
-            float distilledY, float distilledHeight,
-            float x,
-            float panelTextOpacity, int headerBackgroundColor,
+    private native void nativeCreateReaderModeLayer(
+            long nativeReaderModeSceneLayer,
             ResourceManager resourceManager);
+    private native void nativeSetResourceIds(
+            long nativeReaderModeSceneLayer,
+            int barTextResourceId,
+            int barBackgroundResourceId,
+            int barShadowResourceId,
+            int panelIconResourceId,
+            int closeIconResourceId);
+    private native void nativeUpdate(
+            long nativeReaderModeSceneLayer,
+            float dpToPx,
+            ContentViewCore contentViewCore,
+            float panelX,
+            float panelY,
+            float panelWidth,
+            float panelHeight,
+            float barMarginSide,
+            float barHeight,
+            float textOpacity,
+            boolean barBorderVisible,
+            float barBorderHeight,
+            boolean barShadowVisible,
+            float barShadowOpacity);
 }

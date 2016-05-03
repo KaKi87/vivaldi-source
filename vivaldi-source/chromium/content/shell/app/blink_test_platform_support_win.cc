@@ -5,6 +5,7 @@
 #include "content/shell/app/blink_test_platform_support.h"
 
 #include <windows.h>
+#include <stddef.h>
 #include <iostream>
 #include <list>
 #include <string>
@@ -13,9 +14,9 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
-#include "content/shell/common/shell_switches.h"
 #include "ui/gfx/win/direct_write.h"
 
 #define SIZEOF_STRUCT_WITH_SPECIFIED_LAST_MEMBER(struct_name, member) \
@@ -42,9 +43,10 @@ bool SetupFonts() {
   // 2. For DirectWrite rendering by appending a command line flag that tells
   //    the sandbox policy/warmup to grant access to the given path.
   if (gfx::win::ShouldUseDirectWrite()) {
+    const char kRegisterFontFiles[] = "register-font-files";
     // DirectWrite sandbox registration.
     base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
-    command_line.AppendSwitchASCII(switches::kRegisterFontFiles,
+    command_line.AppendSwitchASCII(kRegisterFontFiles,
                                    base::WideToUTF8(font_path.value()));
   } else {
     // GDI registration.
