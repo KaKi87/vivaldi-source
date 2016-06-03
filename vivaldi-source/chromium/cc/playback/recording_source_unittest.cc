@@ -4,164 +4,255 @@
 
 #include <vector>
 
-#include "cc/playback/display_list_raster_source.h"
-#include "cc/test/fake_display_list_recording_source.h"
-#include "cc/test/fake_picture_pile.h"
-#include "cc/test/fake_picture_pile_impl.h"
+#include "cc/base/region.h"
+#include "cc/playback/raster_source.h"
+#include "cc/proto/recording_source.pb.h"
+#include "cc/test/fake_content_layer_client.h"
+#include "cc/test/fake_image_serialization_processor.h"
+#include "cc/test/fake_recording_source.h"
 #include "cc/test/skia_common.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace cc {
 namespace {
 
-template <class T>
-scoped_ptr<T> CreateRecordingSource(const gfx::Rect& viewport,
-                                    const gfx::Size& grid_cell_size);
-
-template <>
-scoped_ptr<FakePicturePile> CreateRecordingSource<FakePicturePile>(
-    const gfx::Rect& viewport,
-    const gfx::Size& grid_cell_size) {
-  return FakePicturePile::CreateFilledPile(grid_cell_size, viewport.size());
-}
-
-template <>
-scoped_ptr<FakeDisplayListRecordingSource> CreateRecordingSource<
-    FakeDisplayListRecordingSource>(const gfx::Rect& viewport,
-                                    const gfx::Size& grid_cell_size) {
+scoped_ptr<FakeRecordingSource> CreateRecordingSource(
+    const gfx::Rect& viewport) {
   gfx::Rect layer_rect(viewport.right(), viewport.bottom());
-  scoped_ptr<FakeDisplayListRecordingSource> recording_source =
-      FakeDisplayListRecordingSource::CreateRecordingSource(viewport,
-                                                            layer_rect.size());
-  recording_source->SetGridCellSize(grid_cell_size);
-
-  return recording_source.Pass();
+  scoped_ptr<FakeRecordingSource> recording_source =
+      FakeRecordingSource::CreateRecordingSource(viewport, layer_rect.size());
+  return recording_source;
 }
 
-template <class T>
-scoped_refptr<RasterSource> CreateRasterSource(T* recording_source);
-
-template <>
 scoped_refptr<RasterSource> CreateRasterSource(
-    FakePicturePile* recording_source) {
-  return FakePicturePileImpl::CreateFromPile(recording_source, nullptr);
-}
-
-template <>
-scoped_refptr<RasterSource> CreateRasterSource(
-    FakeDisplayListRecordingSource* recording_source) {
+    FakeRecordingSource* recording_source) {
   bool can_use_lcd_text = true;
-  return DisplayListRasterSource::CreateFromDisplayListRecordingSource(
-      recording_source, can_use_lcd_text);
+  return RasterSource::CreateFromRecordingSource(recording_source,
+                                                 can_use_lcd_text);
 }
 
-template <typename T>
-class RecordingSourceTest : public testing::Test {};
+void ValidateRecordingSourceSerialization(FakeRecordingSource* source) {
+  scoped_ptr<FakeImageSerializationProcessor>
+      fake_image_serialization_processor =
+          make_scoped_ptr(new FakeImageSerializationProcessor);
 
-using testing::Types;
+  proto::RecordingSource proto;
+  source->ToProtobuf(&proto, fake_image_serialization_processor.get());
 
-typedef Types<FakePicturePile, FakeDisplayListRecordingSource>
-    RecordingSourceImplementations;
+  FakeRecordingSource new_source;
+  new_source.FromProtobuf(proto, fake_image_serialization_processor.get());
 
-TYPED_TEST_CASE(RecordingSourceTest, RecordingSourceImplementations);
+  EXPECT_TRUE(source->EqualsTo(new_source));
+}
 
-TYPED_TEST(RecordingSourceTest, NoGatherPixelRefEmptyPixelRefs) {
-  gfx::Size grid_cell_size(128, 128);
+TEST(RecordingSourceTest, TestNullDisplayListSerialization) {
   gfx::Rect recorded_viewport(0, 0, 256, 256);
 
-  scoped_ptr<TypeParam> recording_source =
-      CreateRecordingSource<TypeParam>(recorded_viewport, grid_cell_size);
-  recording_source->SetGatherPixelRefs(false);
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
+  recording_source->SetDisplayListUsesCachedPicture(false);
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
+  recording_source->Rerecord();
+  recording_source->SetEmptyBounds();
+
+  ValidateRecordingSourceSerialization(recording_source.get());
+}
+
+TEST(RecordingSourceTest, TestEmptySerializationDeserialization) {
+  gfx::Rect recorded_viewport(0, 0, 256, 256);
+
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
+  recording_source->SetDisplayListUsesCachedPicture(false);
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
   recording_source->Rerecord();
 
-  scoped_refptr<RasterSource> raster_source =
-      CreateRasterSource<TypeParam>(recording_source.get());
+  ValidateRecordingSourceSerialization(recording_source.get());
+}
 
-  // If recording source do not gather pixel ref, raster source is not going to
-  // get pixel refs.
+TEST(RecordingSourceTest, TestPopulatedSerializationDeserialization) {
+  gfx::Rect recorded_viewport(0, 0, 256, 256);
+
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
+  recording_source->SetDisplayListUsesCachedPicture(false);
+
+  SkPaint simple_paint;
+  simple_paint.setColor(SkColorSetARGB(255, 12, 23, 34));
+  recording_source->add_draw_rect_with_paint(gfx::Rect(0, 0, 256, 256),
+                                             simple_paint);
+  recording_source->add_draw_rect_with_paint(gfx::Rect(128, 128, 512, 512),
+                                             simple_paint);
+  recording_source->add_draw_rect_with_paint(gfx::Rect(512, 0, 256, 256),
+                                             simple_paint);
+  recording_source->add_draw_rect_with_paint(gfx::Rect(0, 512, 256, 256),
+                                             simple_paint);
+
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
+  recording_source->Rerecord();
+
+  ValidateRecordingSourceSerialization(recording_source.get());
+}
+
+TEST(RecordingSourceTest, DiscardableImagesWithTransform) {
+  gfx::Rect recorded_viewport(256, 256);
+
+  scoped_ptr<FakeRecordingSource> recording_source =
+      FakeRecordingSource::CreateFilledRecordingSource(
+          recorded_viewport.size());
+  skia::RefPtr<SkImage> discardable_image[2][2];
+  gfx::Transform identity_transform;
+  discardable_image[0][0] = CreateDiscardableImage(gfx::Size(32, 32));
+  // Translate transform is equivalent to moving using point.
+  gfx::Transform translate_transform;
+  translate_transform.Translate(0, 130);
+  discardable_image[1][0] = CreateDiscardableImage(gfx::Size(32, 32));
+  // This moves the bitmap to center of viewport and rotate, this would make
+  // this bitmap in all four tile grids.
+  gfx::Transform rotate_transform;
+  rotate_transform.Translate(112, 112);
+  rotate_transform.Rotate(45);
+  discardable_image[1][1] = CreateDiscardableImage(gfx::Size(32, 32));
+
+  gfx::RectF rect(0, 0, 32, 32);
+  gfx::RectF translate_rect = rect;
+  translate_transform.TransformRect(&translate_rect);
+  gfx::RectF rotate_rect = rect;
+  rotate_transform.TransformRect(&rotate_rect);
+
+  recording_source->add_draw_image_with_transform(discardable_image[0][0].get(),
+                                                  identity_transform);
+  recording_source->add_draw_image_with_transform(discardable_image[1][0].get(),
+                                                  translate_transform);
+  recording_source->add_draw_image_with_transform(discardable_image[1][1].get(),
+                                                  rotate_transform);
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
+  recording_source->Rerecord();
+
+  bool can_use_lcd_text = true;
+  scoped_refptr<RasterSource> raster_source =
+      RasterSource::CreateFromRecordingSource(recording_source.get(),
+                                              can_use_lcd_text);
+
+  // Tile sized iterators. These should find only one pixel ref.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(recorded_viewport, 1.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_EQ(2u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
+    EXPECT_TRUE(images[1].image() == discardable_image[1][1].get());
+  }
+
+  // Shifted tile sized iterators. These should find only one pixel ref.
+  {
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(130, 140, 128, 128),
+                                              1.f, &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[1][1].get());
+  }
+
+  // The rotated bitmap would still be in the top right tile.
+  {
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(130, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[1][1].get());
+  }
+
+  // Layer sized iterators. These should find all pixel refs.
+  {
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 256, 256), 1.f,
+                                              &images);
+    EXPECT_EQ(3u, images.size());
+    // Top left tile with bitmap[0][0] and bitmap[1][1].
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
+    EXPECT_TRUE(images[1].image() == discardable_image[1][0].get());
+    EXPECT_TRUE(images[2].image() == discardable_image[1][1].get());
+  }
+
+  // Verify different raster scales
+  for (float scale = 1.f; scale <= 5.f; scale += 0.5f) {
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(130, 0, 128, 128),
+                                              scale, &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_FLOAT_EQ(scale, images[0].scale().width());
+    EXPECT_FLOAT_EQ(scale, images[0].scale().height());
   }
 }
 
-TYPED_TEST(RecordingSourceTest, EmptyPixelRefs) {
-  gfx::Size grid_cell_size(128, 128);
+TEST(RecordingSourceTest, NoGatherImageEmptyImages) {
   gfx::Rect recorded_viewport(0, 0, 256, 256);
 
-  scoped_ptr<TypeParam> recording_source =
-      CreateRecordingSource<TypeParam>(recorded_viewport, grid_cell_size);
-  recording_source->SetGatherPixelRefs(true);
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
+  recording_source->SetGenerateDiscardableImagesMetadata(false);
   recording_source->Rerecord();
 
   scoped_refptr<RasterSource> raster_source =
-      CreateRasterSource<TypeParam>(recording_source.get());
+      CreateRasterSource(recording_source.get());
+
+  // If recording source do not gather images, raster source is not going to
+  // get images.
+  {
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(recorded_viewport, 1.f, &images);
+    EXPECT_TRUE(images.empty());
+  }
+}
+
+TEST(RecordingSourceTest, EmptyImages) {
+  gfx::Rect recorded_viewport(0, 0, 256, 256);
+
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
+  recording_source->Rerecord();
+
+  scoped_refptr<RasterSource> raster_source =
+      CreateRasterSource(recording_source.get());
 
   // Tile sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 1.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 2.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 64, 64), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
   // Shifted tile sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(140, 140, 128, 128), 1.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(280, 280, 256, 256), 2.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(70, 70, 64, 64), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(140, 140, 128, 128),
+                                              1.f, &images);
+    EXPECT_TRUE(images.empty());
   }
   // Layer sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 1.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 512, 512), 2.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 256, 256), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
 }
 
-TYPED_TEST(RecordingSourceTest, NoDiscardablePixelRefs) {
-  gfx::Size grid_cell_size(128, 128);
+TEST(RecordingSourceTest, NoDiscardableImages) {
   gfx::Rect recorded_viewport(0, 0, 256, 256);
 
-  scoped_ptr<TypeParam> recording_source =
-      CreateRecordingSource<TypeParam>(recorded_viewport, grid_cell_size);
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
 
   SkPaint simple_paint;
   simple_paint.setColor(SkColorSetARGB(255, 12, 23, 34));
 
   SkBitmap non_discardable_bitmap;
-  CreateBitmap(gfx::Size(128, 128), "notdiscardable", &non_discardable_bitmap);
+  non_discardable_bitmap.allocN32Pixels(128, 128);
+  non_discardable_bitmap.setImmutable();
+  skia::RefPtr<SkImage> non_discardable_image =
+      skia::AdoptRef(SkImage::NewFromBitmap(non_discardable_bitmap));
 
   recording_source->add_draw_rect_with_paint(gfx::Rect(0, 0, 256, 256),
                                              simple_paint);
@@ -171,299 +262,178 @@ TYPED_TEST(RecordingSourceTest, NoDiscardablePixelRefs) {
                                              simple_paint);
   recording_source->add_draw_rect_with_paint(gfx::Rect(0, 512, 256, 256),
                                              simple_paint);
-  recording_source->add_draw_bitmap(non_discardable_bitmap, gfx::Point(128, 0));
-  recording_source->add_draw_bitmap(non_discardable_bitmap, gfx::Point(0, 128));
-  recording_source->add_draw_bitmap(non_discardable_bitmap,
-                                    gfx::Point(150, 150));
-  recording_source->SetGatherPixelRefs(true);
+  recording_source->add_draw_image(non_discardable_image.get(),
+                                   gfx::Point(128, 0));
+  recording_source->add_draw_image(non_discardable_image.get(),
+                                   gfx::Point(0, 128));
+  recording_source->add_draw_image(non_discardable_image.get(),
+                                   gfx::Point(150, 150));
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
   recording_source->Rerecord();
 
   scoped_refptr<RasterSource> raster_source =
-      CreateRasterSource<TypeParam>(recording_source.get());
+      CreateRasterSource(recording_source.get());
 
   // Tile sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 1.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 2.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 64, 64), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
   // Shifted tile sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(140, 140, 128, 128), 1.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(280, 280, 256, 256), 2.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(70, 70, 64, 64), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(140, 140, 128, 128),
+                                              1.f, &images);
+    EXPECT_TRUE(images.empty());
   }
   // Layer sized iterators.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 1.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 512, 512), 2.0, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 0.5, &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 256, 256), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
 }
 
-TYPED_TEST(RecordingSourceTest, DiscardablePixelRefs) {
-  gfx::Size grid_cell_size(128, 128);
+TEST(RecordingSourceTest, DiscardableImages) {
   gfx::Rect recorded_viewport(0, 0, 256, 256);
 
-  scoped_ptr<TypeParam> recording_source =
-      CreateRecordingSource<TypeParam>(recorded_viewport, grid_cell_size);
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
 
-  SkBitmap discardable_bitmap[2][2];
-  CreateBitmap(gfx::Size(32, 32), "discardable", &discardable_bitmap[0][0]);
-  CreateBitmap(gfx::Size(32, 32), "discardable", &discardable_bitmap[1][0]);
-  CreateBitmap(gfx::Size(32, 32), "discardable", &discardable_bitmap[1][1]);
+  skia::RefPtr<SkImage> discardable_image[2][2];
+  discardable_image[0][0] = CreateDiscardableImage(gfx::Size(32, 32));
+  discardable_image[1][0] = CreateDiscardableImage(gfx::Size(32, 32));
+  discardable_image[1][1] = CreateDiscardableImage(gfx::Size(32, 32));
 
-  // Discardable pixel refs are found in the following cells:
+  // Discardable images are found in the following cells:
   // |---|---|
   // | x |   |
   // |---|---|
   // | x | x |
   // |---|---|
-  recording_source->add_draw_bitmap(discardable_bitmap[0][0], gfx::Point(0, 0));
-  recording_source->add_draw_bitmap(discardable_bitmap[1][0],
-                                    gfx::Point(0, 130));
-  recording_source->add_draw_bitmap(discardable_bitmap[1][1],
-                                    gfx::Point(140, 140));
-  recording_source->SetGatherPixelRefs(true);
+  recording_source->add_draw_image(discardable_image[0][0].get(),
+                                   gfx::Point(0, 0));
+  recording_source->add_draw_image(discardable_image[1][0].get(),
+                                   gfx::Point(0, 130));
+  recording_source->add_draw_image(discardable_image[1][1].get(),
+                                   gfx::Point(140, 140));
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
   recording_source->Rerecord();
 
   scoped_refptr<RasterSource> raster_source =
-      CreateRasterSource<TypeParam>(recording_source.get());
+      CreateRasterSource(recording_source.get());
 
-  // Tile sized iterators. These should find only one pixel ref.
+  // Tile sized iterators. These should find only one image.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 1.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 2.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 64, 64), 0.5, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
   }
 
-  // Shifted tile sized iterators. These should find only one pixel ref.
+  // Shifted tile sized iterators. These should find only one image.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(140, 140, 128, 128), 1.0,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(280, 280, 256, 256), 2.0,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(70, 70, 64, 64), 0.5, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(140, 140, 128, 128),
+                                              1.f, &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[1][1].get());
   }
 
-  // Ensure there's no discardable pixel refs in the empty cell
+  // Ensure there's no discardable images in the empty cell
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(140, 0, 128, 128), 1.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(140, 0, 128, 128), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
 
-  // Layer sized iterators. These should find all 3 pixel refs.
+  // Layer sized iterators. These should find all 3 images.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 1.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[1][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 512, 512), 2.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[1][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 0.5, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[1][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 256, 256), 1.f,
+                                              &images);
+    EXPECT_EQ(3u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
+    EXPECT_TRUE(images[1].image() == discardable_image[1][0].get());
+    EXPECT_TRUE(images[2].image() == discardable_image[1][1].get());
   }
 }
 
-TYPED_TEST(RecordingSourceTest, DiscardablePixelRefsBaseNonDiscardable) {
-  gfx::Size grid_cell_size(256, 256);
+TEST(RecordingSourceTest, DiscardableImagesBaseNonDiscardable) {
   gfx::Rect recorded_viewport(0, 0, 512, 512);
 
-  scoped_ptr<TypeParam> recording_source =
-      CreateRecordingSource<TypeParam>(recorded_viewport, grid_cell_size);
+  scoped_ptr<FakeRecordingSource> recording_source =
+      CreateRecordingSource(recorded_viewport);
 
   SkBitmap non_discardable_bitmap;
-  CreateBitmap(gfx::Size(512, 512), "notdiscardable", &non_discardable_bitmap);
+  non_discardable_bitmap.allocN32Pixels(512, 512);
+  non_discardable_bitmap.setImmutable();
+  skia::RefPtr<SkImage> non_discardable_image =
+      skia::AdoptRef(SkImage::NewFromBitmap(non_discardable_bitmap));
 
-  SkBitmap discardable_bitmap[2][2];
-  CreateBitmap(gfx::Size(128, 128), "discardable", &discardable_bitmap[0][0]);
-  CreateBitmap(gfx::Size(128, 128), "discardable", &discardable_bitmap[0][1]);
-  CreateBitmap(gfx::Size(128, 128), "discardable", &discardable_bitmap[1][1]);
+  skia::RefPtr<SkImage> discardable_image[2][2];
+  discardable_image[0][0] = CreateDiscardableImage(gfx::Size(128, 128));
+  discardable_image[0][1] = CreateDiscardableImage(gfx::Size(128, 128));
+  discardable_image[1][1] = CreateDiscardableImage(gfx::Size(128, 128));
 
-  // One large non-discardable bitmap covers the whole grid.
-  // Discardable pixel refs are found in the following cells:
+  // One large non-discardable image covers the whole grid.
+  // Discardable images are found in the following cells:
   // |---|---|
   // | x | x |
   // |---|---|
   // |   | x |
   // |---|---|
-  recording_source->add_draw_bitmap(non_discardable_bitmap, gfx::Point(0, 0));
-  recording_source->add_draw_bitmap(discardable_bitmap[0][0], gfx::Point(0, 0));
-  recording_source->add_draw_bitmap(discardable_bitmap[0][1],
-                                    gfx::Point(260, 0));
-  recording_source->add_draw_bitmap(discardable_bitmap[1][1],
-                                    gfx::Point(260, 260));
-  recording_source->SetGatherPixelRefs(true);
+  recording_source->add_draw_image(non_discardable_image.get(),
+                                   gfx::Point(0, 0));
+  recording_source->add_draw_image(discardable_image[0][0].get(),
+                                   gfx::Point(0, 0));
+  recording_source->add_draw_image(discardable_image[0][1].get(),
+                                   gfx::Point(260, 0));
+  recording_source->add_draw_image(discardable_image[1][1].get(),
+                                   gfx::Point(260, 260));
+  recording_source->SetGenerateDiscardableImagesMetadata(true);
   recording_source->Rerecord();
 
   scoped_refptr<RasterSource> raster_source =
-      CreateRasterSource<TypeParam>(recording_source.get());
+      CreateRasterSource(recording_source.get());
 
-  // Tile sized iterators. These should find only one pixel ref.
+  // Tile sized iterators. These should find only one image.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 1.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 256, 256), 1.f,
+                                              &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
   }
+  // Shifted tile sized iterators. These should find only one image.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 512, 512), 2.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(260, 260, 256, 256),
+                                              1.f, &images);
+    EXPECT_EQ(1u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[1][1].get());
   }
+  // Ensure there's no discardable images in the empty cell
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 128, 128), 0.5, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 256, 256, 256), 1.f,
+                                              &images);
+    EXPECT_TRUE(images.empty());
   }
-  // Shifted tile sized iterators. These should find only one pixel ref.
+  // Layer sized iterators. These should find three images.
   {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(260, 260, 256, 256), 1.0,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(520, 520, 512, 512), 2.0,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(130, 130, 128, 128), 0.5,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(1u, pixel_refs.size());
-  }
-  // Ensure there's no discardable pixel refs in the empty cell
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 256, 256, 256), 1.0,
-                                   &pixel_refs);
-    EXPECT_TRUE(pixel_refs.empty());
-  }
-  // Layer sized iterators. These should find three pixel ref.
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 512, 512), 1.0, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[0][1].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 1024, 1024), 2.0,
-                                   &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[0][1].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
-  }
-  {
-    std::vector<SkPixelRef*> pixel_refs;
-    raster_source->GatherPixelRefs(gfx::Rect(0, 0, 256, 256), 0.5, &pixel_refs);
-    EXPECT_FALSE(pixel_refs.empty());
-    EXPECT_TRUE(pixel_refs[0] == discardable_bitmap[0][0].pixelRef());
-    EXPECT_TRUE(pixel_refs[1] == discardable_bitmap[0][1].pixelRef());
-    EXPECT_TRUE(pixel_refs[2] == discardable_bitmap[1][1].pixelRef());
-    EXPECT_EQ(3u, pixel_refs.size());
+    std::vector<DrawImage> images;
+    raster_source->GetDiscardableImagesInRect(gfx::Rect(0, 0, 512, 512), 1.f,
+                                              &images);
+    EXPECT_EQ(3u, images.size());
+    EXPECT_TRUE(images[0].image() == discardable_image[0][0].get());
+    EXPECT_TRUE(images[1].image() == discardable_image[0][1].get());
+    EXPECT_TRUE(images[2].image() == discardable_image[1][1].get());
   }
 }
 

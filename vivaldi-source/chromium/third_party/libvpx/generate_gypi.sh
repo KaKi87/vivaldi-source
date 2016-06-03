@@ -8,17 +8,37 @@
 # config/platform directories needed to build libvpx.
 # Every time libvpx source code is updated just run this script.
 #
-# For example:
-# $ ./generate_gypi.sh
+# Usage:
+# $ ./generate_gypi.sh [--disable-avx] [--only-configs]
 #
-# And this will update all the .gypi, .gni and config files needed.
-#
-# !!! It's highly recommended to install yasm before running this script.
+# The following optional flags are supported:
+# --disable-avx : AVX+AVX2 support is disabled.
+# --only-configs: Excludes generation of GN and GYP files (i.e. only
+#                 configuration headers are generated).
 
 export LC_ALL=C
 BASE_DIR=$(pwd)
 LIBVPX_SRC_DIR="source/libvpx"
 LIBVPX_CONFIG_DIR="source/config"
+unset DISABLE_AVX
+
+for i in "$@"
+do
+case $i in
+  --disable-avx)
+  DISABLE_AVX="--disable-avx --disable-avx2"
+  shift
+  ;;
+  --only-configs)
+  ONLY_CONFIGS=true
+  shift
+  ;;
+  *)
+  echo "Unknown option: $i"
+  exit 1
+  ;;
+esac
+done
 
 # Print license header.
 # $1 - Output base name
@@ -28,6 +48,31 @@ function write_license {
   echo "# Use of this source code is governed by a BSD-style license that can be" >> $1
   echo "# found in the LICENSE file." >> $1
   echo "" >> $1
+}
+
+# Search for source files with the same basename in vp8, vp9, and vpx_dsp. The
+# build can support such files but only when they are built into disparate
+# modules. Configuring such modules for both gyp and gn are tricky so avoid the
+# issue at least until vp10 is added.
+function find_duplicates {
+  local readonly duplicate_file_names=$(find \
+    $BASE_DIR/$LIBVPX_SRC_DIR/vp8 \
+    $BASE_DIR/$LIBVPX_SRC_DIR/vp9 \
+    $BASE_DIR/$LIBVPX_SRC_DIR/vpx_dsp \
+    -type f -name \*.c  | xargs -I {} basename {} | sort | uniq -d \
+  )
+
+  if [ -n "${duplicate_file_names}" ]; then
+    echo "WARNING: DUPLICATE FILES FOUND"
+    for file in  ${duplicate_file_names}; do
+      find \
+        $BASE_DIR/$LIBVPX_SRC_DIR/vp8 \
+        $BASE_DIR/$LIBVPX_SRC_DIR/vp9 \
+        $BASE_DIR/$LIBVPX_SRC_DIR/vpx_dsp \
+        -name $file
+    done
+    exit 1
+  fi
 }
 
 # Print gypi boilerplate header.
@@ -106,28 +151,36 @@ function write_target_definition {
   echo "      'includes': [ 'ads2gas.gypi' ]," >> "$2"
   echo "      'cflags!': [ '-mfpu=vfpv3-d16' ]," >> "$2"
   echo "      'conditions': [" >> $2
-  echo "        # Disable LTO in neon targets due to compiler bug" >> "$2"
+  echo "        # Disable GCC LTO in neon targets due to compiler bug" >> "$2"
   echo "        # crbug.com/408997" >> "$2"
-  echo "        ['use_lto==1', {" >> "$2"
+  echo "        ['clang==0 and use_lto==1', {" >> "$2"
   echo "          'cflags!': [" >> "$2"
   echo "            '-flto'," >> "$2"
   echo "            '-ffat-lto-objects'," >> "$2"
   echo "          ]," >> "$2"
   echo "        }]," >> "$2"
   echo "      ]," >> "$2"
-  fi
+  echo "      'cflags': [ '-m$4', ]," >> "$2"
+  echo "      'asmflags': [ '-m$4', ]," >> "$2"
+  else
   echo "      'cflags': [ '-m$4', ]," >> "$2"
   echo "      'xcode_settings': { 'OTHER_CFLAGS': [ '-m$4' ] }," >> "$2"
-  if [[ $4 == avx2 ]]; then
+  fi
+  if [[ -z $DISABLE_AVX && $4 == avx ]]; then
+  echo "      'msvs_settings': {" >> "$2"
+  echo "        'VCCLCompilerTool': {" >> "$2"
+  echo "          'EnableEnhancedInstructionSet': '3', # /arch:AVX" >> "$2"
+  echo "        }," >> "$2"
+  echo "      }," >> "$2"
+  fi
+  if [[ -z $DISABLE_AVX && $4 == avx2 ]]; then
   echo "      'msvs_settings': {" >> "$2"
   echo "        'VCCLCompilerTool': {" >> "$2"
   echo "          'EnableEnhancedInstructionSet': '5', # /arch:AVX2" >> "$2"
   echo "        }," >> "$2"
   echo "      }," >> "$2"
-  echo "      # TODO(pcc): Remove this once we properly support subtarget specific" >> "$2"
-  echo "      # code generation in LLVM (http://llvm.org/PR19416)." >> "$2"
-  echo "      'cflags!': [ '-flto', '-fsanitize=cfi-vptr', ]," >> "$2"
-  elif [[ $4 == ssse3 || $4 == sse4.1 ]]; then
+  fi
+  if [[ $4 == ssse3 || $4 == sse4.1 ]]; then
   echo "      'conditions': [" >> "$2"
   echo "        ['OS==\"win\" and clang==1', {" >> "$2"
   echo "          # cl.exe's /arch flag doesn't have a setting for SSSE3/4, and cl.exe" >> "$2"
@@ -186,12 +239,10 @@ function write_intrinsics_gypi {
   if [ 0 -ne ${#sse4_1_sources} ]; then
     write_target_definition sse4_1_sources[@] "$2" libvpx_intrinsics_sse4_1 sse4.1
   fi
-  if [ 0 -ne ${#avx_sources} ]; then
-    #write_target_definition avx_sources[@] "$2" libvpx_intrinsics_avx avx
-    echo "ERROR: Uncomment avx sections in libvpx.gyp"
-    exit 1
+  if [[ -z $DISABLE_AVX && 0 -ne ${#avx_sources} ]]; then
+    write_target_definition avx_sources[@] "$2" libvpx_intrinsics_avx avx
   fi
-  if [ 0 -ne ${#avx2_sources} ]; then
+  if [[ -z $DISABLE_AVX && 0 -ne ${#avx2_sources} ]]; then
     write_target_definition avx2_sources[@] "$2" libvpx_intrinsics_avx2 avx2
   fi
 
@@ -270,8 +321,10 @@ function convert_srcs_to_project_files {
     write_gni sse3_sources $2_sse3 "$BASE_DIR/libvpx_srcs.gni"
     write_gni ssse3_sources $2_ssse3 "$BASE_DIR/libvpx_srcs.gni"
     write_gni sse4_1_sources $2_sse4_1 "$BASE_DIR/libvpx_srcs.gni"
-    write_gni avx_sources $2_avx "$BASE_DIR/libvpx_srcs.gni"
-    write_gni avx2_sources $2_avx2 "$BASE_DIR/libvpx_srcs.gni"
+    if [ -z "$DISABLE_AVX" ]; then
+      write_gni avx_sources $2_avx "$BASE_DIR/libvpx_srcs.gni"
+      write_gni avx2_sources $2_avx2 "$BASE_DIR/libvpx_srcs.gni"
+    fi
   else
     local c_sources=$(echo "$source_list" | egrep '.(c|h)$')
     local assembly_sources=$(echo -e "$source_list\n$intrinsic_list" | \
@@ -344,28 +397,28 @@ function gen_rtcd_header {
 
   $BASE_DIR/$LIBVPX_SRC_DIR/build/make/rtcd.pl \
     --arch=$2 \
-    --sym=vp8_rtcd \
+    --sym=vp8_rtcd $DISABLE_AVX \
     --config=$BASE_DIR/$TEMP_DIR/libvpx.config \
     $BASE_DIR/$LIBVPX_SRC_DIR/vp8/common/rtcd_defs.pl \
     > $BASE_DIR/$LIBVPX_CONFIG_DIR/$1/vp8_rtcd.h
 
   $BASE_DIR/$LIBVPX_SRC_DIR/build/make/rtcd.pl \
     --arch=$2 \
-    --sym=vp9_rtcd \
+    --sym=vp9_rtcd $DISABLE_AVX \
     --config=$BASE_DIR/$TEMP_DIR/libvpx.config \
     $BASE_DIR/$LIBVPX_SRC_DIR/vp9/common/vp9_rtcd_defs.pl \
     > $BASE_DIR/$LIBVPX_CONFIG_DIR/$1/vp9_rtcd.h
 
   $BASE_DIR/$LIBVPX_SRC_DIR/build/make/rtcd.pl \
     --arch=$2 \
-    --sym=vpx_scale_rtcd \
+    --sym=vpx_scale_rtcd $DISABLE_AVX \
     --config=$BASE_DIR/$TEMP_DIR/libvpx.config \
     $BASE_DIR/$LIBVPX_SRC_DIR/vpx_scale/vpx_scale_rtcd.pl \
     > $BASE_DIR/$LIBVPX_CONFIG_DIR/$1/vpx_scale_rtcd.h
 
   $BASE_DIR/$LIBVPX_SRC_DIR/build/make/rtcd.pl \
     --arch=$2 \
-    --sym=vpx_dsp_rtcd \
+    --sym=vpx_dsp_rtcd $DISABLE_AVX \
     --config=$BASE_DIR/$TEMP_DIR/libvpx.config \
     $BASE_DIR/$LIBVPX_SRC_DIR/vpx_dsp/vpx_dsp_rtcd_defs.pl \
     > $BASE_DIR/$LIBVPX_CONFIG_DIR/$1/vpx_dsp_rtcd.h
@@ -380,7 +433,7 @@ function gen_rtcd_header {
 function gen_config_files {
   ./configure $2 > /dev/null
 
-  # Disable HAVE_UNISTD_H as it causes vp8 to try to detect how many cpus 
+  # Disable HAVE_UNISTD_H as it causes vp8 to try to detect how many cpus
   # available, which doesn't work from iniside a sandbox on linux.
   ( echo '/HAVE_UNISTD_H/s/[01]/0/' ; echo 'w' ; echo 'q' ) | ed -s vpx_config.h
 
@@ -398,6 +451,8 @@ function gen_config_files {
   rm -rf vpx_config.*
 }
 
+find_duplicates
+
 echo "Create temporary directory."
 TEMP_DIR="$LIBVPX_SRC_DIR.temp"
 rm -rf $TEMP_DIR
@@ -405,7 +460,7 @@ cp -R $LIBVPX_SRC_DIR $TEMP_DIR
 cd $TEMP_DIR
 
 echo "Generate config files."
-all_platforms="--enable-external-build --enable-postproc --disable-install-srcs --enable-multi-res-encoding --enable-temporal-denoising --disable-unit-tests --disable-install-docs --disable-examples --enable-vp9-temporal-denoising --enable-vp9-postproc --size-limit=16384x16384"
+all_platforms="--enable-external-build --enable-postproc --disable-install-srcs --enable-multi-res-encoding --enable-temporal-denoising --disable-unit-tests --disable-install-docs --disable-examples --enable-vp9-temporal-denoising --enable-vp9-postproc --size-limit=16384x16384 $DISABLE_AVX --as=yasm"
 gen_config_files linux/ia32 "--target=x86-linux-gcc --disable-ccache --enable-pic --enable-realtime-only ${all_platforms}"
 gen_config_files linux/x64 "--target=x86_64-linux-gcc --disable-ccache --enable-pic --enable-realtime-only ${all_platforms}"
 gen_config_files linux/arm "--target=armv6-linux-gcc --enable-pic --enable-realtime-only --disable-install-bins --disable-install-libs --disable-edsp ${all_platforms}"
@@ -466,71 +521,83 @@ echo "Prepare Makefile."
 ./configure --target=generic-gnu > /dev/null
 make_clean
 
-# Remove existing .gni file.
-rm -rf $BASE_DIR/libvpx_srcs.gni
-write_license $BASE_DIR/libvpx_srcs.gni
+if [ -z $ONLY_CONFIGS ]; then
+  # Remove existing .gni file.
+  rm -rf $BASE_DIR/libvpx_srcs.gni
+  write_license $BASE_DIR/libvpx_srcs.gni
 
-echo "Generate X86 source list."
-config=$(print_config linux/ia32)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_x86
+  echo "Generate X86 source list."
+  config=$(print_config linux/ia32)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_x86
 
-# Copy vpx_version.h. The file should be the same for all platforms.
-cp vpx_version.h $BASE_DIR/$LIBVPX_CONFIG_DIR
+  # Copy vpx_version.h. The file should be the same for all platforms.
+  cp vpx_version.h $BASE_DIR/$LIBVPX_CONFIG_DIR
 
-echo "Generate X86_64 source list."
-config=$(print_config linux/x64)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_x86_64
+  echo "Generate X86_64 source list."
+  config=$(print_config linux/x64)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_x86_64
 
-echo "Generate ARM source list."
-config=$(print_config linux/arm)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm
+  echo "Generate ARM source list."
+  config=$(print_config linux/arm)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm
 
-echo "Generate ARM NEON source list."
-config=$(print_config linux/arm-neon)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm_neon
+  echo "Generate ARM NEON source list."
+  config=$(print_config linux/arm-neon)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm_neon
 
-echo "Generate ARM NEON CPU DETECT source list."
-config=$(print_config linux/arm-neon-cpu-detect)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm_neon_cpu_detect
+  echo "Generate ARM NEON CPU DETECT source list."
+  config=$(print_config linux/arm-neon-cpu-detect)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm_neon_cpu_detect
 
-echo "Generate ARM64 source list."
-config=$(print_config linux/arm64)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm64
+  echo "Generate ARM64 source list."
+  config=$(print_config linux/arm64)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_arm64
 
-echo "Generate MIPS source list."
-config=$(print_config_basic linux/mipsel)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_mips
+  echo "Generate MIPS source list."
+  config=$(print_config_basic linux/mipsel)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_mips
 
-echo "MIPS64 source list is identical to MIPS source list. No need to generate it."
+  echo "MIPS64 source list is identical to MIPS source list. No need to generate it."
 
-echo "Generate NaCl source list."
-config=$(print_config_basic nacl)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_nacl
+  echo "Generate NaCl source list."
+  config=$(print_config_basic nacl)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_nacl
 
-echo "Generate GENERIC source list."
-config=$(print_config_basic linux/generic)
-make_clean
-make libvpx_srcs.txt target=libs $config > /dev/null
-convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_generic
+  echo "Generate GENERIC source list."
+  config=$(print_config_basic linux/generic)
+  make_clean
+  make libvpx_srcs.txt target=libs $config > /dev/null
+  convert_srcs_to_project_files libvpx_srcs.txt libvpx_srcs_generic
+fi
 
 echo "Remove temporary directory."
 cd $BASE_DIR
 rm -rf $TEMP_DIR
+
+gn format --in-place $BASE_DIR/BUILD.gn
+gn format --in-place $BASE_DIR/libvpx_srcs.gni
+
+cd $BASE_DIR/$LIBVPX_SRC_DIR
+echo
+echo "Update README.chromium:"
+git log -1 --format="%cd%nCommit: %H" --date=format:"Date: %A %B %d %Y"
+
+cd $BASE_DIR
 
 # TODO(fgalligan): Can we turn on "--enable-realtime-only" for mipsel?

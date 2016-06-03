@@ -48,6 +48,18 @@
     'shared_generated_dir': '<(SHARED_INTERMEDIATE_DIR)/third_party/libvpx',
   },
   'target_defaults': {
+    'conditions': [
+      ['target_arch=="arm" and clang==1', {
+        # TODO(hans) Enable integrated-as (crbug.com/124610).
+        'cflags': [ '-fno-integrated-as' ],
+        'conditions': [
+          ['OS == "android"', {
+            # Else /usr/bin/as gets picked up.
+            'cflags': [ '-B<(android_toolchain)' ],
+          }],
+        ],
+      }],
+    ],
     'target_conditions': [
       ['<(libvpx_build_vp9)==0', {
         'sources/': [ ['exclude', '(^|/)vp9/'], ],
@@ -55,9 +67,8 @@
     ],
     'variables': {
       'conditions': [
-        ['OS=="win" and buildtype=="Official"', {
-          # Do not set to 'size', as it results in an error on win64.
-          'optimize' :'speed',
+        ['OS=="win"', {
+          'optimize' :'max',
         }],
       ],
       'clang_warning_flags': [
@@ -65,6 +76,8 @@
         '-Wno-conversion',
         # libvpx does `if ((a == b))` in some places.
         '-Wno-parentheses-equality',
+        # libvpx has many static functions in header, which trigger this warning
+        '-Wno-unused-function',
       ],
       'clang_warning_flags_unset': [
         # libvpx does assert(!"foo"); in some places.
@@ -146,8 +159,7 @@
                 #'libvpx_intrinsics_sse3',
                 'libvpx_intrinsics_ssse3',
                 'libvpx_intrinsics_sse4_1',
-                # Currently no avx intrinsic functions
-                #'libvpx_intrinsics_avx',
+                'libvpx_intrinsics_avx',
                 'libvpx_intrinsics_avx2',
               ],
             }],
@@ -169,8 +181,7 @@
                     #'libvpx_intrinsics_sse3',
                     'libvpx_intrinsics_ssse3',
                     'libvpx_intrinsics_sse4_1',
-                    # Currently no avx intrinsic functions
-                    #'libvpx_intrinsics_avx',
+                    'libvpx_intrinsics_avx',
                     'libvpx_intrinsics_avx2',
                   ],
                 }],

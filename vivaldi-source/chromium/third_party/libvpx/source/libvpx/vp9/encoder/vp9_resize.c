@@ -15,6 +15,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "./vpx_config.h"
+#if CONFIG_VP9_HIGHBITDEPTH
+#include "vpx_dsp/vpx_dsp_common.h"
+#endif  // CONFIG_VP9_HIGHBITDEPTH
 #include "vpx_ports/mem.h"
 #include "vp9/common/vp9_common.h"
 #include "vp9/encoder/vp9_resize.h"
@@ -445,7 +449,7 @@ static void resize_multistep(const uint8_t *const input,
                              uint8_t *buf) {
   int steps;
   if (length == olength) {
-    memcpy(output, input, sizeof(uint8_t) * length);
+    memcpy(output, input, sizeof(output[0]) * length);
     return;
   }
   steps = get_down2_steps(length, olength);
@@ -458,6 +462,7 @@ static void resize_multistep(const uint8_t *const input,
     int filteredlength = length;
     if (!tmpbuf) {
       tmpbuf = (uint8_t *)malloc(sizeof(uint8_t) * length);
+      if (tmpbuf == NULL) return;
       otmp = tmpbuf;
     } else {
       otmp = buf;
@@ -517,6 +522,7 @@ void vp9_resize_plane(const uint8_t *const input,
   uint8_t *tmpbuf = (uint8_t *)malloc(sizeof(uint8_t) *
                                       (width < height ? height : width));
   uint8_t *arrbuf = (uint8_t *)malloc(sizeof(uint8_t) * (height + height2));
+  if (intbuf == NULL || tmpbuf == NULL || arrbuf == NULL) goto Error;
   assert(width > 0);
   assert(height > 0);
   assert(width2 > 0);
@@ -529,6 +535,8 @@ void vp9_resize_plane(const uint8_t *const input,
     resize_multistep(arrbuf, height, arrbuf + height, height2, tmpbuf);
     fill_arr_to_col(output + i, out_stride, height2, arrbuf + height);
   }
+
+ Error:
   free(intbuf);
   free(tmpbuf);
   free(arrbuf);
@@ -738,7 +746,7 @@ static void highbd_resize_multistep(const uint16_t *const input,
                                     int bd) {
   int steps;
   if (length == olength) {
-    memcpy(output, input, sizeof(uint16_t) * length);
+    memcpy(output, input, sizeof(output[0]) * length);
     return;
   }
   steps = get_down2_steps(length, olength);
@@ -751,6 +759,7 @@ static void highbd_resize_multistep(const uint16_t *const input,
     int filteredlength = length;
     if (!tmpbuf) {
       tmpbuf = (uint16_t *)malloc(sizeof(uint16_t) * length);
+      if (tmpbuf == NULL) return;
       otmp = tmpbuf;
     } else {
       otmp = buf;
@@ -813,6 +822,7 @@ void vp9_highbd_resize_plane(const uint8_t *const input,
   uint16_t *tmpbuf = (uint16_t *)malloc(sizeof(uint16_t) *
                                         (width < height ? height : width));
   uint16_t *arrbuf = (uint16_t *)malloc(sizeof(uint16_t) * (height + height2));
+  if (intbuf == NULL || tmpbuf == NULL || arrbuf == NULL) goto Error;
   for (i = 0; i < height; ++i) {
     highbd_resize_multistep(CONVERT_TO_SHORTPTR(input + in_stride * i), width,
                             intbuf + width2 * i, width2, tmpbuf, bd);
@@ -824,6 +834,8 @@ void vp9_highbd_resize_plane(const uint8_t *const input,
     highbd_fill_arr_to_col(CONVERT_TO_SHORTPTR(output + i), out_stride, height2,
                            arrbuf + height);
   }
+
+ Error:
   free(intbuf);
   free(tmpbuf);
   free(arrbuf);

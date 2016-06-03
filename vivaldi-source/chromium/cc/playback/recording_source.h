@@ -5,16 +5,28 @@
 #ifndef CC_PLAYBACK_RECORDING_SOURCE_H_
 #define CC_PLAYBACK_RECORDING_SOURCE_H_
 
+#include <stddef.h>
+
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
+#include "base/memory/scoped_ptr.h"
 #include "cc/base/cc_export.h"
+#include "cc/base/invalidation_region.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
 namespace cc {
+
+namespace proto {
+class RecordingSource;
+}  // namespace proto
+
 class ContentLayerClient;
-class Region;
+class DisplayItemList;
 class RasterSource;
+class ImageSerializationProcessor;
+class Region;
 
 class CC_EXPORT RecordingSource {
  public:
@@ -26,36 +38,69 @@ class CC_EXPORT RecordingSource {
     RECORD_WITH_PAINTING_DISABLED,
     RECORD_WITH_CACHING_DISABLED,
     RECORD_WITH_CONSTRUCTION_DISABLED,
+    RECORD_WITH_SUBSEQUENCE_CACHING_DISABLED,
     RECORDING_MODE_COUNT,  // Must be the last entry.
   };
 
-  virtual ~RecordingSource() {}
-  // Re-record parts of the picture that are invalid.
-  // Invalidations are in layer space, and will be expanded to cover everything
-  // that was either recorded/changed or that has no recording, leaving out only
-  // pieces that we had a recording for and it was not changed.
-  // Return true iff the pile was modified.
-  virtual bool UpdateAndExpandInvalidation(ContentLayerClient* painter,
-                                           Region* invalidation,
-                                           const gfx::Size& layer_size,
-                                           const gfx::Rect& visible_layer_rect,
-                                           int frame_number,
-                                           RecordingMode recording_mode) = 0;
+  RecordingSource();
+  virtual ~RecordingSource();
 
+  void ToProtobuf(
+      proto::RecordingSource* proto,
+      ImageSerializationProcessor* image_serialization_processor) const;
+  void FromProtobuf(const proto::RecordingSource& proto,
+                    ImageSerializationProcessor* image_serialization_processor);
+
+  bool UpdateAndExpandInvalidation(ContentLayerClient* painter,
+                                   Region* invalidation,
+                                   const gfx::Size& layer_size,
+                                   int frame_number,
+                                   RecordingMode recording_mode);
+  gfx::Size GetSize() const;
+  void SetEmptyBounds();
+  void SetSlowdownRasterScaleFactor(int factor);
+  void SetGenerateDiscardableImagesMetadata(bool generate_metadata);
+  void SetBackgroundColor(SkColor background_color);
+  void SetRequiresClear(bool requires_clear);
+
+  void SetNeedsDisplayRect(const gfx::Rect& layer_rect);
+
+  // These functions are virtual for testing.
   virtual scoped_refptr<RasterSource> CreateRasterSource(
-      bool can_use_lcd_text) const = 0;
+      bool can_use_lcd_text) const;
+  virtual bool IsSuitableForGpuRasterization() const;
 
-  virtual gfx::Size GetSize() const = 0;
-  virtual void SetEmptyBounds() = 0;
-  virtual void SetSlowdownRasterScaleFactor(int factor) = 0;
-  virtual void SetGatherPixelRefs(bool gather_pixel_refs) = 0;
-  virtual void SetBackgroundColor(SkColor background_color) = 0;
-  virtual void SetRequiresClear(bool requires_clear) = 0;
-  virtual bool IsSuitableForGpuRasterization() const = 0;
+  gfx::Rect recorded_viewport() const { return recorded_viewport_; }
 
-  // TODO(hendrikw): Figure out how to remove this.
-  virtual void SetUnsuitableForGpuRasterizationForTesting() = 0;
-  virtual gfx::Size GetTileGridSizeForTesting() const = 0;
+ protected:
+  void Clear();
+
+  gfx::Rect recorded_viewport_;
+  gfx::Size size_;
+  int slow_down_raster_scale_factor_for_debug_;
+  bool generate_discardable_images_metadata_;
+  bool requires_clear_;
+  bool is_solid_color_;
+  bool clear_canvas_with_debug_color_;
+  SkColor solid_color_;
+  SkColor background_color_;
+
+  scoped_refptr<DisplayItemList> display_list_;
+  size_t painter_reported_memory_usage_;
+
+ private:
+  void UpdateInvalidationForNewViewport(const gfx::Rect& old_recorded_viewport,
+                                        const gfx::Rect& new_recorded_viewport,
+                                        Region* invalidation);
+  void FinishDisplayItemListUpdate();
+
+  friend class RasterSource;
+
+  void DetermineIfSolidColor();
+
+  InvalidationRegion invalidation_;
+
+  DISALLOW_COPY_AND_ASSIGN(RecordingSource);
 };
 
 }  // namespace cc
