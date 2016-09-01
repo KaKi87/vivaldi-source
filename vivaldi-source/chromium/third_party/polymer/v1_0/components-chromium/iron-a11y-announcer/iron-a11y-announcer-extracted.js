@@ -1,6 +1,4 @@
-
-
-    (function() {
+(function() {
       'use strict';
 
       Polymer.IronA11yAnnouncer = Polymer({
@@ -55,11 +53,9 @@
 
       Polymer.IronA11yAnnouncer.requestAvailability = function() {
         if (!Polymer.IronA11yAnnouncer.instance) {
-          document.createElement('iron-a11y-announcer');
+          Polymer.IronA11yAnnouncer.instance = document.createElement('iron-a11y-announcer');
         }
 
         document.body.appendChild(Polymer.IronA11yAnnouncer.instance);
       };
     })();
-
-  
