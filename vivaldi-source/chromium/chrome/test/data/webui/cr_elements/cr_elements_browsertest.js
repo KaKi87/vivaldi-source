@@ -1,8 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/** @fileoverview Runs the Chromium Polymer elements tests. */
+/** @fileoverview Tests for shared Polymer elements. */
 
 /** @const {string} Path to source root. */
 var ROOT_PATH = '../../../../../';
@@ -12,7 +12,7 @@ GEN_INCLUDE(
     [ROOT_PATH + 'chrome/test/data/webui/polymer_browser_test_base.js']);
 
 /**
- * Test fixture for Chromium Polymer elements.
+ * Test fixture for shared Polymer elements.
  * @constructor
  * @extends {PolymerTest}
 */
@@ -21,17 +21,78 @@ function CrElementsBrowserTest() {}
 CrElementsBrowserTest.prototype = {
   __proto__: PolymerTest.prototype,
 
-  // List tests for individual elements.
-  extraLibraries: PolymerTest.getLibraries(ROOT_PATH).concat([
-    'cr_checkbox_tests.js',
+  /** @override */
+  extraLibraries: PolymerTest.getLibraries(ROOT_PATH),
+
+  /** @override */
+  get browsePreload() {
+    throw 'this is abstract and should be overriden by subclasses';
+  },
+
+  /** @override */
+  setUp: function() {
+    PolymerTest.prototype.setUp.call(this);
+    // We aren't loading the main document.
+    this.accessibilityAuditConfig.ignoreSelectors('humanLangMissing', 'html');
+  },
+};
+
+function CrElementsProfileAvatarSelectorTest() {}
+
+CrElementsProfileAvatarSelectorTest.prototype = {
+  __proto__: CrElementsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload:
+      'chrome://resources/cr_elements/cr_profile_avatar_selector/' +
+      'cr_profile_avatar_selector.html',
+
+  /** @override */
+  extraLibraries: CrElementsBrowserTest.prototype.extraLibraries.concat([
+    'cr_profile_avatar_selector_tests.js',
   ]),
 };
 
-// Runs all tests.
-TEST_F('CrElementsBrowserTest', 'CrElementsTest', function() {
-  // Register mocha tests for each element.
-  cr_checkbox.registerTests();
+TEST_F('CrElementsProfileAvatarSelectorTest', 'All', function() {
+  cr_profile_avatar_selector.registerTests();
+  mocha.run();
+});
 
-  // Run all registered tests.
+function CrElementsToolbarSearchFieldTest() {}
+
+CrElementsToolbarSearchFieldTest.prototype = {
+  __proto__: CrElementsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload:
+      'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.html',
+
+  /** @override */
+  extraLibraries: CrElementsBrowserTest.prototype.extraLibraries.concat([
+    'cr_toolbar_search_field_tests.js',
+  ]),
+};
+
+TEST_F('CrElementsToolbarSearchFieldTest', 'All', function() {
+  cr_toolbar_search_field.registerTests();
+  mocha.run();
+});
+
+function CrElementsSliderTest() {}
+
+CrElementsSliderTest.prototype = {
+  __proto__: CrElementsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://resources/cr_elements/cr_slider/cr_slider.html',
+
+  /** @override */
+  extraLibraries: CrElementsBrowserTest.prototype.extraLibraries.concat([
+    'cr_slider_tests.js',
+  ]),
+};
+
+TEST_F('CrElementsSliderTest', 'All', function() {
+  cr_slider.registerTests();
   mocha.run();
 });
