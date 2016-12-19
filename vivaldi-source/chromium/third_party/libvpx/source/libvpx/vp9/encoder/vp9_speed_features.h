@@ -18,17 +18,14 @@ extern "C" {
 #endif
 
 enum {
-  INTRA_ALL       = (1 << DC_PRED) |
-                    (1 << V_PRED) | (1 << H_PRED) |
-                    (1 << D45_PRED) | (1 << D135_PRED) |
-                    (1 << D117_PRED) | (1 << D153_PRED) |
-                    (1 << D207_PRED) | (1 << D63_PRED) |
-                    (1 << TM_PRED),
-  INTRA_DC        = (1 << DC_PRED),
-  INTRA_DC_TM     = (1 << DC_PRED) | (1 << TM_PRED),
-  INTRA_DC_H_V    = (1 << DC_PRED) | (1 << V_PRED) | (1 << H_PRED),
-  INTRA_DC_TM_H_V = (1 << DC_PRED) | (1 << TM_PRED) | (1 << V_PRED) |
-                    (1 << H_PRED)
+  INTRA_ALL = (1 << DC_PRED) | (1 << V_PRED) | (1 << H_PRED) | (1 << D45_PRED) |
+              (1 << D135_PRED) | (1 << D117_PRED) | (1 << D153_PRED) |
+              (1 << D207_PRED) | (1 << D63_PRED) | (1 << TM_PRED),
+  INTRA_DC = (1 << DC_PRED),
+  INTRA_DC_TM = (1 << DC_PRED) | (1 << TM_PRED),
+  INTRA_DC_H_V = (1 << DC_PRED) | (1 << V_PRED) | (1 << H_PRED),
+  INTRA_DC_TM_H_V =
+      (1 << DC_PRED) | (1 << TM_PRED) | (1 << V_PRED) | (1 << H_PRED)
 };
 
 enum {
@@ -42,20 +39,15 @@ enum {
 };
 
 enum {
-  DISABLE_ALL_INTER_SPLIT   = (1 << THR_COMP_GA) |
-                              (1 << THR_COMP_LA) |
-                              (1 << THR_ALTR) |
-                              (1 << THR_GOLD) |
-                              (1 << THR_LAST),
+  DISABLE_ALL_INTER_SPLIT = (1 << THR_COMP_GA) | (1 << THR_COMP_LA) |
+                            (1 << THR_ALTR) | (1 << THR_GOLD) | (1 << THR_LAST),
 
-  DISABLE_ALL_SPLIT         = (1 << THR_INTRA) | DISABLE_ALL_INTER_SPLIT,
+  DISABLE_ALL_SPLIT = (1 << THR_INTRA) | DISABLE_ALL_INTER_SPLIT,
 
-  DISABLE_COMPOUND_SPLIT    = (1 << THR_COMP_GA) | (1 << THR_COMP_LA),
+  DISABLE_COMPOUND_SPLIT = (1 << THR_COMP_GA) | (1 << THR_COMP_LA),
 
-  LAST_AND_INTRA_SPLIT_ONLY = (1 << THR_COMP_GA) |
-                              (1 << THR_COMP_LA) |
-                              (1 << THR_ALTR) |
-                              (1 << THR_GOLD)
+  LAST_AND_INTRA_SPLIT_ONLY = (1 << THR_COMP_GA) | (1 << THR_COMP_LA) |
+                              (1 << THR_ALTR) | (1 << THR_GOLD)
 };
 
 typedef enum {
@@ -245,6 +237,13 @@ typedef struct SPEED_FEATURES {
 
   // Coefficient probability model approximation step size
   int coeff_prob_appx_step;
+
+  // Enable uniform quantizer followed by trellis coefficient optimization
+  int quant_coeff_opt;
+
+  // Use transform domain distortion. Use pixel domain distortion in speed 0
+  // and certain situations in higher speed to improve the RD model precision.
+  int txfm_domain_distortion;
 
   // The threshold is to determine how slow the motino is, it is used when
   // use_lastframe_partitioning is set to LAST_FRAME_PARTITION_LOW_MOTION
@@ -454,6 +453,17 @@ typedef struct SPEED_FEATURES {
   // INTRA for bsize >= 32x32 and vert/horz INTRA for bsize 16x16, 16x32 and
   // 32x16.
   int short_circuit_low_temp_var;
+
+  // Limits the rd-threshold update for early exit for the newmv-last mode,
+  // for non-rd mode.
+  int limit_newmv_early_exit;
+
+  // Adds a bias against golden reference, for non-rd mode.
+  int bias_golden;
+
+  // Bias to use base mv and skip 1/4 subpel search when use base mv in
+  // enhancement layer.
+  int base_mv_aggressive;
 } SPEED_FEATURES;
 
 struct VP9_COMP;

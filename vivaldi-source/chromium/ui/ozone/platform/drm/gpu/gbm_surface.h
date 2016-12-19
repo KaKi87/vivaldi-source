@@ -1,58 +1,53 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef UI_OZONE_PLATFORM_DRM_GPU_GBM_SURFACE_H_
 #define UI_OZONE_PLATFORM_DRM_GPU_GBM_SURFACE_H_
 
-#include "base/macros.h"
-#include "base/memory/weak_ptr.h"
-#include "ui/gfx/geometry/size.h"
-#include "ui/ozone/platform/drm/gpu/gbm_surfaceless.h"
-#include "ui/ozone/public/surface_ozone_egl.h"
+#include <memory>
 
-struct gbm_bo;
-struct gbm_surface;
+#include "base/macros.h"
+#include "base/memory/ref_counted.h"
+#include "ui/gl/gl_context.h"
+#include "ui/gl/gl_image.h"
+#include "ui/ozone/platform/drm/gpu/gbm_surfaceless.h"
 
 namespace ui {
 
-class DrmBuffer;
-class DrmWindow;
-class GbmDevice;
+class DrmWindowProxy;
+class GbmSurfaceFactory;
 
-// Extends the GBM surfaceless functionality and adds an implicit surface for
-// the primary plane. Arbitrary buffers can still be allocated and displayed as
-// overlay planes, however the primary plane is associated with the native
-// surface and is updated via an EGLSurface.
+// A GLSurface for GBM Ozone platform provides surface-like semantics
+// implemented through surfaceless. A framebuffer is bound automatically.
 class GbmSurface : public GbmSurfaceless {
  public:
-  GbmSurface(DrmWindow* window, const scoped_refptr<GbmDevice>& gbm);
-  ~GbmSurface() override;
+  GbmSurface(GbmSurfaceFactory* surface_factory,
+             std::unique_ptr<DrmWindowProxy> window,
+             gfx::AcceleratedWidget widget);
 
-  bool Initialize();
-
-  // GbmSurfaceless:
-  intptr_t GetNativeWindow() override;
-  bool ResizeNativeWindow(const gfx::Size& viewport_size) override;
-  bool OnSwapBuffers() override;
-  bool OnSwapBuffersAsync(const SwapCompletionCallback& callback) override;
+  // gl::GLSurface:
+  unsigned int GetBackingFramebufferObject() override;
+  bool OnMakeCurrent(gl::GLContext* context) override;
+  bool Resize(const gfx::Size& size,
+              float scale_factor,
+              bool has_alpha) override;
+  bool SupportsPostSubBuffer() override;
+  void SwapBuffersAsync(const SwapCompletionCallback& callback) override;
+  void Destroy() override;
+  bool IsSurfaceless() const override;
 
  private:
-  void OnSwapBuffersCallback(const SwapCompletionCallback& callback,
-                             gbm_bo* pending_buffer,
-                             gfx::SwapResult result);
+  ~GbmSurface() override;
 
-  scoped_refptr<GbmDevice> gbm_;
+  void BindFramebuffer();
+  bool CreatePixmaps();
 
-  // The native GBM surface. In EGL this represents the EGLNativeWindowType.
-  gbm_surface* native_surface_;
-
-  // Buffer currently used for scanout.
-  gbm_bo* current_buffer_;
-
-  gfx::Size size_;
-
-  base::WeakPtrFactory<GbmSurface> weak_factory_;
+  scoped_refptr<gl::GLContext> context_;
+  GLuint fbo_ = 0;
+  GLuint textures_[2];
+  scoped_refptr<gl::GLImage> images_[2];
+  int current_surface_ = 0;
 
   DISALLOW_COPY_AND_ASSIGN(GbmSurface);
 };

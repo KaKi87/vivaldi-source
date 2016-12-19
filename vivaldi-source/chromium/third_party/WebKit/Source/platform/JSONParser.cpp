@@ -1,39 +1,13 @@
-/*
- * Copyright (C) 2010 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2016 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #include "platform/JSONParser.h"
 
 #include "platform/Decimal.h"
 #include "platform/JSONValues.h"
 #include "wtf/text/StringBuilder.h"
-#include "wtf/text/UTF8.h"
+#include "wtf/text/StringToNumber.h"
 
 namespace blink {
 
@@ -319,52 +293,8 @@ inline int hexToInt(CharType c)
         return c - 'A' + 10;
     if ('a' <= c && c <= 'f')
         return c - 'a' + 10;
-    ASSERT_NOT_REACHED();
+    NOTREACHED();
     return 0;
-}
-
-template<typename CharType>
-bool decodeUTF8(const CharType* start, const CharType* end, const CharType** utf8charEnd, StringBuilder* output)
-{
-    UChar utf16[4] = {0};
-    char utf8[6] = {0};
-    size_t utf8count = 0;
-
-    while (start < end) {
-        if (start + 1 >= end || *start != '\\' || *(start + 1) != 'x')
-            return false;
-        start += 2;
-
-        // Accumulate one more utf8 character and try converting to utf16.
-        if (start + 1 >= end)
-            return false;
-        utf8[utf8count++] = (hexToInt(*start) << 4) + hexToInt(*(start + 1));
-        start += 2;
-
-        const char* utf8start = utf8;
-        UChar* utf16start = utf16;
-        WTF::Unicode::ConversionResult conversionResult = WTF::Unicode::convertUTF8ToUTF16(&utf8start, utf8start + utf8count, &utf16start, utf16start + WTF_ARRAY_LENGTH(utf16), nullptr, true);
-
-        if (conversionResult == WTF::Unicode::sourceIllegal)
-            return false;
-
-        if (conversionResult == WTF::Unicode::conversionOK) {
-            // Not all utf8 characters were consumed - failed parsing.
-            if (utf8start != utf8 + utf8count)
-                return false;
-
-            size_t utf16length = utf16start - utf16;
-            output->append(utf16, utf16length);
-            *utf8charEnd = start;
-            return true;
-        }
-
-        // Keep accumulating utf8 characters up to buffer length (6 should be enough).
-        if (utf8count >= WTF_ARRAY_LENGTH(utf8))
-            return false;
-    }
-
-    return false;
 }
 
 template<typename CharType>
@@ -379,10 +309,8 @@ bool decodeString(const CharType* start, const CharType* end, StringBuilder* out
         c = *start++;
 
         if (c == 'x') {
-            // Rewind "\x".
-            if (!decodeUTF8(start - 2, end, &start, output))
-                return false;
-            continue;
+            // \x is not supported.
+            return false;
         }
 
         switch (c) {
@@ -444,12 +372,12 @@ bool decodeString(const CharType* start, const CharType* end, String* output)
 }
 
 template<typename CharType>
-PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, const CharType** valueTokenEnd, int depth)
+std::unique_ptr<JSONValue> buildValue(const CharType* start, const CharType* end, const CharType** valueTokenEnd, int depth)
 {
     if (depth > stackLimit)
         return nullptr;
 
-    RefPtr<JSONValue> result;
+    std::unique_ptr<JSONValue> result;
     const CharType* tokenStart;
     const CharType* tokenEnd;
     Token token = parseToken(start, end, &tokenStart, &tokenEnd);
@@ -472,7 +400,11 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
             ok = false;
         if (!ok)
             return nullptr;
-        result = JSONBasicValue::create(value);
+        int number = static_cast<int>(value);
+        if (number == value)
+            result = JSONBasicValue::create(number);
+        else
+            result = JSONBasicValue::create(value);
         break;
     }
     case StringLiteral: {
@@ -484,14 +416,14 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
         break;
     }
     case ArrayBegin: {
-        RefPtr<JSONArray> array = JSONArray::create();
+        std::unique_ptr<JSONArray> array = JSONArray::create();
         start = tokenEnd;
         token = parseToken(start, end, &tokenStart, &tokenEnd);
         while (token != ArrayEnd) {
-            RefPtr<JSONValue> arrayNode = buildValue(start, end, &tokenEnd, depth + 1);
+            std::unique_ptr<JSONValue> arrayNode = buildValue(start, end, &tokenEnd, depth + 1);
             if (!arrayNode)
                 return nullptr;
-            array->pushValue(arrayNode);
+            array->pushValue(std::move(arrayNode));
 
             // After a list value, we expect a comma or the end of the list.
             start = tokenEnd;
@@ -508,11 +440,11 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
         }
         if (token != ArrayEnd)
             return nullptr;
-        result = array.release();
+        result = std::move(array);
         break;
     }
     case ObjectBegin: {
-        RefPtr<JSONObject> object = JSONObject::create();
+        std::unique_ptr<JSONObject> object = JSONObject::create();
         start = tokenEnd;
         token = parseToken(start, end, &tokenStart, &tokenEnd);
         while (token != ObjectEnd) {
@@ -528,10 +460,10 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
                 return nullptr;
             start = tokenEnd;
 
-            RefPtr<JSONValue> value = buildValue(start, end, &tokenEnd, depth + 1);
+            std::unique_ptr<JSONValue> value = buildValue(start, end, &tokenEnd, depth + 1);
             if (!value)
                 return nullptr;
-            object->setValue(key, value);
+            object->setValue(key, std::move(value));
             start = tokenEnd;
 
             // After a key/value pair, we expect a comma or the end of the
@@ -549,7 +481,7 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
         }
         if (token != ObjectEnd)
             return nullptr;
-        result = object.release();
+        result = std::move(object);
         break;
     }
 
@@ -559,23 +491,23 @@ PassRefPtr<JSONValue> buildValue(const CharType* start, const CharType* end, con
     }
 
     skipWhitespaceAndComments(tokenEnd, end, valueTokenEnd);
-    return result.release();
+    return result;
 }
 
 template<typename CharType>
-PassRefPtr<JSONValue> parseJSONInternal(const CharType* start, unsigned length)
+std::unique_ptr<JSONValue> parseJSONInternal(const CharType* start, unsigned length)
 {
     const CharType* end = start + length;
     const CharType *tokenEnd;
-    RefPtr<JSONValue> value = buildValue(start, end, &tokenEnd, 0);
+    std::unique_ptr<JSONValue> value = buildValue(start, end, &tokenEnd, 0);
     if (!value || tokenEnd != end)
         return nullptr;
-    return value.release();
+    return value;
 }
 
 } // anonymous namespace
 
-PassRefPtr<JSONValue> parseJSON(const String& json)
+std::unique_ptr<JSONValue> parseJSON(const String& json)
 {
     if (json.isEmpty())
         return nullptr;

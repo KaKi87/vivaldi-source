@@ -4,26 +4,26 @@
 
 #include "ash/mus/shell_delegate_mus.h"
 
-#include "ash/default_accessibility_delegate.h"
-#include "ash/default_user_wallpaper_delegate.h"
-#include "ash/gpu_support_stub.h"
-#include "ash/media_delegate.h"
-#include "ash/mus/app_list_presenter_mus.h"
-#include "ash/mus/container_delegate_mus.h"
+#include <utility>
+
+#include "ash/common/gpu_support_stub.h"
+#include "ash/common/media_delegate.h"
+#include "ash/common/palette_delegate.h"
+#include "ash/common/session/session_state_delegate.h"
+#include "ash/common/shelf/shelf_delegate.h"
+#include "ash/common/system/tray/default_system_tray_delegate.h"
+#include "ash/common/wallpaper/wallpaper_delegate.h"
+#include "ash/mus/accessibility_delegate_mus.h"
 #include "ash/mus/context_menu_mus.h"
-#include "ash/mus/pointer_watcher_delegate_mus.h"
-#include "ash/mus/shelf_delegate_mus.h"
-#include "ash/session/session_state_delegate.h"
-#include "ash/system/tray/default_system_tray_delegate.h"
+#include "ash/mus/new_window_delegate_mus.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string16.h"
+#include "base/strings/string_util.h"
 #include "components/user_manager/user_info_impl.h"
 #include "ui/app_list/presenter/app_list_presenter.h"
 #include "ui/gfx/image/image.h"
 
 namespace ash {
-namespace sysui {
-
 namespace {
 
 class SessionStateDelegateStub : public SessionStateDelegate {
@@ -56,10 +56,12 @@ class SessionStateDelegateStub : public SessionStateDelegate {
   const user_manager::UserInfo* GetUserInfo(UserIndex index) const override {
     return user_info_.get();
   }
-  bool ShouldShowAvatar(aura::Window* window) const override {
+  bool ShouldShowAvatar(WmWindow* window) const override {
+    NOTIMPLEMENTED();
     return !user_info_->GetImage().isNull();
   }
-  gfx::ImageSkia GetAvatarImageForWindow(aura::Window* window) const override {
+  gfx::ImageSkia GetAvatarImageForWindow(WmWindow* window) const override {
+    NOTIMPLEMENTED();
     return gfx::ImageSkia();
   }
   void SwitchActiveUser(const AccountId& account_id) override {}
@@ -98,11 +100,40 @@ class MediaDelegateStub : public MediaDelegate {
   DISALLOW_COPY_AND_ASSIGN(MediaDelegateStub);
 };
 
+class ShelfDelegateStub : public ShelfDelegate {
+ public:
+  ShelfDelegateStub() {}
+  ~ShelfDelegateStub() override {}
+
+  // ShelfDelegate overrides:
+  void OnShelfCreated(WmShelf* shelf) override {}
+  void OnShelfDestroyed(WmShelf* shelf) override {}
+  void OnShelfAlignmentChanged(WmShelf* shelf) override {}
+  void OnShelfAutoHideBehaviorChanged(WmShelf* shelf) override {}
+  void OnShelfAutoHideStateChanged(WmShelf* shelf) override {}
+  void OnShelfVisibilityStateChanged(WmShelf* shelf) override {}
+  ShelfID GetShelfIDForAppID(const std::string& app_id) override { return 0; }
+  bool HasShelfIDToAppIDMapping(ShelfID id) const override { return false; }
+  const std::string& GetAppIDForShelfID(ShelfID id) override {
+    return base::EmptyString();
+  }
+  void PinAppWithID(const std::string& app_id) override {}
+  bool IsAppPinned(const std::string& app_id) override { return false; }
+  void UnpinAppWithID(const std::string& app_id) override {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ShelfDelegateStub);
+};
+
 }  // namespace
 
 ShellDelegateMus::ShellDelegateMus(
-    std::unique_ptr<AppListPresenterMus> app_list_presenter)
-    : app_list_presenter_(std::move(app_list_presenter)) {}
+    std::unique_ptr<app_list::AppListPresenter> app_list_presenter,
+    shell::Connector* connector)
+    : app_list_presenter_(std::move(app_list_presenter)),
+      connector_(connector) {
+  // |connector_| may be null in tests.
+}
 
 ShellDelegateMus::~ShellDelegateMus() {}
 
@@ -126,7 +157,7 @@ bool ShellDelegateMus::IsRunningInForcedAppMode() const {
   return false;
 }
 
-bool ShellDelegateMus::CanShowWindowForUser(aura::Window* window) const {
+bool ShellDelegateMus::CanShowWindowForUser(WmWindow* window) const {
   NOTIMPLEMENTED();
   return true;
 }
@@ -153,21 +184,7 @@ keyboard::KeyboardUI* ShellDelegateMus::CreateKeyboardUI() {
   return nullptr;
 }
 
-void ShellDelegateMus::VirtualKeyboardActivated(bool activated) {
-  NOTIMPLEMENTED();
-}
-
-void ShellDelegateMus::AddVirtualKeyboardStateObserver(
-    VirtualKeyboardStateObserver* observer) {
-  NOTIMPLEMENTED();
-}
-
-void ShellDelegateMus::RemoveVirtualKeyboardStateObserver(
-    VirtualKeyboardStateObserver* observer) {
-  NOTIMPLEMENTED();
-}
-
-void ShellDelegateMus::OpenUrl(const GURL& url) {
+void ShellDelegateMus::OpenUrlFromArc(const GURL& url) {
   NOTIMPLEMENTED();
 }
 
@@ -176,7 +193,8 @@ app_list::AppListPresenter* ShellDelegateMus::GetAppListPresenter() {
 }
 
 ShelfDelegate* ShellDelegateMus::CreateShelfDelegate(ShelfModel* model) {
-  return new ShelfDelegateMus(model);
+  // TODO(mash): Implement a real shelf delegate; maybe port ShelfDelegateMus?
+  return new ShelfDelegateStub;
 }
 
 SystemTrayDelegate* ShellDelegateMus::CreateSystemTrayDelegate() {
@@ -184,9 +202,9 @@ SystemTrayDelegate* ShellDelegateMus::CreateSystemTrayDelegate() {
   return new DefaultSystemTrayDelegate;
 }
 
-UserWallpaperDelegate* ShellDelegateMus::CreateUserWallpaperDelegate() {
-  NOTIMPLEMENTED() << " Using the default UserWallpaperDelegate implementation";
-  return new DefaultUserWallpaperDelegate();
+std::unique_ptr<WallpaperDelegate> ShellDelegateMus::CreateWallpaperDelegate() {
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
 SessionStateDelegate* ShellDelegateMus::CreateSessionStateDelegate() {
@@ -195,13 +213,11 @@ SessionStateDelegate* ShellDelegateMus::CreateSessionStateDelegate() {
 }
 
 AccessibilityDelegate* ShellDelegateMus::CreateAccessibilityDelegate() {
-  NOTIMPLEMENTED() << " Using the default AccessibilityDelegate implementation";
-  return new DefaultAccessibilityDelegate;
+  return new AccessibilityDelegateMus(connector_);
 }
 
 NewWindowDelegate* ShellDelegateMus::CreateNewWindowDelegate() {
-  NOTIMPLEMENTED();
-  return nullptr;
+  return new mus::NewWindowDelegateMus;
 }
 
 MediaDelegate* ShellDelegateMus::CreateMediaDelegate() {
@@ -209,18 +225,14 @@ MediaDelegate* ShellDelegateMus::CreateMediaDelegate() {
   return new MediaDelegateStub;
 }
 
-std::unique_ptr<ContainerDelegate> ShellDelegateMus::CreateContainerDelegate() {
-  return base::WrapUnique(new ContainerDelegateMus);
+std::unique_ptr<PaletteDelegate> ShellDelegateMus::CreatePaletteDelegate() {
+  NOTIMPLEMENTED();
+  return nullptr;
 }
 
-std::unique_ptr<PointerWatcherDelegate>
-ShellDelegateMus::CreatePointerWatcherDelegate() {
-  return base::WrapUnique(new PointerWatcherDelegateMus);
-}
-
-ui::MenuModel* ShellDelegateMus::CreateContextMenu(ash::Shelf* shelf,
+ui::MenuModel* ShellDelegateMus::CreateContextMenu(WmShelf* wm_shelf,
                                                    const ShelfItem* item) {
-  return new ContextMenuMus(shelf);
+  return new ContextMenuMus(wm_shelf);
 }
 
 GPUSupport* ShellDelegateMus::CreateGPUSupport() {
@@ -238,5 +250,4 @@ gfx::Image ShellDelegateMus::GetDeprecatedAcceleratorImage() const {
   return gfx::Image();
 }
 
-}  // namespace sysui
 }  // namespace ash

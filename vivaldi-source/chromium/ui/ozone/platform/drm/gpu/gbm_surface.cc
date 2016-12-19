@@ -1,178 +1,148 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/ozone/platform/drm/gpu/gbm_surface.h"
 
-#include <gbm.h>
+#include <utility>
 
-#include "base/bind.h"
 #include "base/logging.h"
-#include "ui/ozone/platform/drm/gpu/drm_buffer.h"
-#include "ui/ozone/platform/drm/gpu/drm_window.h"
-#include "ui/ozone/platform/drm/gpu/gbm_buffer_base.h"
-#include "ui/ozone/platform/drm/gpu/gbm_device.h"
-#include "ui/ozone/platform/drm/gpu/hardware_display_controller.h"
-#include "ui/ozone/platform/drm/gpu/scanout_buffer.h"
+#include "ui/gl/gl_surface_egl.h"
+#include "ui/ozone/gl/gl_image_ozone_native_pixmap.h"
+#include "ui/ozone/platform/drm/gpu/drm_window_proxy.h"
+#include "ui/ozone/platform/drm/gpu/gbm_surface_factory.h"
+#include "ui/ozone/public/native_pixmap.h"
 
 namespace ui {
 
-namespace {
-
-void DoNothing(gfx::SwapResult) {
+GbmSurface::GbmSurface(GbmSurfaceFactory* surface_factory,
+                       std::unique_ptr<DrmWindowProxy> window,
+                       gfx::AcceleratedWidget widget)
+    : GbmSurfaceless(surface_factory, std::move(window), widget) {
+  for (auto& texture : textures_)
+    texture = 0;
 }
 
-class GbmSurfaceBuffer : public GbmBufferBase {
- public:
-  static scoped_refptr<GbmSurfaceBuffer> CreateBuffer(
-      const scoped_refptr<DrmDevice>& drm,
-      gbm_bo* buffer);
-  static scoped_refptr<GbmSurfaceBuffer> GetBuffer(gbm_bo* buffer);
+unsigned int GbmSurface::GetBackingFramebufferObject() {
+  return fbo_;
+}
 
- private:
-  GbmSurfaceBuffer(const scoped_refptr<DrmDevice>& drm, gbm_bo* bo);
-  ~GbmSurfaceBuffer() override;
-
-  static void Destroy(gbm_bo* buffer, void* data);
-
-  // This buffer is special and is released by GBM at any point in time (as
-  // long as it isn't being used). Since GBM should be the only one to
-  // release this buffer, keep a self-reference in order to keep this alive.
-  // When GBM calls Destroy(..) the self-reference will dissapear and this will
-  // be destroyed.
-  scoped_refptr<GbmSurfaceBuffer> self_;
-
-  DISALLOW_COPY_AND_ASSIGN(GbmSurfaceBuffer);
-};
-
-GbmSurfaceBuffer::GbmSurfaceBuffer(const scoped_refptr<DrmDevice>& drm,
-                                   gbm_bo* bo)
-    : GbmBufferBase(drm, bo, true) {
-  if (GetFramebufferId()) {
-    self_ = this;
-    gbm_bo_set_user_data(bo, this, GbmSurfaceBuffer::Destroy);
+bool GbmSurface::OnMakeCurrent(gl::GLContext* context) {
+  DCHECK(!context_ || context == context_);
+  context_ = context;
+  if (!fbo_) {
+    glGenFramebuffersEXT(1, &fbo_);
+    if (!fbo_)
+      return false;
+    glGenTextures(arraysize(textures_), textures_);
+    if (!CreatePixmaps())
+      return false;
   }
+  BindFramebuffer();
+  glBindFramebufferEXT(GL_FRAMEBUFFER, fbo_);
+  return SurfacelessEGL::OnMakeCurrent(context);
 }
 
-GbmSurfaceBuffer::~GbmSurfaceBuffer() {
-}
-
-// static
-scoped_refptr<GbmSurfaceBuffer> GbmSurfaceBuffer::CreateBuffer(
-    const scoped_refptr<DrmDevice>& drm,
-    gbm_bo* buffer) {
-  scoped_refptr<GbmSurfaceBuffer> scoped_buffer(
-      new GbmSurfaceBuffer(drm, buffer));
-  if (!scoped_buffer->GetFramebufferId())
-    return NULL;
-
-  return scoped_buffer;
-}
-
-// static
-scoped_refptr<GbmSurfaceBuffer> GbmSurfaceBuffer::GetBuffer(gbm_bo* buffer) {
-  return scoped_refptr<GbmSurfaceBuffer>(
-      static_cast<GbmSurfaceBuffer*>(gbm_bo_get_user_data(buffer)));
-}
-
-// static
-void GbmSurfaceBuffer::Destroy(gbm_bo* buffer, void* data) {
-  GbmSurfaceBuffer* scoped_buffer = static_cast<GbmSurfaceBuffer*>(data);
-  scoped_buffer->self_ = NULL;
-}
-
-}  // namespace
-
-GbmSurface::GbmSurface(DrmWindow* window, const scoped_refptr<GbmDevice>& gbm)
-    : GbmSurfaceless(window, NULL),
-      gbm_(gbm),
-      native_surface_(NULL),
-      current_buffer_(NULL),
-      weak_factory_(this) {
-}
-
-GbmSurface::~GbmSurface() {
-  if (current_buffer_)
-    gbm_surface_release_buffer(native_surface_, current_buffer_);
-
-  if (native_surface_)
-    gbm_surface_destroy(native_surface_);
-}
-
-bool GbmSurface::Initialize() {
-  // If we're initializing the surface without a controller (possible on startup
-  // where the surface creation can happen before the native window
-  // IPCs arrive), initialize the size to a valid value such that surface
-  // creation doesn't fail.
-  gfx::Size size(1, 1);
-  if (window_->GetController()) {
-    size = window_->GetController()->GetModeSize();
-  }
-  // TODO(dnicoara) Check underlying system support for pixel format.
-  native_surface_ = gbm_surface_create(
-      gbm_->device(), size.width(), size.height(), GBM_BO_FORMAT_XRGB8888,
-      GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
-
-  if (!native_surface_)
-    return false;
-
-  size_ = size;
-  return true;
-}
-
-intptr_t GbmSurface::GetNativeWindow() {
-  DCHECK(native_surface_);
-  return reinterpret_cast<intptr_t>(native_surface_);
-}
-
-bool GbmSurface::ResizeNativeWindow(const gfx::Size& viewport_size) {
-  if (size_ == viewport_size)
+bool GbmSurface::Resize(const gfx::Size& size,
+                        float scale_factor,
+                        bool has_alpha) {
+  if (size == GetSize())
     return true;
+  // Alpha value isn't actually used in allocating buffers yet, so always use
+  // true instead.
+  return GbmSurfaceless::Resize(size, scale_factor, true) && CreatePixmaps();
+}
 
+bool GbmSurface::SupportsPostSubBuffer() {
   return false;
 }
 
-bool GbmSurface::OnSwapBuffers() {
-  return OnSwapBuffersAsync(base::Bind(&DoNothing));
+void GbmSurface::SwapBuffersAsync(const SwapCompletionCallback& callback) {
+  if (!images_[current_surface_]->ScheduleOverlayPlane(
+          widget(), 0, gfx::OverlayTransform::OVERLAY_TRANSFORM_NONE,
+          gfx::Rect(GetSize()), gfx::RectF(1, 1))) {
+    callback.Run(gfx::SwapResult::SWAP_FAILED);
+    return;
+  }
+  GbmSurfaceless::SwapBuffersAsync(callback);
+  current_surface_ ^= 1;
+  BindFramebuffer();
 }
 
-bool GbmSurface::OnSwapBuffersAsync(const SwapCompletionCallback& callback) {
-  DCHECK(native_surface_);
+void GbmSurface::Destroy() {
+  if (!context_)
+    return;
+  scoped_refptr<gl::GLContext> previous_context = gl::GLContext::GetCurrent();
+  scoped_refptr<GLSurface> previous_surface;
 
-  gbm_bo* pending_buffer = gbm_surface_lock_front_buffer(native_surface_);
-  scoped_refptr<GbmSurfaceBuffer> primary =
-      GbmSurfaceBuffer::GetBuffer(pending_buffer);
-  if (!primary.get()) {
-    primary = GbmSurfaceBuffer::CreateBuffer(gbm_, pending_buffer);
-    if (!primary.get()) {
-      LOG(ERROR) << "Failed to associate the buffer with the controller";
-      callback.Run(gfx::SwapResult::SWAP_FAILED);
-      return false;
+  bool was_current = previous_context && previous_context->IsCurrent(nullptr) &&
+                     GLSurface::GetCurrent() == this;
+  if (!was_current) {
+    // Only take a reference to previous surface if it's not |this|
+    // because otherwise we can take a self reference from our own dtor.
+    previous_surface = GLSurface::GetCurrent();
+    context_->MakeCurrent(this);
+  }
+
+  glBindFramebufferEXT(GL_FRAMEBUFFER, 0);
+  if (fbo_) {
+    glDeleteTextures(arraysize(textures_), textures_);
+    for (auto& texture : textures_)
+      texture = 0;
+    glDeleteFramebuffersEXT(1, &fbo_);
+    fbo_ = 0;
+  }
+  for (auto image : images_) {
+    if (image)
+      image->Destroy(true);
+  }
+
+  if (!was_current) {
+    if (previous_context) {
+      previous_context->MakeCurrent(previous_surface.get());
+    } else {
+      context_->ReleaseCurrent(this);
     }
   }
-
-  // The primary buffer is a special case.
-  window_->QueueOverlayPlane(OverlayPlane(primary));
-
-  if (!GbmSurfaceless::OnSwapBuffersAsync(
-          base::Bind(&GbmSurface::OnSwapBuffersCallback,
-                     weak_factory_.GetWeakPtr(), callback, pending_buffer))) {
-    callback.Run(gfx::SwapResult::SWAP_FAILED);
-    return false;
-  }
-
-  return true;
 }
 
-void GbmSurface::OnSwapBuffersCallback(const SwapCompletionCallback& callback,
-                                       gbm_bo* pending_buffer,
-                                       gfx::SwapResult result) {
-  // If there was a frontbuffer, it is no longer active. Release it back to GBM.
-  if (current_buffer_)
-    gbm_surface_release_buffer(native_surface_, current_buffer_);
+bool GbmSurface::IsSurfaceless() const {
+  return false;
+}
 
-  current_buffer_ = pending_buffer;
-  callback.Run(result);
+GbmSurface::~GbmSurface() {
+  Destroy();
+}
+
+void GbmSurface::BindFramebuffer() {
+  gl::ScopedFramebufferBinder fb(fbo_);
+  glFramebufferTexture2DEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                            textures_[current_surface_], 0);
+}
+
+bool GbmSurface::CreatePixmaps() {
+  if (!fbo_)
+    return true;
+  for (size_t i = 0; i < arraysize(textures_); i++) {
+    scoped_refptr<NativePixmap> pixmap = surface_factory()->CreateNativePixmap(
+        widget(), GetSize(), gfx::BufferFormat::BGRA_8888,
+        gfx::BufferUsage::SCANOUT);
+    if (!pixmap)
+      return false;
+    scoped_refptr<GLImageOzoneNativePixmap> image =
+        new GLImageOzoneNativePixmap(GetSize(), GL_BGRA_EXT);
+    if (!image->Initialize(pixmap.get(), gfx::BufferFormat::BGRA_8888))
+      return false;
+    // GLImage must have Destroy() called before destructor is called.
+    if (images_[i])
+      images_[i]->Destroy(true);
+    images_[i] = image;
+    // Bind image to texture.
+    gl::ScopedTextureBinder binder(GL_TEXTURE_2D, textures_[i]);
+    if (!images_[i]->BindTexImage(GL_TEXTURE_2D))
+      return false;
+  }
+  return true;
 }
 
 }  // namespace ui

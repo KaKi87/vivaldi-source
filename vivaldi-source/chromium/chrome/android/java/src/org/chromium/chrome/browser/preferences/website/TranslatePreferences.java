@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,6 @@ import android.preference.PreferenceFragment;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
-import android.widget.Toast;
 
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.help.HelpAndFeedback;
@@ -22,6 +21,7 @@ import org.chromium.chrome.browser.preferences.ChromeSwitchPreference;
 import org.chromium.chrome.browser.preferences.ManagedPreferenceDelegate;
 import org.chromium.chrome.browser.preferences.PrefServiceBridge;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.ui.widget.Toast;
 
 /**
  * Fragment to keep track of the translate preferences.
@@ -81,17 +81,26 @@ public class TranslatePreferences extends PreferenceFragment {
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         menu.clear();
         MenuItem help = menu.add(
-                Menu.NONE, R.id.menu_id_translate_help, Menu.NONE, R.string.menu_help);
+                Menu.NONE, R.id.menu_id_targeted_help, Menu.NONE, R.string.menu_help);
         help.setIcon(R.drawable.ic_help_and_feedback);
+        help.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM);
+
+        menu.add(Menu.NONE, R.id.menu_id_reset, Menu.NONE, R.string.reset_translate_defaults);
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemId = item.getItemId();
-        if (itemId == R.id.menu_id_translate_help) {
+        if (itemId == R.id.menu_id_targeted_help) {
             HelpAndFeedback.getInstance(getActivity())
                     .show(getActivity(), getString(R.string.help_context_translate),
                             Profile.getLastUsedProfile(), null);
+            return true;
+        } else if (itemId == R.id.menu_id_reset) {
+            PrefServiceBridge.getInstance().resetTranslateDefaults();
+            Toast.makeText(getActivity(), getString(
+                    R.string.translate_prefs_toast_description),
+                    Toast.LENGTH_SHORT).show();
             return true;
         }
         return false;

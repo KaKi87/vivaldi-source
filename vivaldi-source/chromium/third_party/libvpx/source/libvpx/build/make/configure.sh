@@ -680,9 +680,6 @@ process_common_toolchain() {
       aarch64*)
         tgt_isa=arm64
         ;;
-      armv6*)
-        tgt_isa=armv6
-        ;;
       armv7*-hardfloat* | armv7*-gnueabihf | arm-*-gnueabihf)
         tgt_isa=armv7
         float_abi=hard
@@ -883,36 +880,6 @@ process_common_toolchain() {
           if disabled neon && enabled neon_asm; then
             die "Disabling neon while keeping neon-asm is not supported"
           fi
-          case ${toolchain} in
-            # Apple iOS SDKs no longer support armv6 as of the version 9
-            # release (coincides with release of Xcode 7). Only enable media
-            # when using earlier SDK releases.
-            *-darwin*)
-              if [ "$(show_darwin_sdk_major_version iphoneos)" -lt 9 ]; then
-                soft_enable media
-              else
-                soft_disable media
-                RTCD_OPTIONS="${RTCD_OPTIONS}--disable-media "
-              fi
-              ;;
-            *)
-              soft_enable media
-              ;;
-          esac
-          ;;
-        armv6)
-          case ${toolchain} in
-            *-darwin*)
-              if [ "$(show_darwin_sdk_major_version iphoneos)" -lt 9 ]; then
-                soft_enable media
-              else
-                die "Your iOS SDK does not support armv6."
-              fi
-              ;;
-            *)
-              soft_enable media
-              ;;
-          esac
           ;;
       esac
 
@@ -1153,13 +1120,13 @@ EOF
       if [ -n "${tune_cpu}" ]; then
         case ${tune_cpu} in
           p5600)
-            check_add_cflags -mips32r5 -funroll-loops -mload-store-pairs
+            check_add_cflags -mips32r5 -mload-store-pairs
             check_add_cflags -msched-weight -mhard-float -mfp64
             check_add_asflags -mips32r5 -mhard-float -mfp64
             check_add_ldflags -mfp64
             ;;
-          i6400)
-            check_add_cflags -mips64r6 -mabi=64 -funroll-loops -msched-weight
+          i6400|p6600)
+            check_add_cflags -mips64r6 -mabi=64 -msched-weight
             check_add_cflags  -mload-store-pairs -mhard-float -mfp64
             check_add_asflags -mips64r6 -mabi=64 -mhard-float -mfp64
             check_add_ldflags -mips64r6 -mabi=64 -mfp64
@@ -1394,10 +1361,6 @@ EOF
     else
       enabled small && check_add_cflags -O2 ||  check_add_cflags -O3
     fi
-  fi
-
-  if [ "${tgt_isa}" = "x86_64" ] || [ "${tgt_isa}" = "x86" ]; then
-    soft_enable use_x86inc
   fi
 
   # Position Independent Code (PIC) support, for building relocatable
