@@ -843,6 +843,10 @@ void vp9_first_pass(VP9_COMP *cpi, const struct lookahead_entry *source) {
       xd->mi[0]->mode = DC_PRED;
       xd->mi[0]->tx_size =
           use_dc_pred ? (bsize >= BLOCK_16X16 ? TX_16X16 : TX_8X8) : TX_4X4;
+
+      // Set the 16x16 src_diff block to zero, which ensures correct this_error
+      // calculation for block sizes smaller than 16x16.
+      vp9_zero_array(x->plane[0].src_diff, 256);
       vp9_encode_intra_block_plane(x, bsize, 0, 0);
       this_error = vpx_get_mb_ss(x->plane[0].src_diff);
       this_intra_error = this_error;
@@ -1388,7 +1392,7 @@ static int get_twopass_worst_quality(VP9_COMP *cpi, const double section_err,
     const double speed_term = 1.0 + 0.04 * oxcf->speed;
     double last_group_rate_err;
     const int target_norm_bits_per_mb =
-        ((uint64_t)target_rate << BPER_MB_NORMBITS) / active_mbs;
+        (int)(((uint64_t)target_rate << BPER_MB_NORMBITS) / active_mbs);
     int q;
     int is_svc_upper_layer = 0;
 
@@ -2089,6 +2093,8 @@ static void define_gf_group(VP9_COMP *cpi, FIRSTPASS_STATS *this_frame) {
   double mv_in_out_accumulator = 0.0;
   double abs_mv_in_out_accumulator = 0.0;
   double mv_ratio_accumulator_thresh;
+  double mv_in_out_thresh;
+  double abs_mv_in_out_thresh;
   unsigned int allow_alt_ref = is_altref_enabled(cpi);
 
   int f_boost = 0;
@@ -2132,6 +2138,8 @@ static void define_gf_group(VP9_COMP *cpi, FIRSTPASS_STATS *this_frame) {
   // Motion breakout threshold for loop below depends on image size.
   mv_ratio_accumulator_thresh =
       (cpi->initial_height + cpi->initial_width) / 4.0;
+  mv_in_out_thresh = (cpi->initial_height + cpi->initial_width) / 300.0;
+  abs_mv_in_out_thresh = (cpi->initial_height + cpi->initial_width) / 200.0;
 
   // Set a maximum and minimum interval for the GF group.
   // If the image appears almost completely static we can extend beyond this.
@@ -2228,8 +2236,8 @@ static void define_gf_group(VP9_COMP *cpi, FIRSTPASS_STATS *this_frame) {
             ((rc->frames_to_key - i) >= rc->min_gf_interval) &&
             (!flash_detected) &&
             ((mv_ratio_accumulator > mv_ratio_accumulator_thresh) ||
-             (abs_mv_in_out_accumulator > 3.0) ||
-             (mv_in_out_accumulator < -2.0) ||
+             (abs_mv_in_out_accumulator > abs_mv_in_out_thresh) ||
+             (mv_in_out_accumulator < -mv_in_out_thresh) ||
              ((boost_score - old_boost_score) < BOOST_BREAKOUT)))) {
       boost_score = old_boost_score;
       break;
@@ -2260,6 +2268,9 @@ static void define_gf_group(VP9_COMP *cpi, FIRSTPASS_STATS *this_frame) {
     rc->gfu_boost = VPXMAX((int)boost_score, MIN_ARF_GF_BOOST);
     rc->source_alt_ref_pending = 0;
   }
+
+  // Limit maximum boost based on interval length.
+  rc->gfu_boost = VPXMIN((int)rc->gfu_boost, i * 200);
 
   // Set the interval until the next gf.
   rc->baseline_gf_interval = i - (is_key_frame || rc->source_alt_ref_pending);

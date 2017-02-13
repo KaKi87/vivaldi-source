@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "base/macros.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 #include "extensions/browser/api/api_resource.h"
 #include "extensions/browser/api/api_resource_manager.h"
@@ -15,8 +16,6 @@
 namespace device {
 class BluetoothAdvertisement;
 }  // namespace device
-
-namespace apibtle = extensions::core_api::bluetooth_low_energy;
 
 namespace extensions {
 

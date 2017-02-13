@@ -120,6 +120,7 @@ class InvalidFileTest : public ::libvpx_test::DecoderTest,
 
 TEST_P(InvalidFileTest, ReturnCode) { RunTest(); }
 
+#if CONFIG_VP9_DECODER
 const DecodeParam kVP9InvalidFileTests[] = {
   { 1, "invalid-vp90-02-v2.webm" },
 #if CONFIG_VP9_HIGHBITDEPTH
@@ -141,10 +142,13 @@ const DecodeParam kVP9InvalidFileTests[] = {
   { 1, "invalid-vp90-2-12-droppable_1.ivf.s73804_r01-05_b6-.ivf" },
   { 1, "invalid-vp90-2-03-size-224x196.webm.ivf.s44156_r01-05_b6-.ivf" },
   { 1, "invalid-vp90-2-03-size-202x210.webm.ivf.s113306_r01-05_b6-.ivf" },
+  { 1,
+    "invalid-vp90-2-10-show-existing-frame.webm.ivf.s180315_r01-05_b6-.ivf" },
 };
 
 VP9_INSTANTIATE_TEST_CASE(InvalidFileTest,
                           ::testing::ValuesIn(kVP9InvalidFileTests));
+#endif  // CONFIG_VP9_DECODER
 
 // This class will include test vectors that are expected to fail
 // peek. However they are still expected to have no fatal failures.
@@ -158,6 +162,16 @@ class InvalidFileInvalidPeekTest : public InvalidFileTest {
 
 TEST_P(InvalidFileInvalidPeekTest, ReturnCode) { RunTest(); }
 
+#if CONFIG_VP8_DECODER
+const DecodeParam kVP8InvalidFileTests[] = {
+  { 1, "invalid-vp80-00-comprehensive-018.ivf.2kf_0x6.ivf" },
+};
+
+VP8_INSTANTIATE_TEST_CASE(InvalidFileInvalidPeekTest,
+                          ::testing::ValuesIn(kVP8InvalidFileTests));
+#endif  // CONFIG_VP8_DECODER
+
+#if CONFIG_VP9_DECODER
 const DecodeParam kVP9InvalidFileInvalidPeekTests[] = {
   { 1, "invalid-vp90-01-v3.webm" },
 };
@@ -182,4 +196,5 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(
             static_cast<const libvpx_test::CodecFactory *>(&libvpx_test::kVP9)),
         ::testing::ValuesIn(kMultiThreadedVP9InvalidFileTests)));
+#endif  // CONFIG_VP9_DECODER
 }  // namespace

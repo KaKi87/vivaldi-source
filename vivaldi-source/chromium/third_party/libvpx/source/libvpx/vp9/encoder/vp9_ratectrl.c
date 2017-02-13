@@ -45,8 +45,6 @@
 
 #define FRAME_OVERHEAD_BITS 200
 
-#define LIMIT_QP_ONEPASS_VBR_LAG 0
-
 #if CONFIG_VP9_HIGHBITDEPTH
 #define ASSIGN_MINQ_TABLE(bit_depth, name)                   \
   do {                                                       \
@@ -64,7 +62,7 @@
 #else
 #define ASSIGN_MINQ_TABLE(bit_depth, name) \
   do {                                     \
-    (void) bit_depth;                      \
+    (void)bit_depth;                       \
     name = name##_8;                       \
   } while (0)
 #endif
@@ -529,7 +527,7 @@ int vp9_rc_regulate_q(const VP9_COMP *cpi, int target_bits_per_frame,
   // Calculate required scaling factor based on target frame size and size of
   // frame produced using previous Q.
   target_bits_per_mb =
-      ((uint64_t)target_bits_per_frame << BPER_MB_NORMBITS) / cm->MBs;
+      (int)(((uint64_t)target_bits_per_frame << BPER_MB_NORMBITS) / cm->MBs);
 
   i = active_best_quality;
 
@@ -945,14 +943,6 @@ static int rc_pick_q_and_bounds_one_pass_vbr(const VP9_COMP *cpi,
   active_worst_quality =
       clamp(active_worst_quality, active_best_quality, rc->worst_quality);
 
-#if LIMIT_QP_ONEPASS_VBR_LAG
-  if (oxcf->lag_in_frames > 0 && oxcf->rc_mode == VPX_VBR) {
-    if (rc->force_qpmin > 0 && active_best_quality < rc->force_qpmin)
-      active_best_quality =
-          clamp(active_best_quality, rc->force_qpmin, rc->worst_quality);
-  }
-#endif
-
   *top_index = active_worst_quality;
   *bottom_index = active_best_quality;
 
@@ -1233,10 +1223,11 @@ void vp9_rc_compute_frame_size_bounds(const VP9_COMP *cpi, int frame_target,
   } else {
     // For very small rate targets where the fractional adjustment
     // may be tiny make sure there is at least a minimum range.
-    const int tolerance = (cpi->sf.recode_tolerance * frame_target) / 100;
-    *frame_under_shoot_limit = VPXMAX(frame_target - tolerance - 200, 0);
+    const int tol_low = (cpi->sf.recode_tolerance_low * frame_target) / 100;
+    const int tol_high = (cpi->sf.recode_tolerance_high * frame_target) / 100;
+    *frame_under_shoot_limit = VPXMAX(frame_target - tol_low - 100, 0);
     *frame_over_shoot_limit =
-        VPXMIN(frame_target + tolerance + 200, cpi->rc.max_frame_bandwidth);
+        VPXMIN(frame_target + tol_high + 100, cpi->rc.max_frame_bandwidth);
   }
 }
 
@@ -1253,8 +1244,8 @@ void vp9_rc_set_frame_target(VP9_COMP *cpi, int target) {
                                   rate_thresh_mult[rc->frame_size_selector]);
 
   // Target rate per SB64 (including partial SB64s.
-  rc->sb64_target_rate =
-      ((int64_t)rc->this_frame_target * 64 * 64) / (cm->width * cm->height);
+  rc->sb64_target_rate = (int)(((int64_t)rc->this_frame_target * 64 * 64) /
+                               (cm->width * cm->height));
 }
 
 static void update_alt_ref_frame_stats(VP9_COMP *cpi) {
@@ -2144,13 +2135,6 @@ void adjust_gf_boost_lag_one_pass_vbr(VP9_COMP *cpi, uint64_t avg_sad_current) {
     }
     target = calc_pframe_target_size_one_pass_vbr(cpi);
     vp9_rc_set_frame_target(cpi, target);
-#if LIMIT_QP_ONEPASS_VBR_LAG
-    if (rc->avg_frame_low_motion > 85 &&
-        avg_source_sad_lag < (sad_thresh1 >> 1))
-      rc->force_qpmin = 48;
-    else
-      rc->force_qpmin = 0;
-#endif
   }
   rc->prev_avg_source_sad_lag = avg_source_sad_lag;
 }
@@ -2322,7 +2306,8 @@ int vp9_encodedframe_overshoot(VP9_COMP *cpi, int frame_size, int *q) {
     cpi->rc.rc_1_frame = 0;
     cpi->rc.rc_2_frame = 0;
     // Adjust rate correction factor.
-    target_bits_per_mb = ((uint64_t)target_size << BPER_MB_NORMBITS) / cm->MBs;
+    target_bits_per_mb =
+        (int)(((uint64_t)target_size << BPER_MB_NORMBITS) / cm->MBs);
     // Rate correction factor based on target_bits_per_mb and qp (==max_QP).
     // This comes from the inverse computation of vp9_rc_bits_per_mb().
     q2 = vp9_convert_qindex_to_q(*q, cm->bit_depth);

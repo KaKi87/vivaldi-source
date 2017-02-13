@@ -241,7 +241,7 @@ static int read_mv_component(vpx_reader *r, const nmv_component *mvcomp,
 
   // Integer part
   if (class0) {
-    d = vpx_read_tree(r, vp9_mv_class0_tree, mvcomp->class0);
+    d = vpx_read(r, mvcomp->class0[0]);
     mag = 0;
   } else {
     int i;
@@ -826,8 +826,10 @@ static INLINE void copy_ref_frame_pair(MV_REFERENCE_FRAME *dst,
   memcpy(dst, src, sizeof(*dst) * 2);
 }
 
-void vp9_read_mode_info(VP9Decoder *const pbi, MACROBLOCKD *xd, int mi_row,
-                        int mi_col, vpx_reader *r, int x_mis, int y_mis) {
+void vp9_read_mode_info(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
+                        int mi_col, int x_mis, int y_mis) {
+  vpx_reader *r = &twd->bit_reader;
+  MACROBLOCKD *const xd = &twd->xd;
   VP9_COMMON *const cm = &pbi->common;
   MODE_INFO *const mi = xd->mi[0];
   MV_REF *frame_mvs = cm->cur_frame->mvs + mi_row * cm->mi_cols + mi_col;

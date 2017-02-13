@@ -12,8 +12,8 @@ namespace extensions {
 
 // static
 static base::LazyInstance<BrowserContextKeyedAPIFactory<
-    ApiResourceManager<BluetoothApiAdvertisement>>> g_server_factory =
-    LAZY_INSTANCE_INITIALIZER;
+    ApiResourceManager<BluetoothApiAdvertisement>>>
+    g_server_factory = LAZY_INSTANCE_INITIALIZER;
 
 // static
 template <>
@@ -26,10 +26,9 @@ BluetoothApiAdvertisement::BluetoothApiAdvertisement(
     const std::string& owner_extension_id,
     scoped_refptr<device::BluetoothAdvertisement> advertisement)
     : ApiResource(owner_extension_id), advertisement_(advertisement) {
-  DCHECK(content::BrowserThread::CurrentlyOn(kThreadId));
+  DCHECK_CURRENTLY_ON(kThreadId);
 }
 
-BluetoothApiAdvertisement::~BluetoothApiAdvertisement() {
-}
+BluetoothApiAdvertisement::~BluetoothApiAdvertisement() {}
 
 }  // namespace extensions

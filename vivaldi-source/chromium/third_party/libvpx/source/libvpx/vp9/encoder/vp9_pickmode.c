@@ -336,7 +336,7 @@ static void model_rd_for_sb_y_large(VP9_COMP *cpi, BLOCK_SIZE bsize,
                  cpi->common.use_highbitdepth, bd,
 #endif
                  sse8x8, sum8x8, var8x8);
-  var = sse - (((int64_t)sum * sum) >> (bw + bh + 4));
+  var = sse - (unsigned int)(((int64_t)sum * sum) >> (bw + bh + 4));
 
   *var_y = var;
   *sse_y = sse;
@@ -1798,9 +1798,8 @@ void vp9_pick_inter_mode(VP9_COMP *cpi, MACROBLOCK *x, TileDataEnc *tile_data,
     }
 
     this_rdc.rate += rate_mv;
-    this_rdc.rate +=
-        cpi->inter_mode_cost[x->mbmi_ext->mode_context[ref_frame]][INTER_OFFSET(
-            this_mode)];
+    this_rdc.rate += cpi->inter_mode_cost[x->mbmi_ext->mode_context[ref_frame]]
+                                         [INTER_OFFSET(this_mode)];
     this_rdc.rate += ref_frame_cost[ref_frame];
     this_rdc.rdcost = RDCOST(x->rdmult, x->rddiv, this_rdc.rate, this_rdc.dist);
 

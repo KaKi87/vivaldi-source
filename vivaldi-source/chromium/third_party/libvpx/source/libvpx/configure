@@ -97,6 +97,7 @@ EOF
 
 # all_platforms is a list of all supported target platforms. Maintain
 # alphabetically by architecture, generic-gnu last.
+all_platforms="${all_platforms} arm64-android-gcc"
 all_platforms="${all_platforms} arm64-darwin-gcc"
 all_platforms="${all_platforms} arm64-linux-gcc"
 all_platforms="${all_platforms} armv7-android-gcc"   #neon Cortex-A8
@@ -574,16 +575,21 @@ process_toolchain() {
         check_add_cflags -Wimplicit-function-declaration
         check_add_cflags -Wuninitialized
         check_add_cflags -Wunused
-        case ${CC} in
-          *clang*)
-              # libvpx and/or clang have issues with aliasing:
-              # https://code.google.com/p/webm/issues/detail?id=603
-              # work around them until they are fixed
-              check_add_cflags -fno-strict-aliasing
-          ;;
-        esac
+        # -Wextra has some tricky cases. Rather than fix them all now, get the
+        # flag for as many files as possible and fix the remaining issues
+        # piecemeal.
+        # https://bugs.chromium.org/p/webm/issues/detail?id=1069
+        check_add_cflags -Wextra
+        # check_add_cflags also adds to cxxflags. gtest does not do well with
+        # -Wundef so add it explicitly to CFLAGS only.
+        check_cflags -Wundef && add_cflags_only -Wundef
         if enabled mips || [ -z "${INLINE}" ]; then
           enabled extra_warnings || check_add_cflags -Wno-unused-function
+        fi
+        if ! enabled vp9_highbitdepth; then
+          # Avoid this warning for third_party C++ sources. Some reorganization
+          # would be needed to apply this only to test/*.cc.
+          check_cflags -Wshorten-64-to-32 && add_cflags_only -Wshorten-64-to-32
         fi
     fi
 

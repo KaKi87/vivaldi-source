@@ -9,12 +9,12 @@
 namespace extensions {
 
 static base::LazyInstance<BrowserContextKeyedAPIFactory<
-    ApiResourceManager<BluetoothLowEnergyNotifySession> > > g_factory =
-    LAZY_INSTANCE_INITIALIZER;
+    ApiResourceManager<BluetoothLowEnergyNotifySession>>>
+    g_factory = LAZY_INSTANCE_INITIALIZER;
 
 template <>
 BrowserContextKeyedAPIFactory<
-    ApiResourceManager<BluetoothLowEnergyNotifySession> >*
+    ApiResourceManager<BluetoothLowEnergyNotifySession>>*
 ApiResourceManager<BluetoothLowEnergyNotifySession>::GetFactoryInstance() {
   return g_factory.Pointer();
 }
@@ -22,14 +22,12 @@ ApiResourceManager<BluetoothLowEnergyNotifySession>::GetFactoryInstance() {
 BluetoothLowEnergyNotifySession::BluetoothLowEnergyNotifySession(
     bool persistent,
     const std::string& owner_extension_id,
-    scoped_ptr<device::BluetoothGattNotifySession> session)
+    std::unique_ptr<device::BluetoothGattNotifySession> session)
     : ApiResource(owner_extension_id),
       persistent_(persistent),
-      session_(session.release()) {
-}
+      session_(session.release()) {}
 
-BluetoothLowEnergyNotifySession::~BluetoothLowEnergyNotifySession() {
-}
+BluetoothLowEnergyNotifySession::~BluetoothLowEnergyNotifySession() {}
 
 device::BluetoothGattNotifySession*
 BluetoothLowEnergyNotifySession::GetSession() const {
