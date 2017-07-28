@@ -4,75 +4,61 @@
 
 #include "ash/wm/root_window_layout_manager.h"
 
-#include "ash/desktop_background/desktop_background_widget_controller.h"
-#include "ash/root_window_controller.h"
-#include "ui/aura/window_event_dispatcher.h"
+#include "ash/wm_window.h"
+#include "ui/aura/window.h"
 #include "ui/aura/window_tracker.h"
-#include "ui/compositor/layer.h"
-#include "ui/views/widget/widget.h"
 
 namespace ash {
+namespace wm {
 
 ////////////////////////////////////////////////////////////////////////////////
 // RootWindowLayoutManager, public:
 
-RootWindowLayoutManager::RootWindowLayoutManager(aura::Window* owner)
-    : owner_(owner) {
-}
+RootWindowLayoutManager::RootWindowLayoutManager(WmWindow* owner)
+    : owner_(owner) {}
 
-RootWindowLayoutManager::~RootWindowLayoutManager() {
-}
-
+RootWindowLayoutManager::~RootWindowLayoutManager() {}
 
 ////////////////////////////////////////////////////////////////////////////////
 // RootWindowLayoutManager, aura::LayoutManager implementation:
 
 void RootWindowLayoutManager::OnWindowResized() {
-  gfx::Rect fullscreen_bounds =
-      gfx::Rect(owner_->bounds().width(), owner_->bounds().height());
+  const gfx::Rect fullscreen_bounds = gfx::Rect(owner_->GetBounds().size());
 
   // Resize both our immediate children (the containers-of-containers animated
   // by PowerButtonController) and their children (the actual containers).
-  aura::WindowTracker children_tracker(owner_->children());
+  aura::WindowTracker children_tracker(owner_->aura_window()->children());
   while (!children_tracker.windows().empty()) {
     aura::Window* child = children_tracker.Pop();
+    // Skip descendants of top-level windows, i.e. only resize containers and
+    // other windows without a delegate, such as ScreenDimmer windows.
+    if (child->GetToplevelWindow())
+      continue;
+
     child->SetBounds(fullscreen_bounds);
     aura::WindowTracker grandchildren_tracker(child->children());
-    while (!grandchildren_tracker.windows().empty())
-      grandchildren_tracker.Pop()->SetBounds(fullscreen_bounds);
+    while (!grandchildren_tracker.windows().empty()) {
+      child = grandchildren_tracker.Pop();
+      if (!child->GetToplevelWindow())
+        child->SetBounds(fullscreen_bounds);
+    }
   }
-  RootWindowController* root_window_controller =
-      GetRootWindowController(owner_);
-  DesktopBackgroundWidgetController* background =
-      root_window_controller->wallpaper_controller();
-
-  if (!background && root_window_controller->animating_wallpaper_controller()) {
-    background = root_window_controller->animating_wallpaper_controller()->
-        GetController(false);
-  }
-  if (background)
-    background->SetBounds(fullscreen_bounds);
 }
 
-void RootWindowLayoutManager::OnWindowAddedToLayout(aura::Window* child) {
-}
+void RootWindowLayoutManager::OnWindowAddedToLayout(WmWindow* child) {}
 
-void RootWindowLayoutManager::OnWillRemoveWindowFromLayout(
-    aura::Window* child) {
-}
+void RootWindowLayoutManager::OnWillRemoveWindowFromLayout(WmWindow* child) {}
 
-void RootWindowLayoutManager::OnWindowRemovedFromLayout(aura::Window* child) {
-}
+void RootWindowLayoutManager::OnWindowRemovedFromLayout(WmWindow* child) {}
 
-void RootWindowLayoutManager::OnChildWindowVisibilityChanged(
-    aura::Window* child,
-    bool visible) {
-}
+void RootWindowLayoutManager::OnChildWindowVisibilityChanged(WmWindow* child,
+                                                             bool visible) {}
 
 void RootWindowLayoutManager::SetChildBounds(
-    aura::Window* child,
+    WmWindow* child,
     const gfx::Rect& requested_bounds) {
-  SetChildBoundsDirect(child, requested_bounds);
+  child->SetBoundsDirect(requested_bounds);
 }
 
+}  // namespace wm
 }  // namespace ash

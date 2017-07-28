@@ -4,21 +4,19 @@
 
 #include "ash/system/tray/tray_details_view.h"
 
-#include "ash/root_window_controller.h"
-#include "ash/shelf/shelf_widget.h"
-#include "ash/shell.h"
-#include "ash/system/status_area_widget.h"
-#include "ash/system/tray/hover_highlight_view.h"
-#include "ash/system/tray/special_popup_row.h"
+#include "ash/ash_view_ids.h"
+#include "ash/resources/grit/ash_resources.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ash/system/tray/system_tray.h"
 #include "ash/system/tray/system_tray_item.h"
+#include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_popup_header_button.h"
 #include "ash/system/tray/view_click_listener.h"
 #include "ash/test/ash_test_base.h"
+#include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
-#include "ui/aura/window.h"
+#include "base/test/scoped_mock_time_message_loop_task_runner.h"
+#include "base/test/test_mock_time_task_runner.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/view.h"
@@ -29,26 +27,12 @@ namespace test {
 
 namespace {
 
-SystemTray* GetSystemTray() {
-  return Shell::GetPrimaryRootWindowController()->shelf()->
-      status_area_widget()->system_tray();
-}
-
-class TestDetailsView : public TrayDetailsView,
-                        public ViewClickListener,
-                        public views::ButtonListener {
+class TestDetailsView : public TrayDetailsView {
  public:
   explicit TestDetailsView(SystemTrayItem* owner) : TrayDetailsView(owner) {
     // Uses bluetooth label for testing purpose. It can be changed to any
     // string_id.
-    CreateSpecialRow(IDS_ASH_STATUS_TRAY_BLUETOOTH, this);
-    tray_popup_header_button_ =
-        new TrayPopupHeaderButton(this, IDR_AURA_UBER_TRAY_BLUETOOTH_ENABLED,
-                                  IDR_AURA_UBER_TRAY_BLUETOOTH_DISABLED,
-                                  IDR_AURA_UBER_TRAY_BLUETOOTH_ENABLED_HOVER,
-                                  IDR_AURA_UBER_TRAY_BLUETOOTH_DISABLED_HOVER,
-                                  IDS_ASH_STATUS_TRAY_BLUETOOTH);
-    footer()->AddButton(tray_popup_header_button_);
+    CreateTitleRow(IDS_ASH_STATUS_TRAY_BLUETOOTH);
   }
 
   ~TestDetailsView() override {}
@@ -57,15 +41,7 @@ class TestDetailsView : public TrayDetailsView,
     return tray_popup_header_button_;
   }
 
-  void FocusFooter() {
-    footer()->content()->RequestFocus();
-  }
-
-  // ViewClickListener:
-  void OnViewClicked(views::View* sender) override {}
-
-  // views::ButtonListener:
-  void ButtonPressed(views::Button* sender, const ui::Event& event) override {}
+  void CreateScrollerViews() { CreateScrollableList(); }
 
  private:
   TrayPopupHeaderButton* tray_popup_header_button_;
@@ -76,19 +52,23 @@ class TestDetailsView : public TrayDetailsView,
 // Trivial item implementation that tracks its views for testing.
 class TestItem : public SystemTrayItem {
  public:
-  TestItem() : SystemTrayItem(GetSystemTray()), tray_view_(NULL) {}
+  TestItem()
+      : SystemTrayItem(AshTestBase::GetPrimarySystemTray(), UMA_TEST),
+        tray_view_(nullptr),
+        default_view_(nullptr),
+        detailed_view_(nullptr) {}
 
   // Overridden from SystemTrayItem:
-  views::View* CreateTrayView(user::LoginStatus status) override {
+  views::View* CreateTrayView(LoginStatus status) override {
     tray_view_ = new views::View;
     return tray_view_;
   }
-  views::View* CreateDefaultView(user::LoginStatus status) override {
+  views::View* CreateDefaultView(LoginStatus status) override {
     default_view_ = new views::View;
     default_view_->SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
     return default_view_;
   }
-  views::View* CreateDetailedView(user::LoginStatus status) override {
+  views::View* CreateDetailedView(LoginStatus status) override {
     detailed_view_ = new TestDetailsView(this);
     return detailed_view_;
   }
@@ -115,23 +95,10 @@ class TrayDetailsViewTest : public AshTestBase {
   TrayDetailsViewTest() {}
   ~TrayDetailsViewTest() override {}
 
-  HoverHighlightView* CreateAndShowHoverHighlightView() {
-    SystemTray* tray = GetSystemTray();
-    TestItem* test_item = new TestItem;
-    tray->AddTrayItem(test_item);
-    tray->ShowDefaultView(BUBBLE_CREATE_NEW);
-    RunAllPendingInMessageLoop();
-    tray->ShowDetailedView(test_item, 0, true, BUBBLE_USE_EXISTING);
-    RunAllPendingInMessageLoop();
-
-    return static_cast<HoverHighlightView*>(test_item->detailed_view()->
-        footer()->content());
-  }
-
   TrayPopupHeaderButton* CreateAndShowTrayPopupHeaderButton() {
-    SystemTray* tray = GetSystemTray();
+    SystemTray* tray = GetPrimarySystemTray();
     TestItem* test_item = new TestItem;
-    tray->AddTrayItem(test_item);
+    tray->AddTrayItem(base::WrapUnique(test_item));
     tray->ShowDefaultView(BUBBLE_CREATE_NEW);
     RunAllPendingInMessageLoop();
     tray->ShowDetailedView(test_item, 0, true, BUBBLE_USE_EXISTING);
@@ -140,18 +107,44 @@ class TrayDetailsViewTest : public AshTestBase {
     return test_item->detailed_view()->tray_popup_header_button();
   }
 
+  void TransitionFromDetailedToDefaultView(TestDetailsView* detailed) {
+    detailed->TransitionToDefaultView();
+    (*scoped_task_runner_)
+        ->FastForwardBy(base::TimeDelta::FromMilliseconds(
+            kTrayDetailedViewTransitionDelayMs));
+  }
+
+  void FocusBackButton(TestDetailsView* detailed) {
+    detailed->back_button_->RequestFocus();
+  }
+
+  void SetUp() override {
+    AshTestBase::SetUp();
+    scoped_task_runner_ =
+        base::MakeUnique<base::ScopedMockTimeMessageLoopTaskRunner>();
+  }
+
+  void TearDown() override {
+    scoped_task_runner_.reset();
+    AshTestBase::TearDown();
+  }
+
  private:
+  // Used to control the |transition_delay_timer_|.
+  std::unique_ptr<base::ScopedMockTimeMessageLoopTaskRunner>
+      scoped_task_runner_;
+
   DISALLOW_COPY_AND_ASSIGN(TrayDetailsViewTest);
 };
 
 TEST_F(TrayDetailsViewTest, TransitionToDefaultViewTest) {
-  SystemTray* tray = GetSystemTray();
+  SystemTray* tray = GetPrimarySystemTray();
   ASSERT_TRUE(tray->GetWidget());
 
   TestItem* test_item_1 = new TestItem;
   TestItem* test_item_2 = new TestItem;
-  tray->AddTrayItem(test_item_1);
-  tray->AddTrayItem(test_item_2);
+  tray->AddTrayItem(base::WrapUnique(test_item_1));
+  tray->AddTrayItem(base::WrapUnique(test_item_2));
 
   // Ensure the tray views are created.
   ASSERT_TRUE(test_item_1->tray_view() != NULL);
@@ -169,8 +162,9 @@ TEST_F(TrayDetailsViewTest, TransitionToDefaultViewTest) {
 
   // Transition back to default view, the default view of item 2 should have
   // focus.
-  test_item_2->detailed_view()->FocusFooter();
-  test_item_2->detailed_view()->TransitionToDefaultView();
+  tray->GetSystemBubble()->bubble_view()->set_can_activate(true);
+  FocusBackButton(test_item_2->detailed_view());
+  TransitionFromDetailedToDefaultView(test_item_2->detailed_view());
   RunAllPendingInMessageLoop();
 
   EXPECT_TRUE(test_item_2->default_view());
@@ -185,7 +179,7 @@ TEST_F(TrayDetailsViewTest, TransitionToDefaultViewTest) {
 
   // Transition back to default view, the default view of item 2 should NOT have
   // focus.
-  test_item_2->detailed_view()->TransitionToDefaultView();
+  TransitionFromDetailedToDefaultView(test_item_2->detailed_view());
   RunAllPendingInMessageLoop();
 
   EXPECT_TRUE(test_item_2->default_view());
@@ -193,88 +187,44 @@ TEST_F(TrayDetailsViewTest, TransitionToDefaultViewTest) {
   EXPECT_FALSE(test_item_2->default_view()->HasFocus());
 }
 
-// Tests that HoverHighlightView enters hover state in response to touch.
-TEST_F(TrayDetailsViewTest, HoverHighlightViewTouchFeedback) {
-  HoverHighlightView* view = CreateAndShowHoverHighlightView();
-  EXPECT_FALSE(view->hover());
-
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.set_current_location(view->GetBoundsInScreen().CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(view->hover());
-
-  generator.ReleaseTouch();
-  EXPECT_FALSE(view->hover());
-}
-
-// Tests that touch events leaving HoverHighlightView cancel the hover state.
-TEST_F(TrayDetailsViewTest, HoverHighlightViewTouchFeedbackCancellation) {
-  HoverHighlightView* view = CreateAndShowHoverHighlightView();
-  EXPECT_FALSE(view->hover());
-
-  gfx::Rect view_bounds = view->GetBoundsInScreen();
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.set_current_location(view_bounds.CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(view->hover());
-
-  gfx::Point move_point(view_bounds.x(), view_bounds.CenterPoint().y());
-  generator.MoveTouch(move_point);
-  EXPECT_FALSE(view->hover());
-
-  generator.set_current_location(move_point);
-  generator.ReleaseTouch();
-  EXPECT_FALSE(view->hover());
-}
-
-// Tests that TrayPopupHeaderButton renders a background in response to touch.
-TEST_F(TrayDetailsViewTest, TrayPopupHeaderButtonTouchFeedback) {
-  TrayPopupHeaderButton* button = CreateAndShowTrayPopupHeaderButton();
-  EXPECT_FALSE(button->background());
-
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.set_current_location(button->GetBoundsInScreen().CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(button->background());
-
-  generator.ReleaseTouch();
-  EXPECT_FALSE(button->background());
-}
-
-// Tests that touch events leaving TrayPopupHeaderButton cancel the touch
-// feedback background.
-TEST_F(TrayDetailsViewTest, TrayPopupHeaderButtonTouchFeedbackCancellation) {
-  TrayPopupHeaderButton* button = CreateAndShowTrayPopupHeaderButton();
-  EXPECT_FALSE(button->background());
-
-  gfx::Rect view_bounds = button->GetBoundsInScreen();
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  generator.set_current_location(view_bounds.CenterPoint());
-  generator.PressTouch();
-  EXPECT_TRUE(button->background());
-
-  gfx::Point move_point(view_bounds.x(), view_bounds.CenterPoint().y());
-  generator.MoveTouch(move_point);
-  EXPECT_FALSE(button->background());
-
-  generator.set_current_location(move_point);
-  generator.ReleaseTouch();
-  EXPECT_FALSE(button->background());
-}
-
-// Tests that a mouse entering TrayPopupHeaderButton renders a background as
-// visual feedback.
-TEST_F(TrayDetailsViewTest, TrayPopupHeaderButtonMouseHoverFeedback) {
-  TrayPopupHeaderButton* button = CreateAndShowTrayPopupHeaderButton();
-  EXPECT_FALSE(button->background());
-
-  ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow());
-  gfx::Rect bounds = button->GetBoundsInScreen();
-  gfx::Point initial_point(bounds.x() - 1, bounds.y());
-  generator.set_current_location(initial_point);
-  generator.MoveMouseBy(1, 0);
+TEST_F(TrayDetailsViewTest, ScrollContentsTest) {
+  SystemTray* tray = GetPrimarySystemTray();
+  TestItem* test_item = new TestItem;
+  tray->AddTrayItem(base::WrapUnique(test_item));
+  tray->ShowDefaultView(BUBBLE_CREATE_NEW);
   RunAllPendingInMessageLoop();
-  EXPECT_TRUE(button->background());
+  tray->ShowDetailedView(test_item, 0, true, BUBBLE_USE_EXISTING);
+  RunAllPendingInMessageLoop();
+  test_item->detailed_view()->CreateScrollerViews();
+
+  test_item->detailed_view()->scroll_content()->SetPaintToLayer();
+  views::View* view1 = new views::View();
+  test_item->detailed_view()->scroll_content()->AddChildView(view1);
+  views::View* view2 = new views::View();
+  view2->SetPaintToLayer();
+  test_item->detailed_view()->scroll_content()->AddChildView(view2);
+  views::View* view3 = new views::View();
+  view3->SetPaintToLayer();
+  test_item->detailed_view()->scroll_content()->AddChildView(view3);
+
+  // Child layers should have same order as the child views.
+  const std::vector<ui::Layer*>& layers =
+      test_item->detailed_view()->scroll_content()->layer()->children();
+  EXPECT_EQ(2u, layers.size());
+  EXPECT_EQ(view2->layer(), layers[0]);
+  EXPECT_EQ(view3->layer(), layers[1]);
+
+  // Mark |view2| as sticky and add one more child (which will reorder layers).
+  view2->set_id(VIEW_ID_STICKY_HEADER);
+  views::View* view4 = new views::View();
+  view4->SetPaintToLayer();
+  test_item->detailed_view()->scroll_content()->AddChildView(view4);
+
+  // Sticky header layer should be above the last child's layer.
+  EXPECT_EQ(3u, layers.size());
+  EXPECT_EQ(view3->layer(), layers[0]);
+  EXPECT_EQ(view4->layer(), layers[1]);
+  EXPECT_EQ(view2->layer(), layers[2]);
 }
 
 }  // namespace test

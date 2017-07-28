@@ -27,7 +27,6 @@ enum WMEventType {
   WM_EVENT_FULLSCREEN,
   WM_EVENT_SNAP_LEFT,
   WM_EVENT_SNAP_RIGHT,
-  WM_EVENT_DOCK,
 
   // A window is requested to be the given bounds. The request may or
   // may not be fulfilled depending on the requested bounds and window's
@@ -55,18 +54,17 @@ enum WMEventType {
   // A user requested to toggle fullscreen state.
   WM_EVENT_TOGGLE_FULLSCREEN,
 
-  // A user requested a cycle of dock and snap left.
+  // A user requested a cycle of snap left.
   // The way this event is processed is the current window state is used as
   // the starting state. Assuming normal window start state; if the window can
-  // be snapped left, snap it; otherwise progress to next state. If the window
-  // can be docked left, dock it; otherwise progress to next state. If the
+  // be snapped left, snap it; otherwise progress to next state. If the
   // window can be restored; and this isn't the entry condition restore it;
   // otherwise apply the bounce animation to the window.
-  WM_EVENT_CYCLE_SNAP_DOCK_LEFT,
+  WM_EVENT_CYCLE_SNAP_LEFT,
 
-  // A user requested a cycle of dock and snap right.
-  // See decription of WM_EVENT_CYCLE_SNAP_DOCK_LEFT.
-  WM_EVENT_CYCLE_SNAP_DOCK_RIGHT,
+  // A user requested a cycle of snap right.
+  // See decription of WM_EVENT_CYCLE_SNAP_LEFT.
+  WM_EVENT_CYCLE_SNAP_RIGHT,
 
   // A user requested to center a window.
   WM_EVENT_CENTER,
@@ -88,6 +86,13 @@ enum WMEventType {
   // Bounds of the work area has changed. This will not occur when the work
   // area has changed as a result of DISPLAY_BOUNDS_CHANGED.
   WM_EVENT_WORKAREA_BOUNDS_CHANGED,
+
+  // A user requested to pin a window.
+  WM_EVENT_PIN,
+
+  // A user requested to pin a window for a trusted application. This is similar
+  // WM_EVENT_PIN but does not allow user to exit the mode by shortcut key.
+  WM_EVENT_TRUSTED_PIN,
 };
 
 class ASH_EXPORT WMEvent {
@@ -103,8 +108,8 @@ class ASH_EXPORT WMEvent {
 };
 
 // An WMEvent to request new bounds for the window.
-class SetBoundsEvent : public WMEvent {
-public:
+class ASH_EXPORT SetBoundsEvent : public WMEvent {
+ public:
   SetBoundsEvent(WMEventType type, const gfx::Rect& requested_bounds);
   ~SetBoundsEvent() override;
 
@@ -120,4 +125,3 @@ public:
 }  // namespace ash
 
 #endif  // ASH_WM_WM_EVENT_H_
-

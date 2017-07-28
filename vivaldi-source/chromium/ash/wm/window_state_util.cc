@@ -6,7 +6,7 @@
 
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_state_delegate.h"
-#include "ui/aura/client/aura_constants.h"
+#include "ash/wm_window.h"
 
 namespace ash {
 namespace wm {
@@ -21,14 +21,7 @@ void ToggleFullScreen(wm::WindowState* window_state,
 
   if (delegate && delegate->ToggleFullscreen(window_state))
     return;
-
-  if (is_fullscreen) {
-    window_state->Restore();
-  } else {
-    // Set the property to activate full screen.
-    window_state->window()->SetProperty(aura::client::kShowStateKey,
-                                        ui::SHOW_STATE_FULLSCREEN);
-  }
+  window_state->window()->SetFullscreen(!is_fullscreen);
 }
 
 }  // namespace wm

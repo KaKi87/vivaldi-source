@@ -6,7 +6,7 @@
 #define ASH_SHELF_SHELF_MODEL_OBSERVER_H_
 
 #include "ash/ash_export.h"
-#include "ash/shelf/shelf_item_types.h"
+#include "ash/public/cpp/shelf_types.h"
 
 namespace ash {
 
@@ -17,16 +17,15 @@ class ASH_EXPORT ShelfModelObserver {
   // Invoked after an item has been added to the model.
   virtual void ShelfItemAdded(int index) = 0;
 
-  // Invoked after an item has been removed. |index| is the index the item was
-  // at.
-  virtual void ShelfItemRemoved(int index, ShelfID id) = 0;
+  // Invoked after an item has been removed from the model. |index| is the index
+  // the item was at before removal, |old_item| is the item before removal.
+  virtual void ShelfItemRemoved(int index, const ShelfItem& old_item) = 0;
 
   // Invoked after an item has been moved. See ShelfModel::Move() for details
   // of the arguments.
   virtual void ShelfItemMoved(int start_index, int target_index) = 0;
 
-  // Invoked when the state of an item changes. |old_item| is the item
-  // before the change.
+  // Invoked after an item changes. |old_item| is the item before the change.
   virtual void ShelfItemChanged(int index, const ShelfItem& old_item) = 0;
 
  protected:

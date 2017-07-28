@@ -4,22 +4,20 @@
 
 #include "ash/session/session_state_observer.h"
 
-#include "ash/session/session_state_delegate.h"
+#include "ash/session/session_controller.h"
 #include "ash/shell.h"
 
 namespace ash {
 
 ScopedSessionStateObserver::ScopedSessionStateObserver(
-    ash::SessionStateObserver* observer)
+    SessionStateObserver* observer)
     : observer_(observer) {
-  ash::Shell::GetInstance()->session_state_delegate()->AddSessionStateObserver(
-      observer_);
+  Shell::Get()->session_controller()->AddSessionStateObserver(observer_);
 }
 
 ScopedSessionStateObserver::~ScopedSessionStateObserver() {
-  ash::Shell::GetInstance()
-      ->session_state_delegate()
-      ->RemoveSessionStateObserver(observer_);
+  if (Shell::HasInstance())
+    Shell::Get()->session_controller()->RemoveSessionStateObserver(observer_);
 }
 
 }  // namespace ash

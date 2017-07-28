@@ -8,24 +8,22 @@
 #include <stdint.h>
 
 #include <map>
-#include <set>
+#include <unordered_set>
 
 #include "ash/ash_export.h"
 #include "ash/shell_observer.h"
-#include "ash/wm/common/window_state.h"
-#include "base/compiler_specific.h"
+#include "ash/wm/window_state.h"
 #include "base/macros.h"
 #include "ui/aura/window_observer.h"
 #include "ui/display/display_observer.h"
-#include "ui/events/event_handler.h"
-
-namespace ui {
-class TouchEvent;
-}
 
 namespace ash {
 class MaximizeModeController;
 class MaximizeModeWindowState;
+
+namespace wm {
+class MaximizeModeEventHandler;
+}
 
 // A window manager which - when created - will force all windows into maximized
 // mode. Exception are panels and windows which cannot be maximized.
@@ -35,8 +33,7 @@ class MaximizeModeWindowState;
 // original state.
 class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
                                              public display::DisplayObserver,
-                                             public ShellObserver,
-                                             public ui::EventHandler {
+                                             public ShellObserver {
  public:
   // This should only be deleted by the creator (ash::Shell).
   ~MaximizeModeWindowManager() override;
@@ -48,10 +45,10 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
   // managers for windows which needs to get tracked due to (upcoming) state
   // changes.
   // The call gets ignored if the window was already or should not be handled.
-  void AddWindow(aura::Window* window);
+  void AddWindow(WmWindow* window);
 
   // Called from a window state object when it gets destroyed.
-  void WindowStateDestroyed(aura::Window* window);
+  void WindowStateDestroyed(WmWindow* window);
 
   // ShellObserver overrides:
   void OnOverviewModeStarting() override;
@@ -59,13 +56,14 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
 
   // Overridden from WindowObserver:
   void OnWindowDestroying(aura::Window* window) override;
-  void OnWindowAdded(aura::Window* window) override;
+  void OnWindowHierarchyChanged(const HierarchyChangeParams& params) override;
   void OnWindowPropertyChanged(aura::Window* window,
                                const void* key,
                                intptr_t old) override;
   void OnWindowBoundsChanged(aura::Window* window,
                              const gfx::Rect& old_bounds,
                              const gfx::Rect& new_bounds) override;
+  void OnWindowVisibilityChanged(aura::Window* window, bool visible) override;
 
   // display::DisplayObserver overrides:
   void OnDisplayAdded(const display::Display& display) override;
@@ -73,8 +71,8 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
   void OnDisplayMetricsChanged(const display::Display& display,
                                uint32_t metrics) override;
 
-  // ui::EventHandler override:
-  void OnTouchEvent(ui::TouchEvent* event) override;
+  // Tell all managing windows not to handle WM events.
+  void SetIgnoreWmEventsForExit();
 
  protected:
   friend class MaximizeModeController;
@@ -83,7 +81,7 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
   MaximizeModeWindowManager();
 
  private:
-  typedef std::map<aura::Window*, MaximizeModeWindowState*> WindowToState;
+  using WindowToState = std::map<WmWindow*, MaximizeModeWindowState*>;
 
   // Maximize all windows and restore their current state.
   void MaximizeAllWindows();
@@ -100,13 +98,13 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
   // state).
   // Note: If the given window cannot be handled by us the function will return
   // immediately.
-  void MaximizeAndTrackWindow(aura::Window* window);
+  void MaximizeAndTrackWindow(WmWindow* window);
 
   // Remove a window from our tracking list.
-  void ForgetWindow(aura::Window* window);
+  void ForgetWindow(WmWindow* window);
 
   // Returns true when the given window should be modified in any way by us.
-  bool ShouldHandleWindow(aura::Window* window);
+  bool ShouldHandleWindow(WmWindow* window);
 
   // Add window creation observers to track creation of new windows.
   void AddWindowCreationObservers();
@@ -128,10 +126,15 @@ class ASH_EXPORT MaximizeModeWindowManager : public aura::WindowObserver,
   WindowToState window_state_map_;
 
   // All container windows which have to be tracked.
-  std::set<aura::Window*> observed_container_windows_;
+  std::unordered_set<aura::Window*> observed_container_windows_;
+
+  // Windows added to the container, but not yet shown.
+  std::unordered_set<aura::Window*> added_windows_;
 
   // True if all backdrops are hidden.
   bool backdrops_hidden_;
+
+  std::unique_ptr<wm::MaximizeModeEventHandler> event_handler_;
 
   DISALLOW_COPY_AND_ASSIGN(MaximizeModeWindowManager);
 };

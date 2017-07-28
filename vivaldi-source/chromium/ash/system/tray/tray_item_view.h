@@ -36,6 +36,7 @@ class ASH_EXPORT TrayItemView : public views::View,
   static void DisableAnimationsForTest();
 
   // Convenience function for creating a child Label or ImageView.
+  // Only one of the two should be called.
   void CreateLabel();
   void CreateImageView();
 
@@ -49,16 +50,6 @@ class ASH_EXPORT TrayItemView : public views::View,
   int GetHeightForWidth(int width) const override;
 
  protected:
-  // Makes sure the widget relayouts after the size/visibility of the view
-  // changes.
-  void ApplyChange();
-
-  // This should return the desired size of the view. For most views, this
-  // returns GetPreferredSize. But since this class overrides GetPreferredSize
-  // for animation purposes, we allow a different way to get this size, and do
-  // not allow GetPreferredSize to be overridden.
-  virtual gfx::Size DesiredSize() const;
-
   // The default animation duration is 200ms. But each view can customize this.
   virtual int GetAnimationDurationMS();
 
@@ -73,6 +64,7 @@ class ASH_EXPORT TrayItemView : public views::View,
 
   SystemTrayItem* owner_;
   std::unique_ptr<gfx::SlideAnimation> animation_;
+  // Only one of |label_| and |image_view_| should be non-null.
   views::Label* label_;
   views::ImageView* image_view_;
 

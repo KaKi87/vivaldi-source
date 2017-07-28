@@ -10,11 +10,9 @@
 #include <string>
 
 #include "ash/ash_export.h"
-#include "ash/common/shell_observer.h"
 #include "ash/system/toast/toast_data.h"
 #include "ash/system/toast/toast_overlay.h"
 #include "base/memory/weak_ptr.h"
-#include "base/threading/thread_checker.h"
 
 namespace ash {
 

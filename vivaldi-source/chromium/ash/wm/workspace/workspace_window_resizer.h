@@ -18,7 +18,6 @@
 #include "ui/aura/window_tracker.h"
 
 namespace ash {
-class DockedWindowLayoutManager;
 class PhantomWindowController;
 class TwoStepEdgeCycler;
 class WindowSize;
@@ -55,7 +54,7 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
 
   static WorkspaceWindowResizer* Create(
       wm::WindowState* window_state,
-      const std::vector<aura::Window*>& attached_windows);
+      const std::vector<WmWindow*>& attached_windows);
 
   // WindowResizer:
   void Drag(const gfx::Point& location_in_parent, int event_flags) override;
@@ -69,7 +68,7 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   enum SnapType { SNAP_LEFT, SNAP_RIGHT, SNAP_NONE };
 
   WorkspaceWindowResizer(wm::WindowState* window_state,
-                         const std::vector<aura::Window*>& attached_windows);
+                         const std::vector<WmWindow*>& attached_windows);
 
   // Lays out the attached windows. |bounds| is the bounds of the main window.
   void LayoutAttachedWindows(gfx::Rect* bounds);
@@ -85,10 +84,9 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   // Note the return value can be positive or negative, a negative value
   // indicating that that many pixels couldn't be removed from the attached
   // windows.
-  int CalculateAttachedSizes(
-      int delta,
-      int available_size,
-      std::vector<int>* sizes) const;
+  int CalculateAttachedSizes(int delta,
+                             int available_size,
+                             std::vector<int>* sizes) const;
 
   // Divides |amount| evenly between |sizes|. If |amount| is negative it
   // indicates how many pixels |sizes| should be shrunk by.
@@ -156,12 +154,9 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   bool AreBoundsValidSnappedBounds(wm::WindowStateType snapped_type,
                                    const gfx::Rect& bounds_in_parent) const;
 
-  // Docks or undocks the dragged window.
-  void SetDraggedWindowDocked(bool should_dock);
-
   wm::WindowState* window_state() { return window_state_; }
 
-  const std::vector<aura::Window*> attached_windows_;
+  const std::vector<WmWindow*> attached_windows_;
 
   // Returns the currently used instance for test.
   static WorkspaceWindowResizer* GetInstanceForTest();
@@ -188,8 +183,8 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   // is a grid and the caption is being dragged.
   std::unique_ptr<PhantomWindowController> snap_phantom_window_controller_;
 
-  // Used to determine whether the window should be snapped or docked when
-  // the user drags a window to the edge of the screen.
+  // Used to determine whether the window should be snapped when the user drags
+  // a window to the edge of the screen.
   std::unique_ptr<TwoStepEdgeCycler> edge_cycler_;
 
   // The edge to which the window should be snapped to at the end of the drag.
@@ -204,7 +199,7 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   gfx::Point last_mouse_location_;
 
   // Window the drag has magnetically attached to.
-  aura::Window* magnetism_window_;
+  WmWindow* magnetism_window_;
 
   // Used to verify |magnetism_window_| is still valid.
   aura::WindowTracker window_tracker_;
@@ -212,9 +207,6 @@ class ASH_EXPORT WorkspaceWindowResizer : public WindowResizer {
   // If |magnetism_window_| is non-NULL this indicates how the two windows
   // should attach.
   MatchedEdge magnetism_edge_;
-
-  // Dock container window layout manager.
-  DockedWindowLayoutManager* dock_layout_;
 
   // Used to determine if this has been deleted during a drag such as when a tab
   // gets dragged into another browser window.

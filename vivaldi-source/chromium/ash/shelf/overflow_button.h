@@ -5,60 +5,80 @@
 #ifndef ASH_SHELF_OVERFLOW_BUTTON_H_
 #define ASH_SHELF_OVERFLOW_BUTTON_H_
 
-#include "ash/common/shelf/shelf_types.h"
-#include "base/compiler_specific.h"
+#include "ash/ash_export.h"
 #include "base/macros.h"
+#include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/button/custom_button.h"
 
 namespace ash {
-class InkDropButtonListener;
-class Shelf;
+namespace test {
+class OverflowButtonTestApi;
+}  // namespace test
+
+class ShelfView;
+class WmShelf;
 
 // Shelf overflow chevron button.
-class OverflowButton : public views::CustomButton {
+class ASH_EXPORT OverflowButton : public views::CustomButton {
  public:
-  OverflowButton(InkDropButtonListener* listener, Shelf* shelf);
+  // |shelf_view| is the view containing this button.
+  OverflowButton(ShelfView* shelf_view, WmShelf* wm_shelf);
   ~OverflowButton() override;
 
   void OnShelfAlignmentChanged();
+  void OnOverflowBubbleShown();
+  void OnOverflowBubbleHidden();
+
+  // Updates background and schedules a paint.
+  void UpdateShelfItemBackground(SkColor color);
 
  private:
-  // views::View:
-  void OnPaint(gfx::Canvas* canvas) override;
+  friend class test::OverflowButtonTestApi;
+
+  enum class ChevronDirection { UP, DOWN, LEFT, RIGHT };
+
+  // Returns the direction of chevron image based on the shelf alignment and
+  // overflow state.
+  ChevronDirection GetChevronDirection() const;
+
+  // Updates the chevron image according to GetChevronDirection().
+  void UpdateChevronImage();
 
   // views::CustomButton:
+  void OnPaint(gfx::Canvas* canvas) override;
+  std::unique_ptr<views::InkDrop> CreateInkDrop() override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  bool ShouldEnterPushedState(const ui::Event& event) override;
   void NotifyClick(const ui::Event& event) override;
+  std::unique_ptr<views::InkDropMask> CreateInkDropMask() const override;
 
   // Helper functions to paint the background and foreground of the button
   // at |bounds|.
   void PaintBackground(gfx::Canvas* canvas, const gfx::Rect& bounds);
   void PaintForeground(gfx::Canvas* canvas, const gfx::Rect& bounds);
 
-  // Returns the id of the asset to use for the button backgound based on the
-  // current shelf state.
-  // TODO(tdanderson): Remove this once the material design shelf is enabled
-  // by default. See crbug.com/614453.
-  int NonMaterialBackgroundImageId();
+  // Calculates the bounds of the overflow button based on the shelf alignment
+  // and overflow shelf visibility.
+  gfx::Rect CalculateButtonBounds() const;
 
-  // Calculates the bounds of the overflow button based on the shelf alignment.
-  gfx::Rect CalculateButtonBounds();
+  // The original upward chevron image.
+  const gfx::ImageSkia upward_image_;
 
-  // Used for bottom shelf alignment. |bottom_image_| points to
-  // |bottom_image_md_| for material design, otherwise it is points to a
-  // resource owned by the ResourceBundle.
-  // TODO(tdanderson): Remove the non-md code once the material design shelf is
-  // enabled by default. See crbug.com/614453.
-  const gfx::ImageSkia* bottom_image_;
-  gfx::ImageSkia bottom_image_md_;
+  // Cached rotations of |upward_image_|.
+  gfx::ImageSkia downward_image_;
+  gfx::ImageSkia leftward_image_;
+  gfx::ImageSkia rightward_image_;
 
-  // Cached rotations of |bottom_image_| used for left and right shelf
-  // alignments.
-  gfx::ImageSkia left_image_;
-  gfx::ImageSkia right_image_;
+  // Current chevron image which is a pointer to one of the above images
+  // according to current shelf alignment and overflow shelf visibility.
+  const gfx::ImageSkia* chevron_image_;
 
-  InkDropButtonListener* listener_;
-  Shelf* shelf_;
+  ShelfView* shelf_view_;
+  WmShelf* wm_shelf_;
+
+  // Color used to paint the background.
+  SkColor background_color_;
 
   DISALLOW_COPY_AND_ASSIGN(OverflowButton);
 };

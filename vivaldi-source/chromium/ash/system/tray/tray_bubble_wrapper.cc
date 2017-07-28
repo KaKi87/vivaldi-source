@@ -6,10 +6,7 @@
 
 #include "ash/system/tray/tray_background_view.h"
 #include "ash/system/tray/tray_event_filter.h"
-#include "ash/wm/window_properties.h"
-#include "ui/aura/client/capture_client.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_event_dispatcher.h"
+#include "ash/wm_window.h"
 #include "ui/views/bubble/tray_bubble_view.h"
 #include "ui/views/widget/widget.h"
 
@@ -17,8 +14,7 @@ namespace ash {
 
 TrayBubbleWrapper::TrayBubbleWrapper(TrayBackgroundView* tray,
                                      views::TrayBubbleView* bubble_view)
-    : tray_(tray),
-      bubble_view_(bubble_view) {
+    : tray_(tray), bubble_view_(bubble_view) {
   bubble_widget_ = views::BubbleDialogDelegateView::CreateBubble(bubble_view_);
   bubble_widget_->AddObserver(this);
 
@@ -46,10 +42,8 @@ void TrayBubbleWrapper::OnWidgetDestroying(views::Widget* widget) {
   // will invoke PerformAction which reopens the bubble again. To prevent the
   // reopen, the mouse capture of |tray_| has to be released.
   // See crbug.com/177075
-  aura::client::CaptureClient* capture_client = aura::client::GetCaptureClient(
-      tray_->GetWidget()->GetNativeView()->GetRootWindow());
-  if (capture_client)
-    capture_client->ReleaseCapture(tray_->GetWidget()->GetNativeView());
+  WmWindow::Get(tray_->GetWidget()->GetNativeWindow())->ReleaseCapture();
+
   tray_->HideBubbleWithView(bubble_view_);  // May destroy |bubble_view_|
 }
 

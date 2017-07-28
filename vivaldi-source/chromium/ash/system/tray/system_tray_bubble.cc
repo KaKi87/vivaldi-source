@@ -4,19 +4,23 @@
 
 #include "ash/system/tray/system_tray_bubble.h"
 
+#include <utility>
+#include <vector>
+
 #include "ash/shell.h"
+#include "ash/shell_port.h"
 #include "ash/system/tray/system_tray.h"
 #include "ash/system/tray/system_tray_delegate.h"
 #include "ash/system/tray/system_tray_item.h"
 #include "ash/system/tray/tray_bubble_wrapper.h"
 #include "ash/system/tray/tray_constants.h"
-#include "ash/system/tray/tray_popup_item_container.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "ui/aura/window.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/gfx/canvas.h"
+#include "ui/views/border.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
@@ -32,19 +36,22 @@ namespace {
 // we may not know the height of the default view, or the default view may
 // be too short, so we use this as a default and minimum height for any
 // detailed view.
-const int kDetailedBubbleMaxHeight = kTrayPopupItemHeight * 5;
+int GetDetailedBubbleMaxHeight() {
+  return kTrayPopupItemMinHeight * 5;
+}
 
 // Duration of swipe animation used when transitioning from a default to
 // detailed view or vice versa.
 const int kSwipeDelayMS = 150;
 
+// Extra bottom padding when showing the BUBBLE_TYPE_DEFAULT view.
+const int kDefaultViewBottomPadding = 4;
+
 // Implicit animation observer that deletes itself and the layer at the end of
 // the animation.
 class AnimationObserverDeleteLayer : public ui::ImplicitAnimationObserver {
  public:
-  explicit AnimationObserverDeleteLayer(ui::Layer* layer)
-      : layer_(layer) {
-  }
+  explicit AnimationObserverDeleteLayer(ui::Layer* layer) : layer_(layer) {}
 
   ~AnimationObserverDeleteLayer() override {}
 
@@ -67,11 +74,10 @@ SystemTrayBubble::SystemTrayBubble(
     const std::vector<ash::SystemTrayItem*>& items,
     BubbleType bubble_type)
     : tray_(tray),
-      bubble_view_(NULL),
+      bubble_view_(nullptr),
       items_(items),
       bubble_type_(bubble_type),
-      autoclose_delay_(0) {
-}
+      autoclose_delay_(0) {}
 
 SystemTrayBubble::~SystemTrayBubble() {
   DestroyItemViews();
@@ -83,8 +89,6 @@ SystemTrayBubble::~SystemTrayBubble() {
 void SystemTrayBubble::UpdateView(
     const std::vector<ash::SystemTrayItem*>& items,
     BubbleType bubble_type) {
-  DCHECK(bubble_type != BUBBLE_TYPE_NOTIFICATION);
-
   std::unique_ptr<ui::Layer> scoped_layer;
   if (bubble_type != bubble_type_) {
     base::TimeDelta swipe_duration =
@@ -138,8 +142,7 @@ void SystemTrayBubble::UpdateView(
 
   items_ = items;
   bubble_type_ = bubble_type;
-  CreateItemViews(
-      Shell::GetInstance()->system_tray_delegate()->GetUserLoginStatus());
+  CreateItemViews(Shell::Get()->system_tray_delegate()->GetUserLoginStatus());
 
   // Close bubble view if we failed to create the item view.
   if (!bubble_view_->has_children()) {
@@ -147,6 +150,7 @@ void SystemTrayBubble::UpdateView(
     return;
   }
 
+  UpdateBottomPadding();
   bubble_view_->GetWidget()->GetContentsView()->Layout();
   // Make sure that the bubble is large enough for the default view.
   if (bubble_type_ == BUBBLE_TYPE_DEFAULT) {
@@ -181,24 +185,23 @@ void SystemTrayBubble::UpdateView(
 }
 
 void SystemTrayBubble::InitView(views::View* anchor,
-                                user::LoginStatus login_status,
+                                LoginStatus login_status,
                                 TrayBubbleView::InitParams* init_params) {
-  DCHECK(bubble_view_ == NULL);
+  DCHECK(anchor);
+  DCHECK(!bubble_view_);
 
   if (bubble_type_ == BUBBLE_TYPE_DETAILED &&
-      init_params->max_height < kDetailedBubbleMaxHeight) {
-    init_params->max_height = kDetailedBubbleMaxHeight;
-  } else if (bubble_type_ == BUBBLE_TYPE_NOTIFICATION) {
-    init_params->close_on_deactivate = false;
+      init_params->max_height < GetDetailedBubbleMaxHeight()) {
+    init_params->max_height = GetDetailedBubbleMaxHeight();
   }
-  bubble_view_ = TrayBubbleView::Create(
-      tray_->GetBubbleWindowContainer(), anchor, tray_, init_params);
+
+  bubble_view_ = TrayBubbleView::Create(anchor, tray_, init_params);
+  UpdateBottomPadding();
   bubble_view_->set_adjust_if_offscreen(false);
   CreateItemViews(login_status);
 
   if (bubble_view_->CanActivate()) {
-    bubble_view_->NotifyAccessibilityEvent(
-        ui::AX_EVENT_ALERT, true);
+    bubble_view_->NotifyAccessibilityEvent(ui::AX_EVENT_ALERT, true);
   }
 }
 
@@ -207,15 +210,15 @@ void SystemTrayBubble::FocusDefaultIfNeeded() {
   if (!manager || manager->GetFocusedView())
     return;
 
-  views::View* view = manager->GetNextFocusableView(NULL, NULL, false, false);
+  views::View* view =
+      manager->GetNextFocusableView(nullptr, nullptr, false, false);
   if (view)
     view->RequestFocus();
 }
 
 void SystemTrayBubble::DestroyItemViews() {
   for (std::vector<ash::SystemTrayItem*>::iterator it = items_.begin();
-       it != items_.end();
-       ++it) {
+       it != items_.end(); ++it) {
     switch (bubble_type_) {
       case BUBBLE_TYPE_DEFAULT:
         (*it)->DestroyDefaultView();
@@ -223,23 +226,19 @@ void SystemTrayBubble::DestroyItemViews() {
       case BUBBLE_TYPE_DETAILED:
         (*it)->DestroyDetailedView();
         break;
-      case BUBBLE_TYPE_NOTIFICATION:
-        (*it)->DestroyNotificationView();
-        break;
     }
   }
 }
 
 void SystemTrayBubble::BubbleViewDestroyed() {
-  bubble_view_ = NULL;
+  bubble_view_ = nullptr;
 }
 
 void SystemTrayBubble::StartAutoCloseTimer(int seconds) {
   autoclose_.Stop();
   autoclose_delay_ = seconds;
   if (autoclose_delay_) {
-    autoclose_.Start(FROM_HERE,
-                     base::TimeDelta::FromSeconds(autoclose_delay_),
+    autoclose_.Start(FROM_HERE, base::TimeDelta::FromSeconds(autoclose_delay_),
                      this, &SystemTrayBubble::Close);
   }
 }
@@ -273,53 +272,67 @@ bool SystemTrayBubble::IsVisible() {
 
 bool SystemTrayBubble::ShouldShowShelf() const {
   for (std::vector<ash::SystemTrayItem*>::const_iterator it = items_.begin();
-       it != items_.end();
-       ++it) {
+       it != items_.end(); ++it) {
     if ((*it)->ShouldShowShelf())
       return true;
   }
   return false;
 }
 
-void SystemTrayBubble::CreateItemViews(user::LoginStatus login_status) {
-  std::vector<views::View*> item_views;
+void SystemTrayBubble::RecordVisibleRowMetrics() {
+  if (bubble_type_ != BUBBLE_TYPE_DEFAULT)
+    return;
+
+  for (const std::pair<SystemTrayItem::UmaType, views::View*>& pair :
+       tray_item_view_map_) {
+    if (pair.second->visible() &&
+        pair.first != SystemTrayItem::UMA_NOT_RECORDED) {
+      UMA_HISTOGRAM_ENUMERATION("Ash.SystemMenu.DefaultView.VisibleRows",
+                                pair.first, SystemTrayItem::UMA_COUNT);
+    }
+  }
+}
+
+void SystemTrayBubble::UpdateBottomPadding() {
+  if (bubble_type_ == BUBBLE_TYPE_DEFAULT)
+    bubble_view_->SetBottomPadding(kDefaultViewBottomPadding);
+  else
+    bubble_view_->SetBottomPadding(0);
+}
+
+void SystemTrayBubble::CreateItemViews(LoginStatus login_status) {
+  tray_item_view_map_.clear();
+
   // If a system modal dialog is present, create the same tray as
   // in locked state.
-  if (Shell::GetInstance()->IsSystemModalWindowOpen() &&
-      login_status != user::LOGGED_IN_NONE) {
-    login_status = user::LOGGED_IN_LOCKED;
+  if (ShellPort::Get()->IsSystemModalWindowOpen() &&
+      login_status != LoginStatus::NOT_LOGGED_IN) {
+    login_status = LoginStatus::LOCKED;
   }
 
-  views::View* focus_view = NULL;
+  views::View* focus_view = nullptr;
   for (size_t i = 0; i < items_.size(); ++i) {
-    views::View* view = NULL;
+    views::View* item_view = nullptr;
     switch (bubble_type_) {
       case BUBBLE_TYPE_DEFAULT:
-        view = items_[i]->CreateDefaultView(login_status);
+        item_view = items_[i]->CreateDefaultView(login_status);
         if (items_[i]->restore_focus())
-          focus_view = view;
+          focus_view = item_view;
         break;
       case BUBBLE_TYPE_DETAILED:
-        view = items_[i]->CreateDetailedView(login_status);
-        break;
-      case BUBBLE_TYPE_NOTIFICATION:
-        view = items_[i]->CreateNotificationView(login_status);
+        item_view = items_[i]->CreateDetailedView(login_status);
         break;
     }
-    if (view)
-      item_views.push_back(view);
+    if (item_view) {
+      bubble_view_->AddChildView(item_view);
+      tray_item_view_map_[items_[i]->uma_type()] = item_view;
+    }
   }
 
-  bool is_default_bubble = bubble_type_ == BUBBLE_TYPE_DEFAULT;
-  for (size_t i = 0; i < item_views.size(); ++i) {
-    // For default view, draw bottom border for each item, except the last
-    // 2 items, which are the bottom header row and the one just above it.
-    bubble_view_->AddChildView(new TrayPopupItemContainer(
-        item_views[i], is_default_bubble,
-        is_default_bubble && (i < item_views.size() - 2)));
-  }
-  if (focus_view)
+  if (focus_view) {
+    tray_->ActivateBubble();
     focus_view->RequestFocus();
+  }
 }
 
 }  // namespace ash

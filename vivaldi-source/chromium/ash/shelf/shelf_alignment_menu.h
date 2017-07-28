@@ -11,20 +11,18 @@
 
 namespace ash {
 
-class Shelf;
+class WmShelf;
 
-// Submenu for choosing the alignment of the launcher.
+// Submenu for choosing the alignment of the shelf.
 class ASH_EXPORT ShelfAlignmentMenu : public ui::SimpleMenuModel,
                                       public ui::SimpleMenuModel::Delegate {
  public:
-  explicit ShelfAlignmentMenu(Shelf* shelf);
+  explicit ShelfAlignmentMenu(WmShelf* wm_shelf);
   ~ShelfAlignmentMenu() override;
 
   // ui::SimpleMenuModel::Delegate overrides:
   bool IsCommandIdChecked(int command_id) const override;
   bool IsCommandIdEnabled(int command_id) const override;
-  bool GetAcceleratorForCommandId(int command_id,
-                                  ui::Accelerator* accelerator) override;
   void ExecuteCommand(int command_id, int event_flags) override;
 
  private:
@@ -35,7 +33,7 @@ class ASH_EXPORT ShelfAlignmentMenu : public ui::SimpleMenuModel,
     MENU_ALIGN_BOTTOM,
   };
 
-  Shelf* shelf_;
+  WmShelf* wm_shelf_;
 
   DISALLOW_COPY_AND_ASSIGN(ShelfAlignmentMenu);
 };

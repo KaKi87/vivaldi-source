@@ -5,10 +5,12 @@
 #ifndef ASH_SYSTEM_TRAY_SYSTEM_TRAY_BUBBLE_H_
 #define ASH_SYSTEM_TRAY_SYSTEM_TRAY_BUBBLE_H_
 
+#include <map>
 #include <memory>
 #include <vector>
 
-#include "ash/system/user/login_status.h"
+#include "ash/login_status.h"
+#include "ash/system/tray/system_tray_item.h"
 #include "base/macros.h"
 #include "base/timer/timer.h"
 #include "ui/views/bubble/tray_bubble_view.h"
@@ -19,11 +21,7 @@ class SystemTrayItem;
 
 class SystemTrayBubble {
  public:
-  enum BubbleType {
-    BUBBLE_TYPE_DEFAULT,
-    BUBBLE_TYPE_DETAILED,
-    BUBBLE_TYPE_NOTIFICATION
-  };
+  enum BubbleType { BUBBLE_TYPE_DEFAULT, BUBBLE_TYPE_DETAILED };
 
   SystemTrayBubble(ash::SystemTray* tray,
                    const std::vector<ash::SystemTrayItem*>& items,
@@ -37,7 +35,7 @@ class SystemTrayBubble {
   // Creates |bubble_view_| and a child views for each member of |items_|.
   // Also creates |bubble_wrapper_|. |init_params| may be modified.
   void InitView(views::View* anchor,
-                user::LoginStatus login_status,
+                LoginStatus login_status,
                 views::TrayBubbleView::InitParams* init_params);
 
   // Focus the default item if no item is focused. Othewise, do nothing.
@@ -59,13 +57,23 @@ class SystemTrayBubble {
   // ShouldShowShelf().
   bool ShouldShowShelf() const;
 
+  // Records metrics for visible system menu rows. Only implemented for the
+  // BUBBLE_TYPE_DEFAULT BubbleType.
+  void RecordVisibleRowMetrics();
+
  private:
-  void CreateItemViews(user::LoginStatus login_status);
+  // Updates the bottom padding of the |bubble_view_| based on the
+  // |bubble_type_|.
+  void UpdateBottomPadding();
+  void CreateItemViews(LoginStatus login_status);
 
   ash::SystemTray* tray_;
   views::TrayBubbleView* bubble_view_;
   std::vector<ash::SystemTrayItem*> items_;
   BubbleType bubble_type_;
+
+  // Tracks the views created in the last call to CreateItemViews().
+  std::map<SystemTrayItem::UmaType, views::View*> tray_item_view_map_;
 
   int autoclose_delay_;
   base::OneShotTimer autoclose_;

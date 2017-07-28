@@ -6,11 +6,11 @@
 
 #include <math.h>
 
-#include "ash/shell.h"
-#include "ash/shell_window_ids.h"
-#include "ash/wm/coordinate_conversion.h"
-#include "grit/ash_resources.h"
-#include "ui/aura/window.h"
+#include "ash/public/cpp/shell_window_ids.h"
+#include "ash/resources/grit/ash_resources.h"
+#include "ash/root_window_controller.h"
+#include "ash/wm/root_window_finder.h"
+#include "ash/wm_window.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/views/background.h"
@@ -60,7 +60,7 @@ void AnimateToBounds(views::Widget* widget,
     return;
 
   ui::ScopedLayerAnimationSettings scoped_setter(
-      widget->GetNativeWindow()->layer()->GetAnimator());
+      WmWindow::Get(widget->GetNativeWindow())->GetLayer()->GetAnimator());
   scoped_setter.SetTweenType(gfx::Tween::EASE_IN);
   scoped_setter.SetPreemptionStrategy(
       ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
@@ -73,12 +73,10 @@ void AnimateToBounds(views::Widget* widget,
 
 // PhantomWindowController ----------------------------------------------------
 
-PhantomWindowController::PhantomWindowController(aura::Window* window)
-    : window_(window) {
-}
+PhantomWindowController::PhantomWindowController(WmWindow* window)
+    : window_(window) {}
 
-PhantomWindowController::~PhantomWindowController() {
-}
+PhantomWindowController::~PhantomWindowController() {}
 
 void PhantomWindowController::Show(const gfx::Rect& bounds_in_screen) {
   gfx::Rect adjusted_bounds_in_screen = GetAdjustedBounds(bounds_in_screen);
@@ -96,15 +94,15 @@ void PhantomWindowController::Show(const gfx::Rect& bounds_in_screen) {
   start_bounds_in_screen.Inset(
       floor((start_bounds_in_screen.width() - start_width) / 2.0f),
       floor((start_bounds_in_screen.height() - start_height) / 2.0f));
-  phantom_widget_ = CreatePhantomWidget(
-      wm::GetRootWindowMatching(target_bounds_in_screen_),
-      start_bounds_in_screen);
+  phantom_widget_ =
+      CreatePhantomWidget(wm::GetRootWindowMatching(target_bounds_in_screen_),
+                          start_bounds_in_screen);
 
   AnimateToBounds(phantom_widget_.get(), target_bounds_in_screen_);
 }
 
 std::unique_ptr<views::Widget> PhantomWindowController::CreatePhantomWidget(
-    aura::Window* root_window,
+    WmWindow* root_window,
     const gfx::Rect& bounds_in_screen) {
   std::unique_ptr<views::Widget> phantom_widget(new views::Widget);
   views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
@@ -112,31 +110,35 @@ std::unique_ptr<views::Widget> PhantomWindowController::CreatePhantomWidget(
   // PhantomWindowController is used by FrameMaximizeButton to highlight the
   // launcher button. Put the phantom in the same window as the launcher so that
   // the phantom is visible.
-  params.parent = Shell::GetContainer(root_window,
-                                      kShellWindowId_ShelfContainer);
   params.keep_on_top = true;
   params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  params.name = "PhantomWindow";
+  root_window->GetRootWindowController()->ConfigureWidgetInitParamsForContainer(
+      phantom_widget.get(), kShellWindowId_ShelfContainer, &params);
   phantom_widget->set_focus_on_creation(false);
   phantom_widget->Init(params);
   phantom_widget->SetVisibilityChangedAnimationsEnabled(false);
-  phantom_widget->GetNativeWindow()->SetName("PhantomWindow");
-  phantom_widget->GetNativeWindow()->set_id(kShellWindowId_PhantomWindow);
+  WmWindow* phantom_widget_window =
+      WmWindow::Get(phantom_widget->GetNativeWindow());
+  phantom_widget_window->aura_window()->set_id(kShellWindowId_PhantomWindow);
   phantom_widget->SetBounds(bounds_in_screen);
-  phantom_widget->StackAbove(window_);
+  // TODO(sky): I suspect this is never true, verify that.
+  if (phantom_widget_window->GetParent() == window_->GetParent()) {
+    phantom_widget_window->GetParent()->StackChildAbove(phantom_widget_window,
+                                                        window_);
+  }
 
   const int kImages[] = IMAGE_GRID(IDR_AURA_PHANTOM_WINDOW);
-  views::Painter* background_painter =
-      views::Painter::CreateImageGridPainter(kImages);
   views::View* content_view = new views::View;
-  content_view->set_background(
-      views::Background::CreateBackgroundPainter(true, background_painter));
+  content_view->set_background(views::Background::CreateBackgroundPainter(
+      views::Painter::CreateImageGridPainter(kImages)));
   phantom_widget->SetContentsView(content_view);
 
   // Show the widget after all the setups.
   phantom_widget->Show();
 
   // Fade the window in.
-  ui::Layer* widget_layer = phantom_widget->GetNativeWindow()->layer();
+  ui::Layer* widget_layer = phantom_widget_window->GetLayer();
   widget_layer->SetOpacity(0);
   ui::ScopedLayerAnimationSettings scoped_setter(widget_layer->GetAnimator());
   scoped_setter.SetTransitionDuration(

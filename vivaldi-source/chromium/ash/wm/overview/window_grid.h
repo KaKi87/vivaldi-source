@@ -12,15 +12,17 @@
 #include <vector>
 
 #include "ash/wm/overview/window_selector.h"
+#include "ash/wm/window_state_observer.h"
 #include "base/macros.h"
+#include "base/scoped_observer.h"
 #include "ui/aura/window_observer.h"
-
-namespace aura {
-class Window;
-}
 
 namespace views {
 class Widget;
+}
+
+namespace wm {
+class Shadow;
 }
 
 namespace ash {
@@ -43,22 +45,35 @@ class WindowSelectorItem;
 // Example sequences:
 //  - Going right to left
 //    0, 1, 2, 3, 4, 5, 6
-//  - Going "top" to "bottom"
-//    0, 3, 6, 1, 4, 2, 5
 // The selector is switched to the next window grid (if available) or wrapped if
 // it reaches the end of its movement sequence.
-class ASH_EXPORT WindowGrid : public aura::WindowObserver {
+class ASH_EXPORT WindowGrid : public aura::WindowObserver,
+                              public wm::WindowStateObserver {
  public:
-  WindowGrid(aura::Window* root_window,
-             const std::vector<aura::Window*>& window_list,
+  WindowGrid(WmWindow* root_window,
+             const std::vector<WmWindow*>& window_list,
              WindowSelector* window_selector);
   ~WindowGrid() override;
+
+  // Exits overview mode, fading out the |shield_widget_| if necessary.
+  void Shutdown();
 
   // Prepares the windows in this grid for overview. This will restore all
   // minimized windows and ensure they are visible.
   void PrepareForOverview();
 
-  // Positions all the windows in the grid.
+  // Positions all the windows in rows of equal height scaling each window to
+  // fit that height.
+  // Layout is done in 2 stages maintaining fixed MRU ordering.
+  // 1. Optimal height is determined. In this stage |height| is bisected to find
+  //    maximum height which still allows all the windows to fit.
+  // 2. Row widths are balanced. In this stage the available width is reduced
+  //    until some windows are no longer fitting or until the difference between
+  //    the narrowest and the widest rows starts growing.
+  // Overall this achieves the goals of maximum size for previews (or maximum
+  // row height which is equivalent assuming fixed height), balanced rows and
+  // minimal wasted space.
+  // Optionally animates the windows to their targets when |animate| is true.
   void PositionWindows(bool animate);
 
   // Updates |selected_index_| according to the specified |direction| and calls
@@ -71,13 +86,18 @@ class ASH_EXPORT WindowGrid : public aura::WindowObserver {
 
   // Returns true if a window is contained in any of the WindowSelectorItems
   // this grid owns.
-  bool Contains(const aura::Window* window) const;
+  bool Contains(const WmWindow* window) const;
 
   // Dims the items whose titles do not contain |pattern| and prevents their
   // selection. The pattern has its accents removed and is converted to
   // lowercase in a l10n sensitive context.
   // If |pattern| is empty, no item is dimmed.
   void FilterItems(const base::string16& pattern);
+
+  // Called when |window| is about to get closed. If the |window| is currently
+  // selected the implementation fades out |selection_widget_| to transparent
+  // opacity, effectively hiding the selector widget.
+  void WindowClosing(WindowSelectorItem* window);
 
   // Returns true if the grid has no more windows.
   bool empty() const { return window_list_.empty(); }
@@ -89,10 +109,10 @@ class ASH_EXPORT WindowGrid : public aura::WindowObserver {
   bool is_selecting() const { return selection_widget_ != nullptr; }
 
   // Returns the root window in which the grid displays the windows.
-  const aura::Window* root_window() const { return root_window_; }
+  const WmWindow* root_window() const { return root_window_; }
 
-  const std::vector<WindowSelectorItem*>& window_list() const {
-    return window_list_.get();
+  const std::vector<std::unique_ptr<WindowSelectorItem>>& window_list() const {
+    return window_list_;
   }
 
   // aura::WindowObserver:
@@ -102,8 +122,15 @@ class ASH_EXPORT WindowGrid : public aura::WindowObserver {
                              const gfx::Rect& old_bounds,
                              const gfx::Rect& new_bounds) override;
 
+  // wm::WindowStateObserver:
+  void OnPostWindowStateTypeChange(wm::WindowState* window_state,
+                                   wm::WindowStateType old_type) override;
+
  private:
   friend class WindowSelectorTest;
+
+  // Initializes the screen shield widget.
+  void InitShieldWidget();
 
   // Internal function to initialize the selection widget.
   void InitSelectionWidget(WindowSelector::Direction direction);
@@ -117,29 +144,51 @@ class ASH_EXPORT WindowGrid : public aura::WindowObserver {
   // Moves the selection widget to the targeted window.
   void MoveSelectionWidgetToTarget(bool animate);
 
-  // Returns the target bounds of the currently selected item.
-  const gfx::Rect GetSelectionBounds() const;
+  // Attempts to fit all |rects| inside |bounds|. The method ensures that
+  // the |rects| vector has appropriate size and populates it with the values
+  // placing Rects next to each other left-to-right in rows of equal |height|.
+  // While fitting |rects| several metrics are collected that can be used by the
+  // caller. |max_bottom| specifies the bottom that the rects are extending to.
+  // |min_right| and |max_right| report the right bound of the narrowest and the
+  // widest rows respectively. In-values of the |max_bottom|, |min_right| and
+  // |max_right| parameters are ignored and their values are always initialized
+  // inside this method. Returns true on success and false otherwise.
+  bool FitWindowRectsInBounds(const gfx::Rect& bounds,
+                              int height,
+                              std::vector<gfx::Rect>* rects,
+                              int* max_bottom,
+                              int* min_right,
+                              int* max_right);
 
   // Root window the grid is in.
-  aura::Window* root_window_;
+  WmWindow* root_window_;
 
   // Pointer to the window selector that spawned this grid.
   WindowSelector* window_selector_;
 
   // Vector containing all the windows in this grid.
-  ScopedVector<WindowSelectorItem> window_list_;
+  std::vector<std::unique_ptr<WindowSelectorItem>> window_list_;
 
-  // Vector containing the observed windows.
-  std::set<aura::Window*> observed_windows_;
+  ScopedObserver<aura::Window, WindowGrid> window_observer_;
+  ScopedObserver<wm::WindowState, WindowGrid> window_state_observer_;
+
+  // Widget that darkens the screen background.
+  std::unique_ptr<views::Widget> shield_widget_;
 
   // Widget that indicates to the user which is the selected window.
   std::unique_ptr<views::Widget> selection_widget_;
+
+  // Shadow around the selector.
+  std::unique_ptr<::wm::Shadow> selector_shadow_;
 
   // Current selected window position.
   size_t selected_index_;
 
   // Number of columns in the grid.
   size_t num_columns_;
+
+  // True only after all windows have been prepared for overview.
+  bool prepared_for_overview_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowGrid);
 };

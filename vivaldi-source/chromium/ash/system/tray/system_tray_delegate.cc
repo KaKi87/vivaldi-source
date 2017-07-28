@@ -4,72 +4,26 @@
 
 #include "ash/system/tray/system_tray_delegate.h"
 
+#include "ash/system/tray/ime_info.h"
+#include "ash/system/tray/system_tray_item.h"
+
 namespace ash {
 
-NetworkIconInfo::NetworkIconInfo()
-    : connecting(false),
-      connected(false),
-      tray_icon_visible(true),
-      is_cellular(false) {
-}
+SystemTrayDelegate::SystemTrayDelegate() {}
 
-NetworkIconInfo::~NetworkIconInfo() {
-}
+SystemTrayDelegate::~SystemTrayDelegate() {}
 
-BluetoothDeviceInfo::BluetoothDeviceInfo()
-    : connected(false), connecting(false), paired(false) {
-}
+void SystemTrayDelegate::Initialize() {}
 
-BluetoothDeviceInfo::~BluetoothDeviceInfo() {
-}
-
-IMEInfo::IMEInfo() : selected(false), third_party(false) {
-}
-
-IMEInfo::IMEInfo(const IMEInfo& other) = default;
-
-IMEInfo::~IMEInfo() {
-}
-
-IMEPropertyInfo::IMEPropertyInfo() : selected(false) {
-}
-
-IMEPropertyInfo::~IMEPropertyInfo() {
-}
-
-UpdateInfo::UpdateInfo()
-    : severity(UPDATE_NORMAL),
-      update_required(false),
-      factory_reset_required(false) {
-}
-
-UpdateInfo::~UpdateInfo() {
-}
-
-SystemTrayDelegate::SystemTrayDelegate() {
-}
-
-SystemTrayDelegate::~SystemTrayDelegate() {
-}
-
-void SystemTrayDelegate::Initialize() {
-}
-
-void SystemTrayDelegate::Shutdown() {
-}
-
-bool SystemTrayDelegate::GetTrayVisibilityOnStartup() {
-  return false;
-}
-
-user::LoginStatus SystemTrayDelegate::GetUserLoginStatus() const {
-  return user::LOGGED_IN_NONE;
-}
-
-void SystemTrayDelegate::ChangeProfilePicture() {
+LoginStatus SystemTrayDelegate::GetUserLoginStatus() const {
+  return LoginStatus::NOT_LOGGED_IN;
 }
 
 std::string SystemTrayDelegate::GetEnterpriseDomain() const {
+  return std::string();
+}
+
+std::string SystemTrayDelegate::GetEnterpriseRealm() const {
   return std::string();
 }
 
@@ -97,148 +51,36 @@ bool SystemTrayDelegate::IsUserChild() const {
   return false;
 }
 
-void SystemTrayDelegate::GetSystemUpdateInfo(UpdateInfo* info) const {
-  info->severity = UpdateInfo::UPDATE_NORMAL;
-  info->update_required = false;
-  info->factory_reset_required = false;
-}
-
-base::HourClockType SystemTrayDelegate::GetHourClockType() const {
-  return base::k24HourClock;
-}
-
-void SystemTrayDelegate::ShowSettings() {
-}
-
-bool SystemTrayDelegate::ShouldShowSettings() {
+bool SystemTrayDelegate::ShouldShowSettings() const {
   return false;
 }
 
-void SystemTrayDelegate::ShowDateSettings() {
-}
-
-void SystemTrayDelegate::ShowSetTimeDialog() {
-}
-
-void SystemTrayDelegate::ShowNetworkSettingsForGuid(const std::string& guid) {
-}
-
-void SystemTrayDelegate::ShowDisplaySettings() {
-}
-
-void SystemTrayDelegate::ShowPowerSettings() {}
-
-void SystemTrayDelegate::ShowChromeSlow() {
-}
-
-bool SystemTrayDelegate::ShouldShowDisplayNotification() {
+bool SystemTrayDelegate::ShouldShowNotificationTray() const {
   return false;
 }
 
-void SystemTrayDelegate::ShowIMESettings() {
+void SystemTrayDelegate::ShowEnterpriseInfo() {}
+
+void SystemTrayDelegate::ShowUserLogin() {}
+
+void SystemTrayDelegate::GetCurrentIME(IMEInfo* info) {}
+
+void SystemTrayDelegate::GetAvailableIMEList(IMEInfoList* list) {}
+
+void SystemTrayDelegate::GetCurrentIMEProperties(IMEPropertyInfoList* list) {}
+
+base::string16 SystemTrayDelegate::GetIMEManagedMessage() {
+  return base::string16();
 }
 
-void SystemTrayDelegate::ShowHelp() {
-}
+void SystemTrayDelegate::SwitchIME(const std::string& ime_id) {}
 
-void SystemTrayDelegate::ShowAccessibilityHelp() {
-}
-
-void SystemTrayDelegate::ShowAccessibilitySettings() {
-}
-
-void SystemTrayDelegate::ShowPublicAccountInfo() {
-}
-
-void SystemTrayDelegate::ShowEnterpriseInfo() {
-}
-
-void SystemTrayDelegate::ShowSupervisedUserInfo() {
-}
-
-void SystemTrayDelegate::ShowUserLogin() {
-}
-
-void SystemTrayDelegate::SignOut() {
-}
-
-void SystemTrayDelegate::RequestLockScreen() {
-}
-
-void SystemTrayDelegate::RequestRestartForUpdate() {
-}
-
-void SystemTrayDelegate::GetAvailableBluetoothDevices(
-    BluetoothDeviceList* list) {
-}
-
-void SystemTrayDelegate::BluetoothStartDiscovering() {
-}
-
-void SystemTrayDelegate::BluetoothStopDiscovering() {
-}
-
-void SystemTrayDelegate::ConnectToBluetoothDevice(const std::string& address) {
-}
-
-void SystemTrayDelegate::GetCurrentIME(IMEInfo* info) {
-}
-
-void SystemTrayDelegate::GetAvailableIMEList(IMEInfoList* list) {
-}
-
-void SystemTrayDelegate::GetCurrentIMEProperties(IMEPropertyInfoList* list) {
-}
-
-void SystemTrayDelegate::SwitchIME(const std::string& ime_id) {
-}
-
-void SystemTrayDelegate::ActivateIMEProperty(const std::string& key) {
-}
-
-void SystemTrayDelegate::ManageBluetoothDevices() {
-}
-
-void SystemTrayDelegate::ToggleBluetooth() {
-}
-
-bool SystemTrayDelegate::IsBluetoothDiscovering() {
-  return false;
-}
-
-void SystemTrayDelegate::ShowOtherNetworkDialog(const std::string& type) {
-}
-
-bool SystemTrayDelegate::GetBluetoothAvailable() {
-  return false;
-}
-
-bool SystemTrayDelegate::GetBluetoothEnabled() {
-  return false;
-}
-
-bool SystemTrayDelegate::GetBluetoothDiscovering() {
-  return false;
-}
-
-void SystemTrayDelegate::ChangeProxySettings() {
-}
-
-CastConfigDelegate* SystemTrayDelegate::GetCastConfigDelegate() {
-  return nullptr;
-}
+void SystemTrayDelegate::ActivateIMEProperty(const std::string& key) {}
 
 NetworkingConfigDelegate* SystemTrayDelegate::GetNetworkingConfigDelegate()
     const {
   return nullptr;
 }
-
-VolumeControlDelegate* SystemTrayDelegate::GetVolumeControlDelegate() const {
-  return nullptr;
-}
-
-void SystemTrayDelegate::SetVolumeControlDelegate(
-    std::unique_ptr<VolumeControlDelegate> delegate) {}
 
 bool SystemTrayDelegate::GetSessionStartTime(
     base::TimeTicks* session_start_time) {
@@ -250,38 +92,20 @@ bool SystemTrayDelegate::GetSessionLengthLimit(
   return false;
 }
 
-int SystemTrayDelegate::GetSystemTrayMenuWidth() {
-  return 0;
-}
-
-void SystemTrayDelegate::ActiveUserWasChanged() {
-}
+void SystemTrayDelegate::ActiveUserWasChanged() {}
 
 bool SystemTrayDelegate::IsSearchKeyMappedToCapsLock() {
   return false;
 }
 
 void SystemTrayDelegate::AddCustodianInfoTrayObserver(
-    CustodianInfoTrayObserver* observer) {
-}
+    CustodianInfoTrayObserver* observer) {}
 
 void SystemTrayDelegate::RemoveCustodianInfoTrayObserver(
-    CustodianInfoTrayObserver* observer) {
-}
+    CustodianInfoTrayObserver* observer) {}
 
-void SystemTrayDelegate::AddShutdownPolicyObserver(
-    ShutdownPolicyObserver* observer) {
-}
-
-void SystemTrayDelegate::RemoveShutdownPolicyObserver(
-    ShutdownPolicyObserver* observer) {
-}
-
-void SystemTrayDelegate::ShouldRebootOnShutdown(
-    const RebootOnShutdownCallback& callback) {
-}
-
-VPNDelegate* SystemTrayDelegate::GetVPNDelegate() const {
+std::unique_ptr<SystemTrayItem> SystemTrayDelegate::CreateRotationLockTrayItem(
+    SystemTray* tray) {
   return nullptr;
 }
 

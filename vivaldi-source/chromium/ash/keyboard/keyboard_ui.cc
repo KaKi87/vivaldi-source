@@ -7,6 +7,7 @@
 #include "ash/accessibility_delegate.h"
 #include "ash/keyboard/keyboard_ui_observer.h"
 #include "ash/shell.h"
+#include "ash/system/accessibility_observer.h"
 #include "ash/system/tray/system_tray_notifier.h"
 #include "ash/system/tray_accessibility.h"
 #include "base/memory/ptr_util.h"
@@ -16,36 +17,42 @@ namespace ash {
 
 class KeyboardUIImpl : public KeyboardUI, public AccessibilityObserver {
  public:
-  KeyboardUIImpl() {
-    // The Shell may not exist in some unit tests.
-    Shell::GetInstance()->system_tray_notifier()->AddAccessibilityObserver(
-        this);
+  KeyboardUIImpl() : enabled_(false) {
+    Shell::Get()->system_tray_notifier()->AddAccessibilityObserver(this);
   }
 
-  ~KeyboardUIImpl() override {}
+  ~KeyboardUIImpl() override {
+    if (Shell::HasInstance() && Shell::Get()->system_tray_notifier())
+      Shell::Get()->system_tray_notifier()->RemoveAccessibilityObserver(this);
+  }
 
-  // KeyboardUI:
-  void Show() override {
-    keyboard::KeyboardController::GetInstance()->ShowKeyboard(true);
+  void ShowInDisplay(const int64_t display_id) override {
+    keyboard::KeyboardController::GetInstance()->ShowKeyboardInDisplay(
+        display_id);
   }
   void Hide() override {
     // Do nothing as this is called from ash::Shell, which also calls through
     // to the appropriate keyboard functions.
   }
   bool IsEnabled() override {
-    return Shell::GetInstance()
-        ->accessibility_delegate()
-        ->IsVirtualKeyboardEnabled();
+    return Shell::Get()->accessibility_delegate()->IsVirtualKeyboardEnabled();
   }
 
   // AccessibilityObserver:
   void OnAccessibilityModeChanged(
-      ui::AccessibilityNotificationVisibility notify) override {
-    FOR_EACH_OBSERVER(KeyboardUIObserver, *observers(),
-                      OnKeyboardEnabledStateChanged(IsEnabled()));
+      AccessibilityNotificationVisibility notify) override {
+    bool enabled = IsEnabled();
+    if (enabled_ == enabled)
+      return;
+
+    enabled_ = enabled;
+    for (auto& observer : *observers())
+      observer.OnKeyboardEnabledStateChanged(enabled);
   }
 
  private:
+  bool enabled_;
+
   DISALLOW_COPY_AND_ASSIGN(KeyboardUIImpl);
 };
 

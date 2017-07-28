@@ -10,33 +10,30 @@
 #include "ui/views/widget/widget_observer.h"
 
 namespace ui {
-class LocatedEvent;
-}
-
-namespace views {
-class View;
+class PointerEvent;
 }
 
 namespace ash {
 class OverflowBubbleView;
-class ShelfLayoutManager;
+class OverflowButton;
 class ShelfView;
+class WmShelf;
 
-// OverflowBubble displays the overflown launcher items in a bubble.
+// OverflowBubble shows shelf items that won't fit on the main shelf in a
+// separate bubble.
 class OverflowBubble : public views::PointerWatcher,
                        public views::WidgetObserver {
  public:
-  OverflowBubble();
+  // |wm_shelf| is the shelf that spawns the bubble.
+  explicit OverflowBubble(WmShelf* wm_shelf);
   ~OverflowBubble() override;
 
-  // Shows an bubble pointing to |anchor| with |shelf_view| as its content.
-  void Show(views::View* anchor, ShelfView* shelf_view);
+  // Shows an bubble pointing to |overflow_button| with |shelf_view| as its
+  // content.  This |shelf_view| is different than the main shelf's view and
+  // only contains the overflow items.
+  void Show(OverflowButton* overflow_button, ShelfView* shelf_view);
 
   void Hide();
-
-  // This method as name indicates will hide bubble and schedule paint
-  // for overflow button.
-  void HideBubbleAndRefreshButton();
 
   bool IsShowing() const { return !!bubble_; }
   ShelfView* shelf_view() { return shelf_view_; }
@@ -46,19 +43,19 @@ class OverflowBubble : public views::PointerWatcher,
   void ProcessPressedEvent(const gfx::Point& event_location_in_screen);
 
   // views::PointerWatcher:
-  void OnMousePressed(const ui::MouseEvent& event,
-                      const gfx::Point& location_in_screen,
-                      views::Widget* target) override;
-  void OnTouchPressed(const ui::TouchEvent& event,
-                      const gfx::Point& location_in_screen,
-                      views::Widget* target) override;
+  void OnPointerEventObserved(const ui::PointerEvent& event,
+                              const gfx::Point& location_in_screen,
+                              views::Widget* target) override;
 
   // Overridden from views::WidgetObserver:
   void OnWidgetDestroying(views::Widget* widget) override;
 
-  OverflowBubbleView* bubble_;  // Owned by views hierarchy.
-  views::View* anchor_;         // Owned by ShelfView.
-  ShelfView* shelf_view_;       // Owned by |bubble_|.
+  WmShelf* wm_shelf_;
+  OverflowBubbleView* bubble_;       // Owned by views hierarchy.
+  OverflowButton* overflow_button_;  // Owned by ShelfView.
+
+  // ShelfView containing the overflow items. Owned by |bubble_|.
+  ShelfView* shelf_view_;
 
   DISALLOW_COPY_AND_ASSIGN(OverflowBubble);
 };

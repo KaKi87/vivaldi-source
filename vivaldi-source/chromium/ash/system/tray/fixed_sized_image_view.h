@@ -5,7 +5,6 @@
 #ifndef ASH_SYSTEM_TRAY_FIXED_SIZED_IMAGE_VIEW_H_
 #define ASH_SYSTEM_TRAY_FIXED_SIZED_IMAGE_VIEW_H_
 
-#include "base/compiler_specific.h"
 #include "base/macros.h"
 #include "ui/views/controls/image_view.h"
 

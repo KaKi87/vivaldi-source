@@ -8,11 +8,12 @@
 #include <memory>
 
 #include "ash/ash_export.h"
+#include "base/optional.h"
+#include "base/strings/string16.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
 #include "ui/gfx/geometry/size.h"
-#include "ui/views/view.h"
 
 namespace gfx {
 class Rect;
@@ -38,10 +39,12 @@ class ASH_EXPORT ToastOverlay : public ui::ImplicitAnimationObserver {
 
   // Creates the Toast overlay UI. |text| is the message to be shown, and
   // |dismiss_text| is the message for the button to dismiss the toast message.
-  // |dismiss_text| is optional. If empty, the default text is used.
+  // If |dismiss_text| is null, no dismiss button will be shown. If
+  // |dismiss_text| has a value but the string is empty, the default text is
+  // used.
   ToastOverlay(Delegate* delegate,
-               const std::string& text,
-               const std::string& dismiss_text);
+               const base::string16& text,
+               base::Optional<base::string16> dismiss_text);
   ~ToastOverlay() override;
 
   // Shows or hides the overlay.
@@ -53,15 +56,17 @@ class ASH_EXPORT ToastOverlay : public ui::ImplicitAnimationObserver {
   // Returns the current bounds of the overlay, which is based on visibility.
   gfx::Rect CalculateOverlayBounds();
 
+  // ui::ImplicitAnimationObserver:
   void OnImplicitAnimationsScheduled() override;
   void OnImplicitAnimationsCompleted() override;
 
   views::Widget* widget_for_testing();
+  ToastOverlayButton* dismiss_button_for_testing();
   void ClickDismissButtonForTesting(const ui::Event& event);
 
   Delegate* const delegate_;
-  const std::string text_;
-  const std::string dismiss_text_;
+  const base::string16 text_;
+  const base::Optional<base::string16> dismiss_text_;
   std::unique_ptr<views::Widget> overlay_widget_;
   std::unique_ptr<ToastOverlayView> overlay_view_;
   gfx::Size widget_size_;

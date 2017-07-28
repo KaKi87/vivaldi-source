@@ -4,37 +4,34 @@
 
 #include "ash/system/tray/tray_item_view.h"
 
-#include "ash/shelf/shelf_types.h"
-#include "ash/shelf/shelf_util.h"
+#include "ash/public/cpp/shelf_types.h"
+#include "ash/shelf/wm_shelf_util.h"
 #include "ash/system/tray/system_tray.h"
 #include "ash/system/tray/system_tray_item.h"
-#include "ash/wm/common/shelf/wm_shelf_util.h"
+#include "ash/system/tray/tray_constants.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/layout/box_layout.h"
+#include "ui/views/layout/fill_layout.h"
 #include "ui/views/widget/widget.h"
 
+namespace ash {
+
 namespace {
-const int kTrayIconHeight = 29;
-const int kTrayIconWidth = 29;
+
 const int kTrayItemAnimationDurationMS = 200;
 
 // Animations can be disabled for testing.
 bool animations_enabled = true;
-}
 
-namespace ash {
+}  // namespace
 
 TrayItemView::TrayItemView(SystemTrayItem* owner)
-    : owner_(owner),
-      label_(NULL),
-      image_view_(NULL) {
-  SetPaintToLayer(true);
+    : owner_(owner), label_(NULL), image_view_(NULL) {
+  SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
-  SetLayoutManager(
-      new views::BoxLayout(views::BoxLayout::kHorizontal, 0, 0, 0));
+  SetLayoutManager(new views::FillLayout());
 }
 
 TrayItemView::~TrayItemView() {}
@@ -47,11 +44,13 @@ void TrayItemView::DisableAnimationsForTest() {
 void TrayItemView::CreateLabel() {
   label_ = new views::Label;
   AddChildView(label_);
+  PreferredSizeChanged();
 }
 
 void TrayItemView::CreateImageView() {
   image_view_ = new views::ImageView;
   AddChildView(image_view_);
+  PreferredSizeChanged();
 }
 
 void TrayItemView::SetVisible(bool set_visible) {
@@ -77,28 +76,26 @@ void TrayItemView::SetVisible(bool set_visible) {
   }
 }
 
-gfx::Size TrayItemView::DesiredSize() const {
-  return views::View::GetPreferredSize();
-}
-
 int TrayItemView::GetAnimationDurationMS() {
   return kTrayItemAnimationDurationMS;
 }
 
 gfx::Size TrayItemView::GetPreferredSize() const {
-  gfx::Size size = DesiredSize();
-  if (wm::IsHorizontalAlignment(owner()->system_tray()->shelf_alignment()))
-    size.set_height(kTrayIconHeight);
-  else
-    size.set_width(kTrayIconWidth);
+  DCHECK_EQ(1, child_count());
+  gfx::Size inner_size = views::View::GetPreferredSize();
+  if (image_view_)
+    inner_size = gfx::Size(kTrayIconSize, kTrayIconSize);
+  gfx::Rect rect(inner_size);
+  rect.Inset(gfx::Insets(-kTrayImageItemPadding));
+  gfx::Size size = rect.size();
   if (!animation_.get() || !animation_->is_animating())
     return size;
-  if (wm::IsHorizontalAlignment(owner()->system_tray()->shelf_alignment())) {
-    size.set_width(std::max(1,
-        static_cast<int>(size.width() * animation_->GetCurrentValue())));
+  if (IsHorizontalAlignment(owner()->system_tray()->shelf_alignment())) {
+    size.set_width(std::max(
+        1, static_cast<int>(size.width() * animation_->GetCurrentValue())));
   } else {
-    size.set_height(std::max(1,
-        static_cast<int>(size.height() * animation_->GetCurrentValue())));
+    size.set_height(std::max(
+        1, static_cast<int>(size.height() * animation_->GetCurrentValue())));
   }
   return size;
 }
@@ -113,15 +110,15 @@ void TrayItemView::ChildPreferredSizeChanged(views::View* child) {
 
 void TrayItemView::AnimationProgressed(const gfx::Animation* animation) {
   gfx::Transform transform;
-  if (wm::IsHorizontalAlignment(owner()->system_tray()->shelf_alignment())) {
+  if (IsHorizontalAlignment(owner()->system_tray()->shelf_alignment())) {
     transform.Translate(0, animation->CurrentValueBetween(
-        static_cast<double>(height()) / 2, 0.));
+                               static_cast<double>(height()) / 2, 0.));
   } else {
-    transform.Translate(animation->CurrentValueBetween(
-        static_cast<double>(width() / 2), 0.), 0);
+    transform.Translate(
+        animation->CurrentValueBetween(static_cast<double>(width() / 2), 0.),
+        0);
   }
-  transform.Scale(animation->GetCurrentValue(),
-                  animation->GetCurrentValue());
+  transform.Scale(animation->GetCurrentValue(), animation->GetCurrentValue());
   layer()->SetTransform(transform);
   PreferredSizeChanged();
 }

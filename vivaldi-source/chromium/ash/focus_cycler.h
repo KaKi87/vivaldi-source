@@ -2,13 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef FOCUS_CYCLER_H_
-#define FOCUS_CYCLER_H_
+#ifndef ASH_FOCUS_CYCLER_H_
+#define ASH_FOCUS_CYCLER_H_
 
 #include <vector>
 
 #include "ash/ash_export.h"
-#include "base/compiler_specific.h"
 #include "base/macros.h"
 
 namespace views {
@@ -21,10 +20,7 @@ namespace ash {
 // window.
 class ASH_EXPORT FocusCycler {
  public:
-  enum Direction {
-    FORWARD,
-    BACKWARD
-  };
+  enum Direction { FORWARD, BACKWARD };
 
   FocusCycler();
   ~FocusCycler();
@@ -57,4 +53,4 @@ class ASH_EXPORT FocusCycler {
 
 }  // namespace ash
 
-#endif  // FOCUS_CYCLER_H_
+#endif  // ASH_FOCUS_CYCLER_H_

@@ -4,43 +4,43 @@
 
 #include "ash/system/web_notification/ash_popup_alignment_delegate.h"
 
-#include "ash/display/window_tree_host_manager.h"
-#include "ash/screen_util.h"
+#include "ash/public/cpp/shelf_types.h"
+#include "ash/public/cpp/shell_window_ids.h"
+#include "ash/root_window_controller.h"
 #include "ash/shelf/shelf_constants.h"
-#include "ash/shelf/shelf_layout_manager.h"
-#include "ash/shelf/shelf_types.h"
-#include "ash/shelf/shelf_widget.h"
+#include "ash/shelf/wm_shelf.h"
 #include "ash/shell.h"
+#include "ash/wm_window.h"
 #include "base/i18n/rtl.h"
-#include "ui/aura/window.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/message_center/message_center_style.h"
 #include "ui/message_center/views/message_popup_collection.h"
+#include "ui/wm/core/shadow_types.h"
 
 namespace ash {
 
 namespace {
 
-const int kToastMarginX = 3;
+const int kToastMarginX = 7;
 
 // If there should be no margin for the first item, this value needs to be
 // substracted to flush the message to the shelf (the width of the border +
 // shadow).
 const int kNoToastMarginBorderAndShadowOffset = 2;
 
-}
+}  // namespace
 
-AshPopupAlignmentDelegate::AshPopupAlignmentDelegate(ShelfLayoutManager* shelf)
-    : screen_(NULL), shelf_(shelf), system_tray_height_(0) {
+AshPopupAlignmentDelegate::AshPopupAlignmentDelegate(WmShelf* shelf)
+    : screen_(NULL), shelf_(shelf), tray_bubble_height_(0) {
   shelf_->AddObserver(this);
 }
 
 AshPopupAlignmentDelegate::~AshPopupAlignmentDelegate() {
   if (screen_)
     screen_->RemoveObserver(this);
-  Shell::GetInstance()->RemoveShellObserver(this);
+  Shell::Get()->RemoveShellObserver(this);
   shelf_->RemoveObserver(this);
 }
 
@@ -50,25 +50,26 @@ void AshPopupAlignmentDelegate::StartObserving(
   screen_ = screen;
   work_area_ = display.work_area();
   screen->AddObserver(this);
-  Shell::GetInstance()->AddShellObserver(this);
-  if (system_tray_height_ > 0)
+  Shell::Get()->AddShellObserver(this);
+  if (tray_bubble_height_ > 0)
     UpdateWorkArea();
 }
 
-void AshPopupAlignmentDelegate::SetSystemTrayHeight(int height) {
-  system_tray_height_ = height;
+void AshPopupAlignmentDelegate::SetTrayBubbleHeight(int height) {
+  tray_bubble_height_ = height;
 
   // If the shelf is shown during auto-hide state, the distance from the edge
   // should be reduced by the height of shelf's shown height.
-  if (shelf_->visibility_state() == SHELF_AUTO_HIDE &&
-      shelf_->auto_hide_state() == SHELF_AUTO_HIDE_SHOWN) {
-    system_tray_height_ -= kShelfSize - ShelfLayoutManager::kAutoHideSize;
+  if (shelf_->GetVisibilityState() == SHELF_AUTO_HIDE &&
+      shelf_->GetAutoHideState() == SHELF_AUTO_HIDE_SHOWN) {
+    tray_bubble_height_ -= GetShelfConstant(SHELF_SIZE) -
+                           GetShelfConstant(SHELF_INSETS_FOR_AUTO_HIDE);
   }
 
-  if (system_tray_height_ > 0)
-    system_tray_height_ += message_center::kMarginBetweenItems;
+  if (tray_bubble_height_ > 0)
+    tray_bubble_height_ += message_center::kMarginBetweenItems;
   else
-    system_tray_height_ = 0;
+    tray_bubble_height_ = 0;
 
   DoUpdateIfPossible();
 }
@@ -87,11 +88,14 @@ int AshPopupAlignmentDelegate::GetToastOriginX(
 
 int AshPopupAlignmentDelegate::GetBaseLine() const {
   return work_area_.bottom() - kNoToastMarginBorderAndShadowOffset -
-         system_tray_height_;
+         tray_bubble_height_;
 }
 
-int AshPopupAlignmentDelegate::GetWorkAreaBottom() const {
-  return work_area_.bottom() - system_tray_height_;
+gfx::Rect AshPopupAlignmentDelegate::GetWorkArea() const {
+  gfx::Rect work_area_without_tray_bubble = work_area_;
+  work_area_without_tray_bubble.set_height(
+      work_area_without_tray_bubble.height() - tray_bubble_height_);
+  return work_area_without_tray_bubble;
 }
 
 bool AshPopupAlignmentDelegate::IsTopDown() const {
@@ -99,7 +103,7 @@ bool AshPopupAlignmentDelegate::IsTopDown() const {
 }
 
 bool AshPopupAlignmentDelegate::IsFromLeft() const {
-  return GetAlignment() == wm::SHELF_ALIGNMENT_LEFT;
+  return GetAlignment() == SHELF_ALIGNMENT_LEFT;
 }
 
 void AshPopupAlignmentDelegate::RecomputeAlignment(
@@ -107,23 +111,38 @@ void AshPopupAlignmentDelegate::RecomputeAlignment(
   // Nothing needs to be done.
 }
 
-wm::ShelfAlignment AshPopupAlignmentDelegate::GetAlignment() const {
+void AshPopupAlignmentDelegate::ConfigureWidgetInitParamsForContainer(
+    views::Widget* widget,
+    views::Widget::InitParams* init_params) {
+  init_params->shadow_type = views::Widget::InitParams::SHADOW_TYPE_DROP;
+  init_params->shadow_elevation = ::wm::ShadowElevation::MEDIUM;
+  // On ash, popups go in the status container.
+  shelf_->GetWindow()
+      ->GetRootWindowController()
+      ->ConfigureWidgetInitParamsForContainer(
+          widget, kShellWindowId_StatusContainer, init_params);
+}
+
+bool AshPopupAlignmentDelegate::IsPrimaryDisplayForNotification() const {
+  return screen_ &&
+         GetCurrentDisplay().id() == screen_->GetPrimaryDisplay().id();
+}
+
+ShelfAlignment AshPopupAlignmentDelegate::GetAlignment() const {
   return shelf_->GetAlignment();
 }
 
 display::Display AshPopupAlignmentDelegate::GetCurrentDisplay() const {
-  return display::Screen::GetScreen()->GetDisplayNearestWindow(
-      shelf_->shelf_widget()->GetNativeView());
+  return shelf_->GetWindow()->GetDisplayNearestWindow();
 }
 
 void AshPopupAlignmentDelegate::UpdateWorkArea() {
-  work_area_ = shelf_->user_work_area_bounds();
+  work_area_ = shelf_->GetUserWorkAreaBounds();
   DoUpdateIfPossible();
 }
 
-void AshPopupAlignmentDelegate::OnDisplayWorkAreaInsetsChanged() {
-  UpdateWorkArea();
-}
+///////////////////////////////////////////////////////////////////////////////
+// WmShelfObserver:
 
 void AshPopupAlignmentDelegate::WillChangeVisibilityState(
     ShelfVisibilityState new_state) {
@@ -134,6 +153,9 @@ void AshPopupAlignmentDelegate::OnAutoHideStateChanged(
     ShelfAutoHideState new_state) {
   UpdateWorkArea();
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// display::DisplayObserver:
 
 void AshPopupAlignmentDelegate::OnDisplayAdded(
     const display::Display& new_display) {}

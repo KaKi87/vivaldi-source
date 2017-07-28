@@ -11,12 +11,9 @@
 #include "base/macros.h"
 #include "base/time/time.h"
 
-namespace ui {
-class EventHandler;
-}
-
 namespace ash {
 
+class WindowCycleEventFilter;
 class WindowCycleList;
 class WmWindow;
 
@@ -48,10 +45,14 @@ class ASH_EXPORT WindowCycleController {
   // listen to the alt key release.
   void StartCycling();
 
-  // Stops the current window cycle and removes the event filter.
-  void StopCycling();
+  // Both of these functions stop the current window cycle and removes the event
+  // filter. The former indicates success (i.e. the new window should be
+  // activated) and the latter indicates that the interaction was cancelled (and
+  // the originally active window should remain active).
+  void CompleteCycling();
+  void CancelCycling();
 
-  // Returns the WindowCycleList. Really only useful for testing.
+  // Returns the WindowCycleList.
   const WindowCycleList* window_cycle_list() const {
     return window_cycle_list_.get();
   }
@@ -60,14 +61,16 @@ class ASH_EXPORT WindowCycleController {
   // Cycles to the next or previous window based on |direction|.
   void Step(Direction direction);
 
+  void StopCycling();
+
   std::unique_ptr<WindowCycleList> window_cycle_list_;
 
   // Tracks what Window was active when starting to cycle and used to determine
   // if the active Window changed in when ending cycling.
   WmWindow* active_window_before_window_cycle_ = nullptr;
 
-  // Event handler to watch for release of alt key.
-  std::unique_ptr<ui::EventHandler> event_handler_;
+  // Non-null while actively cycling.
+  std::unique_ptr<WindowCycleEventFilter> event_filter_;
 
   base::Time cycle_start_time_;
 

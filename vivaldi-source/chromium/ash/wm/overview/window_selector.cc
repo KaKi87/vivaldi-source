@@ -11,106 +11,90 @@
 #include <vector>
 
 #include "ash/accessibility_delegate.h"
-#include "ash/ash_switches.h"
-#include "ash/metrics/user_metrics_recorder.h"
+#include "ash/accessibility_types.h"
+#include "ash/metrics/user_metrics_action.h"
+#include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
+#include "ash/shelf/wm_shelf.h"
 #include "ash/shell.h"
-#include "ash/shell_window_ids.h"
-#include "ash/wm/aura/wm_window_aura.h"
-#include "ash/wm/common/panels/panel_layout_manager.h"
-#include "ash/wm/common/switchable_windows.h"
-#include "ash/wm/common/window_state.h"
+#include "ash/shell_port.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/overview/window_grid.h"
 #include "ash/wm/overview/window_selector_delegate.h"
 #include "ash/wm/overview/window_selector_item.h"
-#include "ash/wm/window_state_aura.h"
+#include "ash/wm/panels/panel_layout_manager.h"
+#include "ash/wm/switchable_windows.h"
+#include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
+#include "ash/wm/wm_screen_util.h"
+#include "ash/wm_window.h"
 #include "base/auto_reset.h"
 #include "base/command_line.h"
-#include "base/metrics/histogram.h"
-#include "third_party/skia/include/core/SkPaint.h"
+#include "base/metrics/histogram_macros.h"
 #include "third_party/skia/include/core/SkPath.h"
-#include "ui/aura/client/focus_client.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_event_dispatcher.h"
-#include "ui/aura/window_observer.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/skia_util.h"
+#include "ui/vector_icons/vector_icons.h"
 #include "ui/views/border.h"
+#include "ui/views/controls/image_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
-#include "ui/wm/core/window_util.h"
 #include "ui/wm/public/activation_client.h"
 
 namespace ash {
 
 namespace {
 
-// The proportion of screen width that the text filter takes.
-const float kTextFilterScreenProportion = 0.25;
-
 // The amount of padding surrounding the text in the text filtering textbox.
-const int kTextFilterHorizontalPadding = 8;
-
-// The distance between the top of the screen and the top edge of the
-// text filtering textbox.
-const int kTextFilterDistanceFromTop = 32;
+const int kTextFilterHorizontalPadding = 10;
 
 // The height of the text filtering textbox.
-const int kTextFilterHeight = 32;
+const int kTextFilterHeight = 40;
 
-// The font style used for text filtering.
-static const ::ui::ResourceBundle::FontStyle kTextFilterFontStyle =
-    ::ui::ResourceBundle::FontStyle::MediumFont;
+// The margin at the bottom to make sure the text filter layer is hidden.
+// This is needed because positioning the text filter directly touching the top
+// edge of the screen still allows the shadow to peek through.
+const int kTextFieldBottomMargin = 2;
 
-// The alpha value for the background of the text filtering textbox.
-const unsigned char kTextFilterOpacity = 180;
+// Distance from top of overview to the top of text filtering textbox as a
+// proportion of the total overview area.
+const float kTextFilterTopScreenProportion = 0.02f;
+
+// Width of the text filter area.
+const int kTextFilterWidth = 280;
+
+// The font style used for text filtering textbox.
+static const ui::ResourceBundle::FontStyle kTextFilterFontStyle =
+    ui::ResourceBundle::FontStyle::BaseFont;
+
+// The color of the text and its background in the text filtering textbox.
+const SkColor kTextFilterTextColor = SkColorSetARGB(222, 0, 0, 0);
+const SkColor kTextFilterBackgroundColor = SK_ColorWHITE;
+
+// The color or search icon.
+const SkColor kTextFilterIconColor = SkColorSetARGB(138, 0, 0, 0);
+
+// The size of search icon.
+const int kTextFilterIconSize = 20;
 
 // The radius used for the rounded corners on the text filtering textbox.
-const int kTextFilterCornerRadius = 1;
-
-// A comparator for locating a grid with a given root window.
-struct RootWindowGridComparator {
-  explicit RootWindowGridComparator(const aura::Window* root_window)
-      : root_window_(root_window) {
-  }
-
-  bool operator()(WindowGrid* grid) const {
-    return (grid->root_window() == root_window_);
-  }
-
-  const aura::Window* root_window_;
-};
-
-// A comparator for locating a selectable window given a targeted window.
-struct WindowSelectorItemTargetComparator {
-  explicit WindowSelectorItemTargetComparator(const aura::Window* target_window)
-      : target(target_window) {
-  }
-
-  bool operator()(WindowSelectorItem* window) const {
-    return window->GetWindow() == target;
-  }
-
-  const aura::Window* target;
-};
+const int kTextFilterCornerRadius = 2;
 
 // A comparator for locating a selector item for a given root.
 struct WindowSelectorItemForRoot {
-  explicit WindowSelectorItemForRoot(const aura::Window* root)
-      : root_window(root) {
-  }
+  explicit WindowSelectorItemForRoot(const WmWindow* root)
+      : root_window(root) {}
 
   bool operator()(WindowSelectorItem* item) const {
     return item->root_window() == root_window;
   }
 
-  const aura::Window* root_window;
+  const WmWindow* root_window;
 };
 
 // A View having rounded corners and a specified background color which is
@@ -120,9 +104,7 @@ struct WindowSelectorItemForRoot {
 class RoundedContainerView : public views::View {
  public:
   RoundedContainerView(int corner_radius, SkColor background)
-      : corner_radius_(corner_radius),
-        background_(background) {
-  }
+      : corner_radius_(corner_radius), background_(background) {}
 
   ~RoundedContainerView() override {}
 
@@ -136,8 +118,6 @@ class RoundedContainerView : public views::View {
     gfx::Rect bounds(size());
     path.addRoundRect(gfx::RectToSkRect(bounds), kRadius);
 
-    SkPaint paint;
-    paint.setAntiAlias(true);
     canvas->ClipPath(path, true);
     canvas->DrawColor(background_);
   }
@@ -151,62 +131,77 @@ class RoundedContainerView : public views::View {
 
 // Triggers a shelf visibility update on all root window controllers.
 void UpdateShelfVisibility() {
-  Shell::RootWindowControllerList root_window_controllers =
-      Shell::GetInstance()->GetAllRootWindowControllers();
-  for (Shell::RootWindowControllerList::iterator iter =
-          root_window_controllers.begin();
-       iter != root_window_controllers.end(); ++iter) {
-    (*iter)->UpdateShelfVisibility();
-  }
+  for (WmWindow* root : ShellPort::Get()->GetAllRootWindows())
+    WmShelf::ForWindow(root)->UpdateVisibilityState();
+}
+
+gfx::Rect GetTextFilterPosition(WmWindow* root_window) {
+  gfx::Rect total_bounds = root_window->ConvertRectToScreen(
+      wm::GetDisplayWorkAreaBoundsInParent(root_window->GetChildByShellWindowId(
+          kShellWindowId_DefaultContainer)));
+  return gfx::Rect(
+      0.5 * (total_bounds.width() -
+             std::min(kTextFilterWidth, total_bounds.width())),
+      total_bounds.y() + total_bounds.height() * kTextFilterTopScreenProportion,
+      std::min(kTextFilterWidth, total_bounds.width()), kTextFilterHeight);
 }
 
 // Initializes the text filter on the top of the main root window and requests
-// focus on its textfield.
+// focus on its textfield. Uses |image| to place an icon to the left of the text
+// field.
 views::Widget* CreateTextFilter(views::TextfieldController* controller,
-                                aura::Window* root_window) {
+                                WmWindow* root_window,
+                                const gfx::ImageSkia& image,
+                                int* text_filter_bottom) {
   views::Widget* widget = new views::Widget;
   views::Widget::InitParams params;
   params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
   params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.opacity = views::Widget::InitParams::TRANSLUCENT_WINDOW;
-  params.parent = Shell::GetContainer(root_window,
-                                      kShellWindowId_OverlayContainer);
   params.accept_events = true;
-  params.bounds = gfx::Rect(
-      root_window->bounds().width() / 2 * (1 - kTextFilterScreenProportion),
-      kTextFilterDistanceFromTop,
-      root_window->bounds().width() * kTextFilterScreenProportion,
-      kTextFilterHeight);
+  params.bounds = GetTextFilterPosition(root_window);
+  params.name = "OverviewModeTextFilter";
+  *text_filter_bottom = params.bounds.bottom() + kTextFieldBottomMargin;
+  root_window->GetRootWindowController()->ConfigureWidgetInitParamsForContainer(
+      widget, kShellWindowId_StatusContainer, &params);
   widget->Init(params);
 
   // Use |container| to specify the padding surrounding the text and to give
   // the textfield rounded corners.
-  views::View* container = new RoundedContainerView(
-      kTextFilterCornerRadius, SkColorSetARGB(kTextFilterOpacity, 0, 0, 0));
+  views::View* container = new RoundedContainerView(kTextFilterCornerRadius,
+                                                    kTextFilterBackgroundColor);
   ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
-  int text_height = bundle.GetFontList(kTextFilterFontStyle).GetHeight();
+  const int text_height =
+      std::max(kTextFilterIconSize,
+               bundle.GetFontList(kTextFilterFontStyle).GetHeight());
   DCHECK(text_height);
-  int vertical_padding = (kTextFilterHeight - text_height) / 2;
-  container->SetLayoutManager(new views::BoxLayout(views::BoxLayout::kVertical,
-                                                   kTextFilterHorizontalPadding,
-                                                   vertical_padding,
-                                                   0));
+  const int vertical_padding = (params.bounds.height() - text_height) / 2;
+  views::BoxLayout* layout = new views::BoxLayout(
+      views::BoxLayout::kHorizontal, kTextFilterHorizontalPadding,
+      vertical_padding, kTextFilterHorizontalPadding);
+  container->SetLayoutManager(layout);
 
   views::Textfield* textfield = new views::Textfield;
   textfield->set_controller(controller);
-  textfield->SetBackgroundColor(SK_ColorTRANSPARENT);
-  textfield->SetBorder(views::Border::NullBorder());
-  textfield->SetTextColor(SK_ColorWHITE);
+  textfield->SetBorder(views::NullBorder());
+  textfield->SetBackgroundColor(kTextFilterBackgroundColor);
+  textfield->SetTextColor(kTextFilterTextColor);
+  views::ImageView* image_view = new views::ImageView;
+  image_view->SetImage(image);
+  container->AddChildView(image_view);
   textfield->SetFontList(bundle.GetFontList(kTextFilterFontStyle));
-
   container->AddChildView(textfield);
+  layout->SetFlexForView(textfield, 1);
   widget->SetContentsView(container);
 
   // The textfield initially contains no text, so shift its position to be
   // outside the visible bounds of the screen.
   gfx::Transform transform;
-  transform.Translate(0, -WindowSelector::kTextFilterBottomEdge);
-  widget->GetNativeWindow()->SetTransform(transform);
+  transform.Translate(0, -(*text_filter_bottom));
+  WmWindow* text_filter_widget_window =
+      WmWindow::Get(widget->GetNativeWindow());
+  text_filter_widget_window->SetOpacity(0);
+  text_filter_widget_window->SetTransform(transform);
   widget->Show();
   textfield->RequestFocus();
 
@@ -215,32 +210,25 @@ views::Widget* CreateTextFilter(views::TextfieldController* controller,
 
 }  // namespace
 
-const int WindowSelector::kTextFilterBottomEdge =
-    kTextFilterDistanceFromTop + kTextFilterHeight;
-
 // static
-bool WindowSelector::IsSelectable(aura::Window* window) {
-  wm::WindowState* state = wm::GetWindowState(window);
-  if (state->GetStateType() == wm::WINDOW_STATE_TYPE_DOCKED ||
-      state->GetStateType() == wm::WINDOW_STATE_TYPE_DOCKED_MINIMIZED) {
-    return false;
-  }
+bool WindowSelector::IsSelectable(WmWindow* window) {
+  wm::WindowState* state = window->GetWindowState();
   return state->IsUserPositionable();
 }
 
 WindowSelector::WindowSelector(WindowSelectorDelegate* delegate)
     : delegate_(delegate),
-      restore_focus_window_(aura::client::GetFocusClient(
-          Shell::GetPrimaryRootWindow())->GetFocusedWindow()),
+      restore_focus_window_(WmWindow::Get(wm::GetFocusedWindow())),
       ignore_activations_(false),
       selected_grid_index_(0),
       overview_start_time_(base::Time::Now()),
       num_key_presses_(0),
       num_items_(0),
-      showing_selection_widget_(false),
+      showing_text_filter_(false),
       text_filter_string_length_(0),
       num_times_textfield_cleared_(0),
-      restoring_minimized_windows_(false) {
+      restoring_minimized_windows_(false),
+      text_filter_bottom_(0) {
   DCHECK(delegate_);
 }
 
@@ -253,11 +241,13 @@ WindowSelector::~WindowSelector() {
 // calls to restoring_minimized_windows() on a partially constructed object.
 void WindowSelector::Init(const WindowList& windows) {
   if (restore_focus_window_)
-    restore_focus_window_->AddObserver(this);
+    restore_focus_window_->aura_window()->AddObserver(this);
 
-  aura::Window::Windows root_windows = Shell::GetAllRootWindows();
+  ShellPort* shell_port = ShellPort::Get();
+
+  std::vector<WmWindow*> root_windows = shell_port->GetAllRootWindows();
   std::sort(root_windows.begin(), root_windows.end(),
-            [](const aura::Window* a, const aura::Window* b) {
+            [](const WmWindow* a, const WmWindow* b) {
               // Since we don't know if windows are vertically or horizontally
               // oriented we use both x and y position. This may be confusing
               // if you have 3 or more monitors which are not strictly
@@ -266,23 +256,21 @@ void WindowSelector::Init(const WindowList& windows) {
                      (b->GetBoundsInScreen().x() + b->GetBoundsInScreen().y());
             });
 
-  for (aura::Window::Windows::const_iterator iter = root_windows.begin();
-       iter != root_windows.end(); iter++) {
+  for (WmWindow* root : root_windows) {
     // Observed switchable containers for newly created windows on all root
     // windows.
     for (size_t i = 0; i < wm::kSwitchableWindowContainerIdsLength; ++i) {
-      aura::Window* container =
-          Shell::GetContainer(*iter, wm::kSwitchableWindowContainerIds[i]);
-      container->AddObserver(this);
+      WmWindow* container =
+          root->GetChildByShellWindowId(wm::kSwitchableWindowContainerIds[i]);
+      container->aura_window()->AddObserver(this);
       observed_windows_.insert(container);
     }
 
     // Hide the callout widgets for panels. It is safe to call this for
     // root windows that don't contain any panel windows.
-    PanelLayoutManager::Get(wm::WmWindowAura::Get(*iter))
-        ->SetShowCalloutWidgets(false);
+    PanelLayoutManager::Get(root)->SetShowCalloutWidgets(false);
 
-    std::unique_ptr<WindowGrid> grid(new WindowGrid(*iter, windows, this));
+    std::unique_ptr<WindowGrid> grid(new WindowGrid(root, windows, this));
     if (grid->empty())
       continue;
     num_items_ += grid->size();
@@ -303,27 +291,28 @@ void WindowSelector::Init(const WindowList& windows) {
     // Do not call PrepareForOverview until all items are added to window_list_
     // as we don't want to cause any window updates until all windows in
     // overview are observed. See http://crbug.com/384495.
-    for (WindowGrid* window_grid : grid_list_) {
+    for (std::unique_ptr<WindowGrid>& window_grid : grid_list_) {
       window_grid->PrepareForOverview();
       window_grid->PositionWindows(true);
     }
 
-    text_filter_widget_.reset(
-        CreateTextFilter(this, Shell::GetPrimaryRootWindow()));
+    search_image_ = gfx::CreateVectorIcon(ui::kSearchIcon, kTextFilterIconSize,
+                                          kTextFilterIconColor);
+    WmWindow* root_window = shell_port->GetPrimaryRootWindow();
+    text_filter_widget_.reset(CreateTextFilter(this, root_window, search_image_,
+                                               &text_filter_bottom_));
   }
 
   DCHECK(!grid_list_.empty());
   UMA_HISTOGRAM_COUNTS_100("Ash.WindowSelector.Items", num_items_);
 
-  Shell* shell = Shell::GetInstance();
-
-  shell->activation_client()->AddObserver(this);
+  Shell::Get()->activation_client()->AddObserver(this);
 
   display::Screen::GetScreen()->AddObserver(this);
-  shell->metrics()->RecordUserMetricsAction(UMA_WINDOW_OVERVIEW);
+  shell_port->RecordUserMetricsAction(UMA_WINDOW_OVERVIEW);
   // Send an a11y alert.
-  shell->accessibility_delegate()->TriggerAccessibilityAlert(
-      ui::A11Y_ALERT_WINDOW_OVERVIEW_MODE_ENTERED);
+  Shell::Get()->accessibility_delegate()->TriggerAccessibilityAlert(
+      A11Y_ALERT_WINDOW_OVERVIEW_MODE_ENTERED);
 
   UpdateShelfVisibility();
 }
@@ -332,24 +321,31 @@ void WindowSelector::Init(const WindowList& windows) {
 // may cause other, unrelated classes, (ie PanelLayoutManager) to make indirect
 // calls to restoring_minimized_windows() on a partially destructed object.
 void WindowSelector::Shutdown() {
-  ResetFocusRestoreWindow(true);
-  RemoveAllObservers();
-
-  aura::Window::Windows root_windows = Shell::GetAllRootWindows();
-  for (aura::Window::Windows::const_iterator iter = root_windows.begin();
-       iter != root_windows.end(); iter++) {
-    // Un-hide the callout widgets for panels. It is safe to call this for
-    // root_windows that don't contain any panel windows.
-    PanelLayoutManager::Get(wm::WmWindowAura::Get(*iter))
-        ->SetShowCalloutWidgets(true);
-  }
+  is_shut_down_ = true;
+  // Stop observing screen metrics changes first to avoid auto-positioning
+  // windows in response to work area changes from window activation.
+  display::Screen::GetScreen()->RemoveObserver(this);
 
   size_t remaining_items = 0;
-  for (WindowGrid* window_grid : grid_list_) {
-    for (WindowSelectorItem* window_selector_item : window_grid->window_list())
+  for (std::unique_ptr<WindowGrid>& window_grid : grid_list_) {
+    for (const auto& window_selector_item : window_grid->window_list())
       window_selector_item->RestoreWindow();
     remaining_items += window_grid->size();
   }
+
+  // Setting focus after restoring windows' state avoids unnecessary animations.
+  ResetFocusRestoreWindow(true);
+  RemoveAllObservers();
+
+  std::vector<WmWindow*> root_windows = ShellPort::Get()->GetAllRootWindows();
+  for (WmWindow* window : root_windows) {
+    // Un-hide the callout widgets for panels. It is safe to call this for
+    // root_windows that don't contain any panel windows.
+    PanelLayoutManager::Get(window)->SetShowCalloutWidgets(true);
+  }
+
+  for (std::unique_ptr<WindowGrid>& window_grid : grid_list_)
+    window_grid->Shutdown();
 
   DCHECK(num_items_ >= remaining_items);
   UMA_HISTOGRAM_COUNTS_100("Ash.WindowSelector.OverviewClosedItems",
@@ -366,9 +362,8 @@ void WindowSelector::Shutdown() {
     UMA_HISTOGRAM_MEDIUM_TIMES(
         "Ash.WindowSelector.TimeInOverviewWithTextFiltering",
         base::Time::Now() - overview_start_time_);
-    UMA_HISTOGRAM_COUNTS_100(
-        "Ash.WindowSelector.ItemsWhenTextFilteringUsed",
-        remaining_items);
+    UMA_HISTOGRAM_COUNTS_100("Ash.WindowSelector.ItemsWhenTextFilteringUsed",
+                             remaining_items);
   }
 
   // Clearing the window list resets the ignored_by_shelf flag on the windows.
@@ -377,14 +372,13 @@ void WindowSelector::Shutdown() {
 }
 
 void WindowSelector::RemoveAllObservers() {
-  Shell* shell = Shell::GetInstance();
-  for (aura::Window* window : observed_windows_)
-    window->RemoveObserver(this);
+  for (WmWindow* window : observed_windows_)
+    window->aura_window()->RemoveObserver(this);
 
-  shell->activation_client()->RemoveObserver(this);
+  Shell::Get()->activation_client()->RemoveObserver(this);
   display::Screen::GetScreen()->RemoveObserver(this);
   if (restore_focus_window_)
-    restore_focus_window_->RemoveObserver(this);
+    restore_focus_window_->aura_window()->RemoveObserver(this);
 }
 
 void WindowSelector::CancelSelection() {
@@ -392,11 +386,14 @@ void WindowSelector::CancelSelection() {
 }
 
 void WindowSelector::OnGridEmpty(WindowGrid* grid) {
-  ScopedVector<WindowGrid>::iterator iter =
-      std::find(grid_list_.begin(), grid_list_.end(), grid);
-  DCHECK(iter != grid_list_.end());
-  size_t index = iter - grid_list_.begin();
-  grid_list_.erase(iter);
+  size_t index = 0;
+  for (auto iter = grid_list_.begin(); iter != grid_list_.end(); ++iter) {
+    if (grid == (*iter).get()) {
+      index = iter - grid_list_.begin();
+      grid_list_.erase(iter);
+      break;
+    }
+  }
   if (index > 0 && selected_grid_index_ >= index) {
     selected_grid_index_--;
     // If the grid which became empty was the one with the selected window, we
@@ -408,18 +405,45 @@ void WindowSelector::OnGridEmpty(WindowGrid* grid) {
     CancelSelection();
 }
 
-void WindowSelector::SelectWindow(aura::Window* window) {
-  // Record UMA_WINDOW_OVERVIEW_ACTIVE_WINDOW_CHANGED if the user is selecting
-  // a window other than the window that was active prior to entering overview
-  // mode (i.e., the window at the front of the MRU list).
-  MruWindowTracker::WindowList window_list =
-      Shell::GetInstance()->mru_window_tracker()->BuildMruWindowList();
-  if (window_list.size() > 0 && window_list[0] != window) {
-    Shell::GetInstance()->metrics()->RecordUserMetricsAction(
-        UMA_WINDOW_OVERVIEW_ACTIVE_WINDOW_CHANGED);
-  }
+void WindowSelector::IncrementSelection(int increment) {
+  const Direction direction =
+      increment > 0 ? WindowSelector::RIGHT : WindowSelector::LEFT;
+  for (int step = 0; step < abs(increment); ++step)
+    Move(direction, true);
+}
 
-  wm::GetWindowState(window)->Activate();
+bool WindowSelector::AcceptSelection() {
+  if (!grid_list_[selected_grid_index_]->is_selecting())
+    return false;
+  SelectWindow(grid_list_[selected_grid_index_]->SelectedWindow());
+  return true;
+}
+
+void WindowSelector::SelectWindow(WindowSelectorItem* item) {
+  WmWindow* window = item->GetWindow();
+  std::vector<WmWindow*> window_list =
+      Shell::Get()->mru_window_tracker()->BuildMruWindowList();
+  if (!window_list.empty()) {
+    // Record UMA_WINDOW_OVERVIEW_ACTIVE_WINDOW_CHANGED if the user is selecting
+    // a window other than the window that was active prior to entering overview
+    // mode (i.e., the window at the front of the MRU list).
+    if (window_list[0] != window) {
+      ShellPort::Get()->RecordUserMetricsAction(
+          UMA_WINDOW_OVERVIEW_ACTIVE_WINDOW_CHANGED);
+    }
+    const auto it = std::find(window_list.begin(), window_list.end(), window);
+    if (it != window_list.end()) {
+      // Record 1-based index so that selecting a top MRU window will record 1.
+      UMA_HISTOGRAM_COUNTS_100("Ash.WindowSelector.SelectionDepth",
+                               1 + it - window_list.begin());
+    }
+  }
+  item->EnsureVisible();
+  window->GetWindowState()->Activate();
+}
+
+void WindowSelector::WindowClosing(WindowSelectorItem* window) {
+  grid_list_[selected_grid_index_]->WindowClosing(window);
 }
 
 bool WindowSelector::HandleKeyEvent(views::Textfield* sender,
@@ -441,12 +465,24 @@ bool WindowSelector::HandleKeyEvent(views::Textfield* sender,
       break;
     case ui::VKEY_RIGHT:
     case ui::VKEY_TAB:
-      num_key_presses_++;
-      Move(WindowSelector::RIGHT, true);
-      break;
+      if (key_event.key_code() == ui::VKEY_RIGHT ||
+          !(key_event.flags() & ui::EF_SHIFT_DOWN)) {
+        num_key_presses_++;
+        Move(WindowSelector::RIGHT, true);
+        break;
+      }
     case ui::VKEY_LEFT:
       num_key_presses_++;
       Move(WindowSelector::LEFT, true);
+      break;
+    case ui::VKEY_W:
+      if (!(key_event.flags() & ui::EF_CONTROL_DOWN) ||
+          !grid_list_[selected_grid_index_]->is_selecting()) {
+        // Allow the textfield to handle 'W' key when not used with Ctrl.
+        return false;
+      }
+      ShellPort::Get()->RecordUserMetricsAction(UMA_WINDOW_OVERVIEW_CLOSE_KEY);
+      grid_list_[selected_grid_index_]->SelectedWindow()->CloseWindow();
       break;
     case ui::VKEY_RETURN:
       // Ignore if no item is selected.
@@ -454,13 +490,11 @@ bool WindowSelector::HandleKeyEvent(views::Textfield* sender,
         return false;
       UMA_HISTOGRAM_COUNTS_100("Ash.WindowSelector.ArrowKeyPresses",
                                num_key_presses_);
-      UMA_HISTOGRAM_CUSTOM_COUNTS(
-          "Ash.WindowSelector.KeyPressesOverItemsRatio",
-          (num_key_presses_ * 100) / num_items_, 1, 300, 30);
-      Shell::GetInstance()->metrics()->RecordUserMetricsAction(
-          UMA_WINDOW_OVERVIEW_ENTER_KEY);
-      SelectWindow(
-          grid_list_[selected_grid_index_]->SelectedWindow()->GetWindow());
+      UMA_HISTOGRAM_CUSTOM_COUNTS("Ash.WindowSelector.KeyPressesOverItemsRatio",
+                                  (num_key_presses_ * 100) / num_items_, 1, 300,
+                                  30);
+      ShellPort::Get()->RecordUserMetricsAction(UMA_WINDOW_OVERVIEW_ENTER_KEY);
+      SelectWindow(grid_list_[selected_grid_index_]->SelectedWindow());
       break;
     default:
       // Not a key we are interested in, allow the textfield to handle it.
@@ -482,13 +516,22 @@ void WindowSelector::OnDisplayMetricsChanged(const display::Display& display,
   RepositionTextFilterOnDisplayMetricsChange();
 }
 
-void WindowSelector::OnWindowAdded(aura::Window* new_window) {
+void WindowSelector::OnWindowHierarchyChanged(
+    const HierarchyChangeParams& params) {
+  // Only care about newly added children of |observed_windows_|.
+  if (!observed_windows_.count(WmWindow::Get(params.receiver)) ||
+      !observed_windows_.count(WmWindow::Get(params.new_parent))) {
+    return;
+  }
+
+  WmWindow* new_window = WmWindow::Get(params.target);
   if (!IsSelectable(new_window))
     return;
 
   for (size_t i = 0; i < wm::kSwitchableWindowContainerIdsLength; ++i) {
-    if (new_window->parent()->id() == wm::kSwitchableWindowContainerIds[i] &&
-        !::wm::GetTransientParent(new_window)) {
+    if (new_window->GetParent()->aura_window()->id() ==
+            wm::kSwitchableWindowContainerIds[i] &&
+        !new_window->GetTransientParent()) {
       // The new window is in one of the switchable containers, abort overview.
       CancelSelection();
       return;
@@ -498,34 +541,40 @@ void WindowSelector::OnWindowAdded(aura::Window* new_window) {
 
 void WindowSelector::OnWindowDestroying(aura::Window* window) {
   window->RemoveObserver(this);
-  observed_windows_.erase(window);
-  if (window == restore_focus_window_)
+  observed_windows_.erase(WmWindow::Get(window));
+  if (WmWindow::Get(window) == restore_focus_window_)
     restore_focus_window_ = nullptr;
 }
 
-void WindowSelector::OnWindowActivated(
-    aura::client::ActivationChangeObserver::ActivationReason reason,
-    aura::Window* gained_active,
-    aura::Window* lost_active) {
-  if (ignore_activations_ ||
-      !gained_active ||
-      gained_active == text_filter_widget_->GetNativeWindow()) {
+void WindowSelector::OnWindowActivated(ActivationReason reason,
+                                       aura::Window* gained_active,
+                                       aura::Window* lost_active) {
+  WmWindow* wm_gained_active = WmWindow::Get(gained_active);
+  if (ignore_activations_ || !wm_gained_active ||
+      wm_gained_active == GetTextFilterWidgetWindow()) {
     return;
   }
 
-  ScopedVector<WindowGrid>::iterator grid =
+  WmWindow* root_window = wm_gained_active->GetRootWindow();
+  auto grid =
       std::find_if(grid_list_.begin(), grid_list_.end(),
-                   RootWindowGridComparator(gained_active->GetRootWindow()));
+                   [root_window](const std::unique_ptr<WindowGrid>& grid) {
+                     return grid->root_window() == root_window;
+                   });
   if (grid == grid_list_.end())
     return;
-  const std::vector<WindowSelectorItem*> windows = (*grid)->window_list();
+  const auto& windows = (*grid)->window_list();
 
-  ScopedVector<WindowSelectorItem>::const_iterator iter = std::find_if(
+  auto iter = std::find_if(
       windows.begin(), windows.end(),
-      WindowSelectorItemTargetComparator(gained_active));
+      [wm_gained_active](const std::unique_ptr<WindowSelectorItem>& window) {
+        return window->Contains(wm_gained_active);
+      });
 
-  if (iter != windows.end())
-    (*iter)->ShowWindowOnExit();
+  if (iter == windows.end() && showing_text_filter_ &&
+      WmWindow::Get(lost_active) == GetTextFilterWidgetWindow()) {
+    return;
+  }
 
   // Don't restore focus on exit if a window was just activated.
   ResetFocusRestoreWindow(false);
@@ -534,9 +583,8 @@ void WindowSelector::OnWindowActivated(
 
 void WindowSelector::OnAttemptToReactivateWindow(aura::Window* request_active,
                                                  aura::Window* actual_active) {
-  OnWindowActivated(aura::client::ActivationChangeObserver::ActivationReason::
-                        ACTIVATION_CLIENT,
-                    request_active, actual_active);
+  OnWindowActivated(ActivationReason::ACTIVATION_CLIENT, request_active,
+                    actual_active);
 }
 
 void WindowSelector::ContentsChanged(views::Textfield* sender,
@@ -545,31 +593,31 @@ void WindowSelector::ContentsChanged(views::Textfield* sender,
   if (!text_filter_string_length_)
     num_times_textfield_cleared_++;
 
-  bool should_show_selection_widget = !new_contents.empty();
-  if (showing_selection_widget_ != should_show_selection_widget) {
+  bool should_show_text_filter = !new_contents.empty();
+  if (showing_text_filter_ != should_show_text_filter) {
+    WmWindow* text_filter_widget_window = GetTextFilterWidgetWindow();
     ui::ScopedLayerAnimationSettings animation_settings(
-        text_filter_widget_->GetNativeWindow()->layer()->GetAnimator());
+        text_filter_widget_window->GetLayer()->GetAnimator());
     animation_settings.SetPreemptionStrategy(
         ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
-    animation_settings.SetTweenType(showing_selection_widget_ ?
-        gfx::Tween::FAST_OUT_LINEAR_IN : gfx::Tween::LINEAR_OUT_SLOW_IN);
+    animation_settings.SetTweenType(showing_text_filter_
+                                        ? gfx::Tween::FAST_OUT_LINEAR_IN
+                                        : gfx::Tween::LINEAR_OUT_SLOW_IN);
 
     gfx::Transform transform;
-    if (should_show_selection_widget) {
+    if (should_show_text_filter) {
       transform.Translate(0, 0);
-      text_filter_widget_->GetNativeWindow()->layer()->SetOpacity(1);
+      text_filter_widget_window->SetOpacity(1);
     } else {
-      transform.Translate(0, -kTextFilterBottomEdge);
-      text_filter_widget_->GetNativeWindow()->layer()->SetOpacity(0);
+      transform.Translate(0, -text_filter_bottom_);
+      text_filter_widget_window->SetOpacity(0);
     }
 
-    text_filter_widget_->GetNativeWindow()->SetTransform(transform);
-    showing_selection_widget_ = should_show_selection_widget;
+    text_filter_widget_window->SetTransform(transform);
+    showing_text_filter_ = should_show_text_filter;
   }
-  for (ScopedVector<WindowGrid>::iterator iter = grid_list_.begin();
-       iter != grid_list_.end(); iter++) {
+  for (auto iter = grid_list_.begin(); iter != grid_list_.end(); iter++)
     (*iter)->FilterItems(new_contents);
-  }
 
   // If the selection widget is not active, execute a Move() command so that it
   // shows up on the first undimmed item.
@@ -578,28 +626,27 @@ void WindowSelector::ContentsChanged(views::Textfield* sender,
   Move(WindowSelector::RIGHT, false);
 }
 
+WmWindow* WindowSelector::GetTextFilterWidgetWindow() {
+  return WmWindow::Get(text_filter_widget_->GetNativeWindow());
+}
+
 void WindowSelector::PositionWindows(bool animate) {
-  for (ScopedVector<WindowGrid>::iterator iter = grid_list_.begin();
-      iter != grid_list_.end(); iter++) {
-    (*iter)->PositionWindows(animate);
-  }
+  for (std::unique_ptr<WindowGrid>& grid : grid_list_)
+    grid->PositionWindows(animate);
 }
 
 void WindowSelector::RepositionTextFilterOnDisplayMetricsChange() {
-  aura::Window* root_window = Shell::GetPrimaryRootWindow();
-  gfx::Rect rect(
-      root_window->bounds().width() / 2 * (1 - kTextFilterScreenProportion),
-      kTextFilterDistanceFromTop,
-      root_window->bounds().width() * kTextFilterScreenProportion,
-      kTextFilterHeight);
-
+  WmWindow* root_window = ShellPort::Get()->GetPrimaryRootWindow();
+  const gfx::Rect rect = GetTextFilterPosition(root_window);
+  text_filter_bottom_ = rect.bottom() + kTextFieldBottomMargin;
   text_filter_widget_->SetBounds(rect);
 
   gfx::Transform transform;
-  transform.Translate(0, text_filter_string_length_ == 0
-                             ? -WindowSelector::kTextFilterBottomEdge
-                             : 0);
-  text_filter_widget_->GetNativeWindow()->SetTransform(transform);
+  transform.Translate(
+      0, text_filter_string_length_ == 0 ? -text_filter_bottom_ : 0);
+  WmWindow* text_filter_window = GetTextFilterWidgetWindow();
+  text_filter_window->SetOpacity(text_filter_string_length_ == 0 ? 0 : 1);
+  text_filter_window->SetTransform(transform);
 }
 
 void WindowSelector::ResetFocusRestoreWindow(bool focus) {
@@ -607,13 +654,13 @@ void WindowSelector::ResetFocusRestoreWindow(bool focus) {
     return;
   if (focus) {
     base::AutoReset<bool> restoring_focus(&ignore_activations_, true);
-    restore_focus_window_->Focus();
+    restore_focus_window_->Activate();
   }
   // If the window is in the observed_windows_ list it needs to continue to be
   // observed.
   if (observed_windows_.find(restore_focus_window_) ==
-          observed_windows_.end()) {
-    restore_focus_window_->RemoveObserver(this);
+      observed_windows_.end()) {
+    restore_focus_window_->aura_window()->RemoveObserver(this);
   }
   restore_focus_window_ = nullptr;
 }
@@ -631,9 +678,9 @@ void WindowSelector::Move(Direction direction, bool animate) {
 
   // Keep calling Move() on the grids until one of them reports no overflow or
   // we made a full cycle on all the grids.
-  for (size_t i = 0;
-      i <= grid_list_.size() &&
-      grid_list_[selected_grid_index_]->Move(direction, animate); i++) {
+  for (size_t i = 0; i <= grid_list_.size() &&
+                     grid_list_[selected_grid_index_]->Move(direction, animate);
+       i++) {
     selected_grid_index_ =
         (selected_grid_index_ + display_direction + grid_list_.size()) %
         grid_list_.size();

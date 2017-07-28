@@ -14,11 +14,6 @@
 #include "ash/wm/overview/window_selector_delegate.h"
 #include "base/macros.h"
 #include "base/time/time.h"
-#include "ui/aura/window_observer.h"
-
-namespace aura {
-class Window;
-}
 
 namespace ash {
 class WindowSelector;
@@ -26,8 +21,7 @@ class WindowSelectorTest;
 
 // Manages a window selector which displays an overview of all windows and
 // allows selecting a window to activate it.
-class ASH_EXPORT WindowSelectorController
-    : public WindowSelectorDelegate {
+class ASH_EXPORT WindowSelectorController : public WindowSelectorDelegate {
  public:
   WindowSelectorController();
   ~WindowSelectorController() override;
@@ -36,13 +30,20 @@ class ASH_EXPORT WindowSelectorController
   // at certain times, such as when the lock screen is visible.
   static bool CanSelect();
 
-  // Enters overview mode. This is essentially the window cycling mode however
-  // not released on releasing the alt key and allows selecting with the mouse
-  // or touch rather than keypresses.
-  void ToggleOverview();
+  // Attempts to toggle overview mode and returns true if successful (showing
+  // overview would be unsuccessful if there are no windows to show).
+  bool ToggleOverview();
 
   // Returns true if window selection mode is active.
-  bool IsSelecting();
+  bool IsSelecting() const;
+
+  // Moves the current selection by |increment| items. Positive values of
+  // |increment| move the selection forward, negative values move it backward.
+  void IncrementSelection(int increment);
+
+  // Accepts current selection if any. Returns true if a selection was made,
+  // false otherwise.
+  bool AcceptSelection();
 
   // Returns true if overview mode is restoring minimized windows so that they
   // are visible during overview mode.
@@ -50,6 +51,10 @@ class ASH_EXPORT WindowSelectorController
 
   // WindowSelectorDelegate:
   void OnSelectionEnded() override;
+  void AddDelayedAnimationObserver(
+      std::unique_ptr<DelayedAnimationObserver> animation) override;
+  void RemoveAndDestroyAnimationObserver(
+      DelayedAnimationObserver* animation) override;
 
  private:
   friend class WindowSelectorTest;
@@ -57,6 +62,11 @@ class ASH_EXPORT WindowSelectorController
   // Dispatched when window selection begins.
   void OnSelectionStarted();
 
+  // Collection of DelayedAnimationObserver objects that own widgets that may be
+  // still animating after overview mode ends. If shell needs to shut down while
+  // those animations are in progress, the animations are shut down and the
+  // widgets destroyed.
+  std::vector<std::unique_ptr<DelayedAnimationObserver>> delayed_animations_;
   std::unique_ptr<WindowSelector> window_selector_;
   base::Time last_selection_time_;
 

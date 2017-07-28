@@ -8,20 +8,18 @@
 #include "ash/ash_export.h"
 #include "base/macros.h"
 #include "ui/base/ui_base_types.h"
-#include "ui/gfx/geometry/rect.h"
 
-namespace aura {
-class Window;
-class RootWindow;
+namespace display {
+class Display;
 }
 
 namespace gfx {
-class Display;
 class Rect;
-class Screen;
 }
 
 namespace ash {
+
+class WmWindow;
 
 namespace test {
 class WindowPositionerTest;
@@ -50,21 +48,20 @@ class ASH_EXPORT WindowPositioner {
   // |is_saved_bounds| indicates the |bounds_in_out| is the saved
   // bounds.
   static void GetBoundsAndShowStateForNewWindow(
-      const gfx::Screen* screen,
-      const aura::Window* new_window,
+      const WmWindow* new_window,
       bool is_saved_bounds,
       ui::WindowShowState show_state_in,
       gfx::Rect* bounds_in_out,
       ui::WindowShowState* show_state_out);
 
   // Returns the default bounds for a window to be created in the |display|.
-  static gfx::Rect GetDefaultWindowBounds(const gfx::Display& display);
+  static gfx::Rect GetDefaultWindowBounds(const display::Display& display);
 
   // Check if after removal or hide of the given |removed_window| an
   // automated desktop location management can be performed and
   // rearrange accordingly.
   static void RearrangeVisibleWindowOnHideOrRemove(
-      const aura::Window* removed_window);
+      const WmWindow* removed_window);
 
   // Turn the automatic positioning logic temporarily off. Returns the previous
   // state.
@@ -73,7 +70,7 @@ class ASH_EXPORT WindowPositioner {
   // Check if after insertion or showing of the given |added_window|
   // an automated desktop location management can be performed and
   // rearrange accordingly.
-  static void RearrangeVisibleWindowOnShow(aura::Window* added_window);
+  static void RearrangeVisibleWindowOnShow(WmWindow* added_window);
 
   WindowPositioner();
   ~WindowPositioner();
@@ -103,8 +100,8 @@ class ASH_EXPORT WindowPositioner {
                                 const gfx::Rect& work_area);
 
   // Align the location to the grid / snap to the right / bottom corner.
-  gfx::Rect AlignPopupPosition(const gfx::Rect &pos,
-                               const gfx::Rect &work_area,
+  gfx::Rect AlignPopupPosition(const gfx::Rect& pos,
+                               const gfx::Rect& work_area,
                                int grid);
 
   // Constant exposed for unittest.

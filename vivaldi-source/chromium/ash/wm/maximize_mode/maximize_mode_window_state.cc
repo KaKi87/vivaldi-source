@@ -6,28 +6,17 @@
 
 #include <utility>
 
-#include "ash/screen_util.h"
+#include "ash/public/cpp/shell_window_ids.h"
 #include "ash/shell.h"
-#include "ash/shell_window_ids.h"
-#include "ash/wm/aura/wm_window_aura.h"
-#include "ash/wm/common/window_animation_types.h"
-#include "ash/wm/common/window_state_delegate.h"
-#include "ash/wm/common/window_state_util.h"
-#include "ash/wm/common/wm_event.h"
-#include "ash/wm/common/wm_screen_util.h"
-#include "ash/wm/common/workspace/workspace_window_resizer.h"
 #include "ash/wm/maximize_mode/maximize_mode_window_manager.h"
-#include "ash/wm/window_animations.h"
-#include "ash/wm/window_properties.h"
-#include "ash/wm/window_state_aura.h"
-#include "ash/wm/window_util.h"
-#include "ui/aura/client/aura_constants.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_delegate.h"
+#include "ash/wm/screen_pinning_controller.h"
+#include "ash/wm/window_animation_types.h"
+#include "ash/wm/window_state_util.h"
+#include "ash/wm/wm_event.h"
+#include "ash/wm/wm_screen_util.h"
+#include "ash/wm_window.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/views/view_constants_aura.h"
-#include "ui/views/widget/widget.h"
 
 namespace ash {
 namespace {
@@ -59,7 +48,7 @@ gfx::Rect GetCenteredBounds(const gfx::Rect& bounds_in_parent,
 
 // Returns the maximized/full screen and/or centered bounds of a window.
 gfx::Rect GetBoundsInMaximizedMode(wm::WindowState* state_object) {
-  if (state_object->IsFullscreen())
+  if (state_object->IsFullscreen() || state_object->IsPinned())
     return wm::GetDisplayBoundsInParent(state_object->window());
 
   gfx::Rect bounds_in_parent;
@@ -78,6 +67,16 @@ gfx::Rect GetBoundsInMaximizedMode(wm::WindowState* state_object) {
   return GetCenteredBounds(bounds_in_parent, state_object);
 }
 
+gfx::Rect GetRestoreBounds(wm::WindowState* window_state) {
+  if (window_state->IsMinimized() || window_state->IsMaximized() ||
+      window_state->IsFullscreen()) {
+    gfx::Rect restore_bounds = window_state->GetRestoreBoundsInScreen();
+    if (!restore_bounds.IsEmpty())
+      return restore_bounds;
+  }
+  return window_state->window()->GetBoundsInScreen();
+}
+
 }  // namespace
 
 // static
@@ -90,12 +89,13 @@ void MaximizeModeWindowState::UpdateWindowPosition(
 }
 
 MaximizeModeWindowState::MaximizeModeWindowState(
-    aura::Window* window, MaximizeModeWindowManager* creator)
+    WmWindow* window,
+    MaximizeModeWindowManager* creator)
     : window_(window),
       creator_(creator),
-      current_state_type_(wm::GetWindowState(window)->GetStateType()),
+      current_state_type_(window->GetWindowState()->GetStateType()),
       defer_bounds_updates_(false) {
-  old_state_.reset(wm::GetWindowState(window)
+  old_state_.reset(window_->GetWindowState()
                        ->SetStateObject(std::unique_ptr<State>(this))
                        .release());
 }
@@ -116,11 +116,16 @@ void MaximizeModeWindowState::SetDeferBoundsUpdates(bool defer_bounds_updates) {
 
   defer_bounds_updates_ = defer_bounds_updates;
   if (!defer_bounds_updates_)
-    UpdateBounds(wm::GetWindowState(window_), true);
+    UpdateBounds(window_->GetWindowState(), true);
 }
 
 void MaximizeModeWindowState::OnWMEvent(wm::WindowState* window_state,
                                         const wm::WMEvent* event) {
+  // Ignore events that are sent during the exit transition.
+  if (ignore_wm_events_) {
+    return;
+  }
+
   switch (event->type()) {
     case wm::WM_EVENT_TOGGLE_FULLSCREEN:
       ToggleFullScreen(window_state, window_state->delegate());
@@ -128,20 +133,26 @@ void MaximizeModeWindowState::OnWMEvent(wm::WindowState* window_state,
     case wm::WM_EVENT_FULLSCREEN:
       UpdateWindow(window_state, wm::WINDOW_STATE_TYPE_FULLSCREEN, true);
       break;
+    case wm::WM_EVENT_PIN:
+      if (!Shell::Get()->screen_pinning_controller()->IsPinned())
+        UpdateWindow(window_state, wm::WINDOW_STATE_TYPE_PINNED, true);
+      break;
+    case wm::WM_EVENT_TRUSTED_PIN:
+      if (!Shell::Get()->screen_pinning_controller()->IsPinned())
+        UpdateWindow(window_state, wm::WINDOW_STATE_TYPE_TRUSTED_PINNED, true);
+      break;
     case wm::WM_EVENT_TOGGLE_MAXIMIZE_CAPTION:
     case wm::WM_EVENT_TOGGLE_VERTICAL_MAXIMIZE:
     case wm::WM_EVENT_TOGGLE_HORIZONTAL_MAXIMIZE:
     case wm::WM_EVENT_TOGGLE_MAXIMIZE:
-    case wm::WM_EVENT_CYCLE_SNAP_DOCK_LEFT:
-    case wm::WM_EVENT_CYCLE_SNAP_DOCK_RIGHT:
+    case wm::WM_EVENT_CYCLE_SNAP_LEFT:
+    case wm::WM_EVENT_CYCLE_SNAP_RIGHT:
     case wm::WM_EVENT_CENTER:
     case wm::WM_EVENT_SNAP_LEFT:
     case wm::WM_EVENT_SNAP_RIGHT:
     case wm::WM_EVENT_NORMAL:
     case wm::WM_EVENT_MAXIMIZE:
-    case wm::WM_EVENT_DOCK:
-      UpdateWindow(window_state,
-                   GetMaximizedOrCenteredWindowType(window_state),
+      UpdateWindow(window_state, GetMaximizedOrCenteredWindowType(window_state),
                    true);
       return;
     case wm::WM_EVENT_MINIMIZE:
@@ -159,8 +170,9 @@ void MaximizeModeWindowState::OnWMEvent(wm::WindowState* window_state,
         if (!bounds_in_parent.IsEmpty())
           window_state->SetRestoreBoundsInParent(bounds_in_parent);
       } else if (current_state_type_ != wm::WINDOW_STATE_TYPE_MINIMIZED &&
-                 current_state_type_ != wm::WINDOW_STATE_TYPE_MAXIMIZED &&
-                 current_state_type_ != wm::WINDOW_STATE_TYPE_FULLSCREEN) {
+                 current_state_type_ != wm::WINDOW_STATE_TYPE_FULLSCREEN &&
+                 current_state_type_ != wm::WINDOW_STATE_TYPE_PINNED &&
+                 current_state_type_ != wm::WINDOW_STATE_TYPE_TRUSTED_PINNED) {
         // In all other cases (except for minimized windows) we respect the
         // requested bounds and center it to a fully visible area on the screen.
         gfx::Rect bounds_in_parent =
@@ -204,27 +216,21 @@ void MaximizeModeWindowState::AttachState(
     wm::WindowState::State* previous_state) {
   current_state_type_ = previous_state->GetType();
 
-  aura::Window* window =
-      ash::wm::WmWindowAura::GetAuraWindow(window_state->window());
-  views::Widget* widget = views::Widget::GetWidgetForNativeWindow(window);
-  if (widget) {
-    gfx::Rect bounds = widget->GetRestoredBounds();
-    if (!bounds.IsEmpty()) {
-      // We do not want to do a session restore to our window states. Therefore
-      // we tell the window to use the current default states instead.
-      window->SetProperty(ash::kRestoreShowStateOverrideKey,
-                          window_state->GetShowState());
-      window->SetProperty(ash::kRestoreBoundsOverrideKey,
-                          new gfx::Rect(widget->GetRestoredBounds()));
-    }
+  gfx::Rect restore_bounds = GetRestoreBounds(window_state);
+  if (!restore_bounds.IsEmpty()) {
+    // We do not want to do a session restore to our window states. Therefore
+    // we tell the window to use the current default states instead.
+    window_state->window()->SetRestoreOverrides(restore_bounds,
+                                                window_state->GetShowState());
   }
 
   // Initialize the state to a good preset.
   if (current_state_type_ != wm::WINDOW_STATE_TYPE_MAXIMIZED &&
       current_state_type_ != wm::WINDOW_STATE_TYPE_MINIMIZED &&
-      current_state_type_ != wm::WINDOW_STATE_TYPE_FULLSCREEN) {
-    UpdateWindow(window_state,
-                 GetMaximizedOrCenteredWindowType(window_state),
+      current_state_type_ != wm::WINDOW_STATE_TYPE_FULLSCREEN &&
+      current_state_type_ != wm::WINDOW_STATE_TYPE_PINNED &&
+      current_state_type_ != wm::WINDOW_STATE_TYPE_TRUSTED_PINNED) {
+    UpdateWindow(window_state, GetMaximizedOrCenteredWindowType(window_state),
                  true);
   }
 
@@ -233,8 +239,8 @@ void MaximizeModeWindowState::AttachState(
 
 void MaximizeModeWindowState::DetachState(wm::WindowState* window_state) {
   // From now on, we can use the default session restore mechanism again.
-  ash::wm::WmWindowAura::GetAuraWindow(window_state->window())
-      ->ClearProperty(ash::kRestoreBoundsOverrideKey);
+  window_state->window()->SetRestoreOverrides(gfx::Rect(),
+                                              ui::SHOW_STATE_NORMAL);
   window_state->set_can_be_dragged(true);
 }
 
@@ -243,24 +249,15 @@ void MaximizeModeWindowState::UpdateWindow(wm::WindowState* window_state,
                                            bool animated) {
   DCHECK(target_state == wm::WINDOW_STATE_TYPE_MINIMIZED ||
          target_state == wm::WINDOW_STATE_TYPE_MAXIMIZED ||
+         target_state == wm::WINDOW_STATE_TYPE_PINNED ||
+         target_state == wm::WINDOW_STATE_TYPE_TRUSTED_PINNED ||
          (target_state == wm::WINDOW_STATE_TYPE_NORMAL &&
-              !window_state->CanMaximize()) ||
+          !window_state->CanMaximize()) ||
          target_state == wm::WINDOW_STATE_TYPE_FULLSCREEN);
 
-  if (target_state == wm::WINDOW_STATE_TYPE_MINIMIZED) {
-    if (current_state_type_ == wm::WINDOW_STATE_TYPE_MINIMIZED)
-      return;
-
-    current_state_type_ = target_state;
-    window_state->window()->SetVisibilityAnimationType(
-        wm::WINDOW_VISIBILITY_ANIMATION_TYPE_MINIMIZE);
-    window_state->window()->Hide();
-    if (window_state->IsActive())
-      window_state->Deactivate();
-    return;
-  }
-
   if (current_state_type_ == target_state) {
+    if (target_state == wm::WINDOW_STATE_TYPE_MINIMIZED)
+      return;
     // If the state type did not change, update it accordingly.
     UpdateBounds(window_state, animated);
     return;
@@ -268,10 +265,28 @@ void MaximizeModeWindowState::UpdateWindow(wm::WindowState* window_state,
 
   const wm::WindowStateType old_state_type = current_state_type_;
   current_state_type_ = target_state;
-  window_state->UpdateWindowShowStateFromStateType();
+  window_state->UpdateWindowPropertiesFromStateType();
   window_state->NotifyPreStateTypeChange(old_state_type);
-  UpdateBounds(window_state, animated);
+
+  if (target_state == wm::WINDOW_STATE_TYPE_MINIMIZED) {
+    window_state->window()->SetVisibilityAnimationType(
+        wm::WINDOW_VISIBILITY_ANIMATION_TYPE_MINIMIZE);
+    window_state->window()->Hide();
+    if (window_state->IsActive())
+      window_state->Deactivate();
+  } else {
+    UpdateBounds(window_state, animated);
+  }
+
   window_state->NotifyPostStateTypeChange(old_state_type);
+
+  if (old_state_type == wm::WINDOW_STATE_TYPE_PINNED ||
+      target_state == wm::WINDOW_STATE_TYPE_PINNED ||
+      old_state_type == wm::WINDOW_STATE_TYPE_TRUSTED_PINNED ||
+      target_state == wm::WINDOW_STATE_TYPE_TRUSTED_PINNED) {
+    Shell::Get()->screen_pinning_controller()->SetPinnedWindow(
+        window_state->window());
+  }
 
   if ((window_state->window()->GetTargetVisibility() ||
        old_state_type == wm::WINDOW_STATE_TYPE_MINIMIZED) &&
@@ -283,9 +298,9 @@ void MaximizeModeWindowState::UpdateWindow(wm::WindowState* window_state,
 }
 
 wm::WindowStateType MaximizeModeWindowState::GetMaximizedOrCenteredWindowType(
-      wm::WindowState* window_state) {
-  return window_state->CanMaximize() ? wm::WINDOW_STATE_TYPE_MAXIMIZED :
-                                       wm::WINDOW_STATE_TYPE_NORMAL;
+    wm::WindowState* window_state) {
+  return window_state->CanMaximize() ? wm::WINDOW_STATE_TYPE_MAXIMIZED
+                                     : wm::WINDOW_STATE_TYPE_NORMAL;
 }
 
 void MaximizeModeWindowState::UpdateBounds(wm::WindowState* window_state,
@@ -298,8 +313,7 @@ void MaximizeModeWindowState::UpdateBounds(wm::WindowState* window_state,
   if (!bounds_in_parent.IsEmpty() &&
       bounds_in_parent != window_state->window()->GetBounds()) {
     if (current_state_type_ == wm::WINDOW_STATE_TYPE_MINIMIZED ||
-        !window_state->window()->IsVisible() ||
-        !animated) {
+        !window_state->window()->IsVisible() || !animated) {
       window_state->SetBoundsDirect(bounds_in_parent);
     } else {
       // If we animate (to) maximized mode, we want to use the cross fade to

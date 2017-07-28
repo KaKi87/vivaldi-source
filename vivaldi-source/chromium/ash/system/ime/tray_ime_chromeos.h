@@ -7,28 +7,26 @@
 
 #include <stddef.h>
 
-#include "ash/system/chromeos/virtual_keyboard/virtual_keyboard_observer.h"
+#include "ash/system/accessibility_observer.h"
 #include "ash/system/ime/ime_observer.h"
-#include "ash/system/tray/system_tray_delegate.h"
+#include "ash/system/ime_menu/ime_list_view.h"
+#include "ash/system/tray/ime_info.h"
 #include "ash/system/tray/system_tray_item.h"
-#include "ash/system/tray_accessibility.h"
+#include "ash/system/virtual_keyboard/virtual_keyboard_observer.h"
 #include "base/macros.h"
 
-namespace views {
-class Label;
-}
-
 namespace ash {
-struct IMEInfo;
 
 namespace tray {
 class IMEDefaultView;
 class IMEDetailedView;
-class IMENotificationView;
 }
 
 class TrayItemView;
 
+// Controller for IME options in the system menu. Note this is separate from
+// the "opt-in" IME menu which can appear as a button in the system tray
+// area; that is controlled by ImeMenuTray.
 class ASH_EXPORT TrayIME : public SystemTrayItem,
                            public IMEObserver,
                            public AccessibilityObserver,
@@ -42,7 +40,7 @@ class ASH_EXPORT TrayIME : public SystemTrayItem,
 
   // Overridden from AccessibilityObserver:
   void OnAccessibilityModeChanged(
-      ui::AccessibilityNotificationVisibility notify) override;
+      AccessibilityNotificationVisibility notify) override;
 
  private:
   friend class TrayIMETest;
@@ -58,21 +56,28 @@ class ASH_EXPORT TrayIME : public SystemTrayItem,
   base::string16 GetDefaultViewLabel(bool show_ime_label);
 
   // Overridden from SystemTrayItem.
-  views::View* CreateTrayView(user::LoginStatus status) override;
-  views::View* CreateDefaultView(user::LoginStatus status) override;
-  views::View* CreateDetailedView(user::LoginStatus status) override;
+  views::View* CreateTrayView(LoginStatus status) override;
+  views::View* CreateDefaultView(LoginStatus status) override;
+  views::View* CreateDetailedView(LoginStatus status) override;
   void DestroyTrayView() override;
   void DestroyDefaultView() override;
   void DestroyDetailedView() override;
-  void UpdateAfterLoginStatusChange(user::LoginStatus status) override;
-  void UpdateAfterShelfAlignmentChange(wm::ShelfAlignment alignment) override;
 
   // Overridden from IMEObserver.
   void OnIMERefresh() override;
   void OnIMEMenuActivationChanged(bool is_active) override;
 
+  // Returns true input methods are managed by policy.
+  bool IsIMEManaged();
+
   // Whether the default view should be shown.
   bool ShouldDefaultViewBeVisible();
+
+  // Decides if a tray icon should be shown.
+  bool ShouldShowImeTrayItem(size_t ime_count);
+  // Mandates behavior for the single IME case for the detailed IME list
+  // sub-view.
+  ImeListView::SingleImeBehavior GetSingleImeBehavior();
 
   TrayItemView* tray_label_;
   tray::IMEDefaultView* default_;
@@ -83,6 +88,10 @@ class ASH_EXPORT TrayIME : public SystemTrayItem,
   IMEInfoList ime_list_;
   IMEInfo current_ime_;
   IMEPropertyInfoList property_list_;
+  // If non-empty, a controlled-setting icon should be displayed with a tooltip
+  // text defined by this string.
+  base::string16 ime_managed_message_;
+
   // Whether the IME label and tray items should be visible.
   bool is_visible_;
 

@@ -10,25 +10,27 @@
 #include <vector>
 
 #include "ash/ash_export.h"
-#include "ash/common/system/tray/system_tray_bubble.h"
-#include "ash/common/system/tray/tray_background_view.h"
+#include "ash/system/tray/system_tray_bubble.h"
+#include "ash/system/tray/tray_background_view.h"
 #include "base/macros.h"
-#include "base/memory/scoped_vector.h"
 #include "ui/views/bubble/tray_bubble_view.h"
 #include "ui/views/view.h"
 
 namespace ash {
 
+class KeyEventWatcher;
 enum class LoginStatus;
 class ScreenTrayItem;
 class SystemBubbleWrapper;
 class SystemTrayDelegate;
 class SystemTrayItem;
 class TrayAccessibility;
+class TrayAudio;
 class TrayCast;
-class TrayDate;
+class TrayNetwork;
+class TraySystemInfo;
+class TrayTiles;
 class TrayUpdate;
-class TrayUser;
 class WebNotificationTray;
 
 // There are different methods for creating bubble views.
@@ -43,22 +45,21 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   explicit SystemTray(WmShelf* wm_shelf);
   ~SystemTray() override;
 
+  TrayUpdate* tray_update() { return tray_update_; }
+
   // Calls TrayBackgroundView::Initialize(), creates the tray items, and
   // adds them to SystemTrayNotifier.
   void InitializeTrayItems(SystemTrayDelegate* delegate,
                            WebNotificationTray* web_notification_tray);
 
-  // Resets internal pointers.
+  // Resets internal pointers. This has to be called before deletion.
   void Shutdown();
 
   // Adds a new item in the tray.
-  void AddTrayItem(SystemTrayItem* item);
-
-  // Removes an existing tray item.
-  void RemoveTrayItem(SystemTrayItem* item);
+  void AddTrayItem(std::unique_ptr<SystemTrayItem> item);
 
   // Returns all tray items that has been added to system tray.
-  const std::vector<SystemTrayItem*>& GetTrayItems() const;
+  std::vector<SystemTrayItem*> GetTrayItems() const;
 
   // Shows the default view of all items.
   void ShowDefaultView(BubbleCreationType creation_type);
@@ -77,23 +78,15 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   // seconds.
   void SetDetailedViewCloseDelay(int close_delay);
 
-  // Hides the detailed view for |item|.
-  void HideDetailedView(SystemTrayItem* item);
-
-  // Shows the notification view for |item|.
-  void ShowNotificationView(SystemTrayItem* item);
-
-  // Hides the notification view for |item|.
-  void HideNotificationView(SystemTrayItem* item);
+  // Hides the detailed view for |item|. If |animate| is false, disable
+  // the hiding animation for hiding |item|.
+  void HideDetailedView(SystemTrayItem* item, bool animate);
 
   // Updates the items when the login status of the system changes.
   void UpdateAfterLoginStatusChange(LoginStatus login_status);
 
   // Updates the items when the shelf alignment changes.
   void UpdateAfterShelfAlignmentChange(ShelfAlignment alignment);
-
-  // Temporarily hides/unhides the notification bubble.
-  void SetHideNotifications(bool hidden);
 
   // Returns true if the shelf should be forced visible when auto-hidden.
   bool ShouldShowShelf() const;
@@ -102,20 +95,14 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   // of being created).
   bool HasSystemBubble() const;
 
-  // Returns true if there is a notification bubble.
-  bool HasNotificationBubble() const;
-
   // Returns true if the system_bubble_ exists and is of type |type|.
   bool HasSystemBubbleType(SystemTrayBubble::BubbleType type);
 
   // Returns a pointer to the system bubble or NULL if none.
   SystemTrayBubble* GetSystemBubble();
 
-  // Returns true if any bubble is visible.
-  bool IsAnyBubbleVisible() const;
-
-  // Returns true if the mouse is inside the notification bubble.
-  bool IsMouseInNotificationBubble() const;
+  // Returns true if system bubble is visible.
+  bool IsSystemBubbleVisible() const;
 
   // Closes system bubble and returns true if it did exist.
   bool CloseSystemBubble() const;
@@ -124,10 +111,8 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   // otherwise.
   views::View* GetHelpButtonView() const;
 
-  // Accessors for testing.
-
-  // Returns true if the bubble exists.
-  bool CloseNotificationBubbleForTest() const;
+  // Returns TrayAudio object if present or null otherwise.
+  TrayAudio* GetTrayAudio() const;
 
   // Overridden from TrayBackgroundView.
   void SetShelfAlignment(ShelfAlignment alignment) override;
@@ -142,9 +127,6 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   void OnMouseEnteredView() override;
   void OnMouseExitedView() override;
   base::string16 GetAccessibleNameForBubble() override;
-  gfx::Rect GetAnchorRect(views::Widget* anchor_widget,
-                          AnchorType anchor_type,
-                          AnchorAlignment anchor_alignment) const override;
   void OnBeforeBubbleWidgetInit(
       views::Widget* anchor_widget,
       views::Widget* bubble_widget,
@@ -162,45 +144,48 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   views::View* GetTrayItemViewForTest(SystemTrayItem* tray_item);
 
   TrayCast* GetTrayCastForTesting() const;
-  TrayDate* GetTrayDateForTesting() const;
-  TrayUpdate* GetTrayUpdateForTesting() const;
+  TrayNetwork* GetTrayNetworkForTesting() const;
+  TraySystemInfo* GetTraySystemInfoForTesting() const;
+  TrayTiles* GetTrayTilesForTesting() const;
+
+  // Activates the system tray bubble.
+  void ActivateBubble();
 
  private:
+  class ActivationObserver;
+
+  // Closes the bubble. Used to bind as a KeyEventWatcher::KeyEventCallback.
+  void CloseBubble(const ui::KeyEvent& key_event);
+
+  // Activates the bubble and starts key navigation with the |key_event|.
+  void ActivateAndStartNavigation(const ui::KeyEvent& key_event);
+
+  // Creates the key event watcher. See |ShowItems()| for why key events are
+  // observed.
+  void CreateKeyEventWatcher();
+
   // Creates the default set of items for the sytem tray.
   void CreateItems(SystemTrayDelegate* delegate);
 
   // Resets |system_bubble_| and clears any related state.
   void DestroySystemBubble();
 
-  // Resets |notification_bubble_| and clears any related state.
-  void DestroyNotificationBubble();
-
   // Returns a string with the current time for accessibility on the status
   // tray bar.
   base::string16 GetAccessibleTimeString(const base::Time& now) const;
 
-  // Calculates the x-offset for the item in the tray. Returns -1 if its tray
-  // item view is not visible.
-  int GetTrayXOffset(SystemTrayItem* item) const;
-
-  // Shows the default view and its arrow position is shifted by |x_offset|.
-  void ShowDefaultViewWithOffset(BubbleCreationType creation_type,
-                                 int x_offset,
-                                 bool persistent);
-
   // Constructs or re-constructs |system_bubble_| and populates it with |items|.
   // Specify |change_tray_status| to true if want to change the tray background
-  // status.
+  // status. The bubble will be opened in inactive state. If |can_activate| is
+  // true, the bubble will be activated by one of following means.
+  // * When alt/alt-tab acclerator is used to start navigation.
+  // * When the bubble is opened by accelerator.
+  // * When the tray item is set to be focused.
   void ShowItems(const std::vector<SystemTrayItem*>& items,
                  bool details,
-                 bool activate,
+                 bool can_activate,
                  BubbleCreationType creation_type,
-                 int x_offset,
                  bool persistent);
-
-  // Constructs or re-constructs |notification_bubble_| and populates it with
-  // |notification_items_|, or destroys it if there are no notification items.
-  void UpdateNotificationBubble();
 
   // Checks the current status of the system tray and updates the web
   // notification tray according to the current status.
@@ -213,20 +198,17 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   // and the percentage of the work area height covered by the system menu.
   void RecordSystemMenuMetrics();
 
-  const ScopedVector<SystemTrayItem>& items() const { return items_; }
-
   // Overridden from ActionableView.
   bool PerformAction(const ui::Event& event) override;
 
   // The web notification tray view that appears adjacent to this view.
-  WebNotificationTray* web_notification_tray_;
+  WebNotificationTray* web_notification_tray_ = nullptr;
 
-  // Owned items.
-  ScopedVector<SystemTrayItem> items_;
+  // Items.
+  std::vector<std::unique_ptr<SystemTrayItem>> items_;
 
   // Pointers to members of |items_|.
-  SystemTrayItem* detailed_item_;
-  std::vector<SystemTrayItem*> notification_items_;
+  SystemTrayItem* detailed_item_ = nullptr;
 
   // Mappings of system tray item and it's view in the tray.
   std::map<SystemTrayItem*, views::View*> tray_item_map_;
@@ -234,30 +216,31 @@ class ASH_EXPORT SystemTray : public TrayBackgroundView,
   // Bubble for default and detailed views.
   std::unique_ptr<SystemBubbleWrapper> system_bubble_;
 
-  // Bubble for notifications.
-  std::unique_ptr<SystemBubbleWrapper> notification_bubble_;
-
   // Keep track of the default view height so that when we create detailed
   // views directly (e.g. from a notification) we know what height to use.
-  int default_bubble_height_;
-
-  // Set to true when system notifications should be hidden (e.g. web
-  // notification bubble is visible).
-  bool hide_notifications_;
+  int default_bubble_height_ = 0;
 
   // This is true when the displayed system tray menu is a full tray menu,
   // otherwise a single line item menu like the volume slider is shown.
   // Note that the value is only valid when |system_bubble_| is true.
-  bool full_system_tray_menu_;
+  bool full_system_tray_menu_ = false;
 
-  TrayAccessibility* tray_accessibility_;  // not owned
-  TrayCast* tray_cast_;
-  TrayDate* tray_date_;
-  TrayUpdate* tray_update_;
+  // These objects are not owned by this class.
+  TrayAccessibility* tray_accessibility_ = nullptr;
+  TrayAudio* tray_audio_ = nullptr;  // May be null.
+  TrayCast* tray_cast_ = nullptr;
+  TrayNetwork* tray_network_ = nullptr;
+  TrayTiles* tray_tiles_ = nullptr;
+  TraySystemInfo* tray_system_info_ = nullptr;
+  TrayUpdate* tray_update_ = nullptr;
 
   // A reference to the Screen share and capture item.
-  ScreenTrayItem* screen_capture_tray_item_;  // not owned
-  ScreenTrayItem* screen_share_tray_item_;    // not owned
+  ScreenTrayItem* screen_capture_tray_item_ = nullptr;  // not owned
+  ScreenTrayItem* screen_share_tray_item_ = nullptr;    // not owned
+
+  std::unique_ptr<KeyEventWatcher> key_event_watcher_;
+
+  std::unique_ptr<ActivationObserver> activation_observer_;
 
   DISALLOW_COPY_AND_ASSIGN(SystemTray);
 };

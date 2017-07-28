@@ -6,48 +6,56 @@
 
 #include <vector>
 
-#include "ash/metrics/user_metrics_recorder.h"
-#include "ash/root_window_controller.h"
-#include "ash/session/session_state_delegate.h"
+#include "ash/session/session_controller.h"
 #include "ash/shell.h"
+#include "ash/shell_port.h"
 #include "ash/system/tray/system_tray_delegate.h"
-#include "ash/wm/common/window_state.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/overview/window_selector.h"
-#include "ash/wm/window_util.h"
-#include "base/metrics/histogram.h"
-#include "ui/aura/window.h"
+#include "ash/wm/screen_pinning_controller.h"
+#include "ash/wm/window_state.h"
+#include "ash/wm_window.h"
+#include "base/metrics/histogram_macros.h"
 
 namespace ash {
 
-WindowSelectorController::WindowSelectorController() {
-}
+WindowSelectorController::WindowSelectorController() {}
 
 WindowSelectorController::~WindowSelectorController() {
+  // Destroy widgets that may be still animating if shell shuts down soon after
+  // exiting overview mode.
+  for (std::unique_ptr<DelayedAnimationObserver>& animation_observer :
+       delayed_animations_) {
+    animation_observer->Shutdown();
+  }
 }
 
 // static
 bool WindowSelectorController::CanSelect() {
   // Don't allow a window overview if the screen is locked or a modal dialog is
   // open or running in kiosk app session.
-  return Shell::GetInstance()->session_state_delegate()->
-             IsActiveUserSessionStarted() &&
-         !Shell::GetInstance()->session_state_delegate()->IsScreenLocked() &&
-         !Shell::GetInstance()->IsSystemModalWindowOpen() &&
-         Shell::GetInstance()->system_tray_delegate()->GetUserLoginStatus() !=
-             user::LOGGED_IN_KIOSK_APP;
+  SessionController* session_controller = Shell::Get()->session_controller();
+  SystemTrayDelegate* system_tray_delegate =
+      Shell::Get()->system_tray_delegate();
+  return session_controller->IsActiveUserSessionStarted() &&
+         !session_controller->IsScreenLocked() &&
+         !ShellPort::Get()->IsSystemModalWindowOpen() &&
+         !Shell::Get()->screen_pinning_controller()->IsPinned() &&
+         system_tray_delegate->GetUserLoginStatus() != LoginStatus::KIOSK_APP &&
+         system_tray_delegate->GetUserLoginStatus() !=
+             LoginStatus::ARC_KIOSK_APP;
 }
 
-void WindowSelectorController::ToggleOverview() {
+bool WindowSelectorController::ToggleOverview() {
   if (IsSelecting()) {
     OnSelectionEnded();
   } else {
     // Don't start overview if window selection is not allowed.
     if (!CanSelect())
-      return;
+      return false;
 
-    aura::Window::Windows windows =
-        ash::Shell::GetInstance()->mru_window_tracker()->BuildMruWindowList();
+    std::vector<WmWindow*> windows =
+        Shell::Get()->mru_window_tracker()->BuildMruWindowList();
     auto end =
         std::remove_if(windows.begin(), windows.end(),
                        std::not1(std::ptr_fun(&WindowSelector::IsSelectable)));
@@ -55,17 +63,28 @@ void WindowSelectorController::ToggleOverview() {
 
     // Don't enter overview mode with no windows.
     if (windows.empty())
-      return;
+      return false;
 
-    Shell::GetInstance()->OnOverviewModeStarting();
+    Shell::Get()->NotifyOverviewModeStarting();
     window_selector_.reset(new WindowSelector(this));
     window_selector_->Init(windows);
     OnSelectionStarted();
   }
+  return true;
 }
 
-bool WindowSelectorController::IsSelecting() {
+bool WindowSelectorController::IsSelecting() const {
   return window_selector_.get() != NULL;
+}
+
+void WindowSelectorController::IncrementSelection(int increment) {
+  DCHECK(IsSelecting());
+  window_selector_->IncrementSelection(increment);
+}
+
+bool WindowSelectorController::AcceptSelection() {
+  DCHECK(IsSelecting());
+  return window_selector_->AcceptSelection();
 }
 
 bool WindowSelectorController::IsRestoringMinimizedWindows() const {
@@ -79,14 +98,38 @@ void WindowSelectorController::OnSelectionEnded() {
   window_selector_->Shutdown();
   window_selector_.reset();
   last_selection_time_ = base::Time::Now();
-  Shell::GetInstance()->OnOverviewModeEnded();
+  Shell::Get()->NotifyOverviewModeEnded();
+}
+
+void WindowSelectorController::AddDelayedAnimationObserver(
+    std::unique_ptr<DelayedAnimationObserver> animation_observer) {
+  animation_observer->SetOwner(this);
+  delayed_animations_.push_back(std::move(animation_observer));
+}
+
+void WindowSelectorController::RemoveAndDestroyAnimationObserver(
+    DelayedAnimationObserver* animation_observer) {
+  class IsEqual {
+   public:
+    explicit IsEqual(DelayedAnimationObserver* animation_observer)
+        : animation_observer_(animation_observer) {}
+    bool operator()(const std::unique_ptr<DelayedAnimationObserver>& other) {
+      return (other.get() == animation_observer_);
+    }
+
+   private:
+    const DelayedAnimationObserver* animation_observer_;
+  };
+  delayed_animations_.erase(
+      std::remove_if(delayed_animations_.begin(), delayed_animations_.end(),
+                     IsEqual(animation_observer)),
+      delayed_animations_.end());
 }
 
 void WindowSelectorController::OnSelectionStarted() {
   if (!last_selection_time_.is_null()) {
-    UMA_HISTOGRAM_LONG_TIMES(
-        "Ash.WindowSelector.TimeBetweenUse",
-        base::Time::Now() - last_selection_time_);
+    UMA_HISTOGRAM_LONG_TIMES("Ash.WindowSelector.TimeBetweenUse",
+                             base::Time::Now() - last_selection_time_);
   }
 }
 

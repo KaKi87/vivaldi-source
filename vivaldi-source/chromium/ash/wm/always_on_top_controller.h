@@ -5,16 +5,15 @@
 #ifndef ASH_WM_ALWAYS_ON_TOP_CONTROLLER_H_
 #define ASH_WM_ALWAYS_ON_TOP_CONTROLLER_H_
 
+#include <memory>
+
 #include "ash/ash_export.h"
-#include "base/compiler_specific.h"
 #include "base/macros.h"
 #include "ui/aura/window_observer.h"
 
-namespace aura {
-class Window;
-}
-
 namespace ash {
+
+class WmWindow;
 class WorkspaceLayoutManager;
 
 // AlwaysOnTopController puts window into proper containers based on its
@@ -23,26 +22,26 @@ class WorkspaceLayoutManager;
 // |always_on_top_container_|.
 class ASH_EXPORT AlwaysOnTopController : public aura::WindowObserver {
  public:
-  explicit AlwaysOnTopController(aura::Window* viewport);
+  explicit AlwaysOnTopController(WmWindow* viewport);
   ~AlwaysOnTopController() override;
 
   // Gets container for given |window| based on its "AlwaysOnTop" property.
-  aura::Window* GetContainer(aura::Window* window) const;
+  WmWindow* GetContainer(WmWindow* window) const;
 
   WorkspaceLayoutManager* GetLayoutManager() const;
 
-  void SetLayoutManagerForTest(WorkspaceLayoutManager* layout_manager);
+  void SetLayoutManagerForTest(
+      std::unique_ptr<WorkspaceLayoutManager> layout_manager);
 
  private:
   // Overridden from aura::WindowObserver:
-  void OnWindowAdded(aura::Window* child) override;
-  void OnWillRemoveWindow(aura::Window* child) override;
+  void OnWindowHierarchyChanged(const HierarchyChangeParams& params) override;
   void OnWindowPropertyChanged(aura::Window* window,
                                const void* key,
                                intptr_t old) override;
-  void OnWindowDestroyed(aura::Window* window) override;
+  void OnWindowDestroying(aura::Window* window) override;
 
-  aura::Window* always_on_top_container_;
+  WmWindow* always_on_top_container_;
 
   DISALLOW_COPY_AND_ASSIGN(AlwaysOnTopController);
 };

@@ -8,8 +8,9 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "ash/common/wm/workspace/workspace_types.h"
+#include "ash/wm/workspace/workspace_types.h"
 #include "base/macros.h"
+#include "ui/aura/window_observer.h"
 
 namespace ash {
 class WmWindow;
@@ -20,10 +21,11 @@ class WorkspaceLayoutManagerBackdropDelegate;
 
 // WorkspaceController acts as a central place that ties together all the
 // various workspace pieces.
-class ASH_EXPORT WorkspaceController {
+class ASH_EXPORT WorkspaceController : public aura::WindowObserver {
  public:
+  // Installs WorkspaceLayoutManager on |viewport|.
   explicit WorkspaceController(WmWindow* viewport);
-  virtual ~WorkspaceController();
+  ~WorkspaceController() override;
 
   // Returns the current window state.
   wm::WorkspaceWindowState GetWindowState() const;
@@ -40,6 +42,9 @@ class ASH_EXPORT WorkspaceController {
 
  private:
   friend class WorkspaceControllerTestHelper;
+
+  // aura::WindowObserver:
+  void OnWindowDestroying(aura::Window* window) override;
 
   WmWindow* viewport_;
   std::unique_ptr<WorkspaceEventHandler> event_handler_;

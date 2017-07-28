@@ -4,53 +4,108 @@
 
 #include "ash/shelf/overflow_button.h"
 
-#include "ash/common/ash_constants.h"
-#include "ash/common/ash_switches.h"
-#include "ash/common/material_design/material_design_controller.h"
-#include "ash/common/shelf/shelf_constants.h"
-#include "ash/shelf/ink_drop_button_listener.h"
-#include "ash/shelf/shelf.h"
-#include "ash/shelf/shelf_layout_manager.h"
-#include "ash/shelf/shelf_widget.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
-#include "third_party/skia/include/core/SkPaint.h"
-#include "third_party/skia/include/core/SkPath.h"
+#include "ash/resources/vector_icons/vector_icons.h"
+#include "ash/shelf/shelf_constants.h"
+#include "ash/shelf/shelf_view.h"
+#include "ash/shelf/wm_shelf.h"
+#include "ash/strings/grit/ash_strings.h"
+#include "base/memory/ptr_util.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/resource/resource_bundle.h"
-#include "ui/gfx/animation/throb_animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/skbitmap_operations.h"
-#include "ui/gfx/skia_util.h"
-#include "ui/gfx/transform.h"
-#include "ui/gfx/vector_icons_public.h"
-#include "ui/views/widget/widget.h"
+#include "ui/views/animation/flood_fill_ink_drop_ripple.h"
+#include "ui/views/animation/ink_drop_impl.h"
+#include "ui/views/animation/ink_drop_mask.h"
 
 namespace ash {
 
-OverflowButton::OverflowButton(InkDropButtonListener* listener, Shelf* shelf)
+OverflowButton::OverflowButton(ShelfView* shelf_view, WmShelf* wm_shelf)
     : CustomButton(nullptr),
-      bottom_image_(nullptr),
-      listener_(listener),
-      shelf_(shelf) {
-  if (MaterialDesignController::IsShelfMaterial()) {
-    bottom_image_md_ =
-        CreateVectorIcon(gfx::VectorIconId::SHELF_OVERFLOW, kShelfIconColor);
-    bottom_image_ = &bottom_image_md_;
-  } else {
-    bottom_image_ = ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
-        IDR_ASH_SHELF_OVERFLOW);
-  }
+      upward_image_(gfx::CreateVectorIcon(kShelfOverflowIcon, kShelfIconColor)),
+      chevron_image_(nullptr),
+      shelf_view_(shelf_view),
+      wm_shelf_(wm_shelf),
+      background_color_(kShelfDefaultBaseColor) {
+  DCHECK(shelf_view_);
+
+  SetInkDropMode(InkDropMode::ON);
+  set_ink_drop_base_color(kShelfInkDropBaseColor);
+  set_ink_drop_visible_opacity(kShelfInkDropVisibleOpacity);
+  set_hide_ink_drop_when_showing_context_menu(false);
 
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
   SetAccessibleName(l10n_util::GetStringUTF16(IDS_ASH_SHELF_OVERFLOW_NAME));
+
+  UpdateChevronImage();
 }
 
 OverflowButton::~OverflowButton() {}
 
 void OverflowButton::OnShelfAlignmentChanged() {
+  UpdateChevronImage();
+}
+
+void OverflowButton::OnOverflowBubbleShown() {
+  AnimateInkDrop(views::InkDropState::ACTIVATED, nullptr);
+  UpdateChevronImage();
+}
+
+void OverflowButton::OnOverflowBubbleHidden() {
+  AnimateInkDrop(views::InkDropState::DEACTIVATED, nullptr);
+  UpdateChevronImage();
+}
+
+void OverflowButton::UpdateShelfItemBackground(SkColor color) {
+  background_color_ = color;
+  SchedulePaint();
+}
+
+OverflowButton::ChevronDirection OverflowButton::GetChevronDirection() const {
+  switch (wm_shelf_->GetAlignment()) {
+    case SHELF_ALIGNMENT_LEFT:
+      if (shelf_view_->IsShowingOverflowBubble())
+        return ChevronDirection::LEFT;
+      return ChevronDirection::RIGHT;
+    case SHELF_ALIGNMENT_RIGHT:
+      if (shelf_view_->IsShowingOverflowBubble())
+        return ChevronDirection::RIGHT;
+      return ChevronDirection::LEFT;
+    default:
+      if (shelf_view_->IsShowingOverflowBubble())
+        return ChevronDirection::DOWN;
+      return ChevronDirection::UP;
+  }
+}
+
+void OverflowButton::UpdateChevronImage() {
+  switch (GetChevronDirection()) {
+    case ChevronDirection::UP:
+      chevron_image_ = &upward_image_;
+      break;
+    case ChevronDirection::DOWN:
+      if (downward_image_.isNull()) {
+        downward_image_ = gfx::ImageSkiaOperations::CreateRotatedImage(
+            upward_image_, SkBitmapOperations::ROTATION_180_CW);
+      }
+      chevron_image_ = &downward_image_;
+      break;
+    case ChevronDirection::LEFT:
+      if (leftward_image_.isNull()) {
+        leftward_image_ = gfx::ImageSkiaOperations::CreateRotatedImage(
+            upward_image_, SkBitmapOperations::ROTATION_270_CW);
+      }
+      chevron_image_ = &leftward_image_;
+      break;
+    case ChevronDirection::RIGHT:
+      if (rightward_image_.isNull()) {
+        rightward_image_ = gfx::ImageSkiaOperations::CreateRotatedImage(
+            upward_image_, SkBitmapOperations::ROTATION_90_CW);
+      }
+      chevron_image_ = &rightward_image_;
+      break;
+  }
   SchedulePaint();
 }
 
@@ -60,119 +115,68 @@ void OverflowButton::OnPaint(gfx::Canvas* canvas) {
   PaintForeground(canvas, bounds);
 }
 
+std::unique_ptr<views::InkDrop> OverflowButton::CreateInkDrop() {
+  std::unique_ptr<views::InkDropImpl> ink_drop =
+      CreateDefaultFloodFillInkDropImpl();
+  ink_drop->SetShowHighlightOnHover(false);
+  ink_drop->SetAutoHighlightMode(views::InkDropImpl::AutoHighlightMode::NONE);
+  return std::move(ink_drop);
+}
+
+std::unique_ptr<views::InkDropRipple> OverflowButton::CreateInkDropRipple()
+    const {
+  gfx::Insets insets = GetLocalBounds().InsetsFrom(CalculateButtonBounds());
+  return base::MakeUnique<views::FloodFillInkDropRipple>(
+      size(), insets, GetInkDropCenterBasedOnLastEvent(), GetInkDropBaseColor(),
+      ink_drop_visible_opacity());
+}
+
+bool OverflowButton::ShouldEnterPushedState(const ui::Event& event) {
+  if (shelf_view_->IsShowingOverflowBubble())
+    return false;
+
+  return CustomButton::ShouldEnterPushedState(event);
+}
+
 void OverflowButton::NotifyClick(const ui::Event& event) {
   CustomButton::NotifyClick(event);
-  if (listener_)
-    listener_->ButtonPressed(this, event, ink_drop());
+  shelf_view_->ButtonPressed(this, event, GetInkDrop());
+}
+
+std::unique_ptr<views::InkDropMask> OverflowButton::CreateInkDropMask() const {
+  gfx::Insets insets = GetLocalBounds().InsetsFrom(CalculateButtonBounds());
+  return base::MakeUnique<views::RoundRectInkDropMask>(
+      size(), insets, kOverflowButtonCornerRadius);
 }
 
 void OverflowButton::PaintBackground(gfx::Canvas* canvas,
                                      const gfx::Rect& bounds) {
-  if (MaterialDesignController::IsShelfMaterial()) {
-    SkColor background_color = SK_ColorTRANSPARENT;
-    ShelfWidget* shelf_widget = shelf_->shelf_widget();
-    if (shelf_widget &&
-        shelf_widget->GetBackgroundType() ==
-            ShelfBackgroundType::SHELF_BACKGROUND_DEFAULT) {
-      background_color = SkColorSetA(kShelfBaseColor,
-                                     GetShelfConstant(SHELF_BACKGROUND_ALPHA));
-    }
-
-    // TODO(bruthig|tdanderson): The background should be changed using a
-    // fade in/out animation.
-    SkPaint background_paint;
-    background_paint.setFlags(SkPaint::kAntiAlias_Flag);
-    background_paint.setColor(background_color);
-    canvas->DrawRoundRect(bounds, kOverflowButtonCornerRadius,
-                          background_paint);
-
-    if (shelf_->IsShowingOverflowBubble()) {
-      SkPaint highlight_paint;
-      highlight_paint.setFlags(SkPaint::kAntiAlias_Flag);
-      highlight_paint.setColor(kShelfButtonActivatedHighlightColor);
-      canvas->DrawRoundRect(bounds, kOverflowButtonCornerRadius,
-                            highlight_paint);
-    }
-  } else {
-    ResourceBundle& rb = ResourceBundle::GetSharedInstance();
-    const gfx::ImageSkia* background =
-        rb.GetImageNamed(NonMaterialBackgroundImageId()).ToImageSkia();
-    canvas->DrawImageInt(*background, bounds.x(), bounds.y());
-  }
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  flags.setColor(background_color_);
+  canvas->DrawRoundRect(bounds, kOverflowButtonCornerRadius, flags);
 }
 
 void OverflowButton::PaintForeground(gfx::Canvas* canvas,
                                      const gfx::Rect& bounds) {
-  const gfx::ImageSkia* image = nullptr;
-
-  switch (shelf_->alignment()) {
-    case SHELF_ALIGNMENT_LEFT:
-      if (left_image_.isNull()) {
-        left_image_ = gfx::ImageSkiaOperations::CreateRotatedImage(
-            *bottom_image_, SkBitmapOperations::ROTATION_90_CW);
-      }
-      image = &left_image_;
-      break;
-    case SHELF_ALIGNMENT_RIGHT:
-      if (right_image_.isNull()) {
-        right_image_ = gfx::ImageSkiaOperations::CreateRotatedImage(
-            *bottom_image_, SkBitmapOperations::ROTATION_270_CW);
-      }
-      image = &right_image_;
-      break;
-    default:
-      image = bottom_image_;
-      break;
-  }
-
-  canvas->DrawImageInt(*image,
-                       bounds.x() + ((bounds.width() - image->width()) / 2),
-                       bounds.y() + ((bounds.height() - image->height()) / 2));
+  DCHECK(chevron_image_);
+  canvas->DrawImageInt(
+      *chevron_image_,
+      bounds.x() + ((bounds.width() - chevron_image_->width()) / 2),
+      bounds.y() + ((bounds.height() - chevron_image_->height()) / 2));
 }
 
-int OverflowButton::NonMaterialBackgroundImageId() {
-  if (shelf_->IsShowingOverflowBubble())
-    return IDR_AURA_NOTIFICATION_BACKGROUND_PRESSED;
-  else if (shelf_->shelf_widget()->GetDimsShelf())
-    return IDR_AURA_NOTIFICATION_BACKGROUND_ON_BLACK;
-  return IDR_AURA_NOTIFICATION_BACKGROUND_NORMAL;
-}
-
-gfx::Rect OverflowButton::CalculateButtonBounds() {
-  ShelfAlignment alignment = shelf_->alignment();
-  gfx::Rect bounds(GetContentsBounds());
-  ResourceBundle& rb = ResourceBundle::GetSharedInstance();
-  if (MaterialDesignController::IsShelfMaterial()) {
-    const int width_offset = (bounds.width() - kOverflowButtonSize) / 2;
-    const int height_offset = (bounds.height() - kOverflowButtonSize) / 2;
-    if (shelf_->IsHorizontalAlignment()) {
-      bounds = gfx::Rect(bounds.x() + width_offset, bounds.y() + height_offset,
-                         kOverflowButtonSize, kOverflowButtonSize);
-    } else {
-      bounds = gfx::Rect(bounds.x() + height_offset, bounds.y() + width_offset,
-                         kOverflowButtonSize, kOverflowButtonSize);
-    }
-  } else {
-    const gfx::ImageSkia* background =
-        rb.GetImageNamed(NonMaterialBackgroundImageId()).ToImageSkia();
-    if (alignment == SHELF_ALIGNMENT_LEFT) {
-      bounds =
-          gfx::Rect(bounds.right() - background->width() - kShelfItemInset,
-                    bounds.y() + (bounds.height() - background->height()) / 2,
-                    background->width(), background->height());
-    } else if (alignment == SHELF_ALIGNMENT_RIGHT) {
-      bounds =
-          gfx::Rect(bounds.x() + kShelfItemInset,
-                    bounds.y() + (bounds.height() - background->height()) / 2,
-                    background->width(), background->height());
-    } else {
-      bounds =
-          gfx::Rect(bounds.x() + (bounds.width() - background->width()) / 2,
-                    bounds.y() + kShelfItemInset, background->width(),
-                    background->height());
-    }
-  }
-  return bounds;
+gfx::Rect OverflowButton::CalculateButtonBounds() const {
+  ShelfAlignment alignment = wm_shelf_->GetAlignment();
+  gfx::Rect content_bounds = GetContentsBounds();
+  // Align the button to the top of a bottom-aligned shelf, to the right edge
+  // a left-aligned shelf, and to the left edge of a right-aligned shelf.
+  const int inset = (GetShelfConstant(SHELF_SIZE) - kOverflowButtonSize) / 2;
+  const int x = alignment == SHELF_ALIGNMENT_LEFT
+                    ? content_bounds.right() - inset - kOverflowButtonSize
+                    : content_bounds.x() + inset;
+  return gfx::Rect(x, content_bounds.y() + inset, kOverflowButtonSize,
+                   kOverflowButtonSize);
 }
 
 }  // namespace ash

@@ -6,31 +6,23 @@
 
 #include <utility>
 
-#include "ash/aura/wm_window_aura.h"
-#include "ash/common/wm/window_animation_types.h"
-#include "ash/common/wm/window_state.h"
-#include "ash/common/wm/window_state_delegate.h"
-#include "ash/common/wm/window_state_util.h"
-#include "ash/common/wm/wm_event.h"
-#include "ash/common/wm/wm_screen_util.h"
-#include "ash/common/wm_shell.h"
-#include "ash/display/display_manager.h"
-#include "ash/shell.h"
 #include "ash/wm/lock_layout_manager.h"
-#include "ash/wm/window_animations.h"
-#include "ash/wm/window_state_aura.h"
-#include "ash/wm/window_util.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_delegate.h"
+#include "ash/wm/window_animation_types.h"
+#include "ash/wm/window_state.h"
+#include "ash/wm/window_state_delegate.h"
+#include "ash/wm/window_state_util.h"
+#include "ash/wm/wm_event.h"
+#include "ash/wm/wm_screen_util.h"
+#include "ash/wm_window.h"
+#include "base/memory/ptr_util.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/keyboard/keyboard_controller.h"
 #include "ui/keyboard/keyboard_util.h"
-#include "ui/wm/core/window_animations.h"
 
 namespace ash {
 
-LockWindowState::LockWindowState(aura::Window* window)
-    : current_state_type_(wm::GetWindowState(window)->GetStateType()) {}
+LockWindowState::LockWindowState(WmWindow* window)
+    : current_state_type_(window->GetWindowState()->GetStateType()) {}
 
 LockWindowState::~LockWindowState() {}
 
@@ -44,20 +36,20 @@ void LockWindowState::OnWMEvent(wm::WindowState* window_state,
       UpdateWindow(window_state, wm::WINDOW_STATE_TYPE_FULLSCREEN);
       break;
     case wm::WM_EVENT_PIN:
+    case wm::WM_EVENT_TRUSTED_PIN:
       NOTREACHED();
       break;
     case wm::WM_EVENT_TOGGLE_MAXIMIZE_CAPTION:
     case wm::WM_EVENT_TOGGLE_VERTICAL_MAXIMIZE:
     case wm::WM_EVENT_TOGGLE_HORIZONTAL_MAXIMIZE:
     case wm::WM_EVENT_TOGGLE_MAXIMIZE:
-    case wm::WM_EVENT_CYCLE_SNAP_DOCK_LEFT:
-    case wm::WM_EVENT_CYCLE_SNAP_DOCK_RIGHT:
+    case wm::WM_EVENT_CYCLE_SNAP_LEFT:
+    case wm::WM_EVENT_CYCLE_SNAP_RIGHT:
     case wm::WM_EVENT_CENTER:
     case wm::WM_EVENT_SNAP_LEFT:
     case wm::WM_EVENT_SNAP_RIGHT:
     case wm::WM_EVENT_NORMAL:
     case wm::WM_EVENT_MAXIMIZE:
-    case wm::WM_EVENT_DOCK:
       UpdateWindow(window_state,
                    GetMaximizedOrCenteredWindowType(window_state));
       return;
@@ -111,12 +103,12 @@ void LockWindowState::AttachState(wm::WindowState* window_state,
 void LockWindowState::DetachState(wm::WindowState* window_state) {}
 
 // static
-wm::WindowState* LockWindowState::SetLockWindowState(aura::Window* window) {
-  std::unique_ptr<wm::WindowState::State> lock_state(
-      new LockWindowState(window));
+wm::WindowState* LockWindowState::SetLockWindowState(WmWindow* window) {
+  std::unique_ptr<wm::WindowState::State> lock_state =
+      base::MakeUnique<LockWindowState>(window);
   std::unique_ptr<wm::WindowState::State> old_state(
-      wm::GetWindowState(window)->SetStateObject(std::move(lock_state)));
-  return wm::GetWindowState(window);
+      window->GetWindowState()->SetStateObject(std::move(lock_state)));
+  return window->GetWindowState();
 }
 
 void LockWindowState::UpdateWindow(wm::WindowState* window_state,
@@ -148,7 +140,7 @@ void LockWindowState::UpdateWindow(wm::WindowState* window_state,
 
   const wm::WindowStateType old_state_type = current_state_type_;
   current_state_type_ = target_state;
-  window_state->UpdateWindowShowStateFromStateType();
+  window_state->UpdateWindowPropertiesFromStateType();
   window_state->NotifyPreStateTypeChange(old_state_type);
   UpdateBounds(window_state);
   window_state->NotifyPostStateTypeChange(old_state_type);
@@ -166,12 +158,6 @@ wm::WindowStateType LockWindowState::GetMaximizedOrCenteredWindowType(
     wm::WindowState* window_state) {
   return window_state->CanMaximize() ? wm::WINDOW_STATE_TYPE_MAXIMIZED
                                      : wm::WINDOW_STATE_TYPE_NORMAL;
-}
-
-gfx::Rect GetBoundsForLockWindow(aura::Window* window) {
-  if (WmShell::Get()->IsInUnifiedMode())
-    return WmShell::Get()->GetFirstDisplay().bounds();
-  return wm::GetDisplayBoundsInParent(WmWindowAura::Get(window));
 }
 
 void LockWindowState::UpdateBounds(wm::WindowState* window_state) {

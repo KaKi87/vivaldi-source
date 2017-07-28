@@ -27,16 +27,16 @@ ui::WindowShowState ToWindowShowState(WindowStateType type) {
     case WINDOW_STATE_TYPE_LEFT_SNAPPED:
     case WINDOW_STATE_TYPE_AUTO_POSITIONED:
       return ui::SHOW_STATE_NORMAL;
-    case WINDOW_STATE_TYPE_DOCKED:
-      return ui::SHOW_STATE_DOCKED;
+
     case WINDOW_STATE_TYPE_MINIMIZED:
-    case WINDOW_STATE_TYPE_DOCKED_MINIMIZED:
       return ui::SHOW_STATE_MINIMIZED;
     case WINDOW_STATE_TYPE_MAXIMIZED:
       return ui::SHOW_STATE_MAXIMIZED;
     case WINDOW_STATE_TYPE_INACTIVE:
       return ui::SHOW_STATE_INACTIVE;
     case WINDOW_STATE_TYPE_FULLSCREEN:
+    case WINDOW_STATE_TYPE_PINNED:
+    case WINDOW_STATE_TYPE_TRUSTED_PINNED:
       return ui::SHOW_STATE_FULLSCREEN;
     case WINDOW_STATE_TYPE_END:
       NOTREACHED();
@@ -45,9 +45,11 @@ ui::WindowShowState ToWindowShowState(WindowStateType type) {
   return ui::SHOW_STATE_DEFAULT;
 }
 
-bool IsMaximizedOrFullscreenWindowStateType(WindowStateType type) {
+bool IsMaximizedOrFullscreenOrPinnedWindowStateType(WindowStateType type) {
   return type == WINDOW_STATE_TYPE_MAXIMIZED ||
-      type == WINDOW_STATE_TYPE_FULLSCREEN;
+         type == WINDOW_STATE_TYPE_FULLSCREEN ||
+         type == WINDOW_STATE_TYPE_PINNED ||
+         type == WINDOW_STATE_TYPE_TRUSTED_PINNED;
 }
 
 }  // namespace wm

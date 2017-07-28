@@ -7,20 +7,14 @@
 namespace ash {
 namespace wm {
 
-WMEvent::WMEvent(WMEventType type)
-    : type_(type) {
-}
+WMEvent::WMEvent(WMEventType type) : type_(type) {}
 
-WMEvent::~WMEvent() {
-}
+WMEvent::~WMEvent() {}
 
 SetBoundsEvent::SetBoundsEvent(WMEventType type, const gfx::Rect& bounds)
-    : WMEvent(type),
-      requested_bounds_(bounds) {
-}
+    : WMEvent(type), requested_bounds_(bounds) {}
 
-SetBoundsEvent::~SetBoundsEvent() {
-}
+SetBoundsEvent::~SetBoundsEvent() {}
 
 }  // namespace wm
 }  // namespace ash

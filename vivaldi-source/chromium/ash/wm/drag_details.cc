@@ -4,9 +4,12 @@
 
 #include "ash/wm/drag_details.h"
 
+#include "ash/public/cpp/window_properties.h"
 #include "ash/wm/window_resizer.h"
+#include "ash/wm_window.h"
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
+#include "ui/compositor/layer.h"
 
 namespace ash {
 
@@ -41,14 +44,17 @@ int GetSizeChangeDirectionForWindowComponent(int window_component) {
 
 }  // namespace
 
-DragDetails::DragDetails(aura::Window* window,
+DragDetails::DragDetails(WmWindow* window,
                          const gfx::Point& location,
                          int window_component,
                          aura::client::WindowMoveSource source)
-    : initial_state_type(wm::GetWindowState(window)->GetStateType()),
-      initial_bounds_in_parent(window->bounds()),
+    : initial_state_type(window->GetWindowState()->GetStateType()),
+      initial_bounds_in_parent(window->GetBounds()),
       initial_location_in_parent(location),
-      initial_opacity(window->layer()->opacity()),
+      // When drag starts, we might be in the middle of a window opacity
+      // animation, on drag completion we must set the opacity to the target
+      // opacity rather than the current opacity (crbug.com/687003).
+      initial_opacity(window->GetLayer()->GetTargetOpacity()),
       window_component(window_component),
       bounds_change(
           WindowResizer::GetBoundsChangeForWindowComponent(window_component)),
@@ -59,17 +65,16 @@ DragDetails::DragDetails(aura::Window* window,
           GetSizeChangeDirectionForWindowComponent(window_component)),
       is_resizable(bounds_change != WindowResizer::kBoundsChangeDirection_None),
       source(source),
-      should_attach_to_shelf(window->type() == ui::wm::WINDOW_TYPE_PANEL &&
-                             wm::GetWindowState(window)->panel_attached()) {
-  wm::WindowState* window_state = wm::GetWindowState(window);
-  if ((window_state->IsNormalOrSnapped() || window_state->IsDocked()) &&
-      window_state->HasRestoreBounds() &&
+      should_attach_to_shelf(
+          window->GetType() == ui::wm::WINDOW_TYPE_PANEL &&
+          window->aura_window()->GetProperty(kPanelAttachedKey)) {
+  wm::WindowState* window_state = window->GetWindowState();
+  if (window_state->IsNormalOrSnapped() && window_state->HasRestoreBounds() &&
       window_component == HTCAPTION) {
     restore_bounds = window_state->GetRestoreBoundsInScreen();
   }
 }
 
-DragDetails::~DragDetails() {
-}
+DragDetails::~DragDetails() {}
 
 }  // namespace ash

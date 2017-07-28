@@ -15,21 +15,25 @@ class BluetoothDefaultView;
 class BluetoothDetailedView;
 }
 
-class TrayBluetooth : public SystemTrayItem,
-                      public BluetoothObserver {
+// Bluetooth section in the main system tray menu. Contains:
+// * Toggle to turn Bluetooth on and off
+// * Gear icon that takes the user to the web ui settings
+// * List of paired devices
+// * List of unpaired devices
+class TrayBluetooth : public SystemTrayItem, public BluetoothObserver {
  public:
   explicit TrayBluetooth(SystemTray* system_tray);
   ~TrayBluetooth() override;
 
  private:
   // Overridden from SystemTrayItem.
-  views::View* CreateTrayView(user::LoginStatus status) override;
-  views::View* CreateDefaultView(user::LoginStatus status) override;
-  views::View* CreateDetailedView(user::LoginStatus status) override;
+  views::View* CreateTrayView(LoginStatus status) override;
+  views::View* CreateDefaultView(LoginStatus status) override;
+  views::View* CreateDetailedView(LoginStatus status) override;
   void DestroyTrayView() override;
   void DestroyDefaultView() override;
   void DestroyDetailedView() override;
-  void UpdateAfterLoginStatusChange(user::LoginStatus status) override;
+  void UpdateAfterLoginStatusChange(LoginStatus status) override;
 
   // Overridden from BluetoothObserver.
   void OnBluetoothRefresh() override;

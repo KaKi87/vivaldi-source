@@ -5,8 +5,8 @@
 #ifndef ASH_WM_DEFAULT_WINDOW_RESIZER_H_
 #define ASH_WM_DEFAULT_WINDOW_RESIZER_H_
 
+#include "ash/ash_export.h"
 #include "ash/wm/window_resizer.h"
-#include "base/compiler_specific.h"
 #include "base/macros.h"
 
 namespace ash {

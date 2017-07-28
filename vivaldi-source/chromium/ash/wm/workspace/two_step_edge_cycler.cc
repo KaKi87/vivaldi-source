@@ -31,11 +31,9 @@ TwoStepEdgeCycler::TwoStepEdgeCycler(const gfx::Point& start,
       start_x_(start.x()),
       paused_x_(start.x()),
       paused_(false),
-      direction_(direction) {
-}
+      direction_(direction) {}
 
-TwoStepEdgeCycler::~TwoStepEdgeCycler() {
-}
+TwoStepEdgeCycler::~TwoStepEdgeCycler() {}
 
 void TwoStepEdgeCycler::OnMove(const gfx::Point& location) {
   if (second_mode_)

@@ -4,29 +4,29 @@
 
 #include "ash/shelf/shelf_locking_manager.h"
 
-#include "ash/common/session/session_state_delegate.h"
-#include "ash/common/wm_shell.h"
-#include "ash/shelf/shelf.h"
+#include "ash/session/session_controller.h"
+#include "ash/shelf/wm_shelf.h"
 #include "ash/shell.h"
-#include "ash/wm/lock_state_controller.h"
+#include "ash/shell_port.h"
 
 namespace ash {
 
-ShelfLockingManager::ShelfLockingManager(Shelf* shelf) : shelf_(shelf) {
-  Shell* shell = Shell::GetInstance();
-  shell->lock_state_controller()->AddObserver(this);
-  SessionStateDelegate* delegate = WmShell::Get()->GetSessionStateDelegate();
+ShelfLockingManager::ShelfLockingManager(WmShelf* shelf)
+    : shelf_(shelf), stored_alignment_(shelf->GetAlignment()) {
+  DCHECK(shelf_);
+  ShellPort::Get()->AddLockStateObserver(this);
+  SessionController* controller = Shell::Get()->session_controller();
   session_locked_ =
-      delegate->GetSessionState() != SessionStateDelegate::SESSION_STATE_ACTIVE;
-  screen_locked_ = delegate->IsScreenLocked();
-  delegate->AddSessionStateObserver(this);
-  WmShell::Get()->AddShellObserver(this);
+      controller->GetSessionState() != session_manager::SessionState::ACTIVE;
+  screen_locked_ = controller->IsScreenLocked();
+  controller->AddSessionStateObserver(this);
+  Shell::Get()->AddShellObserver(this);
 }
 
 ShelfLockingManager::~ShelfLockingManager() {
-  Shell::GetInstance()->lock_state_controller()->RemoveObserver(this);
-  WmShell::Get()->GetSessionStateDelegate()->RemoveSessionStateObserver(this);
-  WmShell::Get()->RemoveShellObserver(this);
+  ShellPort::Get()->RemoveLockStateObserver(this);
+  Shell::Get()->session_controller()->RemoveSessionStateObserver(this);
+  Shell::Get()->RemoveShellObserver(this);
 }
 
 void ShelfLockingManager::OnLockStateChanged(bool locked) {
@@ -35,8 +35,8 @@ void ShelfLockingManager::OnLockStateChanged(bool locked) {
 }
 
 void ShelfLockingManager::SessionStateChanged(
-    SessionStateDelegate::SessionState state) {
-  session_locked_ = state != SessionStateDelegate::SESSION_STATE_ACTIVE;
+    session_manager::SessionState state) {
+  session_locked_ = state != session_manager::SessionState::ACTIVE;
   UpdateLockedState();
 }
 
@@ -47,7 +47,7 @@ void ShelfLockingManager::OnLockStateEvent(EventType event) {
 }
 
 void ShelfLockingManager::UpdateLockedState() {
-  const ShelfAlignment alignment = shelf_->alignment();
+  const ShelfAlignment alignment = shelf_->GetAlignment();
   if (is_locked() && alignment != SHELF_ALIGNMENT_BOTTOM_LOCKED) {
     stored_alignment_ = alignment;
     shelf_->SetAlignment(SHELF_ALIGNMENT_BOTTOM_LOCKED);

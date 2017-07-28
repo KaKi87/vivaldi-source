@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "ash/common/shell_observer.h"
+#include "ash/shell_observer.h"
 #include "base/macros.h"
 #include "ui/views/window/non_client_view.h"
 
@@ -40,6 +40,8 @@ class ASH_EXPORT PanelFrameView : public views::NonClientFrameView,
 
  private:
   void InitHeaderPainter();
+
+  WmWindow* GetWidgetWindow();
 
   // Height from top of window to top of client area.
   int NonClientTopBorderHeight() const;

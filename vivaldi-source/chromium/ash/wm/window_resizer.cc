@@ -4,23 +4,15 @@
 
 #include "ash/wm/window_resizer.h"
 
-#include "ash/screen_util.h"
-#include "ash/shell.h"
-#include "ash/shell_window_ids.h"
-#include "ash/wm/coordinate_conversion.h"
-#include "ash/wm/dock/docked_window_layout_manager.h"
+#include "ash/wm/root_window_finder.h"
+#include "ash/wm/window_positioning_utils.h"
 #include "ash/wm/window_state.h"
-#include "ash/wm/window_util.h"
-#include "ui/aura/client/aura_constants.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_delegate.h"
-#include "ui/aura/window_event_dispatcher.h"
+#include "ash/wm_window.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/ui_base_types.h"
-#include "ui/compositor/scoped_layer_animation_settings.h"
-#include "ui/gfx/display.h"
-#include "ui/gfx/screen.h"
-#include "ui/wm/core/coordinate_conversion.h"
+#include "ui/display/display.h"
+#include "ui/display/screen.h"
+#include "ui/gfx/geometry/rect.h"
 
 namespace ash {
 
@@ -29,10 +21,8 @@ namespace {
 // Returns true for resize components along the right edge, where a drag in
 // positive x will make the window larger.
 bool IsRightEdge(int window_component) {
-  return window_component == HTTOPRIGHT ||
-      window_component == HTRIGHT ||
-      window_component == HTBOTTOMRIGHT ||
-      window_component == HTGROWBOX;
+  return window_component == HTTOPRIGHT || window_component == HTRIGHT ||
+         window_component == HTBOTTOMRIGHT || window_component == HTGROWBOX;
 }
 
 }  // namespace
@@ -56,8 +46,7 @@ WindowResizer::WindowResizer(wm::WindowState* window_state)
   DCHECK(window_state_->drag_details());
 }
 
-WindowResizer::~WindowResizer() {
-}
+WindowResizer::~WindowResizer() {}
 
 // static
 int WindowResizer::GetBoundsChangeForWindowComponent(int component) {
@@ -69,7 +58,7 @@ int WindowResizer::GetBoundsChangeForWindowComponent(int component) {
     case HTLEFT:
     case HTBOTTOMLEFT:
       bounds_change |= WindowResizer::kBoundsChange_Repositions |
-                      WindowResizer::kBoundsChange_Resizes;
+                       WindowResizer::kBoundsChange_Resizes;
       break;
     case HTCAPTION:
       bounds_change |= WindowResizer::kBoundsChange_Repositions;
@@ -95,9 +84,8 @@ int WindowResizer::GetPositionChangeDirectionForWindowComponent(
     case HTBOTTOMRIGHT:
     case HTGROWBOX:
     case HTCAPTION:
-      pos_change_direction |=
-          WindowResizer::kBoundsChangeDirection_Horizontal |
-          WindowResizer::kBoundsChangeDirection_Vertical;
+      pos_change_direction |= WindowResizer::kBoundsChangeDirection_Horizontal |
+                              WindowResizer::kBoundsChangeDirection_Vertical;
       break;
     case HTTOP:
     case HTTOPRIGHT:
@@ -137,36 +125,28 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
   // has to come first since it might have an impact on the origin as well as
   // on the size.
   if (details().bounds_change & kBoundsChange_Resizes) {
-    gfx::Rect work_area = gfx::Screen::GetScreen()
-                              ->GetDisplayNearestWindow(GetTarget())
-                              .work_area();
-    aura::Window* dock_container = Shell::GetContainer(
-        GetTarget()->GetRootWindow(), kShellWindowId_DockedContainer);
-    DockedWindowLayoutManager* dock_layout =
-        static_cast<DockedWindowLayoutManager*>(
-            dock_container->layout_manager());
-
-    work_area.Union(dock_layout->docked_bounds());
-    work_area = ScreenUtil::ConvertRectFromScreen(GetTarget()->parent(),
-                                                 work_area);
+    gfx::Rect work_area = GetTarget()->GetDisplayNearestWindow().work_area();
+    work_area = GetTarget()->GetParent()->ConvertRectFromScreen(work_area);
     if (details().size_change_direction & kBoundsChangeDirection_Horizontal) {
       if (IsRightEdge(details().window_component) &&
-          new_bounds.right() < work_area.x() + kMinimumOnScreenArea) {
-        int delta = work_area.x() + kMinimumOnScreenArea - new_bounds.right();
+          new_bounds.right() < work_area.x() + wm::kMinimumOnScreenArea) {
+        int delta =
+            work_area.x() + wm::kMinimumOnScreenArea - new_bounds.right();
         new_bounds.set_width(new_bounds.width() + delta);
-      } else if (new_bounds.x() > work_area.right() - kMinimumOnScreenArea) {
-        int width = new_bounds.right() - work_area.right() +
-                    kMinimumOnScreenArea;
-        new_bounds.set_x(work_area.right() - kMinimumOnScreenArea);
+      } else if (new_bounds.x() >
+                 work_area.right() - wm::kMinimumOnScreenArea) {
+        int width =
+            new_bounds.right() - work_area.right() + wm::kMinimumOnScreenArea;
+        new_bounds.set_x(work_area.right() - wm::kMinimumOnScreenArea);
         new_bounds.set_width(width);
       }
     }
     if (details().size_change_direction & kBoundsChangeDirection_Vertical) {
       if (!IsBottomEdge(details().window_component) &&
-          new_bounds.y() > work_area.bottom() - kMinimumOnScreenArea) {
-        int height = new_bounds.bottom() - work_area.bottom() +
-                     kMinimumOnScreenArea;
-        new_bounds.set_y(work_area.bottom() - kMinimumOnScreenArea);
+          new_bounds.y() > work_area.bottom() - wm::kMinimumOnScreenArea) {
+        int height =
+            new_bounds.bottom() - work_area.bottom() + wm::kMinimumOnScreenArea;
+        new_bounds.set_y(work_area.bottom() - wm::kMinimumOnScreenArea);
         new_bounds.set_height(height);
       } else if (details().window_component == HTBOTTOM ||
                  details().window_component == HTBOTTOMRIGHT ||
@@ -174,8 +154,7 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
         // Update bottom edge to stay in the work area when we are resizing
         // by dragging the bottom edge or corners.
         if (new_bounds.bottom() > work_area.bottom())
-          new_bounds.Inset(0, 0, 0,
-                           new_bounds.bottom() - work_area.bottom());
+          new_bounds.Inset(0, 0, 0, new_bounds.bottom() - work_area.bottom());
       }
     }
     if (details().bounds_change & kBoundsChange_Repositions &&
@@ -194,41 +173,30 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
       // be still hit by the cursor.
       if (details().initial_location_in_parent.x() >
           details().initial_bounds_in_parent.x() +
-          details().restore_bounds.width())
+              details().restore_bounds.width())
         new_bounds.set_x(location.x() - details().restore_bounds.width() / 2);
     }
 
     // Make sure that |new_bounds| doesn't leave any of the displays.  Note that
     // the |work_area| above isn't good for this check since it is the work area
     // for the current display but the window can move to a different one.
-    aura::Window* parent = GetTarget()->parent();
-    gfx::Point passed_location_in_screen(passed_location);
-    ::wm::ConvertPointToScreen(parent, &passed_location_in_screen);
+    WmWindow* parent = GetTarget()->GetParent();
+    gfx::Point passed_location_in_screen(
+        parent->ConvertPointToScreen(passed_location));
     gfx::Rect near_passed_location(passed_location_in_screen, gfx::Size());
     // Use a pointer location (matching the logic in DragWindowResizer) to
     // calculate the target display after the drag.
-    const gfx::Display& display =
-        gfx::Screen::GetScreen()->GetDisplayMatching(near_passed_location);
-    aura::Window* dock_container =
-        Shell::GetContainer(wm::GetRootWindowMatching(near_passed_location),
-                            kShellWindowId_DockedContainer);
-    DockedWindowLayoutManager* dock_layout =
-        static_cast<DockedWindowLayoutManager*>(
-            dock_container->layout_manager());
-
+    const display::Display& display =
+        display::Screen::GetScreen()->GetDisplayMatching(near_passed_location);
     gfx::Rect screen_work_area = display.work_area();
-    screen_work_area.Union(dock_layout->docked_bounds());
-    screen_work_area.Inset(kMinimumOnScreenArea, 0);
-    gfx::Rect new_bounds_in_screen =
-        ScreenUtil::ConvertRectToScreen(parent, new_bounds);
+    screen_work_area.Inset(wm::kMinimumOnScreenArea, 0);
+    gfx::Rect new_bounds_in_screen = parent->ConvertRectToScreen(new_bounds);
     if (!screen_work_area.Intersects(new_bounds_in_screen)) {
       // Make sure that the x origin does not leave the current display.
-      new_bounds_in_screen.set_x(
-          std::max(screen_work_area.x() - new_bounds.width(),
-                   std::min(screen_work_area.right(),
-                            new_bounds_in_screen.x())));
-      new_bounds =
-          ScreenUtil::ConvertRectFromScreen(parent, new_bounds_in_screen);
+      new_bounds_in_screen.set_x(std::max(
+          screen_work_area.x() - new_bounds.width(),
+          std::min(screen_work_area.right(), new_bounds_in_screen.x())));
+      new_bounds = parent->ConvertRectFromScreen(new_bounds_in_screen);
     }
   }
 
@@ -237,10 +205,8 @@ gfx::Rect WindowResizer::CalculateBoundsForDrag(
 
 // static
 bool WindowResizer::IsBottomEdge(int window_component) {
-  return window_component == HTBOTTOMLEFT ||
-      window_component == HTBOTTOM ||
-      window_component == HTBOTTOMRIGHT ||
-      window_component == HTGROWBOX;
+  return window_component == HTBOTTOMLEFT || window_component == HTBOTTOM ||
+         window_component == HTBOTTOMRIGHT || window_component == HTGROWBOX;
 }
 
 void WindowResizer::AdjustDeltaForTouchResize(int* delta_x, int* delta_y) {
@@ -251,19 +217,19 @@ void WindowResizer::AdjustDeltaForTouchResize(int* delta_x, int* delta_y) {
   if (details().size_change_direction & kBoundsChangeDirection_Horizontal) {
     if (IsRightEdge(details().window_component)) {
       *delta_x += details().initial_location_in_parent.x() -
-          details().initial_bounds_in_parent.right();
+                  details().initial_bounds_in_parent.right();
     } else {
       *delta_x += details().initial_location_in_parent.x() -
-          details().initial_bounds_in_parent.x();
+                  details().initial_bounds_in_parent.x();
     }
   }
   if (details().size_change_direction & kBoundsChangeDirection_Vertical) {
     if (IsBottomEdge(details().window_component)) {
       *delta_y += details().initial_location_in_parent.y() -
-          details().initial_bounds_in_parent.bottom();
+                  details().initial_bounds_in_parent.bottom();
     } else {
       *delta_y += details().initial_location_in_parent.y() -
-          details().initial_bounds_in_parent.y();
+                  details().initial_bounds_in_parent.y();
     }
   }
 }
@@ -284,7 +250,7 @@ gfx::Point WindowResizer::GetOriginForDrag(int delta_x, int delta_y) {
 gfx::Size WindowResizer::GetSizeForDrag(int* delta_x, int* delta_y) {
   gfx::Size size = details().initial_bounds_in_parent.size();
   if (details().bounds_change & kBoundsChange_Resizes) {
-    gfx::Size min_size = GetTarget()->delegate()->GetMinimumSize();
+    gfx::Size min_size = GetTarget()->GetMinimumSize();
     size.SetSize(GetWidthForDrag(min_size.width(), delta_x),
                  GetHeightForDrag(min_size.height(), delta_y));
   } else if (!details().restore_bounds.IsEmpty()) {
@@ -304,22 +270,19 @@ int WindowResizer::GetWidthForDrag(int min_width, int* delta_x) {
     // for the window origin computation.
     if (width < min_width) {
       width = min_width;
-      *delta_x = -x_multiplier * (details().initial_bounds_in_parent.width() -
-                                  min_width);
+      *delta_x = -x_multiplier *
+                 (details().initial_bounds_in_parent.width() - min_width);
     }
 
     // And don't let the window go bigger than the display.
-    int max_width = gfx::Screen::GetScreen()
-                        ->GetDisplayNearestWindow(GetTarget())
-                        .bounds()
-                        .width();
-    gfx::Size max_size = GetTarget()->delegate()->GetMaximumSize();
+    int max_width = GetTarget()->GetDisplayNearestWindow().bounds().width();
+    gfx::Size max_size = GetTarget()->GetMaximumSize();
     if (max_size.width() != 0)
       max_width = std::min(max_width, max_size.width());
     if (width > max_width) {
       width = max_width;
-      *delta_x = -x_multiplier * (details().initial_bounds_in_parent.width() -
-                                  max_width);
+      *delta_x = -x_multiplier *
+                 (details().initial_bounds_in_parent.width() - max_width);
     }
   }
   return width;
@@ -336,22 +299,19 @@ int WindowResizer::GetHeightForDrag(int min_height, int* delta_y) {
     // for the window origin computation.
     if (height < min_height) {
       height = min_height;
-      *delta_y = -y_multiplier * (details().initial_bounds_in_parent.height() -
-                                  min_height);
+      *delta_y = -y_multiplier *
+                 (details().initial_bounds_in_parent.height() - min_height);
     }
 
     // And don't let the window go bigger than the display.
-    int max_height = gfx::Screen::GetScreen()
-                         ->GetDisplayNearestWindow(GetTarget())
-                         .bounds()
-                         .height();
-    gfx::Size max_size = GetTarget()->delegate()->GetMaximumSize();
+    int max_height = GetTarget()->GetDisplayNearestWindow().bounds().height();
+    gfx::Size max_size = GetTarget()->GetMaximumSize();
     if (max_size.height() != 0)
       max_height = std::min(max_height, max_size.height());
     if (height > max_height) {
       height = max_height;
-      *delta_y = -y_multiplier * (details().initial_bounds_in_parent.height() -
-                                  max_height);
+      *delta_y = -y_multiplier *
+                 (details().initial_bounds_in_parent.height() - max_height);
     }
   }
   return height;

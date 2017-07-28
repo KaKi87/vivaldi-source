@@ -4,11 +4,25 @@
 
 #include "ash/shelf/shelf_constants.h"
 
+#include "base/logging.h"
+
 namespace ash {
 
-const int kInvalidImageResourceID = -1;
-const int kShelfSize = 47;
-const int kShelfButtonSpacing = 10;
-const int kShelfButtonSize = 44;
+int GetShelfConstant(ShelfConstant shelf_constant) {
+  const int kShelfSize[] = {47, 48, 48};
+  const int kShelfInsetsForAutoHide[] = {3, 0, 0};
+
+  // TODO(estade): clean this up --- remove unneeded constants and reduce
+  // remaining arrays to a single constant.
+  const int mode = 1;
+  switch (shelf_constant) {
+    case SHELF_SIZE:
+      return kShelfSize[mode];
+    case SHELF_INSETS_FOR_AUTO_HIDE:
+      return kShelfInsetsForAutoHide[mode];
+  }
+  NOTREACHED();
+  return 0;
+}
 
 }  // namespace ash

@@ -10,20 +10,15 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/wm/public/window_move_client.h"
 
-namespace aura {
-class Window;
-}
-
 namespace ash {
 
-namespace wm {
-class WindowState;
-}
+class WmWindow;
 
 struct ASH_EXPORT DragDetails {
-  DragDetails(aura::Window* window,
+  DragDetails(WmWindow* window,
               const gfx::Point& location,
               int window_component,
+              // TODO(sky): make wm type.
               aura::client::WindowMoveSource source);
   ~DragDetails();
 

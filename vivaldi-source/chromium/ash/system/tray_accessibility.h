@@ -9,21 +9,25 @@
 
 #include "ash/accessibility_delegate.h"
 #include "ash/shell_observer.h"
+#include "ash/system/accessibility_observer.h"
 #include "ash/system/tray/tray_details_view.h"
 #include "ash/system/tray/tray_image_item.h"
-#include "ash/system/tray/tray_notification_view.h"
-#include "ash/system/tray/view_click_listener.h"
 #include "base/macros.h"
 #include "ui/gfx/font.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/view.h"
 
 namespace chromeos {
 class TrayAccessibilityTest;
 }
 
+namespace gfx {
+struct VectorIcon;
+}
+
 namespace views {
 class Button;
-class ImageView;
+class CustomButton;
 class Label;
 class View;
 }
@@ -32,23 +36,20 @@ namespace ash {
 class HoverHighlightView;
 class SystemTrayItem;
 
-class ASH_EXPORT AccessibilityObserver {
- public:
-  virtual ~AccessibilityObserver() {}
-
-  // Notifies when accessibility mode changes.
-  virtual void OnAccessibilityModeChanged(
-      ui::AccessibilityNotificationVisibility notify) = 0;
-};
-
-
 namespace tray {
 
-class AccessibilityPopupView : public TrayNotificationView {
+// A view for closable notification views, laid out like:
+//  -------------------
+// | icon  contents  x |
+//  ----------------v--
+// The close button will call OnClose() when clicked.
+class AccessibilityPopupView : public views::View {
  public:
-  AccessibilityPopupView(SystemTrayItem* owner, uint32_t enabled_state_bits);
+  explicit AccessibilityPopupView(uint32_t enabled_state_bits);
 
   const views::Label* label_for_test() const { return label_; }
+
+  void Init();
 
  private:
   views::Label* CreateLabel(uint32_t enabled_state_bits);
@@ -58,46 +59,66 @@ class AccessibilityPopupView : public TrayNotificationView {
   DISALLOW_COPY_AND_ASSIGN(AccessibilityPopupView);
 };
 
+// Create the detailed view of accessibility tray.
 class AccessibilityDetailedView : public TrayDetailsView,
-                                  public ViewClickListener,
-                                  public views::ButtonListener,
                                   public ShellObserver {
  public:
-  explicit AccessibilityDetailedView(SystemTrayItem* owner,
-                                     user::LoginStatus login);
+  AccessibilityDetailedView(SystemTrayItem* owner, LoginStatus login);
   ~AccessibilityDetailedView() override {}
 
  private:
+  // TrayDetailsView:
+  void HandleViewClicked(views::View* view) override;
+  void HandleButtonPressed(views::Button* sender,
+                           const ui::Event& event) override;
+  void CreateExtraTitleRowButtons() override;
+
+  // Launches the WebUI settings in a browser and closes the system menu.
+  void ShowSettings();
+
+  // Launches the a11y help article in a browser and closes the system menu.
+  void ShowHelp();
+
   // Add the accessibility feature list.
   void AppendAccessibilityList();
 
-  // Add help entries.
-  void AppendHelpEntries();
-
+  // Helper function to create entries in the detailed accessibility view.
   HoverHighlightView* AddScrollListItem(const base::string16& text,
-                                        bool highlight,
-                                        bool checked);
-  // Overridden from ViewClickListener.
-  void OnViewClicked(views::View* sender) override;
-  // Overridden from ButtonListener.
-  void ButtonPressed(views::Button* sender, const ui::Event& event) override;
+                                        bool checked,
+                                        const gfx::VectorIcon& icon);
+  HoverHighlightView* AddScrollListItemWithoutIcon(const base::string16& text,
+                                                   bool checked);
 
-  views::View* spoken_feedback_view_;
-  views::View* high_contrast_view_;
-  views::View* screen_magnifier_view_;
-  views::View* large_cursor_view_;
-  views::View* help_view_;
-  views::View* settings_view_;
-  views::View* autoclick_view_;
-  views::View* virtual_keyboard_view_;
+  void AddSubHeader(const base::string16& header_text);
 
-  bool spoken_feedback_enabled_;
-  bool high_contrast_enabled_;
-  bool screen_magnifier_enabled_;
-  bool large_cursor_enabled_;
-  bool autoclick_enabled_;
-  bool virtual_keyboard_enabled_;
-  user::LoginStatus login_;
+  views::View* spoken_feedback_view_ = nullptr;
+  views::View* high_contrast_view_ = nullptr;
+  views::View* screen_magnifier_view_ = nullptr;
+  views::View* large_cursor_view_ = nullptr;
+  views::CustomButton* help_view_ = nullptr;
+  views::CustomButton* settings_view_ = nullptr;
+  views::View* autoclick_view_ = nullptr;
+  views::View* virtual_keyboard_view_ = nullptr;
+  views::View* mono_audio_view_ = nullptr;
+  views::View* caret_highlight_view_ = nullptr;
+  views::View* highlight_mouse_cursor_view_ = nullptr;
+  views::View* highlight_keyboard_focus_view_ = nullptr;
+  views::View* sticky_keys_view_ = nullptr;
+  views::View* tap_dragging_view_ = nullptr;
+
+  bool spoken_feedback_enabled_ = false;
+  bool high_contrast_enabled_ = false;
+  bool screen_magnifier_enabled_ = false;
+  bool large_cursor_enabled_ = false;
+  bool autoclick_enabled_ = false;
+  bool virtual_keyboard_enabled_ = false;
+  bool mono_audio_enabled_ = false;
+  bool caret_highlight_enabled_ = false;
+  bool highlight_mouse_cursor_enabled_ = false;
+  bool highlight_keyboard_focus_enabled_ = false;
+  bool sticky_keys_enabled_ = false;
+  bool tap_dragging_enabled_ = false;
+  LoginStatus login_;
 
   friend class chromeos::TrayAccessibilityTest;
   DISALLOW_COPY_AND_ASSIGN(AccessibilityDetailedView);
@@ -105,8 +126,7 @@ class AccessibilityDetailedView : public TrayDetailsView,
 
 }  // namespace tray
 
-class TrayAccessibility : public TrayImageItem,
-                          public AccessibilityObserver {
+class TrayAccessibility : public TrayImageItem, public AccessibilityObserver {
  public:
   explicit TrayAccessibility(SystemTray* system_tray);
   ~TrayAccessibility() override;
@@ -117,15 +137,15 @@ class TrayAccessibility : public TrayImageItem,
 
   // Overridden from TrayImageItem.
   bool GetInitialVisibility() override;
-  views::View* CreateDefaultView(user::LoginStatus status) override;
-  views::View* CreateDetailedView(user::LoginStatus status) override;
+  views::View* CreateDefaultView(LoginStatus status) override;
+  views::View* CreateDetailedView(LoginStatus status) override;
   void DestroyDefaultView() override;
   void DestroyDetailedView() override;
-  void UpdateAfterLoginStatusChange(user::LoginStatus status) override;
+  void UpdateAfterLoginStatusChange(LoginStatus status) override;
 
   // Overridden from AccessibilityObserver.
   void OnAccessibilityModeChanged(
-      ui::AccessibilityNotificationVisibility notify) override;
+      AccessibilityNotificationVisibility notify) override;
 
   views::View* default_;
   tray::AccessibilityPopupView* detailed_popup_;
@@ -136,7 +156,7 @@ class TrayAccessibility : public TrayImageItem,
   uint32_t request_popup_view_state_;
 
   bool tray_icon_visible_;
-  user::LoginStatus login_;
+  LoginStatus login_;
 
   // Bitmap of values from AccessibilityState enum.
   uint32_t previous_accessibility_state_;

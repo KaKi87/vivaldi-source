@@ -4,6 +4,8 @@
 
 #include "ash/system/toast/toast_manager.h"
 
+#include <algorithm>
+
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/threading/thread_task_runner_handle.h"

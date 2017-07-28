@@ -6,12 +6,17 @@
 #define ASH_SHELF_OVERFLOW_BUBBLE_VIEW_H_
 
 #include "ash/ash_export.h"
-#include "base/compiler_specific.h"
+#include "ash/shelf/shelf_background_animator.h"
+#include "ash/shelf/shelf_background_animator_observer.h"
 #include "base/macros.h"
 #include "ui/views/bubble/bubble_dialog_delegate.h"
 
+namespace views {
+class View;
+}
+
 namespace ash {
-class ShelfView;
+class WmShelf;
 
 namespace test {
 class OverflowBubbleViewTestAPI;
@@ -19,26 +24,24 @@ class OverflowBubbleViewTestAPI;
 
 // OverflowBubbleView hosts a ShelfView to display overflown items.
 // Exports to access this class from OverflowBubbleViewTestAPI.
-class ASH_EXPORT OverflowBubbleView : public views::BubbleDialogDelegateView {
+class ASH_EXPORT OverflowBubbleView : public views::BubbleDialogDelegateView,
+                                      public ShelfBackgroundAnimatorObserver {
  public:
-  OverflowBubbleView();
+  explicit OverflowBubbleView(WmShelf* wm_shelf);
   ~OverflowBubbleView() override;
 
-  void InitOverflowBubble(views::View* anchor, ShelfView* shelf_view);
+  // |anchor| is the overflow button on the main shelf. |shelf_view| is the
+  // ShelfView containing the overflow items.
+  void InitOverflowBubble(views::View* anchor, views::View* shelf_view);
 
   // views::BubbleDialogDelegateView overrides:
   int GetDialogButtons() const override;
+  void OnBeforeBubbleWidgetInit(views::Widget::InitParams* params,
+                                views::Widget* bubble_widget) const override;
   gfx::Rect GetBubbleBounds() override;
 
  private:
   friend class test::OverflowBubbleViewTestAPI;
-
-  bool IsHorizontalAlignment() const;
-
-  const gfx::Size GetContentsSize() const;
-
-  // Gets arrow location based on shelf alignment.
-  views::BubbleBorder::Arrow GetBubbleArrow() const;
 
   void ScrollByXOffset(int x_offset);
   void ScrollByYOffset(int y_offset);
@@ -52,8 +55,14 @@ class ASH_EXPORT OverflowBubbleView : public views::BubbleDialogDelegateView {
   // ui::EventHandler overrides:
   void OnScrollEvent(ui::ScrollEvent* event) override;
 
-  ShelfView* shelf_view_;  // Owned by views hierarchy.
+  // ShelfBackgroundAnimatorObserver:
+  void UpdateShelfBackground(SkColor color) override;
+
+  WmShelf* wm_shelf_;
+  views::View* shelf_view_;  // Owned by views hierarchy.
   gfx::Vector2d scroll_offset_;
+
+  ShelfBackgroundAnimator background_animator_;
 
   DISALLOW_COPY_AND_ASSIGN(OverflowBubbleView);
 };

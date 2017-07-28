@@ -6,9 +6,9 @@
 #define ASH_SYSTEM_OVERVIEW_OVERVIEW_BUTTON_TRAY_H_
 
 #include "ash/ash_export.h"
-#include "ash/common/session/session_state_observer.h"
-#include "ash/common/shell_observer.h"
-#include "ash/common/system/tray/tray_background_view.h"
+#include "ash/session/session_state_observer.h"
+#include "ash/shell_observer.h"
+#include "ash/system/tray/tray_background_view.h"
 #include "base/macros.h"
 
 namespace views {
@@ -37,11 +37,12 @@ class ASH_EXPORT OverviewButtonTray : public TrayBackgroundView,
   bool PerformAction(const ui::Event& event) override;
 
   // SessionStateObserver:
-  void SessionStateChanged(SessionStateDelegate::SessionState state) override;
+  void SessionStateChanged(session_manager::SessionState state) override;
 
   // ShellObserver:
   void OnMaximizeModeStarted() override;
   void OnMaximizeModeEnded() override;
+  void OnOverviewModeStarting() override;
   void OnOverviewModeEnded() override;
 
   // TrayBackgroundView:

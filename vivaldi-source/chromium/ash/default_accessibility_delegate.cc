@@ -28,7 +28,7 @@ void DefaultAccessibilityDelegate::SetMagnifierEnabled(bool enabled) {
   screen_magnifier_enabled_ = enabled;
 }
 
-void DefaultAccessibilityDelegate::SetMagnifierType(ui::MagnifierType type) {
+void DefaultAccessibilityDelegate::SetMagnifierType(MagnifierType type) {
   screen_magnifier_type_ = type;
 }
 
@@ -36,7 +36,7 @@ bool DefaultAccessibilityDelegate::IsMagnifierEnabled() const {
   return screen_magnifier_enabled_;
 }
 
-ui::MagnifierType DefaultAccessibilityDelegate::GetMagnifierType() const {
+MagnifierType DefaultAccessibilityDelegate::GetMagnifierType() const {
   return screen_magnifier_type_;
 }
 
@@ -96,6 +96,22 @@ bool DefaultAccessibilityDelegate::IsFocusHighlightEnabled() const {
   return focus_highligh_enabled_;
 }
 
+void DefaultAccessibilityDelegate::SetStickyKeysEnabled(bool enabled) {
+  sticky_keys_enabled_ = enabled;
+}
+
+bool DefaultAccessibilityDelegate::IsStickyKeysEnabled() const {
+  return sticky_keys_enabled_;
+}
+
+void DefaultAccessibilityDelegate::SetTapDraggingEnabled(bool enabled) {
+  tap_dragging_enabled_ = enabled;
+}
+
+bool DefaultAccessibilityDelegate::IsTapDraggingEnabled() const {
+  return tap_dragging_enabled_;
+}
+
 void DefaultAccessibilityDelegate::SetSelectToSpeakEnabled(bool enabled) {
   select_to_speak_enabled_ = enabled;
 }
@@ -113,46 +129,47 @@ bool DefaultAccessibilityDelegate::IsSwitchAccessEnabled() const {
 }
 
 bool DefaultAccessibilityDelegate::ShouldShowAccessibilityMenu() const {
-  return spoken_feedback_enabled_ ||
-         high_contrast_enabled_ ||
-         screen_magnifier_enabled_ ||
-         large_cursor_enabled_ ||
-         autoclick_enabled_ ||
-         virtual_keyboard_enabled_ ||
-         mono_audio_enabled_;
+  return spoken_feedback_enabled_ || high_contrast_enabled_ ||
+         screen_magnifier_enabled_ || large_cursor_enabled_ ||
+         autoclick_enabled_ || virtual_keyboard_enabled_ || mono_audio_enabled_;
 }
 
 bool DefaultAccessibilityDelegate::IsBrailleDisplayConnected() const {
   return false;
 }
 
-void DefaultAccessibilityDelegate::SilenceSpokenFeedback() const {
-}
+void DefaultAccessibilityDelegate::SilenceSpokenFeedback() const {}
+
+void DefaultAccessibilityDelegate::ClearFocusHighlight() const {}
 
 void DefaultAccessibilityDelegate::ToggleSpokenFeedback(
-    ui::AccessibilityNotificationVisibility notify) {
+    AccessibilityNotificationVisibility notify) {
   spoken_feedback_enabled_ = !spoken_feedback_enabled_;
 }
 
-void DefaultAccessibilityDelegate::SaveScreenMagnifierScale(double scale) {
-}
+void DefaultAccessibilityDelegate::SaveScreenMagnifierScale(double scale) {}
 
 double DefaultAccessibilityDelegate::GetSavedScreenMagnifierScale() {
   return std::numeric_limits<double>::min();
 }
 
 void DefaultAccessibilityDelegate::TriggerAccessibilityAlert(
-    ui::AccessibilityAlert alert) {
+    AccessibilityAlert alert) {
   accessibility_alert_ = alert;
 }
 
-ui::AccessibilityAlert
-DefaultAccessibilityDelegate::GetLastAccessibilityAlert() {
+AccessibilityAlert DefaultAccessibilityDelegate::GetLastAccessibilityAlert() {
   return accessibility_alert_;
 }
 
-void DefaultAccessibilityDelegate::PlayEarcon(int sound_key) {
+bool DefaultAccessibilityDelegate::ShouldToggleSpokenFeedbackViaTouch() {
+  return false;
 }
+
+void DefaultAccessibilityDelegate::PlaySpokenFeedbackToggleCountdown(
+    int tick_count) {}
+
+void DefaultAccessibilityDelegate::PlayEarcon(int sound_key) {}
 
 base::TimeDelta DefaultAccessibilityDelegate::PlayShutdownSound() const {
   return base::TimeDelta();

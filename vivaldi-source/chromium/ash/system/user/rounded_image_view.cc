@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 #include "ash/system/user/rounded_image_view.h"
+
 #include "skia/ext/image_operations.h"
-#include "third_party/skia/include/core/SkPaint.h"
 #include "third_party/skia/include/core/SkPath.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/image/image_skia_operations.h"
@@ -13,22 +13,20 @@
 namespace ash {
 namespace tray {
 
-RoundedImageView::RoundedImageView(int corner_radius, bool active_user)
-    : active_user_(active_user) {
+RoundedImageView::RoundedImageView(int corner_radius) {
   for (int i = 0; i < 4; ++i)
     corner_radius_[i] = corner_radius;
 }
 
 RoundedImageView::~RoundedImageView() {}
 
-void RoundedImageView::SetImage(const gfx::ImageSkia& img,
+void RoundedImageView::SetImage(const gfx::ImageSkia& image,
                                 const gfx::Size& size) {
-  image_ = img;
   image_size_ = size;
 
   // Try to get the best image quality for the avatar.
-  resized_ = gfx::ImageSkiaOperations::CreateResizedImage(
-      image_, skia::ImageOperations::RESIZE_BEST, size);
+  resized_image_ = gfx::ImageSkiaOperations::CreateResizedImage(
+      image, skia::ImageOperations::RESIZE_BEST, size);
   if (GetWidget() && visible()) {
     PreferredSizeChanged();
     SchedulePaint();
@@ -56,23 +54,16 @@ void RoundedImageView::OnPaint(gfx::Canvas* canvas) {
   image_bounds.ClampToCenteredSize(GetPreferredSize());
   image_bounds.Inset(GetInsets());
   const SkScalar kRadius[8] = {
-    SkIntToScalar(corner_radius_[0]),
-    SkIntToScalar(corner_radius_[0]),
-    SkIntToScalar(corner_radius_[1]),
-    SkIntToScalar(corner_radius_[1]),
-    SkIntToScalar(corner_radius_[2]),
-    SkIntToScalar(corner_radius_[2]),
-    SkIntToScalar(corner_radius_[3]),
-    SkIntToScalar(corner_radius_[3])
-  };
+      SkIntToScalar(corner_radius_[0]), SkIntToScalar(corner_radius_[0]),
+      SkIntToScalar(corner_radius_[1]), SkIntToScalar(corner_radius_[1]),
+      SkIntToScalar(corner_radius_[2]), SkIntToScalar(corner_radius_[2]),
+      SkIntToScalar(corner_radius_[3]), SkIntToScalar(corner_radius_[3])};
   SkPath path;
   path.addRoundRect(gfx::RectToSkRect(image_bounds), kRadius);
-  SkPaint paint;
-  paint.setAntiAlias(true);
-  paint.setXfermodeMode(active_user_ ? SkXfermode::kSrcOver_Mode
-                                     : SkXfermode::kLuminosity_Mode);
-  canvas->DrawImageInPath(
-      resized_, image_bounds.x(), image_bounds.y(), path, paint);
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  canvas->DrawImageInPath(resized_image_, image_bounds.x(), image_bounds.y(),
+                          path, flags);
 }
 
 }  // namespace tray

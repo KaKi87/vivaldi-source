@@ -5,13 +5,16 @@
 #ifndef ASH_WM_WINDOW_STATE_UTIL_H_
 #define ASH_WM_WINDOW_STATE_UTIL_H_
 
+#include "ash/ash_export.h"
+
 namespace ash {
 namespace wm {
 class WindowState;
 class WindowStateDelegate;
 
 // Toggle the full screen from inside a WindowState::State handler.
-void ToggleFullScreen(WindowState* window_state, WindowStateDelegate* delegate);
+ASH_EXPORT void ToggleFullScreen(WindowState* window_state,
+                                 WindowStateDelegate* delegate);
 
 }  // namespace wm
 }  // namespace ash

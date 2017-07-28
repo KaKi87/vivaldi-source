@@ -6,8 +6,7 @@
 #define ASH_SYSTEM_STATUS_AREA_WIDGET_DELEGATE_H_
 
 #include "ash/ash_export.h"
-#include "ash/shelf/shelf_types.h"
-#include "ash/wm/gestures/shelf_gesture_handler.h"
+#include "ash/public/cpp/shelf_types.h"
 #include "base/macros.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/accessible_pane_view.h"
@@ -16,6 +15,7 @@
 namespace ash {
 class FocusCycler;
 
+// The View for the status area widget.
 class ASH_EXPORT StatusAreaWidgetDelegate : public views::AccessiblePaneView,
                                             public views::WidgetDelegate {
  public:
@@ -31,7 +31,7 @@ class ASH_EXPORT StatusAreaWidgetDelegate : public views::AccessiblePaneView,
   // Sets the focus cycler.
   void SetFocusCyclerForTesting(const FocusCycler* focus_cycler);
 
-  void set_alignment(wm::ShelfAlignment alignment) { alignment_ = alignment; }
+  void set_alignment(ShelfAlignment alignment) { alignment_ = alignment; }
 
   // Overridden from views::AccessiblePaneView.
   View* GetDefaultFocusableChild() override;
@@ -55,10 +55,15 @@ class ASH_EXPORT StatusAreaWidgetDelegate : public views::AccessiblePaneView,
  private:
   void UpdateWidgetSize();
 
-  const FocusCycler* focus_cycler_for_testing_;
-  wm::ShelfAlignment alignment_;
+  // Sets a border on |child|. If |extend_border_to_edge| is true, then an extra
+  // wide border is added to extend the view's hit region to the edge of the
+  // screen.
+  void SetBorderOnChild(views::View* child, bool extend_border_to_edge);
 
-  ShelfGestureHandler gesture_handler_;
+  const FocusCycler* focus_cycler_for_testing_;
+
+  // TODO(jamescook): Get this from WmShelf.
+  ShelfAlignment alignment_;
 
   DISALLOW_COPY_AND_ASSIGN(StatusAreaWidgetDelegate);
 };

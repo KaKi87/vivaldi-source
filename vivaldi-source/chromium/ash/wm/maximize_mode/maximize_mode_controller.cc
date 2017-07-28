@@ -6,42 +6,28 @@
 
 #include <utility>
 
-#include "ash/accelerators/accelerator_controller.h"
-#include "ash/accelerators/accelerator_table.h"
-#include "ash/common/ash_switches.h"
-#include "ash/common/wm/maximize_mode/maximize_mode_window_manager.h"
-#include "ash/common/wm_shell.h"
-#include "ash/display/display_manager.h"
+#include "ash/ash_switches.h"
 #include "ash/shell.h"
+#include "ash/shell_port.h"
+#include "ash/wm/maximize_mode/maximize_mode_window_manager.h"
 #include "ash/wm/maximize_mode/scoped_disable_internal_mouse_and_keyboard.h"
+#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/metrics/histogram.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/chromeos/accelerometer/accelerometer_util.h"
 #include "ui/display/display.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/geometry/vector3d_f.h"
 
-#if defined(USE_X11)
-#include "ash/wm/maximize_mode/scoped_disable_internal_mouse_and_keyboard_x11.h"
-#endif
-
-#if defined(USE_OZONE)
-#include "ash/wm/maximize_mode/scoped_disable_internal_mouse_and_keyboard_ozone.h"
-#endif
-
-#if defined(OS_CHROMEOS)
-#include "chromeos/dbus/dbus_thread_manager.h"
-#include "ui/chromeos/accelerometer/accelerometer_util.h"
-#endif  // OS_CHROMEOS
-
 namespace ash {
 
 namespace {
 
-#if defined(OS_CHROMEOS)
 // The hinge angle at which to enter maximize mode.
 const float kEnterMaximizeModeAngle = 200.0f;
 
@@ -55,7 +41,6 @@ const float kExitMaximizeModeAngle = 160.0f;
 // vice versa).
 const float kMinStableAngle = 20.0f;
 const float kMaxStableAngle = 340.0f;
-#endif  // OS_CHROMEOS
 
 // The time duration to consider the lid to be recently opened.
 // This is used to prevent entering maximize mode if an erroneous accelerometer
@@ -63,7 +48,6 @@ const float kMaxStableAngle = 340.0f;
 // lid from a closed position.
 const int kLidRecentlyOpenedDurationSeconds = 2;
 
-#if defined(OS_CHROMEOS)
 // When the device approaches vertical orientation (i.e. portrait orientation)
 // the accelerometers for the base and lid approach the same values (i.e.
 // gravity pointing in the direction of the hinge). When this happens abrupt
@@ -75,7 +59,7 @@ const int kLidRecentlyOpenedDurationSeconds = 2;
 const float kHingeVerticalSmoothingStart = 7.0f;
 // This is the maximum acceleration parallel to the hinge under which smoothing
 // will incorporate new acceleration values, in m/s^2.
-const float kHingeVerticalSmoothingMaximum = 9.5f;
+const float kHingeVerticalSmoothingMaximum = 8.7f;
 
 // The maximum deviation between the magnitude of the two accelerometers under
 // which to detect hinge angle in m/s^2. These accelerometers are attached to
@@ -95,61 +79,73 @@ bool IsAngleBetweenAccelerometerReadingsStable(
                  update.get(chromeos::ACCELEROMETER_SOURCE_SCREEN))
                  .Length()) <= kNoisyMagnitudeDeviation;
 }
-#endif  // OS_CHROMEOS
+
+bool IsEnabled() {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+      switches::kAshEnableTouchView);
+}
+
+// Checks the command line to see which force maximize mode is turned on, if
+// any.
+MaximizeModeController::ForceTabletMode GetMaximizeMode() {
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(switches::kAshForceTabletMode)) {
+    std::string switch_value =
+        command_line->GetSwitchValueASCII(switches::kAshForceTabletMode);
+    if (switch_value == switches::kAshForceTabletModeClamshell)
+      return MaximizeModeController::ForceTabletMode::CLAMSHELL;
+
+    if (switch_value == switches::kAshForceTabletModeTouchView)
+      return MaximizeModeController::ForceTabletMode::TOUCHVIEW;
+  }
+  return MaximizeModeController::ForceTabletMode::NONE;
+}
 
 }  // namespace
 
 MaximizeModeController::MaximizeModeController()
     : have_seen_accelerometer_data_(false),
+      can_detect_lid_angle_(false),
       touchview_usage_interval_start_time_(base::Time::Now()),
       tick_clock_(new base::DefaultTickClock()),
-#if defined(OS_CHROMEOS)
       tablet_mode_switch_is_on_(false),
-#endif
-      lid_is_closed_(false) {
-  WmShell::Get()->AddShellObserver(this);
-  WmShell::Get()->RecordUserMetricsAction(UMA_MAXIMIZE_MODE_INITIALLY_DISABLED);
+      lid_is_closed_(false),
+      weak_factory_(this) {
+  Shell::Get()->AddShellObserver(this);
+  ShellPort::Get()->RecordUserMetricsAction(
+      UMA_MAXIMIZE_MODE_INITIALLY_DISABLED);
 
-#if defined(OS_CHROMEOS)
   // TODO(jonross): Do not create MaximizeModeController if the flag is
   // unavailable. This will require refactoring
   // IsMaximizeModeWindowManagerEnabled to check for the existance of the
   // controller.
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAshEnableTouchView)) {
+  if (IsEnabled()) {
+    ShellPort::Get()->AddDisplayObserver(this);
     chromeos::AccelerometerReader::GetInstance()->AddObserver(this);
-    Shell::GetInstance()->window_tree_host_manager()->AddObserver(this);
   }
-  chromeos::DBusThreadManager::Get()->GetPowerManagerClient()->AddObserver(
-      this);
-#endif  // OS_CHROMEOS
+  chromeos::PowerManagerClient* power_manager_client =
+      chromeos::DBusThreadManager::Get()->GetPowerManagerClient();
+  power_manager_client->AddObserver(this);
+  power_manager_client->GetSwitchStates(base::Bind(
+      &MaximizeModeController::OnGetSwitchStates, weak_factory_.GetWeakPtr()));
 }
 
 MaximizeModeController::~MaximizeModeController() {
-  WmShell::Get()->RemoveShellObserver(this);
-#if defined(OS_CHROMEOS)
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAshEnableTouchView)) {
+  Shell::Get()->RemoveShellObserver(this);
+
+  if (IsEnabled()) {
+    ShellPort::Get()->RemoveDisplayObserver(this);
     chromeos::AccelerometerReader::GetInstance()->RemoveObserver(this);
-    Shell::GetInstance()->window_tree_host_manager()->RemoveObserver(this);
   }
   chromeos::DBusThreadManager::Get()->GetPowerManagerClient()->RemoveObserver(
       this);
-#endif  // OS_CHROMEOS
 }
 
 bool MaximizeModeController::CanEnterMaximizeMode() {
   // If we have ever seen accelerometer data, then HandleHingeRotation may
   // trigger maximize mode at some point in the future.
-  // The --enable-touch-view-testing switch can also mean that we may enter
-  // maximize mode.
-  // TODO(mgiuca): This can result in false positives, as it returns true for
-  // any device with an accelerometer. Have TouchView-enabled devices explicitly
-  // set a flag, and change this implementation to simply return true iff the
-  // flag is present (http://crbug.com/457445).
-  return have_seen_accelerometer_data_ ||
-         base::CommandLine::ForCurrentProcess()->HasSwitch(
-             switches::kAshEnableTouchViewTesting);
+  // All TouchView-enabled devices can enter maximized mode.
+  return have_seen_accelerometer_data_ || IsEnabled();
 }
 
 // TODO(jcliang): Hide or remove EnableMaximizeModeWindowManager
@@ -160,18 +156,27 @@ void MaximizeModeController::EnableMaximizeModeWindowManager(
   if (should_enable == is_enabled)
     return;
 
-  Shell* shell = Shell::GetInstance();
-
   if (should_enable) {
     maximize_mode_window_manager_.reset(new MaximizeModeWindowManager());
     // TODO(jonross): Move the maximize mode notifications from ShellObserver
     // to MaximizeModeController::Observer
-    WmShell::Get()->RecordUserMetricsAction(UMA_MAXIMIZE_MODE_ENABLED);
-    shell->OnMaximizeModeStarted();
+    ShellPort::Get()->RecordUserMetricsAction(UMA_MAXIMIZE_MODE_ENABLED);
+    Shell::Get()->NotifyMaximizeModeStarted();
+
+    observers_.ForAllPtrs([](mojom::TouchViewObserver* observer) {
+      observer->OnTouchViewToggled(true);
+    });
+
   } else {
+    maximize_mode_window_manager_->SetIgnoreWmEventsForExit();
+    Shell::Get()->NotifyMaximizeModeEnding();
     maximize_mode_window_manager_.reset();
-    WmShell::Get()->RecordUserMetricsAction(UMA_MAXIMIZE_MODE_DISABLED);
-    shell->OnMaximizeModeEnded();
+    ShellPort::Get()->RecordUserMetricsAction(UMA_MAXIMIZE_MODE_DISABLED);
+    Shell::Get()->NotifyMaximizeModeEnded();
+
+    observers_.ForAllPtrs([](mojom::TouchViewObserver* observer) {
+      observer->OnTouchViewToggled(false);
+    });
   }
 }
 
@@ -184,33 +189,39 @@ void MaximizeModeController::AddWindow(WmWindow* window) {
     maximize_mode_window_manager_->AddWindow(window);
 }
 
-#if defined(OS_CHROMEOS)
+void MaximizeModeController::BindRequest(
+    mojom::TouchViewManagerRequest request) {
+  bindings_.AddBinding(this, std::move(request));
+}
+
 void MaximizeModeController::OnAccelerometerUpdated(
     scoped_refptr<const chromeos::AccelerometerUpdate> update) {
-  bool first_accelerometer_update = !have_seen_accelerometer_data_;
-  have_seen_accelerometer_data_ = true;
+  if (!AllowEnterExitMaximizeMode())
+    return;
 
-  if (!update->has(chromeos::ACCELEROMETER_SOURCE_SCREEN))
+  have_seen_accelerometer_data_ = true;
+  can_detect_lid_angle_ =
+      update->has(chromeos::ACCELEROMETER_SOURCE_SCREEN) &&
+      update->has(chromeos::ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD);
+
+  if (!can_detect_lid_angle_)
     return;
 
   if (!display::Display::HasInternalDisplay())
     return;
 
-  if (!Shell::GetInstance()->display_manager()->IsActiveDisplayId(
+  if (!ShellPort::Get()->IsActiveDisplayId(
           display::Display::InternalDisplayId())) {
     return;
   }
 
   // Whether or not we enter maximize mode affects whether we handle screen
   // rotation, so determine whether to enter maximize mode first.
-  if (!update->has(chromeos::ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD)) {
-    if (first_accelerometer_update)
-      EnterMaximizeMode();
-  } else if (ui::IsAccelerometerReadingStable(
-                 *update, chromeos::ACCELEROMETER_SOURCE_SCREEN) &&
-             ui::IsAccelerometerReadingStable(
-                 *update, chromeos::ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD) &&
-             IsAngleBetweenAccelerometerReadingsStable(*update)) {
+  if (ui::IsAccelerometerReadingStable(*update,
+                                       chromeos::ACCELEROMETER_SOURCE_SCREEN) &&
+      ui::IsAccelerometerReadingStable(
+          *update, chromeos::ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD) &&
+      IsAngleBetweenAccelerometerReadingsStable(*update)) {
     // update.has(chromeos::ACCELEROMETER_SOURCE_ATTACHED_KEYBOARD)
     // Ignore the reading if it appears unstable. The reading is considered
     // unstable if it deviates too much from gravity and/or the magnitude of the
@@ -219,8 +230,13 @@ void MaximizeModeController::OnAccelerometerUpdated(
   }
 }
 
-void MaximizeModeController::LidEventReceived(bool open,
-                                              const base::TimeTicks& time) {
+void MaximizeModeController::LidEventReceived(
+    chromeos::PowerManagerClient::LidState state,
+    const base::TimeTicks& time) {
+  if (!AllowEnterExitMaximizeMode())
+    return;
+
+  const bool open = state == chromeos::PowerManagerClient::LidState::OPEN;
   if (open)
     last_lid_open_time_ = time;
   lid_is_closed_ = !open;
@@ -228,11 +244,28 @@ void MaximizeModeController::LidEventReceived(bool open,
 }
 
 void MaximizeModeController::TabletModeEventReceived(
-    bool on,
+    chromeos::PowerManagerClient::TabletMode mode,
     const base::TimeTicks& time) {
+  if (!AllowEnterExitMaximizeMode())
+    return;
+
+  const bool on = mode == chromeos::PowerManagerClient::TabletMode::ON;
   tablet_mode_switch_is_on_ = on;
-  if (on && !IsMaximizeModeWindowManagerEnabled())
+  // Do not change if docked.
+  if (!display::Display::HasInternalDisplay() ||
+      !ShellPort::Get()->IsActiveDisplayId(
+          display::Display::InternalDisplayId())) {
+    return;
+  }
+  // The tablet mode switch activates at 300 degrees, so it is always reliable
+  // when |on|. However we wish to exit maximize mode at a smaller angle, so
+  // when |on| is false we ignore if it is possible to calculate the lid angle.
+  if (on && !IsMaximizeModeWindowManagerEnabled()) {
     EnterMaximizeMode();
+  } else if (!on && IsMaximizeModeWindowManagerEnabled() &&
+             !can_detect_lid_angle_) {
+    LeaveMaximizeMode();
+  }
 }
 
 void MaximizeModeController::SuspendImminent() {
@@ -314,24 +347,12 @@ void MaximizeModeController::HandleHingeRotation(
     EnterMaximizeMode();
   }
 }
-#endif  // OS_CHROMEOS
 
 void MaximizeModeController::EnterMaximizeMode() {
   // Always reset first to avoid creation before destruction of a previous
   // object.
-  event_blocker_.reset();
-#if defined(USE_X11)
-  event_blocker_.reset(new ScopedDisableInternalMouseAndKeyboardX11);
-#elif defined(USE_OZONE)
-  event_blocker_.reset(new ScopedDisableInternalMouseAndKeyboardOzone);
-#endif
-
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAshEnableTouchViewTesting)) {
-    // We don't let accelerometer updates interfere with the maximize mode
-    // status as set by the touch-view-testing keyboard shortcut.
-    return;
-  }
+  event_blocker_ =
+      ShellPort::Get()->CreateScopedDisableInternalMouseAndKeyboard();
 
   if (IsMaximizeModeWindowManagerEnabled())
     return;
@@ -340,13 +361,6 @@ void MaximizeModeController::EnterMaximizeMode() {
 
 void MaximizeModeController::LeaveMaximizeMode() {
   event_blocker_.reset();
-
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kAshEnableTouchViewTesting)) {
-    // We don't let accelerometer updates interfere with the maximize mode
-    // status as set by the touch-view-testing keyboard shortcut.
-    return;
-  }
 
   if (!IsMaximizeModeWindowManagerEnabled())
     return;
@@ -364,11 +378,25 @@ void MaximizeModeController::OnMaximizeModeEnded() {
   RecordTouchViewUsageInterval(TOUCH_VIEW_INTERVAL_ACTIVE);
 }
 
+void MaximizeModeController::OnShellInitialized() {
+  force_tablet_mode_ = GetMaximizeMode();
+  if (force_tablet_mode_ == ForceTabletMode::TOUCHVIEW)
+    EnterMaximizeMode();
+}
+
 void MaximizeModeController::OnDisplayConfigurationChanged() {
   if (!display::Display::HasInternalDisplay() ||
-      !Shell::GetInstance()->display_manager()->IsActiveDisplayId(
+      !ShellPort::Get()->IsActiveDisplayId(
           display::Display::InternalDisplayId())) {
     LeaveMaximizeMode();
+  } else if (tablet_mode_switch_is_on_ &&
+             !IsMaximizeModeWindowManagerEnabled()) {
+    // The internal display has returned, as we are exiting docked mode.
+    // The device is still in tablet mode, so trigger maximize mode, as this
+    // switch leads to the ignoring of accelerometer events. When the switch is
+    // not set the next stable accelerometer readings will trigger maximize
+    // mode.
+    EnterMaximizeMode();
   }
 }
 
@@ -400,6 +428,15 @@ MaximizeModeController::CurrentTouchViewIntervalType() {
   return TOUCH_VIEW_INTERVAL_INACTIVE;
 }
 
+void MaximizeModeController::AddObserver(mojom::TouchViewObserverPtr observer) {
+  observer->OnTouchViewToggled(IsMaximizeModeWindowManagerEnabled());
+  observers_.AddPtr(std::move(observer));
+}
+
+bool MaximizeModeController::AllowEnterExitMaximizeMode() const {
+  return force_tablet_mode_ == ForceTabletMode::NONE;
+}
+
 void MaximizeModeController::OnAppTerminating() {
   // The system is about to shut down, so record TouchView usage interval
   // metrics based on whether TouchView mode is currently active.
@@ -420,6 +457,13 @@ void MaximizeModeController::OnAppTerminating() {
           100 * total_touchview_time_.InSeconds() / total_runtime.InSeconds());
     }
   }
+}
+
+void MaximizeModeController::OnGetSwitchStates(
+    chromeos::PowerManagerClient::LidState lid_state,
+    chromeos::PowerManagerClient::TabletMode tablet_mode) {
+  LidEventReceived(lid_state, base::TimeTicks::Now());
+  TabletModeEventReceived(tablet_mode, base::TimeTicks::Now());
 }
 
 bool MaximizeModeController::WasLidOpenedRecently() const {

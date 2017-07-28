@@ -8,27 +8,27 @@
 #include <memory>
 
 #include "ash/ash_export.h"
-#include "ash/shelf/shelf_types.h"
+#include "ash/public/cpp/shelf_types.h"
+#include "ash/shelf/shelf_background_animator_observer.h"
 #include "ash/system/tray/actionable_view.h"
-#include "ash/wm/common/background_animator.h"
 #include "base/macros.h"
 #include "ui/compositor/layer_animation_observer.h"
+#include "ui/gfx/geometry/insets.h"
 #include "ui/views/bubble/tray_bubble_view.h"
 
 namespace ash {
-class ShelfLayoutManager;
-class StatusAreaWidget;
 class TrayEventFilter;
 class TrayBackground;
+class WmShelf;
 
 // Base class for children of StatusAreaWidget: SystemTray, WebNotificationTray,
 // LogoutButtonTray, OverviewButtonTray.
 // This class handles setting and animating the background when the Launcher
-// his shown/hidden. It also inherits from ActionableView so that the tray
+// is shown/hidden. It also inherits from ActionableView so that the tray
 // items can override PerformAction when clicked on.
 class ASH_EXPORT TrayBackgroundView : public ActionableView,
-                                      public BackgroundAnimatorDelegate,
-                                      public ui::ImplicitAnimationObserver {
+                                      public ui::ImplicitAnimationObserver,
+                                      public ShelfBackgroundAnimatorObserver {
  public:
   static const char kViewClassName[];
 
@@ -36,15 +36,12 @@ class ASH_EXPORT TrayBackgroundView : public ActionableView,
   // auto-resizes the widget when necessary.
   class TrayContainer : public views::View {
    public:
-    explicit TrayContainer(wm::ShelfAlignment alignment);
+    explicit TrayContainer(ShelfAlignment alignment);
     ~TrayContainer() override {}
 
-    void SetAlignment(wm::ShelfAlignment alignment);
+    void SetAlignment(ShelfAlignment alignment);
 
-    void set_size(const gfx::Size& size) { size_ = size; }
-
-    // views::View:
-    gfx::Size GetPreferredSize() const override;
+    void SetMargin(int main_axis_margin, int cross_axis_margin);
 
    protected:
     // views::View:
@@ -56,13 +53,17 @@ class ASH_EXPORT TrayBackgroundView : public ActionableView,
    private:
     void UpdateLayout();
 
-    wm::ShelfAlignment alignment_;
-    gfx::Size size_;
+    ShelfAlignment alignment_;
+    int main_axis_margin_ = 0;
+    int cross_axis_margin_ = 0;
 
     DISALLOW_COPY_AND_ASSIGN(TrayContainer);
   };
 
-  explicit TrayBackgroundView(StatusAreaWidget* status_area_widget);
+  // TODO(mohsen): Remove |draws_background| paramter when LogoutButtonTray, as
+  // the only reason for existence of this parameter, is no longer a
+  // TrayBackgroundView. See https://crbug.com/698134.
+  TrayBackgroundView(WmShelf* wm_shelf, bool draws_background);
   ~TrayBackgroundView() override;
 
   // Called after the tray has been added to the widget containing it.
@@ -74,27 +75,23 @@ class ASH_EXPORT TrayBackgroundView : public ActionableView,
   // views::View:
   void SetVisible(bool visible) override;
   const char* GetClassName() const override;
-  void OnMouseEntered(const ui::MouseEvent& event) override;
-  void OnMouseExited(const ui::MouseEvent& event) override;
   void ChildPreferredSizeChanged(views::View* child) override;
-  void GetAccessibleState(ui::AXViewState* state) override;
+  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void AboutToRequestFocusFromTabTraversal(bool reverse) override;
+  void OnPaint(gfx::Canvas* canvas) override;
 
   // ActionableView:
-  bool PerformAction(const ui::Event& event) override;
-  gfx::Rect GetFocusBounds() override;
-  void OnGestureEvent(ui::GestureEvent* event) override;
-
-  // BackgroundAnimatorDelegate:
-  void UpdateBackground(int alpha) override;
+  std::unique_ptr<views::InkDropRipple> CreateInkDropRipple() const override;
+  std::unique_ptr<views::InkDropHighlight> CreateInkDropHighlight()
+      const override;
 
   // Called whenever the shelf alignment changes.
-  virtual void SetShelfAlignment(wm::ShelfAlignment alignment);
+  virtual void SetShelfAlignment(ShelfAlignment alignment);
 
   // Called when the anchor (tray or bubble) may have moved or changed.
   virtual void AnchorUpdated() {}
 
-  // Called from GetAccessibleState, must return a valid accessible name.
+  // Called from GetAccessibleNodeData, must return a valid accessible name.
   virtual base::string16 GetAccessibleNameForTray() = 0;
 
   // Called when the bubble is resized.
@@ -108,56 +105,44 @@ class ASH_EXPORT TrayBackgroundView : public ActionableView,
   // May close the bubble.
   virtual void ClickedOutsideBubble() = 0;
 
-  // Sets |contents| as a child.
-  void SetContents(views::View* contents);
-
-  // Creates and sets contents background to |background_|.
-  void SetContentsBackground();
-
-  // Sets whether the tray paints a background. Default is true, but is set to
-  // false if a window overlaps the shelf.
-  void SetPaintsBackground(bool value,
-                           BackgroundAnimatorChangeType change_type);
-
-  // Returns the window hosting the bubble.
-  aura::Window* GetBubbleWindowContainer() const;
-
-  // Returns the anchor rect for the bubble.
-  gfx::Rect GetBubbleAnchorRect(
-      views::Widget* anchor_widget,
-      views::TrayBubbleView::AnchorType anchor_type,
-      views::TrayBubbleView::AnchorAlignment anchor_alignment) const;
-
   // Returns the bubble anchor alignment based on |shelf_alignment_|.
   views::TrayBubbleView::AnchorAlignment GetAnchorAlignment() const;
 
-  // Forces the background to be drawn active if set to true.
-  void SetDrawBackgroundAsActive(bool visible);
+  void SetIsActive(bool is_active);
+  bool is_active() const { return is_active_; }
 
-  // Returns true when the the background was overridden to be drawn as active.
-  bool draw_background_as_active() const {return draw_background_as_active_; }
-
-  StatusAreaWidget* status_area_widget() {
-    return status_area_widget_;
-  }
-  const StatusAreaWidget* status_area_widget() const {
-    return status_area_widget_;
-  }
   TrayContainer* tray_container() const { return tray_container_; }
-  wm::ShelfAlignment shelf_alignment() const { return shelf_alignment_; }
+  ShelfAlignment shelf_alignment() const { return shelf_alignment_; }
   TrayEventFilter* tray_event_filter() { return tray_event_filter_.get(); }
-
-  ShelfLayoutManager* GetShelfLayoutManager();
+  WmShelf* shelf() { return wm_shelf_; }
 
   // Updates the arrow visibility based on the launcher visibility.
   void UpdateBubbleViewArrow(views::TrayBubbleView* bubble_view);
 
+  // ShelfBackgroundAnimatorObserver:
+  void UpdateShelfItemBackground(SkColor color) override;
+
+  // Updates the visibility of this tray's separator.
+  void set_separator_visibility(bool visible) { separator_visible_ = visible; }
+
+  // Gets the anchor for bubbles, which is tray_container().
+  views::View* GetBubbleAnchor() const;
+
+  // Gets additional insets for positioning bubbles relative to
+  // tray_container().
+  gfx::Insets GetBubbleAnchorInsets() const;
+
+ protected:
+  // ActionableView:
+  std::unique_ptr<views::InkDropMask> CreateInkDropMask() const override;
+  bool ShouldEnterPushedState(const ui::Event& event) override;
+  bool PerformAction(const ui::Event& event) override;
+  void HandlePerformActionResult(bool action_performed,
+                                 const ui::Event& event) override;
+  void OnPaintFocus(gfx::Canvas* canvas) override;
+
  private:
   class TrayWidgetObserver;
-
-  // Called from Initialize after all status area trays have been created.
-  // Sets the border based on the position of the view.
-  void SetTrayBorder();
 
   // ui::ImplicitAnimationObserver:
   void OnImplicitAnimationsCompleted() override;
@@ -167,28 +152,33 @@ class ASH_EXPORT TrayBackgroundView : public ActionableView,
   // SetVisible(false) is called.
   void HideTransformation();
 
-  // Unowned pointer to parent widget.
-  StatusAreaWidget* status_area_widget_;
+  // Helper function that calculates background insets relative to local bounds.
+  gfx::Insets GetBackgroundInsets() const;
+
+  // Helper function that calculates background bounds relative to local bounds
+  // based on background insets returned from GetBackgroundInsets().
+  gfx::Rect GetBackgroundBounds() const;
+
+  // The shelf containing the system tray for this view.
+  WmShelf* wm_shelf_;
 
   // Convenience pointer to the contents view.
   TrayContainer* tray_container_;
 
   // Shelf alignment.
-  wm::ShelfAlignment shelf_alignment_;
+  // TODO(jamescook): Don't cache this, get it from WmShelf.
+  ShelfAlignment shelf_alignment_;
 
   // Owned by the view passed to SetContents().
   TrayBackground* background_;
 
-  // Animators for the background. They are only used for the old shelf layout.
-  BackgroundAnimator hide_background_animator_;
-  BackgroundAnimator hover_background_animator_;
+  // Determines if the view is active. This changes how  the ink drop ripples
+  // behave.
+  bool is_active_;
 
-  // True if the background gets hovered.
-  bool hovered_;
-
-  // This variable stores the activation override which will tint the background
-  // differently if set to true.
-  bool draw_background_as_active_;
+  // Visibility of this tray's separator which is a line of 1x32px and 4px to
+  // right of tray.
+  bool separator_visible_;
 
   std::unique_ptr<TrayWidgetObserver> widget_observer_;
   std::unique_ptr<TrayEventFilter> tray_event_filter_;

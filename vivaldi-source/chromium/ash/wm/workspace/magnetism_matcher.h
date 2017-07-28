@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -14,16 +15,15 @@
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/memory/scoped_vector.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace ash {
 
 enum MagnetismEdge {
-  MAGNETISM_EDGE_TOP    = 1 << 0,
-  MAGNETISM_EDGE_LEFT   = 1 << 1,
+  MAGNETISM_EDGE_TOP = 1 << 0,
+  MAGNETISM_EDGE_LEFT = 1 << 1,
   MAGNETISM_EDGE_BOTTOM = 1 << 2,
-  MAGNETISM_EDGE_RIGHT  = 1 << 3,
+  MAGNETISM_EDGE_RIGHT = 1 << 3,
 };
 
 const uint32_t kAllMagnetismEdges = MAGNETISM_EDGE_TOP | MAGNETISM_EDGE_LEFT |
@@ -51,7 +51,7 @@ class MagnetismEdgeMatcher {
   bool ShouldAttach(const gfx::Rect& bounds);
 
  private:
-  typedef std::pair<int,int> Range;
+  typedef std::pair<int, int> Range;
   typedef std::vector<Range> Ranges;
 
   // Removes |range| from |ranges_|.
@@ -182,7 +182,7 @@ class ASH_EXPORT MagnetismMatcher {
   // The edges to match against.
   const int32_t edges_;
 
-  ScopedVector<MagnetismEdgeMatcher> matchers_;
+  std::vector<std::unique_ptr<MagnetismEdgeMatcher>> matchers_;
 
   DISALLOW_COPY_AND_ASSIGN(MagnetismMatcher);
 };

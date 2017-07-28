@@ -6,8 +6,8 @@
 #define ASH_DEFAULT_ACCESSIBILITY_DELEGATE_H_
 
 #include "ash/accessibility_delegate.h"
+#include "ash/accessibility_types.h"
 #include "ash/ash_export.h"
-#include "base/compiler_specific.h"
 #include "base/macros.h"
 
 namespace ash {
@@ -21,9 +21,9 @@ class ASH_EXPORT DefaultAccessibilityDelegate : public AccessibilityDelegate {
   void ToggleHighContrast() override;
   bool IsHighContrastEnabled() const override;
   void SetMagnifierEnabled(bool enabled) override;
-  void SetMagnifierType(ui::MagnifierType type) override;
+  void SetMagnifierType(MagnifierType type) override;
   bool IsMagnifierEnabled() const override;
-  ui::MagnifierType GetMagnifierType() const override;
+  MagnifierType GetMagnifierType() const override;
   void SetLargeCursorEnabled(bool enabled) override;
   bool IsLargeCursorEnabled() const override;
   void SetAutoclickEnabled(bool enabled) override;
@@ -38,6 +38,10 @@ class ASH_EXPORT DefaultAccessibilityDelegate : public AccessibilityDelegate {
   bool IsCursorHighlightEnabled() const override;
   void SetFocusHighlightEnabled(bool enabled) override;
   bool IsFocusHighlightEnabled() const override;
+  void SetStickyKeysEnabled(bool enabled) override;
+  bool IsStickyKeysEnabled() const override;
+  void SetTapDraggingEnabled(bool enabled) override;
+  bool IsTapDraggingEnabled() const override;
   void SetSelectToSpeakEnabled(bool enabled) override;
   bool IsSelectToSpeakEnabled() const override;
   void SetSwitchAccessEnabled(bool enabled) override;
@@ -45,12 +49,15 @@ class ASH_EXPORT DefaultAccessibilityDelegate : public AccessibilityDelegate {
   bool ShouldShowAccessibilityMenu() const override;
   bool IsBrailleDisplayConnected() const override;
   void SilenceSpokenFeedback() const override;
+  void ClearFocusHighlight() const override;
   void ToggleSpokenFeedback(
-      ui::AccessibilityNotificationVisibility notify) override;
+      AccessibilityNotificationVisibility notify) override;
   void SaveScreenMagnifierScale(double scale) override;
   double GetSavedScreenMagnifierScale() override;
-  void TriggerAccessibilityAlert(ui::AccessibilityAlert alert) override;
-  ui::AccessibilityAlert GetLastAccessibilityAlert() override;
+  void TriggerAccessibilityAlert(AccessibilityAlert alert) override;
+  AccessibilityAlert GetLastAccessibilityAlert() override;
+  bool ShouldToggleSpokenFeedbackViaTouch() override;
+  void PlaySpokenFeedbackToggleCountdown(int tick_count) override;
   void PlayEarcon(int sound_key) override;
   base::TimeDelta PlayShutdownSound() const override;
   void HandleAccessibilityGesture(ui::AXGesture gesture) override;
@@ -59,7 +66,7 @@ class ASH_EXPORT DefaultAccessibilityDelegate : public AccessibilityDelegate {
   bool spoken_feedback_enabled_ = false;
   bool high_contrast_enabled_ = false;
   bool screen_magnifier_enabled_ = false;
-  ui::MagnifierType screen_magnifier_type_ = ui::kDefaultMagnifierType;
+  MagnifierType screen_magnifier_type_ = kDefaultMagnifierType;
   bool large_cursor_enabled_ = false;
   bool autoclick_enabled_ = false;
   bool virtual_keyboard_enabled_ = false;
@@ -67,12 +74,14 @@ class ASH_EXPORT DefaultAccessibilityDelegate : public AccessibilityDelegate {
   bool caret_highlight_enabled_ = false;
   bool cursor_highlight_enabled_ = false;
   bool focus_highligh_enabled_ = false;
+  bool sticky_keys_enabled_ = false;
+  bool tap_dragging_enabled_ = false;
   bool select_to_speak_enabled_ = false;
   bool switch_access_enabled_ = false;
-  ui::AccessibilityAlert accessibility_alert_ = ui::A11Y_ALERT_NONE;
+  AccessibilityAlert accessibility_alert_ = A11Y_ALERT_NONE;
   DISALLOW_COPY_AND_ASSIGN(DefaultAccessibilityDelegate);
 };
 
 }  // namespace ash
 
-#endif  // DEFAULT_ACCESSIBILITY_DELEGATE_H_
+#endif  // ASH_DEFAULT_ACCESSIBILITY_DELEGATE_H_

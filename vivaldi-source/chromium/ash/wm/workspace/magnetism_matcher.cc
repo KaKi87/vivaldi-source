@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "base/memory/ptr_util.h"
+
 namespace ash {
 namespace {
 
@@ -52,13 +54,11 @@ bool CanMatchSecondaryEdge(MagnetismEdge primary,
 
 MagnetismEdgeMatcher::MagnetismEdgeMatcher(const gfx::Rect& bounds,
                                            MagnetismEdge edge)
-    : bounds_(bounds),
-      edge_(edge) {
+    : bounds_(bounds), edge_(edge) {
   ranges_.push_back(GetSecondaryRange(bounds_));
 }
 
-MagnetismEdgeMatcher::~MagnetismEdgeMatcher() {
-}
+MagnetismEdgeMatcher::~MagnetismEdgeMatcher() {}
 
 bool MagnetismEdgeMatcher::ShouldAttach(const gfx::Rect& bounds) {
   if (is_edge_obscured())
@@ -94,9 +94,8 @@ void MagnetismEdgeMatcher::UpdateRanges(const Range& range) {
     return;
 
   for (size_t i = it - ranges_.begin();
-       i < ranges_.size() && RangesIntersect(ranges_[i], range); ) {
-    if (range.first <= ranges_[i].first &&
-        range.second >= ranges_[i].second) {
+       i < ranges_.size() && RangesIntersect(ranges_[i], range);) {
+    if (range.first <= ranges_[i].first && range.second >= ranges_[i].second) {
       ranges_.erase(ranges_.begin() + i);
     } else if (range.first < ranges_[i].first) {
       DCHECK_GT(range.second, ranges_[i].first);
@@ -122,26 +121,31 @@ const int MagnetismMatcher::kMagneticDistance = 8;
 
 MagnetismMatcher::MagnetismMatcher(const gfx::Rect& bounds, uint32_t edges)
     : edges_(edges) {
-  if (edges & MAGNETISM_EDGE_TOP)
-    matchers_.push_back(new MagnetismEdgeMatcher(bounds, MAGNETISM_EDGE_TOP));
-  if (edges & MAGNETISM_EDGE_LEFT)
-    matchers_.push_back(new MagnetismEdgeMatcher(bounds, MAGNETISM_EDGE_LEFT));
-  if (edges & MAGNETISM_EDGE_BOTTOM) {
-    matchers_.push_back(new MagnetismEdgeMatcher(bounds,
-                                                 MAGNETISM_EDGE_BOTTOM));
+  if (edges & MAGNETISM_EDGE_TOP) {
+    matchers_.push_back(
+        base::MakeUnique<MagnetismEdgeMatcher>(bounds, MAGNETISM_EDGE_TOP));
   }
-  if (edges & MAGNETISM_EDGE_RIGHT)
-    matchers_.push_back(new MagnetismEdgeMatcher(bounds, MAGNETISM_EDGE_RIGHT));
+  if (edges & MAGNETISM_EDGE_LEFT) {
+    matchers_.push_back(
+        base::MakeUnique<MagnetismEdgeMatcher>(bounds, MAGNETISM_EDGE_LEFT));
+  }
+  if (edges & MAGNETISM_EDGE_BOTTOM) {
+    matchers_.push_back(
+        base::MakeUnique<MagnetismEdgeMatcher>(bounds, MAGNETISM_EDGE_BOTTOM));
+  }
+  if (edges & MAGNETISM_EDGE_RIGHT) {
+    matchers_.push_back(
+        base::MakeUnique<MagnetismEdgeMatcher>(bounds, MAGNETISM_EDGE_RIGHT));
+  }
 }
 
-MagnetismMatcher::~MagnetismMatcher() {
-}
+MagnetismMatcher::~MagnetismMatcher() {}
 
 bool MagnetismMatcher::ShouldAttach(const gfx::Rect& bounds,
                                     MatchedEdge* edge) {
-  for (size_t i = 0; i < matchers_.size(); ++i) {
-    if (matchers_[i]->ShouldAttach(bounds)) {
-      edge->primary_edge = matchers_[i]->edge();
+  for (const auto& matcher : matchers_) {
+    if (matcher->ShouldAttach(bounds)) {
+      edge->primary_edge = matcher->edge();
       AttachToSecondaryEdge(bounds, edge->primary_edge,
                             &(edge->secondary_edge));
       return true;
@@ -151,8 +155,8 @@ bool MagnetismMatcher::ShouldAttach(const gfx::Rect& bounds,
 }
 
 bool MagnetismMatcher::AreEdgesObscured() const {
-  for (size_t i = 0; i < matchers_.size(); ++i) {
-    if (!matchers_[i]->is_edge_obscured())
+  for (const auto& matcher : matchers_) {
+    if (!matcher->is_edge_obscured())
       return false;
   }
   return true;

@@ -6,26 +6,22 @@
 
 #include <utility>
 
-#include "ash/common/shelf/wm_shelf.h"
-#include "ash/common/shell_window_ids.h"
-#include "ash/common/wm/dock/docked_window_layout_manager.h"
-#include "ash/common/wm/fullscreen_window_finder.h"
-#include "ash/common/wm/window_state.h"
-#include "ash/common/wm/wm_window_animations.h"
-#include "ash/common/wm/workspace/workspace_layout_manager.h"
-#include "ash/common/wm/workspace/workspace_layout_manager_backdrop_delegate.h"
-#include "ash/common/wm_root_window_controller.h"
-#include "ash/common/wm_window.h"
+#include "ash/public/cpp/shell_window_ids.h"
+#include "ash/root_window_controller.h"
+#include "ash/shelf/wm_shelf.h"
+#include "ash/shell_port.h"
+#include "ash/wm/fullscreen_window_finder.h"
+#include "ash/wm/window_state.h"
+#include "ash/wm/window_state_aura.h"
+#include "ash/wm/wm_window_animations.h"
 #include "ash/wm/workspace/workspace_event_handler.h"
+#include "ash/wm/workspace/workspace_layout_manager.h"
+#include "ash/wm/workspace/workspace_layout_manager_backdrop_delegate.h"
+#include "ash/wm_window.h"
 #include "base/memory/ptr_util.h"
-#include "ui/aura/client/aura_constants.h"
 #include "ui/aura/window.h"
-#include "ui/aura/window_event_dispatcher.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
-#include "ui/wm/core/visibility_controller.h"
-#include "ui/wm/core/window_animations.h"
-#include "ui/wm/public/activation_client.h"
 
 namespace ash {
 namespace {
@@ -41,53 +37,48 @@ const int kInitialAnimationDurationMS = 200;
 
 WorkspaceController::WorkspaceController(WmWindow* viewport)
     : viewport_(viewport),
-      event_handler_(new WorkspaceEventHandler),
+      event_handler_(ShellPort::Get()->CreateWorkspaceEventHandler(viewport)),
       layout_manager_(new WorkspaceLayoutManager(viewport)) {
+  viewport_->aura_window()->AddObserver(this);
   viewport_->SetVisibilityAnimationTransition(::wm::ANIMATE_NONE);
   viewport_->SetLayoutManager(base::WrapUnique(layout_manager_));
-  viewport_->AddLimitedPreTargetHandler(event_handler_.get());
 }
 
 WorkspaceController::~WorkspaceController() {
+  if (!viewport_)
+    return;
+
+  viewport_->aura_window()->RemoveObserver(this);
   viewport_->SetLayoutManager(nullptr);
-  viewport_->RemoveLimitedPreTargetHandler(event_handler_.get());
 }
 
 wm::WorkspaceWindowState WorkspaceController::GetWindowState() const {
-  if (!viewport_->GetRootWindowController()->HasShelf())
+  if (!viewport_ || !viewport_->GetRootWindowController()->HasShelf())
     return wm::WORKSPACE_WINDOW_STATE_DEFAULT;
 
   const WmWindow* fullscreen = wm::GetWindowForFullscreenMode(viewport_);
   if (fullscreen && !fullscreen->GetWindowState()->ignored_by_shelf())
     return wm::WORKSPACE_WINDOW_STATE_FULL_SCREEN;
 
-  // These are the container ids of containers which may contain windows that
-  // may overlap the launcher shelf and affect its transparency.
-  const int kWindowContainerIds[] = {
-      kShellWindowId_DefaultContainer, kShellWindowId_DockedContainer,
-  };
-  const gfx::Rect shelf_bounds(
-      viewport_->GetRootWindowController()->GetShelf()->GetIdealBounds());
+  const gfx::Rect shelf_bounds(WmShelf::ForWindow(viewport_)->GetIdealBounds());
   bool window_overlaps_launcher = false;
-  for (size_t i = 0; i < arraysize(kWindowContainerIds); i++) {
-    WmWindow* container = viewport_->GetRootWindow()->GetChildByShellWindowId(
-        kWindowContainerIds[i]);
-    for (WmWindow* window : container->GetChildren()) {
-      wm::WindowState* window_state = window->GetWindowState();
-      if (window_state->ignored_by_shelf() ||
-          !window->GetLayer()->GetTargetVisibility()) {
-        continue;
-      }
-      if (window_state->IsMaximized())
-        return wm::WORKSPACE_WINDOW_STATE_MAXIMIZED;
-      window_overlaps_launcher |= window->GetBounds().Intersects(shelf_bounds);
+  // The default container may contain windows that may overlap the launcher
+  // shelf and affect its transparency.
+  aura::Window* container =
+      viewport_->GetRootWindow()->aura_window()->GetChildById(
+          kShellWindowId_DefaultContainer);
+  for (aura::Window* window : container->children()) {
+    wm::WindowState* window_state = wm::GetWindowState(window);
+    if (window_state->ignored_by_shelf() ||
+        (window->layer() && !window->layer()->GetTargetVisibility())) {
+      continue;
     }
+    if (window_state->IsMaximized())
+      return wm::WORKSPACE_WINDOW_STATE_MAXIMIZED;
+    window_overlaps_launcher |= window->bounds().Intersects(shelf_bounds);
   }
 
-  // Check if there are visible docked windows in the same display.
-  DockedWindowLayoutManager* dock = DockedWindowLayoutManager::Get(viewport_);
-  const bool docked_area_visible = dock && !dock->docked_bounds().IsEmpty();
-  return (window_overlaps_launcher || docked_area_visible)
+  return window_overlaps_launcher
              ? wm::WORKSPACE_WINDOW_STATE_WINDOW_OVERLAPS_SHELF
              : wm::WORKSPACE_WINDOW_STATE_DEFAULT;
 }
@@ -123,6 +114,15 @@ void WorkspaceController::DoInitialAnimation() {
 void WorkspaceController::SetMaximizeBackdropDelegate(
     std::unique_ptr<WorkspaceLayoutManagerBackdropDelegate> delegate) {
   layout_manager_->SetMaximizeBackdropDelegate(std::move(delegate));
+}
+
+void WorkspaceController::OnWindowDestroying(aura::Window* window) {
+  DCHECK_EQ(WmWindow::Get(window), viewport_);
+  viewport_->aura_window()->RemoveObserver(this);
+  viewport_ = nullptr;
+  // Destroy |event_handler_| too as it depends upon |window|.
+  event_handler_.reset();
+  layout_manager_ = nullptr;
 }
 
 }  // namespace ash

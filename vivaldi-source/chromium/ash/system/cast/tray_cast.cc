@@ -4,35 +4,33 @@
 
 #include "ash/system/cast/tray_cast.h"
 
-#include "ash/session/session_state_delegate.h"
-#include "ash/shelf/shelf_types.h"
-#include "ash/shelf/shelf_util.h"
+#include <map>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "ash/public/interfaces/cast_config.mojom.h"
+#include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shell.h"
-#include "ash/system/chromeos/screen_security/screen_tray_item.h"
-#include "ash/system/tray/fixed_sized_image_view.h"
-#include "ash/system/tray/fixed_sized_scroll_view.h"
+#include "ash/shell_port.h"
+#include "ash/strings/grit/ash_strings.h"
+#include "ash/system/screen_security/screen_tray_item.h"
 #include "ash/system/tray/hover_highlight_view.h"
 #include "ash/system/tray/system_tray.h"
-#include "ash/system/tray/system_tray_delegate.h"
-#include "ash/system/tray/system_tray_notifier.h"
-#include "ash/system/tray/throbber_view.h"
 #include "ash/system/tray/tray_constants.h"
 #include "ash/system/tray/tray_details_view.h"
 #include "ash/system/tray/tray_item_more.h"
 #include "ash/system/tray/tray_item_view.h"
-#include "ash/system/tray/tray_popup_label_button.h"
-#include "ash/wm/common/shelf/wm_shelf_util.h"
-#include "base/bind.h"
-#include "grit/ash_resources.h"
-#include "grit/ash_strings.h"
+#include "base/strings/utf_string_conversions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/image/image.h"
+#include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_elider.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
-#include "ui/views/layout/box_layout.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/layout/fill_layout.h"
 
 namespace ash {
@@ -40,14 +38,6 @@ namespace ash {
 namespace {
 
 const size_t kMaximumStatusStringLength = 100;
-const int kStopButtonRightPadding = 18;
-
-// Returns the active CastConfigDelegate instance.
-ash::CastConfigDelegate* GetCastConfigDelegate() {
-  return ash::Shell::GetInstance()
-      ->system_tray_delegate()
-      ->GetCastConfigDelegate();
-}
 
 // Helper method to elide the given string to the maximum length. If a string is
 // contains user-input and is displayed, we should elide it.
@@ -70,21 +60,20 @@ namespace tray {
 // actually pick the cast receiver.
 class CastSelectDefaultView : public TrayItemMore {
  public:
-  CastSelectDefaultView(SystemTrayItem* owner,
-                        bool show_more);
+  explicit CastSelectDefaultView(SystemTrayItem* owner);
   ~CastSelectDefaultView() override;
+
+ protected:
+  // TrayItemMore:
+  void UpdateStyle() override;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CastSelectDefaultView);
 };
 
-CastSelectDefaultView::CastSelectDefaultView(SystemTrayItem* owner,
-                                             bool show_more)
-    : TrayItemMore(owner, show_more) {
+CastSelectDefaultView::CastSelectDefaultView(SystemTrayItem* owner)
+    : TrayItemMore(owner) {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-
-  // Update the image and label.
-  SetImage(rb.GetImageNamed(IDR_AURA_UBER_TRAY_CAST).ToImageSkia());
   base::string16 label =
       rb.GetLocalizedString(IDS_ASH_STATUS_TRAY_CAST_DESKTOP);
   SetLabel(label);
@@ -93,153 +82,108 @@ CastSelectDefaultView::CastSelectDefaultView(SystemTrayItem* owner,
 
 CastSelectDefaultView::~CastSelectDefaultView() {}
 
+void CastSelectDefaultView::UpdateStyle() {
+  TrayItemMore::UpdateStyle();
+
+  std::unique_ptr<TrayPopupItemStyle> style = CreateStyle();
+  SetImage(gfx::CreateVectorIcon(kSystemMenuCastIcon, style->GetIconColor()));
+}
+
 // This view is displayed when the screen is actively being casted; it allows
 // the user to easily stop casting. It fully replaces the
 // |CastSelectDefaultView| view inside of the |CastDuplexView|.
-class CastCastView : public views::View, public views::ButtonListener {
+class CastCastView : public ScreenStatusView {
  public:
   CastCastView();
   ~CastCastView() override;
 
   void StopCasting();
 
-  const std::string& displayed_activity_id() const {
-    return displayed_activity_id_;
-  }
+  const std::string& displayed_route_id() const { return displayed_route_->id; }
 
   // Updates the label for the stop view to include information about the
   // current device that is being casted.
-  void UpdateLabel(
-      const CastConfigDelegate::ReceiversAndActivities& receivers_activities);
+  void UpdateLabel(const std::vector<mojom::SinkAndRoutePtr>& sinks_routes);
 
  private:
-  // Overridden from views::View.
-  int GetHeightForWidth(int width) const override;
-  void Layout() override;
-
   // Overridden from views::ButtonListener.
   void ButtonPressed(views::Button* sender, const ui::Event& event) override;
 
   // The cast activity id that we are displaying. If the user stops a cast, we
   // send this value to the config delegate so that we stop the right cast.
-  std::string displayed_activity_id_;
-
-  views::ImageView* icon_;
-  views::Label* label_;
-  TrayPopupLabelButton* stop_button_;
+  mojom::CastRoutePtr displayed_route_;
 
   DISALLOW_COPY_AND_ASSIGN(CastCastView);
 };
 
-CastCastView::CastCastView() {
-  // We will initialize the primary tray view which shows a stop button here.
-
-  set_background(views::Background::CreateSolidBackground(kBackgroundColor));
-  ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
-  SetLayoutManager(new views::BoxLayout(views::BoxLayout::kHorizontal,
-                                        kTrayPopupPaddingHorizontal, 0,
-                                        kTrayPopupPaddingBetweenItems));
-  icon_ = new FixedSizedImageView(0, kTrayPopupItemHeight);
-  icon_->SetImage(
-      bundle.GetImageNamed(IDR_AURA_UBER_TRAY_CAST_ENABLED).ToImageSkia());
-  AddChildView(icon_);
-
-  // The label which describes both what we are casting (ie, the desktop) and
-  // where we are casting it to.
-  label_ = new views::Label;
-  label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  label_->SetMultiLine(true);
-  label_->SetText(
-      bundle.GetLocalizedString(IDS_ASH_STATUS_TRAY_CAST_CAST_UNKNOWN));
-  AddChildView(label_);
-
-  // Add the stop bottom on the far-right. We customize how this stop button is
-  // displayed inside of |Layout()|.
-  base::string16 stop_button_text =
-      ui::ResourceBundle::GetSharedInstance().GetLocalizedString(
-          IDS_ASH_STATUS_TRAY_CAST_STOP);
-  stop_button_ = new TrayPopupLabelButton(this, stop_button_text);
-  AddChildView(stop_button_);
+CastCastView::CastCastView()
+    : ScreenStatusView(
+          nullptr,
+          l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_CAST_CAST_UNKNOWN),
+          l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_CAST_STOP)) {
+  icon()->SetImage(
+      gfx::CreateVectorIcon(kSystemMenuCastEnabledIcon, kMenuIconColor));
 }
 
-CastCastView::~CastCastView() {
-}
-
-int CastCastView::GetHeightForWidth(int width) const {
-  // We are reusing the cached label_->bounds() calculation which was
-  // done inside of Layout(). Due to the way this object is initialized,
-  // Layout() will always get initially invoked with the dummy text
-  // (which will compute the proper label width) and then when we know
-  // the cast receiver we will update the label text, which will cause
-  // this method to get invoked.
-  return std::max(views::View::GetHeightForWidth(width),
-                  kTrayPopupPaddingBetweenItems * 2 +
-                      label_->GetHeightForWidth(label_->bounds().width()));
-}
-
-void CastCastView::Layout() {
-  views::View::Layout();
-
-  // Give the stop button the space it requests.
-  gfx::Size stop_size = stop_button_->GetPreferredSize();
-  gfx::Rect stop_bounds(stop_size);
-  stop_bounds.set_x(width() - stop_size.width() - kStopButtonRightPadding);
-  stop_bounds.set_y((height() - stop_size.height()) / 2);
-  stop_button_->SetBoundsRect(stop_bounds);
-
-  // Adjust the label's bounds in case it got cut off by |stop_button_|.
-  if (label_->bounds().Intersects(stop_button_->bounds())) {
-    gfx::Rect label_bounds = label_->bounds();
-    label_bounds.set_width(stop_button_->x() - kTrayPopupPaddingBetweenItems -
-                           label_->x());
-    label_->SetBoundsRect(label_bounds);
-  }
-}
+CastCastView::~CastCastView() {}
 
 void CastCastView::StopCasting() {
-  GetCastConfigDelegate()->StopCasting(displayed_activity_id_);
-  Shell::GetInstance()->metrics()->RecordUserMetricsAction(
-      ash::UMA_STATUS_AREA_CAST_STOP_CAST);
+  Shell::Get()->cast_config()->StopCasting(displayed_route_.Clone());
+  ShellPort::Get()->RecordUserMetricsAction(UMA_STATUS_AREA_CAST_STOP_CAST);
 }
 
 void CastCastView::UpdateLabel(
-    const CastConfigDelegate::ReceiversAndActivities& receivers_activities) {
-  for (auto& i : receivers_activities) {
-    const CastConfigDelegate::Receiver& receiver = i.receiver;
-    const CastConfigDelegate::Activity& activity = i.activity;
+    const std::vector<mojom::SinkAndRoutePtr>& sinks_routes) {
+  for (auto& i : sinks_routes) {
+    const mojom::CastSinkPtr& sink = i->sink;
+    const mojom::CastRoutePtr& route = i->route;
 
-    if (!activity.id.empty()) {
-      displayed_activity_id_ = activity.id;
+    // We only want to display casts that came from this machine, since on a
+    // busy network many other people could be casting.
+    if (!route->id.empty() && route->is_local_source) {
+      displayed_route_ = route.Clone();
 
       // We want to display different labels inside of the title depending on
       // what we are actually casting - either the desktop, a tab, or a fallback
       // that catches everything else (ie, an extension tab).
-      if (activity.tab_id == CastConfigDelegate::Activity::TabId::DESKTOP) {
-        label_->SetText(ElideString(l10n_util::GetStringFUTF16(
-            IDS_ASH_STATUS_TRAY_CAST_CAST_DESKTOP, receiver.name)));
-      } else if (activity.tab_id >= 0) {
-        label_->SetText(ElideString(l10n_util::GetStringFUTF16(
-            IDS_ASH_STATUS_TRAY_CAST_CAST_TAB, activity.title, receiver.name)));
-      } else {
-        label_->SetText(
-            l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_CAST_CAST_UNKNOWN));
+      switch (route->content_source) {
+        case ash::mojom::ContentSource::UNKNOWN:
+          label()->SetText(
+              l10n_util::GetStringUTF16(IDS_ASH_STATUS_TRAY_CAST_CAST_UNKNOWN));
+          stop_button()->SetAccessibleName(l10n_util::GetStringUTF16(
+              IDS_ASH_STATUS_TRAY_CAST_CAST_UNKNOWN_ACCESSIBILITY_STOP));
+          break;
+        case ash::mojom::ContentSource::TAB:
+          label()->SetText(ElideString(l10n_util::GetStringFUTF16(
+              IDS_ASH_STATUS_TRAY_CAST_CAST_TAB,
+              base::UTF8ToUTF16(route->title), base::UTF8ToUTF16(sink->name))));
+          stop_button()->SetAccessibleName(
+              ElideString(l10n_util::GetStringFUTF16(
+                  IDS_ASH_STATUS_TRAY_CAST_CAST_TAB_ACCESSIBILITY_STOP,
+                  base::UTF8ToUTF16(route->title),
+                  base::UTF8ToUTF16(sink->name))));
+          break;
+        case ash::mojom::ContentSource::DESKTOP:
+          label()->SetText(ElideString(
+              l10n_util::GetStringFUTF16(IDS_ASH_STATUS_TRAY_CAST_CAST_DESKTOP,
+                                         base::UTF8ToUTF16(sink->name))));
+          stop_button()->SetAccessibleName(
+              ElideString(l10n_util::GetStringFUTF16(
+                  IDS_ASH_STATUS_TRAY_CAST_CAST_DESKTOP_ACCESSIBILITY_STOP,
+                  base::UTF8ToUTF16(sink->name))));
+          break;
       }
 
       PreferredSizeChanged();
       Layout();
-
-      // If this machine is the source of the activity, then we want to display
-      // it over any other activity. There can be multiple activities if other
-      // devices on the network are casting at the same time.
-      if (activity.is_local_source)
-        break;
+      // Only need to update labels once.
+      break;
     }
   }
 }
 
 void CastCastView::ButtonPressed(views::Button* sender,
                                  const ui::Event& event) {
-  DCHECK(sender == stop_button_);
   StopCasting();
 }
 
@@ -248,10 +192,9 @@ void CastCastView::ButtonPressed(views::Button* sender,
 // is active.
 class CastDuplexView : public views::View {
  public:
-  CastDuplexView(
-      SystemTrayItem* owner,
-      bool show_more,
-      const CastConfigDelegate::ReceiversAndActivities& receivers_activities);
+  CastDuplexView(SystemTrayItem* owner,
+                 bool enabled,
+                 const std::vector<mojom::SinkAndRoutePtr>& sinks_routes);
   ~CastDuplexView() override;
 
   // Activate either the casting or select view.
@@ -278,11 +221,12 @@ class CastDuplexView : public views::View {
 
 CastDuplexView::CastDuplexView(
     SystemTrayItem* owner,
-    bool show_more,
-    const CastConfigDelegate::ReceiversAndActivities& receivers_activities) {
-  select_view_ = new CastSelectDefaultView(owner, show_more);
+    bool enabled,
+    const std::vector<mojom::SinkAndRoutePtr>& sinks_routes) {
+  select_view_ = new CastSelectDefaultView(owner);
+  select_view_->SetEnabled(enabled);
   cast_view_ = new CastCastView();
-  cast_view_->UpdateLabel(receivers_activities);
+  cast_view_->UpdateLabel(sinks_routes);
   SetLayoutManager(new views::FillLayout());
 
   ActivateSelectView();
@@ -337,10 +281,6 @@ class CastTrayView : public TrayItemView {
   explicit CastTrayView(SystemTrayItem* tray_item);
   ~CastTrayView() override;
 
-  // Called when the tray alignment changes so that the icon can recenter
-  // itself.
-  void UpdateAlignment(wm::ShelfAlignment alignment);
-
  private:
   DISALLOW_COPY_AND_ASSIGN(CastTrayView);
 };
@@ -348,33 +288,19 @@ class CastTrayView : public TrayItemView {
 CastTrayView::CastTrayView(SystemTrayItem* tray_item)
     : TrayItemView(tray_item) {
   CreateImageView();
-
-  image_view()->SetImage(ui::ResourceBundle::GetSharedInstance()
-                             .GetImageNamed(IDR_AURA_UBER_TRAY_SCREENSHARE)
-                             .ToImageSkia());
+  image_view()->SetImage(
+      gfx::CreateVectorIcon(kSystemTrayCastIcon, kTrayIconColor));
 }
 
-CastTrayView::~CastTrayView() {
-}
-
-void CastTrayView::UpdateAlignment(wm::ShelfAlignment alignment) {
-  // Center the item dependent on the orientation of the shelf.
-  views::BoxLayout::Orientation layout = wm::IsHorizontalAlignment(alignment)
-                                             ? views::BoxLayout::kVertical
-                                             : views::BoxLayout::kHorizontal;
-  SetLayoutManager(new views::BoxLayout(layout, 0, 0, 0));
-  Layout();
-}
+CastTrayView::~CastTrayView() {}
 
 // This view displays a list of cast receivers that can be clicked on and casted
 // to. It is activated by clicking on the chevron inside of
 // |CastSelectDefaultView|.
-class CastDetailedView : public TrayDetailsView, public ViewClickListener {
+class CastDetailedView : public TrayDetailsView {
  public:
   CastDetailedView(SystemTrayItem* owner,
-                   user::LoginStatus login,
-                   const CastConfigDelegate::ReceiversAndActivities&
-                       receivers_and_activities);
+                   const std::vector<mojom::SinkAndRoutePtr>& sinks_and_routes);
   ~CastDetailedView() override;
 
   // Makes the detail view think the view associated with the given receiver_id
@@ -382,50 +308,41 @@ class CastDetailedView : public TrayDetailsView, public ViewClickListener {
   void SimulateViewClickedForTest(const std::string& receiver_id);
 
   // Updates the list of available receivers.
-  void UpdateReceiverList(const CastConfigDelegate::ReceiversAndActivities&
-                              new_receivers_and_activities);
+  void UpdateReceiverList(
+      const std::vector<mojom::SinkAndRoutePtr>& sinks_routes);
 
  private:
   void CreateItems();
 
   void UpdateReceiverListFromCachedData();
-  views::View* AddToReceiverList(
-      const CastConfigDelegate::ReceiverAndActivity& receiverActivity);
+  views::View* AddToReceiverList(const mojom::SinkAndRoutePtr& sink_route);
 
-  void AppendSettingsEntries();
-  void AppendHeaderEntry();
+  // TrayDetailsView:
+  void HandleViewClicked(views::View* view) override;
 
-  // Overridden from ViewClickListener.
-  void OnViewClicked(views::View* sender) override;
-
-  user::LoginStatus login_;
-  views::View* options_ = nullptr;
   // A mapping from the receiver id to the receiver/activity data.
-  std::map<std::string, CastConfigDelegate::ReceiverAndActivity>
-      receivers_and_activities_;
+  std::map<std::string, ash::mojom::SinkAndRoutePtr> sinks_and_routes_;
   // A mapping from the view pointer to the associated activity id.
-  std::map<views::View*, std::string> receiver_activity_map_;
+  std::map<views::View*, ash::mojom::CastSinkPtr> view_to_sink_map_;
 
   DISALLOW_COPY_AND_ASSIGN(CastDetailedView);
 };
 
 CastDetailedView::CastDetailedView(
     SystemTrayItem* owner,
-    user::LoginStatus login,
-    const CastConfigDelegate::ReceiversAndActivities& receivers_and_activities)
-    : TrayDetailsView(owner), login_(login) {
+    const std::vector<mojom::SinkAndRoutePtr>& sinks_routes)
+    : TrayDetailsView(owner) {
   CreateItems();
-  UpdateReceiverList(receivers_and_activities);
+  UpdateReceiverList(sinks_routes);
 }
 
-CastDetailedView::~CastDetailedView() {
-}
+CastDetailedView::~CastDetailedView() {}
 
 void CastDetailedView::SimulateViewClickedForTest(
     const std::string& receiver_id) {
-  for (auto& it : receiver_activity_map_) {
-    if (it.second == receiver_id) {
-      OnViewClicked(it.first);
+  for (const auto& it : view_to_sink_map_) {
+    if (it.second->id == receiver_id) {
+      HandleViewClicked(it.first);
       break;
     }
   }
@@ -433,34 +350,29 @@ void CastDetailedView::SimulateViewClickedForTest(
 
 void CastDetailedView::CreateItems() {
   CreateScrollableList();
-  if (GetCastConfigDelegate()->HasOptions())
-    AppendSettingsEntries();
-  AppendHeaderEntry();
+  CreateTitleRow(IDS_ASH_STATUS_TRAY_CAST);
 }
 
 void CastDetailedView::UpdateReceiverList(
-    const CastConfigDelegate::ReceiversAndActivities&
-        new_receivers_and_activities) {
+    const std::vector<mojom::SinkAndRoutePtr>& sinks_routes) {
   // Add/update existing.
-  for (auto i = new_receivers_and_activities.begin();
-       i != new_receivers_and_activities.end(); ++i) {
-    receivers_and_activities_[i->receiver.id] = *i;
-  }
+  for (const auto& it : sinks_routes)
+    sinks_and_routes_[it->sink->id] = it->Clone();
 
-  // Remove non-existent receivers. Removing an element invalidates all existing
+  // Remove non-existent sinks. Removing an element invalidates all existing
   // iterators.
-  auto i = receivers_and_activities_.begin();
-  while (i != receivers_and_activities_.end()) {
+  auto i = sinks_and_routes_.begin();
+  while (i != sinks_and_routes_.end()) {
     bool has_receiver = false;
-    for (auto receiver : new_receivers_and_activities) {
-      if (i->first == receiver.receiver.id)
+    for (auto& receiver : sinks_routes) {
+      if (i->first == receiver->sink->id)
         has_receiver = true;
     }
 
     if (has_receiver)
       ++i;
     else
-      i = receivers_and_activities_.erase(i);
+      i = sinks_and_routes_.erase(i);
   }
 
   // Update UI.
@@ -470,87 +382,54 @@ void CastDetailedView::UpdateReceiverList(
 
 void CastDetailedView::UpdateReceiverListFromCachedData() {
   // Remove all of the existing views.
-  receiver_activity_map_.clear();
+  view_to_sink_map_.clear();
   scroll_content()->RemoveAllChildViews(true);
 
   // Add a view for each receiver.
-  for (auto& it : receivers_and_activities_) {
-    const CastConfigDelegate::ReceiverAndActivity& receiver_activity =
-        it.second;
-    views::View* container = AddToReceiverList(receiver_activity);
-    receiver_activity_map_[container] = it.first;
+  for (auto& it : sinks_and_routes_) {
+    const ash::mojom::SinkAndRoutePtr& sink_route = it.second;
+    views::View* container = AddToReceiverList(sink_route);
+    view_to_sink_map_[container] = sink_route->sink.Clone();
   }
 
   scroll_content()->SizeToPreferredSize();
-  static_cast<views::View*>(scroller())->Layout();
+  scroller()->Layout();
 }
 
 views::View* CastDetailedView::AddToReceiverList(
-    const CastConfigDelegate::ReceiverAndActivity& receiverActivity) {
-  HoverHighlightView* container = new HoverHighlightView(this);
+    const ash::mojom::SinkAndRoutePtr& sink_route) {
+  const gfx::ImageSkia image =
+      gfx::CreateVectorIcon(kSystemMenuCastDeviceIcon, kMenuIconColor);
 
-  const gfx::ImageSkia* image =
-      ui::ResourceBundle::GetSharedInstance()
-          .GetImageNamed(IDR_AURA_UBER_TRAY_CAST_DEVICE_ICON)
-          .ToImageSkia();
-  const base::string16& name = receiverActivity.receiver.name;
-  container->AddIndentedIconAndLabel(*image, name, false);
+  HoverHighlightView* container = new HoverHighlightView(this);
+  container->AddIconAndLabel(image, base::UTF8ToUTF16(sink_route->sink->name));
 
   scroll_content()->AddChildView(container);
   return container;
 }
 
-void CastDetailedView::AppendSettingsEntries() {
-  // Settings requires a browser window, hide it for non logged in user.
-  const bool userAddingRunning = Shell::GetInstance()
-                                     ->session_state_delegate()
-                                     ->IsInSecondaryLoginScreen();
-
-  if (login_ == user::LOGGED_IN_NONE || login_ == user::LOGGED_IN_LOCKED ||
-      userAddingRunning)
-    return;
-
-  ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  HoverHighlightView* container = new HoverHighlightView(this);
-  container->AddLabel(rb.GetLocalizedString(IDS_ASH_STATUS_TRAY_CAST_OPTIONS),
-                      gfx::ALIGN_LEFT, false /* highlight */);
-
-  AddChildView(container);
-  options_ = container;
-}
-
-void CastDetailedView::AppendHeaderEntry() {
-  CreateSpecialRow(IDS_ASH_STATUS_TRAY_CAST, this);
-}
-
-void CastDetailedView::OnViewClicked(views::View* sender) {
-  ash::CastConfigDelegate* cast_config_delegate = GetCastConfigDelegate();
-
-  if (sender == footer()->content()) {
-    TransitionToDefaultView();
-  } else if (sender == options_) {
-    cast_config_delegate->LaunchCastOptions();
-  } else {
-    // Find the receiver we are going to cast to
-    auto it = receiver_activity_map_.find(sender);
-    if (it != receiver_activity_map_.end()) {
-      cast_config_delegate->CastToReceiver(it->second);
-      Shell::GetInstance()->metrics()->RecordUserMetricsAction(
-          ash::UMA_STATUS_AREA_DETAILED_CAST_VIEW_LAUNCH_CAST);
-    }
+void CastDetailedView::HandleViewClicked(views::View* view) {
+  // Find the receiver we are going to cast to.
+  auto it = view_to_sink_map_.find(view);
+  if (it != view_to_sink_map_.end()) {
+    Shell::Get()->cast_config()->CastToSink(it->second.Clone());
+    ShellPort::Get()->RecordUserMetricsAction(
+        UMA_STATUS_AREA_DETAILED_CAST_VIEW_LAUNCH_CAST);
   }
 }
 
 }  // namespace tray
 
-TrayCast::TrayCast(SystemTray* system_tray) : SystemTrayItem(system_tray) {
-  Shell::GetInstance()->AddShellObserver(this);
+TrayCast::TrayCast(SystemTray* system_tray)
+    : SystemTrayItem(system_tray, UMA_CAST) {
+  Shell::Get()->AddShellObserver(this);
+  Shell::Get()->cast_config()->AddObserver(this);
+  Shell::Get()->cast_config()->RequestDeviceRefresh();
 }
 
 TrayCast::~TrayCast() {
-  Shell::GetInstance()->RemoveShellObserver(this);
-  if (added_observer_)
-    GetCastConfigDelegate()->RemoveObserver(this);
+  Shell::Get()->cast_config()->RemoveObserver(this);
+  Shell::Get()->RemoveShellObserver(this);
 }
 
 void TrayCast::StartCastForTest(const std::string& receiver_id) {
@@ -563,45 +442,25 @@ void TrayCast::StopCastForTest() {
 }
 
 const std::string& TrayCast::GetDisplayedCastId() {
-  return default_->cast_view()->displayed_activity_id();
+  return default_->cast_view()->displayed_route_id();
 }
 
 const views::View* TrayCast::GetDefaultView() const {
   return default_;
 }
 
-views::View* TrayCast::CreateTrayView(user::LoginStatus status) {
+views::View* TrayCast::CreateTrayView(LoginStatus status) {
   CHECK(tray_ == nullptr);
   tray_ = new tray::CastTrayView(this);
-  tray_->SetVisible(is_casting_);
+  tray_->SetVisible(HasActiveRoute());
   return tray_;
 }
 
-views::View* TrayCast::CreateDefaultView(user::LoginStatus status) {
+views::View* TrayCast::CreateDefaultView(LoginStatus status) {
   CHECK(default_ == nullptr);
 
-  if (HasCastExtension()) {
-    ash::CastConfigDelegate* cast_config_delegate = GetCastConfigDelegate();
-
-    // Add the cast observer here instead of the ctor for two reasons:
-    // - The ctor gets called too early in the initialization cycle (at least
-    //   for the tests); the correct profile hasn't been setup yet.
-    // - If we're using the cast extension backend (media router is disabled),
-    //   then the user can install the extension at any point in time. The
-    //   return value of HasCastExtension() can change, so only checking it in
-    //   the ctor isn't enough.
-    if (!added_observer_) {
-      cast_config_delegate->AddObserver(this);
-      added_observer_ = true;
-    }
-
-    // The extension updates its view model whenever the popup is opened, so we
-    // probably should as well.
-    cast_config_delegate->RequestDeviceRefresh();
-  }
-
-  default_ = new tray::CastDuplexView(this, status != user::LOGGED_IN_LOCKED,
-                                      receivers_and_activities_);
+  default_ = new tray::CastDuplexView(this, status != LoginStatus::LOCKED,
+                                      sinks_and_routes_);
   default_->set_id(TRAY_VIEW);
   default_->select_view()->set_id(SELECT_VIEW);
   default_->cast_view()->set_id(CAST_VIEW);
@@ -610,12 +469,10 @@ views::View* TrayCast::CreateDefaultView(user::LoginStatus status) {
   return default_;
 }
 
-views::View* TrayCast::CreateDetailedView(user::LoginStatus status) {
-  Shell::GetInstance()->metrics()->RecordUserMetricsAction(
-      ash::UMA_STATUS_AREA_DETAILED_CAST_VIEW);
+views::View* TrayCast::CreateDetailedView(LoginStatus status) {
+  ShellPort::Get()->RecordUserMetricsAction(UMA_STATUS_AREA_DETAILED_CAST_VIEW);
   CHECK(detailed_ == nullptr);
-  detailed_ =
-      new tray::CastDetailedView(this, status, receivers_and_activities_);
+  detailed_ = new tray::CastDetailedView(this, sinks_and_routes_);
   return detailed_;
 }
 
@@ -631,36 +488,30 @@ void TrayCast::DestroyDetailedView() {
   detailed_ = nullptr;
 }
 
-bool TrayCast::HasCastExtension() {
-  ash::CastConfigDelegate* cast_config_delegate = GetCastConfigDelegate();
-  return cast_config_delegate != nullptr &&
-         cast_config_delegate->HasCastExtension();
-}
-
-void TrayCast::OnDevicesUpdated(
-    const CastConfigDelegate::ReceiversAndActivities& receivers_activities) {
-  receivers_and_activities_ = receivers_activities;
+void TrayCast::OnDevicesUpdated(std::vector<mojom::SinkAndRoutePtr> devices) {
+  sinks_and_routes_ = std::move(devices);
+  UpdatePrimaryView();
 
   if (default_) {
-    bool has_receivers = !receivers_and_activities_.empty();
+    bool has_receivers = !sinks_and_routes_.empty();
     default_->SetVisible(has_receivers);
-    default_->cast_view()->UpdateLabel(receivers_and_activities_);
+    default_->cast_view()->UpdateLabel(sinks_and_routes_);
   }
   if (detailed_)
-    detailed_->UpdateReceiverList(receivers_and_activities_);
+    detailed_->UpdateReceiverList(sinks_and_routes_);
 }
 
 void TrayCast::UpdatePrimaryView() {
-  if (HasCastExtension() && !receivers_and_activities_.empty()) {
+  if (Shell::Get()->cast_config()->Connected() && !sinks_and_routes_.empty()) {
     if (default_) {
-      if (is_casting_)
+      if (HasActiveRoute())
         default_->ActivateCastView();
       else
         default_->ActivateSelectView();
     }
 
     if (tray_)
-      tray_->SetVisible(is_casting_);
+      tray_->SetVisible(is_mirror_casting_);
   } else {
     if (default_)
       default_->SetVisible(false);
@@ -669,14 +520,18 @@ void TrayCast::UpdatePrimaryView() {
   }
 }
 
-void TrayCast::OnCastingSessionStartedOrStopped(bool started) {
-  is_casting_ = started;
-  UpdatePrimaryView();
+bool TrayCast::HasActiveRoute() {
+  for (const auto& sr : sinks_and_routes_) {
+    if (!sr->route->title.empty() && sr->route->is_local_source)
+      return true;
+  }
+
+  return false;
 }
 
-void TrayCast::UpdateAfterShelfAlignmentChange(wm::ShelfAlignment alignment) {
-  if (tray_)
-    tray_->UpdateAlignment(alignment);
+void TrayCast::OnCastingSessionStartedOrStopped(bool started) {
+  is_mirror_casting_ = started;
+  UpdatePrimaryView();
 }
 
 }  // namespace ash

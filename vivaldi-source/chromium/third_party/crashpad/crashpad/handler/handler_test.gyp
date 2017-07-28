@@ -1,4 +1,4 @@
-# Copyright 2015 The Crashpad Authors. All rights reserved.
+# Copyright 2017 The Crashpad Authors. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,33 +16,49 @@
   'includes': [
     '../build/crashpad.gypi',
   ],
-  'targets': [],
+  'targets': [
+    {
+      'target_name': 'crashpad_handler_test_extended_handler',
+      'type': 'executable',
+      'dependencies': [
+        '../compat/compat.gyp:crashpad_compat',
+        '../minidump/minidump_test.gyp:crashpad_minidump_test_lib',
+        '../third_party/mini_chromium/mini_chromium.gyp:base',
+        '../tools/tools.gyp:crashpad_tool_support',
+        'handler.gyp:crashpad_handler_lib',
+      ],
+      'include_dirs': [
+        '..',
+      ],
+      'sources': [
+        'crashpad_handler_test_extended_handler.cc',
+      ],
+    },
+  ],
   'conditions': [
     ['OS=="win"', {
-      'targets': [
-        {
-          'target_name': 'crashpad_handler_test',
-          'type': 'executable',
-          'dependencies': [
-            'handler.gyp:crashpad_handler',
-            '../compat/compat.gyp:crashpad_compat',
-            '../test/test.gyp:crashpad_test',
-            '../third_party/gtest/gtest.gyp:gtest',
-            '../third_party/gtest/gtest.gyp:gtest_main',
-            '../third_party/mini_chromium/mini_chromium.gyp:base',
-            '../util/util.gyp:crashpad_util',
-          ],
-          'include_dirs': [
-            '..',
-          ],
-          'sources': [
-            'win/registration_pipe_state_test.cc',
-            'win/registration_server_test.cc',
-            'win/registration_test_base.cc',
-            'win/registration_test_base.h',
-          ],
-        },
-      ],
+      'targets': [{
+        # The handler is only tested on Windows for now.
+        'target_name': 'crashpad_handler_test',
+        'type': 'executable',
+        'dependencies': [
+          'crashpad_handler_test_extended_handler',
+          'handler.gyp:crashpad_handler_lib',
+          '../client/client.gyp:crashpad_client',
+          '../compat/compat.gyp:crashpad_compat',
+          '../test/test.gyp:crashpad_gtest_main',
+          '../test/test.gyp:crashpad_test',
+          '../third_party/gtest/gtest.gyp:gtest',
+          '../third_party/mini_chromium/mini_chromium.gyp:base',
+          '../util/util.gyp:crashpad_util',
+        ],
+        'include_dirs': [
+          '..',
+        ],
+        'sources': [
+          'crashpad_handler_test.cc',
+        ],
+      }],
     }],
   ],
 }

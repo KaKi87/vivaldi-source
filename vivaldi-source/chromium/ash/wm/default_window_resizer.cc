@@ -4,31 +4,25 @@
 
 #include "ash/wm/default_window_resizer.h"
 
-#include "ash/shell.h"
+#include "ash/shell_port.h"
 #include "ash/wm/window_state.h"
-#include "ui/aura/client/aura_constants.h"
-#include "ui/aura/env.h"
-#include "ui/aura/window.h"
-#include "ui/aura/window_delegate.h"
-#include "ui/base/hit_test.h"
-#include "ui/base/ui_base_types.h"
-#include "ui/gfx/screen.h"
+#include "ash/wm_window.h"
 
 namespace ash {
 
 DefaultWindowResizer::~DefaultWindowResizer() {
-  ash::Shell::GetInstance()->cursor_manager()->UnlockCursor();
+  ShellPort::Get()->UnlockCursor();
 }
 
 // static
-DefaultWindowResizer*
-DefaultWindowResizer::Create(wm::WindowState* window_state) {
+DefaultWindowResizer* DefaultWindowResizer::Create(
+    wm::WindowState* window_state) {
   return new DefaultWindowResizer(window_state);
 }
 
 void DefaultWindowResizer::Drag(const gfx::Point& location, int event_flags) {
   gfx::Rect bounds(CalculateBoundsForDrag(location));
-  if (bounds != GetTarget()->bounds()) {
+  if (bounds != GetTarget()->GetBounds()) {
     if (!did_move_or_resize_ && !details().restore_bounds.IsEmpty())
       window_state_->ClearRestoreBounds();
     did_move_or_resize_ = true;
@@ -36,8 +30,7 @@ void DefaultWindowResizer::Drag(const gfx::Point& location, int event_flags) {
   }
 }
 
-void DefaultWindowResizer::CompleteDrag() {
-}
+void DefaultWindowResizer::CompleteDrag() {}
 
 void DefaultWindowResizer::RevertDrag() {
   if (!did_move_or_resize_)
@@ -50,10 +43,9 @@ void DefaultWindowResizer::RevertDrag() {
 }
 
 DefaultWindowResizer::DefaultWindowResizer(wm::WindowState* window_state)
-    : WindowResizer(window_state),
-      did_move_or_resize_(false) {
+    : WindowResizer(window_state), did_move_or_resize_(false) {
   DCHECK(details().is_resizable);
-  ash::Shell::GetInstance()->cursor_manager()->LockCursor();
+  ShellPort::Get()->LockCursor();
 }
 
 }  // namespace aura

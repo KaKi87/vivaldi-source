@@ -5,30 +5,15 @@
 #include "ash/system/tray/default_system_tray_delegate.h"
 
 #include <string>
-#include <utility>
-
-#include "ash/networking_config_delegate.h"
-#include "ash/session/session_state_delegate.h"
-#include "ash/shell.h"
-#include "ash/volume_control_delegate.h"
-#include "base/message_loop/message_loop.h"
-#include "base/time/time.h"
 
 namespace ash {
 
-DefaultSystemTrayDelegate::DefaultSystemTrayDelegate()
-    : bluetooth_enabled_(true) {
-}
+DefaultSystemTrayDelegate::DefaultSystemTrayDelegate() {}
 
-DefaultSystemTrayDelegate::~DefaultSystemTrayDelegate() {
-}
+DefaultSystemTrayDelegate::~DefaultSystemTrayDelegate() {}
 
-bool DefaultSystemTrayDelegate::GetTrayVisibilityOnStartup() {
-  return true;
-}
-
-user::LoginStatus DefaultSystemTrayDelegate::GetUserLoginStatus() const {
-  return user::LOGGED_IN_USER;
+LoginStatus DefaultSystemTrayDelegate::GetUserLoginStatus() const {
+  return LoginStatus::USER;
 }
 
 std::string DefaultSystemTrayDelegate::GetSupervisedUserManager() const {
@@ -38,57 +23,15 @@ std::string DefaultSystemTrayDelegate::GetSupervisedUserManager() const {
 }
 
 bool DefaultSystemTrayDelegate::IsUserSupervised() const {
-  return GetUserLoginStatus() == ash::user::LOGGED_IN_SUPERVISED;
+  return GetUserLoginStatus() == LoginStatus::SUPERVISED;
 }
 
-void DefaultSystemTrayDelegate::GetSystemUpdateInfo(UpdateInfo* info) const {
-  DCHECK(info);
-  info->severity = UpdateInfo::UPDATE_NORMAL;
-  info->update_required = true;
-  info->factory_reset_required = false;
-}
-
-bool DefaultSystemTrayDelegate::ShouldShowSettings() {
+bool DefaultSystemTrayDelegate::ShouldShowSettings() const {
   return true;
 }
 
-bool DefaultSystemTrayDelegate::ShouldShowDisplayNotification() {
-  return false;
-}
-
-void DefaultSystemTrayDelegate::ToggleBluetooth() {
-  bluetooth_enabled_ = !bluetooth_enabled_;
-}
-
-bool DefaultSystemTrayDelegate::IsBluetoothDiscovering() {
-  return false;
-}
-
-bool DefaultSystemTrayDelegate::GetBluetoothAvailable() {
+bool DefaultSystemTrayDelegate::ShouldShowNotificationTray() const {
   return true;
-}
-
-bool DefaultSystemTrayDelegate::GetBluetoothEnabled() {
-  return bluetooth_enabled_;
-}
-
-bool DefaultSystemTrayDelegate::GetBluetoothDiscovering() {
-  return false;
-}
-
-VolumeControlDelegate* DefaultSystemTrayDelegate::GetVolumeControlDelegate()
-    const {
-  return volume_control_delegate_.get();
-}
-
-void DefaultSystemTrayDelegate::SetVolumeControlDelegate(
-    std::unique_ptr<VolumeControlDelegate> delegate) {
-  volume_control_delegate_ = std::move(delegate);
-}
-
-int DefaultSystemTrayDelegate::GetSystemTrayMenuWidth() {
-  // This is the default width for English languages.
-  return 300;
 }
 
 }  // namespace ash

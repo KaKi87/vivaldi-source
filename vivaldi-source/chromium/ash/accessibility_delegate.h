@@ -5,10 +5,10 @@
 #ifndef ASH_ACCESSIBILITY_DELEGATE_H_
 #define ASH_ACCESSIBILITY_DELEGATE_H_
 
+#include "ash/accessibility_types.h"
 #include "ash/ash_export.h"
 #include "base/time/time.h"
 #include "ui/accessibility/ax_enums.h"
-#include "ui/chromeos/accessibility_types.h"
 
 namespace ash {
 
@@ -19,7 +19,7 @@ class ASH_EXPORT AccessibilityDelegate {
 
   // Invoked to toggle spoken feedback for accessibility
   virtual void ToggleSpokenFeedback(
-      ui::AccessibilityNotificationVisibility notify) = 0;
+      AccessibilityNotificationVisibility notify) = 0;
 
   // Returns true if spoken feedback is enabled.
   virtual bool IsSpokenFeedbackEnabled() const = 0;
@@ -34,13 +34,13 @@ class ASH_EXPORT AccessibilityDelegate {
   virtual void SetMagnifierEnabled(bool enabled) = 0;
 
   // Invoked to change the type of the screen magnifier.
-  virtual void SetMagnifierType(ui::MagnifierType type) = 0;
+  virtual void SetMagnifierType(MagnifierType type) = 0;
 
   // Returns true if the screen magnifier is enabled.
   virtual bool IsMagnifierEnabled() const = 0;
 
   // Returns the current screen magnifier mode.
-  virtual ui::MagnifierType GetMagnifierType() const = 0;
+  virtual MagnifierType GetMagnifierType() const = 0;
 
   // Invoked to enable Large Cursor.
   virtual void SetLargeCursorEnabled(bool enabled) = 0;
@@ -84,6 +84,18 @@ class ASH_EXPORT AccessibilityDelegate {
   // Returns if focus highlighting is enabled.
   virtual bool IsFocusHighlightEnabled() const = 0;
 
+  // Invoked to enable or disable sticky keys.
+  virtual void SetStickyKeysEnabled(bool enabled) = 0;
+
+  // Returns if sticky keys is enabled.
+  virtual bool IsStickyKeysEnabled() const = 0;
+
+  // Invoked to enable or disable tap dragging.
+  virtual void SetTapDraggingEnabled(bool enabled) = 0;
+
+  // Returns if tap dragging is enabled.
+  virtual bool IsTapDraggingEnabled() const = 0;
+
   // Invoked to enable or disable select-to-speak.
   virtual void SetSelectToSpeakEnabled(bool enabled) = 0;
 
@@ -105,6 +117,9 @@ class ASH_EXPORT AccessibilityDelegate {
   // Cancel all current and queued speech immediately.
   virtual void SilenceSpokenFeedback() const = 0;
 
+  // Clear the focus highlight
+  virtual void ClearFocusHighlight() const = 0;
+
   // Saves the zoom scale of the full screen magnifier.
   virtual void SaveScreenMagnifierScale(double scale) = 0;
 
@@ -113,10 +128,25 @@ class ASH_EXPORT AccessibilityDelegate {
   virtual double GetSavedScreenMagnifierScale() = 0;
 
   // Triggers an accessibility alert to give the user feedback.
-  virtual void TriggerAccessibilityAlert(ui::AccessibilityAlert alert) = 0;
+  virtual void TriggerAccessibilityAlert(AccessibilityAlert alert) = 0;
 
   // Gets the last accessibility alert that was triggered.
-  virtual ui::AccessibilityAlert GetLastAccessibilityAlert() = 0;
+  virtual AccessibilityAlert GetLastAccessibilityAlert() = 0;
+
+  // Called when we first detect two fingers are held down, which can be
+  // used to toggle spoken feedback on some touch-only devices.
+  virtual void OnTwoFingerTouchStart() {}
+
+  // Called when the user is no longer holding down two fingers (including
+  // releasing one, holding down three, or moving them).
+  virtual void OnTwoFingerTouchStop() {}
+
+  // Whether or not to enable toggling spoken feedback via holding down
+  // two fingers on the screen.
+  virtual bool ShouldToggleSpokenFeedbackViaTouch() = 0;
+
+  // Play tick sound indicating spoken feedback will be toggled after countdown.
+  virtual void PlaySpokenFeedbackToggleCountdown(int tick_count) = 0;
 
   // Plays an earcon. Earcons are brief and distinctive sounds that indicate
   // when their mapped event has occurred. The sound key enums can be found in
