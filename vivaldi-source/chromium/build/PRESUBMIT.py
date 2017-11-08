@@ -1,16 +1,26 @@
-# Copyright 2015 The Chromium Authors. All rights reserved.
+# Copyright (c) 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+"""Presubmit script for //build.
 
-def _RunTests(input_api, output_api):
-  return (input_api.canned_checks.RunUnitTestsInDirectory(
-          input_api, output_api, '.', whitelist=[r'.+_test.py$']))
+See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
+for more details about the presubmit API built into depot_tools.
+"""
 
+def PostUploadHook(cl, change, output_api):
+  """git cl upload will call this hook after the issue is created/modified.
 
-def CheckChangeOnUpload(input_api, output_api):
-  return _RunTests(input_api, output_api)
+  This hook modifies the CL description in order to run extra tests.
+  """
 
-
-def CheckChangeOnCommit(input_api, output_api):
-  return _RunTests(input_api, output_api)
+  def affects_gn_checker(f):
+    return 'check_gn_headers' in f.LocalPath()
+  if not change.AffectedFiles(file_filter=affects_gn_checker):
+    return []
+  return output_api.EnsureCQIncludeTrybotsAreAdded(
+    cl,
+    [
+      'master.tryserver.chromium.linux:linux_chromium_dbg_ng',
+    ],
+    'Automatically added tests to run on CQ.')

@@ -5,32 +5,47 @@
 #include "chrome/browser/offline_pages/offline_page_mhtml_archiver.h"
 
 #include "base/bind.h"
+#include "base/bind_helpers.h"
 #include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/guid.h"
+#include "base/location.h"
 #include "base/logging.h"
-#include "base/message_loop/message_loop.h"
-#include "base/single_thread_task_runner.h"
-#include "base/strings/utf_string_conversions.h"
+#include "base/strings/string16.h"
+#include "base/task_scheduler/post_task.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "chrome/browser/ssl/security_state_tab_helper.h"
+#include "components/security_state/core/security_state.h"
+#include "content/public/browser/browser_thread.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/mhtml_generation_params.h"
+#include "net/base/filename_util.h"
 
 namespace offline_pages {
+namespace {
+const base::FilePath::CharType kMHTMLExtension[] = FILE_PATH_LITERAL("mhtml");
 
+void DeleteFileOnFileThread(const base::FilePath& file_path,
+                            const base::Closure& callback) {
+  base::PostTaskWithTraitsAndReply(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BACKGROUND},
+      base::BindOnce(base::IgnoreResult(&base::DeleteFile), file_path,
+                     false /* recursive */),
+      callback);
+}
+}  // namespace
+
+// static
 OfflinePageMHTMLArchiver::OfflinePageMHTMLArchiver(
-    content::WebContents* web_contents,
-    const base::FilePath& file_path,
-    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner)
-    : file_path_(file_path),
-      web_contents_(web_contents),
-      task_runner_(task_runner),
+    content::WebContents* web_contents)
+    : web_contents_(web_contents),
       weak_ptr_factory_(this) {
   DCHECK(web_contents_);
 }
 
-OfflinePageMHTMLArchiver::OfflinePageMHTMLArchiver(
-    const base::FilePath& file_path,
-    const scoped_refptr<base::SingleThreadTaskRunner>& task_runner)
-    : file_path_(file_path),
-      web_contents_(nullptr),
-      task_runner_(task_runner),
+OfflinePageMHTMLArchiver::OfflinePageMHTMLArchiver()
+    : web_contents_(nullptr),
       weak_ptr_factory_(this) {
 }
 
@@ -38,69 +53,111 @@ OfflinePageMHTMLArchiver::~OfflinePageMHTMLArchiver() {
 }
 
 void OfflinePageMHTMLArchiver::CreateArchive(
+    const base::FilePath& archives_dir,
+    const CreateArchiveParams& create_archive_params,
     const CreateArchiveCallback& callback) {
   DCHECK(callback_.is_null());
   DCHECK(!callback.is_null());
   callback_ = callback;
 
-  if (!IsWebContentsValid()) {
-    DVLOG(1) << "WebContents is invalid. Can't create archive.";
-    ReportFailure(ArchiverResult::ERROR_CONTENT_UNAVAILABLE);
+  // TODO(chili): crbug/710248 These checks should probably be done inside
+  // the offliner.
+  if (HasConnectionSecurityError()) {
+    ReportFailure(ArchiverResult::ERROR_SECURITY_CERTIFICATE);
     return;
   }
 
-  GenerateMHTML();
+  // Don't save chrome error pages.
+  if (GetPageType() == content::PageType::PAGE_TYPE_ERROR) {
+    ReportFailure(ArchiverResult::ERROR_ERROR_PAGE);
+    return;
+  }
+
+  // Don't save chrome-injected interstitial info pages
+  // i.e. "This site may be dangerous. Are you sure you want to continue?"
+  if (GetPageType() == content::PageType::PAGE_TYPE_INTERSTITIAL) {
+    ReportFailure(ArchiverResult::ERROR_INTERSTITIAL_PAGE);
+    return;
+  }
+
+  GenerateMHTML(archives_dir, create_archive_params);
 }
 
-bool OfflinePageMHTMLArchiver::IsWebContentsValid() const {
-  // TODO(fgorski): Make sure that web_contents is valid (use WCObserver).
-  return true;
-}
+void OfflinePageMHTMLArchiver::GenerateMHTML(
+    const base::FilePath& archives_dir,
+    const CreateArchiveParams& create_archive_params) {
+  if (archives_dir.empty()) {
+    DVLOG(1) << "Archive path was empty. Can't create archive.";
+    ReportFailure(ArchiverResult::ERROR_ARCHIVE_CREATION_FAILED);
+    return;
+  }
 
-void OfflinePageMHTMLArchiver::GenerateMHTML() {
   if (!web_contents_) {
     DVLOG(1) << "WebContents is missing. Can't create archive.";
     ReportFailure(ArchiverResult::ERROR_CONTENT_UNAVAILABLE);
     return;
   }
-  // TODO(fgorski): Figure out if the actual URL or title can be different at
-  // the end of MHTML generation. Perhaps we should pull it out after the MHTML
-  // is generated.
+
+  if (!web_contents_->GetRenderViewHost()) {
+    DVLOG(1) << "RenderViewHost is not created yet. Can't create archive.";
+    ReportFailure(ArchiverResult::ERROR_CONTENT_UNAVAILABLE);
+    return;
+  }
+
+  GURL url(web_contents_->GetLastCommittedURL());
+  base::string16 title(web_contents_->GetTitle());
+  base::FilePath file_path(
+      archives_dir.Append(base::GenerateGUID()).AddExtension(kMHTMLExtension));
+  content::MHTMLGenerationParams params(file_path);
+  params.use_binary_encoding = true;
+  params.remove_popup_overlay = create_archive_params.remove_popup_overlay;
+  params.use_page_problem_detectors =
+      create_archive_params.use_page_problem_detectors;
+
   web_contents_->GenerateMHTML(
-      file_path_, base::Bind(&OfflinePageMHTMLArchiver::OnGenerateMHTMLDone,
-                             weak_ptr_factory_.GetWeakPtr(),
-                             web_contents_->GetLastCommittedURL(),
-                             web_contents_->GetTitle()));
+      params,
+      base::Bind(&OfflinePageMHTMLArchiver::OnGenerateMHTMLDone,
+                 weak_ptr_factory_.GetWeakPtr(), url, file_path, title));
 }
 
-void OfflinePageMHTMLArchiver::OnGenerateMHTMLDone(const GURL& url,
-                                                   const base::string16& title,
-                                                   int64 file_size) {
-  ArchiverResult result =
-      file_size < 0 ? ArchiverResult::ERROR_ARCHIVE_CREATION_FAILED :
-                      ArchiverResult::SUCCESSFULLY_CREATED;
-  ReportResult(result, url, title, file_size);
+void OfflinePageMHTMLArchiver::OnGenerateMHTMLDone(
+    const GURL& url,
+    const base::FilePath& file_path,
+    const base::string16& title,
+    int64_t file_size) {
+  if (file_size < 0) {
+    DeleteFileOnFileThread(
+        file_path, base::Bind(&OfflinePageMHTMLArchiver::ReportFailure,
+                              weak_ptr_factory_.GetWeakPtr(),
+                              ArchiverResult::ERROR_ARCHIVE_CREATION_FAILED));
+  } else {
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
+        FROM_HERE,
+        base::Bind(callback_, this, ArchiverResult::SUCCESSFULLY_CREATED, url,
+                   file_path, title, file_size));
+  }
+}
+
+bool OfflinePageMHTMLArchiver::HasConnectionSecurityError() {
+  SecurityStateTabHelper::CreateForWebContents(web_contents_);
+  SecurityStateTabHelper* helper =
+      SecurityStateTabHelper::FromWebContents(web_contents_);
+  DCHECK(helper);
+  security_state::SecurityInfo security_info;
+  helper->GetSecurityInfo(&security_info);
+  return security_state::SecurityLevel::DANGEROUS ==
+         security_info.security_level;
+}
+
+content::PageType OfflinePageMHTMLArchiver::GetPageType() {
+  return web_contents_->GetController().GetVisibleEntry()->GetPageType();
 }
 
 void OfflinePageMHTMLArchiver::ReportFailure(ArchiverResult result) {
   DCHECK(result != ArchiverResult::SUCCESSFULLY_CREATED);
-  ReportResult(result, GURL(), base::string16(), 0);
-}
-
-void OfflinePageMHTMLArchiver::ReportResult(ArchiverResult result,
-                                            const GURL& url,
-                                            const base::string16& title,
-                                            int64 file_size) {
-  base::FilePath file_path;
-  if (result == ArchiverResult::SUCCESSFULLY_CREATED) {
-    // Pass an actual file path and report file size only upon success.
-    file_path = file_path_;
-  } else {
-    // Make sure both file path and file size are empty on failure.
-    file_size = 0;
-  }
-  task_runner_->PostTask(FROM_HERE, base::Bind(
-      callback_, this, result, url, title, file_path, file_size));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
+      FROM_HERE, base::Bind(callback_, this, result, GURL(), base::FilePath(),
+                            base::string16(), 0));
 }
 
 }  // namespace offline_pages

@@ -1,1 +1,2 @@
-#<skip -- need to generate>
+AXLiveRegionCreated on AXGroup
+AXLiveRegionChanged on AXGroup

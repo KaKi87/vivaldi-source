@@ -1,90 +1,63 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/extensions/chooser_dialog_view.h"
 
-#include "base/macros.h"
-#include "chrome/browser/extensions/extension_browsertest.h"
+#include <string>
+
+#include "base/command_line.h"
+#include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/chooser_controller/mock_chooser_controller.h"
 #include "chrome/browser/platform_util.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/grit/generated_resources.h"
-#include "components/chooser_controller/mock_chooser_controller.h"
-#include "testing/gmock/include/gmock/gmock.h"
-#include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/l10n/l10n_util.h"
-#include "ui/gfx/range/range.h"
-#include "ui/views/controls/table/table_view.h"
-#include "ui/views/widget/widget.h"
-#include "ui/views/window/dialog_client_view.h"
+#include "chrome/browser/ui/test/test_browser_dialog.h"
+#include "components/constrained_window/constrained_window_views.h"
+#include "components/web_modal/web_contents_modal_dialog_manager.h"
 
-class ChooserDialogViewTest : public ExtensionBrowserTest {
+// Invokes the device chooser dialog with mock content. See
+// test_browser_dialog.h.
+class ChooserDialogViewBrowserTest : public DialogBrowserTest {
  public:
-  ChooserDialogViewTest() {}
-  ~ChooserDialogViewTest() override {}
+  ChooserDialogViewBrowserTest() : controller_(new MockChooserController()) {}
 
-  void SetUpOnMainThread() override {
-    content::WebContents* web_contents =
-        browser()->tab_strip_model()->GetWebContentsAt(0);
-    std::unique_ptr<MockChooserController> mock_chooser_controller(
-        new MockChooserController(nullptr));
-    mock_chooser_controller_ = mock_chooser_controller.get();
-    std::unique_ptr<ChooserDialogView> chooser_dialog_view(
-        new ChooserDialogView(web_contents,
-                              std::move(mock_chooser_controller)));
-    chooser_dialog_view_ = chooser_dialog_view.get();
-    table_view_ = chooser_dialog_view_->table_view_for_test();
-    ASSERT_TRUE(table_view_);
-    table_model_ = table_view_->model();
-    ASSERT_TRUE(table_model_);
-    views::Widget* modal_dialog = views::DialogDelegate::CreateDialogWidget(
-        chooser_dialog_view.release(), nullptr,
-        platform_util::GetViewForWindow(
-            browser()->window()->GetNativeWindow()));
-    modal_dialog->Show();
+  // DialogBrowserTest:
+  void ShowDialog(const std::string& name) override {
+    auto* web_contents = browser()->tab_strip_model()->GetActiveWebContents();
+    web_modal::WebContentsModalDialogManager* manager =
+        web_modal::WebContentsModalDialogManager::FromWebContents(web_contents);
+    if (manager) {
+      constrained_window::ShowWebModalDialogViews(
+          new ChooserDialogView(std::move(controller_)), web_contents);
+    }
   }
 
- protected:
-  MockChooserController* mock_chooser_controller_;
-  ChooserDialogView* chooser_dialog_view_;
-  views::TableView* table_view_;
-  ui::TableModel* table_model_;
+  MockChooserController& controller() { return *controller_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(ChooserDialogViewTest);
+  std::unique_ptr<MockChooserController> controller_;
+
+  DISALLOW_COPY_AND_ASSIGN(ChooserDialogViewBrowserTest);
 };
 
-IN_PROC_BROWSER_TEST_F(ChooserDialogViewTest, InitialState) {
-  // Since "No devices found." needs to be displayed on the |table_view_|,
-  // the number of rows is 1.
-  EXPECT_EQ(table_view_->RowCount(), 1);
-  EXPECT_EQ(
-      table_model_->GetText(0, 0),
-      l10n_util::GetStringUTF16(IDS_DEVICE_CHOOSER_NO_DEVICES_FOUND_PROMPT));
-  // |table_view_| should be disabled since there is no option shown.
-  EXPECT_FALSE(table_view_->enabled());
-  // No option selected.
-  EXPECT_EQ(table_view_->SelectedRowCount(), 0);
-  EXPECT_EQ(table_view_->FirstSelectedRow(), -1);
+IN_PROC_BROWSER_TEST_F(ChooserDialogViewBrowserTest, InvokeDialog_noDevices) {
+  RunDialog();
 }
 
-IN_PROC_BROWSER_TEST_F(ChooserDialogViewTest, Accept) {
-  EXPECT_CALL(*mock_chooser_controller_, Select(testing::_)).Times(1);
-  chooser_dialog_view_->Accept();
-}
-
-IN_PROC_BROWSER_TEST_F(ChooserDialogViewTest, Cancel) {
-  EXPECT_CALL(*mock_chooser_controller_, Cancel()).Times(1);
-  chooser_dialog_view_->Cancel();
-}
-
-IN_PROC_BROWSER_TEST_F(ChooserDialogViewTest, Close) {
-  EXPECT_CALL(*mock_chooser_controller_, Close()).Times(1);
-  chooser_dialog_view_->Close();
-}
-
-IN_PROC_BROWSER_TEST_F(ChooserDialogViewTest, ClickStyledLabelLink) {
-  EXPECT_CALL(*mock_chooser_controller_, OpenHelpCenterUrl()).Times(1);
-  chooser_dialog_view_->StyledLabelLinkClicked(nullptr, gfx::Range(), 0);
+IN_PROC_BROWSER_TEST_F(ChooserDialogViewBrowserTest, InvokeDialog_withDevices) {
+  controller().OptionAdded(base::ASCIIToUTF16("Device 1"),
+                           MockChooserController::kNoSignalStrengthLevelImage,
+                           MockChooserController::NONE);
+  controller().OptionAdded(base::ASCIIToUTF16("Device 2"),
+                           MockChooserController::kSignalStrengthLevel2Bar,
+                           MockChooserController::PAIRED);
+  controller().OptionAdded(base::ASCIIToUTF16("Device 3"),
+                           MockChooserController::kSignalStrengthLevel4Bar,
+                           MockChooserController::CONNECTED);
+  controller().OptionAdded(
+      base::ASCIIToUTF16("Device 4"),
+      MockChooserController::kSignalStrengthLevel1Bar,
+      MockChooserController::PAIRED | MockChooserController::CONNECTED);
+  RunDialog();
 }

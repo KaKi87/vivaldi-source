@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,14 +11,8 @@ namespace app_list {
 
 class APP_LIST_EXPORT AppListViewDelegateObserver {
  public:
-  // Invoked when the Profiles shown on the app list change, or the active
-  // profile changes its signin status.
-  virtual void OnProfilesChanged() = 0;
-
-  // Invoked on Chrome shutdown. This is only needed on Mac, since reference-
-  // counting in Objective-C means that simply closing the window isn't enough
-  // to guarantee references to Chrome objects are gone.
-  virtual void OnShutdown() = 0;
+  // Invoked when wallpaper prominent colors are changed.
+  virtual void OnWallpaperColorsChanged() = 0;
 
  protected:
   virtual ~AppListViewDelegateObserver() {}

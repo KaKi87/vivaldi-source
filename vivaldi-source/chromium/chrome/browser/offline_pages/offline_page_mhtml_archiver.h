@@ -5,16 +5,20 @@
 #ifndef CHROME_BROWSER_OFFLINE_PAGES_OFFLINE_PAGE_MHTML_ARCHIVER_H_
 #define CHROME_BROWSER_OFFLINE_PAGES_OFFLINE_PAGE_MHTML_ARCHIVER_H_
 
+#include <stdint.h>
+
 #include <map>
+#include <string>
 
 #include "base/callback.h"
+#include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "components/offline_pages/offline_page_archiver.h"
+#include "components/offline_pages/core/offline_page_archiver.h"
+#include "content/public/common/page_type.h"
 
 namespace base {
 class FilePath;
-class SingleThreadTaskRunner;
 }  // namespace base
 
 namespace content {
@@ -22,7 +26,6 @@ class WebContents;
 }  // namespace content
 
 namespace offline_pages {
-class TestMHTMLArchiver;
 
 // Class implementing an offline page archiver using MHTML as an archive format.
 //
@@ -32,58 +35,54 @@ class TestMHTMLArchiver;
 // Example:
 //   void SavePageOffline(content::WebContents* web_contents) {
 //     const GURL& url = web_contents->GetLastCommittedURL();
-//     scoped_ptr<OfflinePageMHTMLArchiver> archiver(
+//     std::unique_ptr<OfflinePageMHTMLArchiver> archiver(
 //         new OfflinePageMHTMLArchiver(
-//             web_contents, archiver_dir, task_runner));
-//     model->SavePage(url, archiver.Pass());
+//             web_contents, archive_dir));
+//     // Callback is of type OfflinePageModel::SavePageCallback.
+//     model->SavePage(url, std::move(archiver), callback);
 //   }
 class OfflinePageMHTMLArchiver : public OfflinePageArchiver {
  public:
-  OfflinePageMHTMLArchiver(
-      content::WebContents* web_contents,
-      const base::FilePath& file_path,
-      const scoped_refptr<base::SingleThreadTaskRunner>& task_runner);
+
+  explicit OfflinePageMHTMLArchiver(content::WebContents* web_contents);
   ~OfflinePageMHTMLArchiver() override;
 
   // OfflinePageArchiver implementation:
-  void CreateArchive(const CreateArchiveCallback& callback) override;
+  void CreateArchive(const base::FilePath& archives_dir,
+                     const CreateArchiveParams& create_archive_params,
+                     const CreateArchiveCallback& callback) override;
 
- private:
-  friend class offline_pages::TestMHTMLArchiver;
-
+ protected:
   // Allows to overload the archiver for testing.
-  OfflinePageMHTMLArchiver(
-      const base::FilePath& file_path,
-      const scoped_refptr<base::SingleThreadTaskRunner>& task_runner);
+  OfflinePageMHTMLArchiver();
 
-  // Sends the result of archiving a page to the client that requested archive
-  // creation.
-  void ReportResult(ArchiverResult result,
-                    const GURL& url,
-                    const base::string16& title,
-                    int64 file_size);
-  void ReportFailure(ArchiverResult result);
+  // Try to generate MHTML.
+  // Might be overridden for testing purpose.
+  virtual void GenerateMHTML(const base::FilePath& archives_dir,
+                             const CreateArchiveParams& create_archive_params);
 
-  // Checks that |web_contents_| is still valid.
-  virtual bool IsWebContentsValid() const;
-  // Actual call to generate MHTML.
-  virtual void GenerateMHTML();
   // Callback for Generating MHTML.
   void OnGenerateMHTMLDone(const GURL& url,
+                           const base::FilePath& file_path,
                            const base::string16& title,
-                           int64 file_size);
+                           int64_t file_size);
 
-  // Path to the archive file.
-  const base::FilePath file_path_;
+  // Checks whether the page to be saved has security error when loaded over
+  // HTTPS. Saving a page will fail if that is the case. HTTP connections are
+  // not affected.
+  virtual bool HasConnectionSecurityError();
+
+  // Returns the page type of the page being saved.
+  virtual content::PageType GetPageType();
+
+  // Reports failure to create archive a page to the client that requested it.
+  void ReportFailure(ArchiverResult result);
+
+ private:
   // Contents of the web page to be serialized. Not owned.
-  // TODO(fgorski): Add WebContentsObserver to know when the page navigates away
-  // or shuts down.
   content::WebContents* web_contents_;
 
   CreateArchiveCallback callback_;
-
-  // Task runner, which will be used to post the callback.
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 
   base::WeakPtrFactory<OfflinePageMHTMLArchiver> weak_ptr_factory_;
 

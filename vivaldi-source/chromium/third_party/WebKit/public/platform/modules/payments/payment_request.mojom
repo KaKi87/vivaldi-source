@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 [JavaPackage="org.chromium.payments.mojom"]
-module blink.mojom;
+module payments.mojom;
 
 // The shipping address that the browser process provides to the renderer
 // process. Built either by the browser or a payment app.
@@ -43,6 +43,12 @@ struct PaymentCurrencyAmount {
   // ISO 20022 CurrencyAnd30Amount. Up to 30 total digits. Up to 10 fraction
   // digits. Separated by a dot.
   string value;
+
+  // currency_system is a URL that indicates the currency system that the
+  // currency identifier belongs to. By default, the value is
+  // urn:iso:std:iso:4217 indicating that currency is defined by [ISO4217]
+  // (for example, USD for US Dollars).
+  string currency_system = "urn:iso:std:iso:4217";
 };
 
 struct PaymentResponse {
@@ -52,8 +58,8 @@ struct PaymentResponse {
   // a payment app, for example Android Pay. Browser ensures that the string can
   // be successfully parsed into base::JSONParser. Renderer parses this string
   // via v8::JSON::Parse() and hands off the result to the merchant website.
-  // There's no one format for this object, so richer types cannot be used. A
-  // simple example:
+  // There's no one format for this object, so more specific types cannot be
+  // used. A simple example:
   //
   // {"nameOnCard": "Jon Doe", "pan": "4111 1111 1111 1111"}
   string stringified_details;
@@ -71,6 +77,17 @@ enum PaymentErrorReason {
   NOT_SUPPORTED
 };
 
+enum CanMakePaymentQueryResult {
+  CAN_MAKE_PAYMENT,
+  CANNOT_MAKE_PAYMENT,
+  QUERY_QUOTA_EXCEEDED,
+
+  // Used only on localhost and file:// schemes to warn web developer that the
+  // query quota has exceeded, but Chrome is returning an answer anyway.
+  WARNING_CAN_MAKE_PAYMENT,
+  WARNING_CANNOT_MAKE_PAYMENT,
+};
+
 interface PaymentRequestClient {
   OnShippingAddressChange(PaymentAddress address);
   OnShippingOptionChange(string shipping_option_id);
@@ -78,11 +95,14 @@ interface PaymentRequestClient {
   OnError(PaymentErrorReason error);
   OnComplete();
   OnAbort(bool aborted_successfully);
+  OnCanMakePayment(CanMakePaymentQueryResult result);
+  WarnNoFavicon();
 };
 
 struct PaymentItem {
   string label;
   PaymentCurrencyAmount amount;
+  bool pending;
 };
 
 struct PaymentShippingOption {
@@ -92,18 +112,101 @@ struct PaymentShippingOption {
   bool selected;
 };
 
-struct PaymentDetailsModifier {
+enum AndroidPayEnvironment {
+  PRODUCTION,
+  TEST
+};
+
+enum AndroidPayCardNetwork {
+  AMEX,
+  DISCOVER,
+  MASTERCARD,
+  VISA
+};
+
+enum AndroidPayTokenization {
+  UNSPECIFIED,
+  GATEWAY_TOKEN,
+  NETWORK_TOKEN
+};
+
+struct AndroidPayTokenizationParameter {
+  string? key;
+  string? value;
+};
+
+enum BasicCardNetwork {
+  AMEX,
+  DINERS,
+  DISCOVER,
+  JCB,
+  MASTERCARD,
+  MIR,
+  UNIONPAY,
+  VISA
+};
+
+enum BasicCardType {
+  CREDIT,
+  DEBIT,
+  PREPAID
+};
+
+struct PaymentMethodData {
   array<string> supported_methods;
-  PaymentItem total;
+
+  // A JSON string built by the renderer from a JavaScript object that the
+  // merchant website provides. The renderer uses
+  // blink::JSONObject::toJSONString() to generate this string. The browser does
+  // not parse the string and passes it as-is directly to payment apps. There's
+  // no one format for this object, so more specific types cannot be used. A
+  // simple example:
+  //
+  // {"gateway": "stripe"}
+  string stringified_data;
+
+  // Android Pay specific method data is parsed in the renderer.
+  // https://developers.google.com/web/fundamentals/getting-started/primers/payment-request/android-pay
+  // TODO(rouslan): Stop parsing Android Pay data. http://crbug.com/620173
+  AndroidPayEnvironment environment;
+  string? merchant_name;
+  string? merchant_id;
+  array<AndroidPayCardNetwork> allowed_card_networks;
+  AndroidPayTokenization tokenization_type;
+  array<AndroidPayTokenizationParameter> parameters;
+  // Value of 0 means the merchant did not specify or it was an invalid value.
+  int32 min_google_play_services_version;
+  // Value of 0 means the merchant did not specify or it was an invalid value.
+  int32 api_version;
+
+  // Basic card specific method data is parsed in the renderer.
+  array<BasicCardNetwork> supported_networks;
+  array<BasicCardType> supported_types;
+};
+
+struct PaymentDetailsModifier {
+  PaymentItem? total;
   array<PaymentItem> additional_display_items;
+  PaymentMethodData method_data;
 };
 
 struct PaymentDetails {
-  PaymentItem total;
+  PaymentItem? total;
   array<PaymentItem> display_items;
   array<PaymentShippingOption> shipping_options;
   array<PaymentDetailsModifier> modifiers;
-  string error;
+  string error = "";
+  // Identifier identifying the payment request, to be exposed
+  // to payment apps. It is optional since this structure is used
+  // by PaymentDetailsUpdate (next to PaymentDetailsInit) but
+  // PaymentDetailsUpdate has no id.
+  string? id;
+};
+
+enum PaymentShippingType {
+  SHIPPING,
+  DELIVERY,
+  PICKUP
 };
 
 struct PaymentOptions {
@@ -111,20 +214,7 @@ struct PaymentOptions {
   bool request_payer_email;
   bool request_payer_phone;
   bool request_shipping;
-};
-
-struct PaymentMethodData {
-  array<string> supported_methods;
-  // A JSON string built by the renderer from a JavaScript object that the
-  // merchant website provides. The renderer uses
-  // blink::JSONObject::toJSONString() to generate this string. The browser
-  // parses the string via JSONObject(JsonSanitizer.sanitize(stringified_data))
-  // and passes a part of the JSON object to the payment app, for example
-  // Android Pay. There's no one format for this object, so richer types cannot
-  // be used. A simple example:
-  //
-  // {"gateway": "stripe"}
-  string stringified_data;
+  PaymentShippingType shipping_type;
 };
 
 enum PaymentComplete {
@@ -135,11 +225,12 @@ enum PaymentComplete {
 
 interface PaymentRequest {
   Init(PaymentRequestClient client,
-       array<PaymentMethodData> methodData,
+       array<PaymentMethodData> method_data,
        PaymentDetails details,
        PaymentOptions options);
   Show();
   UpdateWith(PaymentDetails details);
   Abort();
   Complete(PaymentComplete result);
+  CanMakePayment();
 };
