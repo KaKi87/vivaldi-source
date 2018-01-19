@@ -1,4 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright (c) 2012-2016 Xiph.Org Foundation and contributors
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions
+   are met:
+
+   - Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+   - Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+   OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+   EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+   PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+   PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+   LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+   NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+   Special permission is granted to remove the above copyright notice, list of
+   conditions, and disclaimer when submitting this document, with or without
+   modification, to the IETF.
+-->
 <!DOCTYPE rfc SYSTEM 'rfc2629.dtd' [
 <!ENTITY rfc2119 PUBLIC '' 'http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml'>
 <!ENTITY rfc3533 PUBLIC '' 'http://xml.resource.org/public/rfc/bibxml/reference.RFC.3533.xml'>
@@ -13,7 +43,7 @@
 ]>
 <?rfc toc="yes" symrefs="yes" ?>
 
-<rfc ipr="trust200902" category="std" docName="draft-ietf-codec-oggopus-09"
+<rfc ipr="trust200902" category="std" docName="draft-ietf-codec-oggopus-14"
  updates="5334">
 
 <front>
@@ -63,7 +93,7 @@
 </address>
 </author>
 
-<date day="23" month="November" year="2015"/>
+<date day="22" month="February" year="2016"/>
 <area>RAI</area>
 <workgroup>codec</workgroup>
 
@@ -134,8 +164,32 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 
 <section anchor="packet_organization" title="Packet Organization">
 <t>
-An Ogg Opus stream is organized as follows.
+An Ogg Opus stream is organized as follows (see
+ <xref target="packet-org-example"/> for an example).
 </t>
+
+<figure anchor="packet-org-example"
+ title="Example packet organization for a logical Ogg Opus stream"
+ align="center">
+<artwork align="center"><![CDATA[
+    Page 0         Pages 1 ... n        Pages (n+1) ...
+ +------------+ +---+ +---+ ... +---+ +-----------+ +---------+ +--
+ |            | |   | |   |     |   | |           | |         | |
+ |+----------+| |+-----------------+| |+-------------------+ +-----
+ |||ID Header|| ||  Comment Header || ||Audio Data Packet 1| | ...
+ |+----------+| |+-----------------+| |+-------------------+ +-----
+ |            | |   | |   |     |   | |           | |         | |
+ +------------+ +---+ +---+ ... +---+ +-----------+ +---------+ +--
+ ^      ^                           ^
+ |      |                           |
+ |      |                           Mandatory Page Break
+ |      |
+ |      ID header is contained on a single page
+ |
+ 'Beginning Of Stream'
+]]></artwork>
+</figure>
+
 <t>
 There are two mandatory header packets.
 The first packet in the logical Ogg bitstream MUST contain the identification
@@ -194,12 +248,16 @@ The first audio data page could have the 'continued packet' flag set
  (indicating the first audio data packet is continued from a previous page) if,
  for example, it was a live stream joined mid-broadcast, with the headers
  pasted on the front.
-A demuxer SHOULD NOT attempt to decode the data for the first packet on a page
- with the 'continued packet' flag set if the previous page with packet data
- does not end in a continued packet (i.e., did not end with a lacing value of
- 255) or if the page sequence numbers are not consecutive, unless the demuxer
- has some special knowledge that would allow it to interpret this data
- despite the missing pieces.
+If a page has the 'continued packet' flag set and one of the following
+ conditions is also true:
+<list style="symbols">
+<t>the previous page with packet data does not end in a continued packet (does
+ not end with a lacing value of 255) OR</t>
+<t>the page sequence numbers are not consecutive,</t>
+</list>
+ then a demuxer MUST NOT attempt to decode the data for the first packet on the
+ page unless the demuxer has some special knowledge that would allow it to
+ interpret this data despite the missing pieces.
 An implementation MUST treat a zero-octet audio data packet as if it were a
  malformed Opus packet as described in
  Section&nbsp;3.4 of&nbsp;<xref target="RFC6716"/>.
@@ -209,15 +267,20 @@ A logical stream ends with a page with the 'end of stream' flag set, but
  implementations need to be prepared to deal with truncated streams that do not
  have a page marked 'end of stream'.
 There is no reason for the final packet on the last page to be a continued
- packet, i.e., for the final lacing value to be less than 255.
+ packet, i.e., for the final lacing value to be 255.
 However, demuxers might encounter such streams, possibly as the result of a
  transfer that did not complete or of corruption.
-A demuxer SHOULD NOT attempt to decode the data from a packet that continues
- onto a subsequent page (i.e., when the page ends with a lacing value of 255)
- if the next page with packet data does not have the 'continued packet' flag
- set or does not exist, or if the page sequence numbers are not consecutive,
- unless the demuxer has some special knowledge that would allow it to interpret
- this data despite the missing pieces.
+If a packet continues onto a subsequent page (i.e., when the page ends with a
+ lacing value of 255) and one of the following conditions is also true:
+<list style="symbols">
+<t>the next page with packet data does not have the 'continued packet' flag
+ set OR</t>
+<t>there is no next page with packet data OR</t>
+<t>the page sequence numbers are not consecutive,</t>
+</list>
+ then a demuxer MUST NOT attempt to decode the data from that packet unless the
+ demuxer has some special knowledge that would allow it to interpret this data
+ despite the missing pieces.
 There MUST NOT be any more pages in an Opus logical bitstream after a page
  marked 'end of stream'.
 </t>
@@ -248,14 +311,17 @@ A page that is entirely spanned by a single packet (that completes on a
 The granule position of an audio data page is in units of PCM audio samples at
  a fixed rate of 48&nbsp;kHz (per channel; a stereo stream's granule position
  does not increment at twice the speed of a mono stream).
-It is possible to run an Opus decoder at other sampling rates, but the value
- in the granule position field always counts samples assuming a 48&nbsp;kHz
- decoding rate, and the rest of this specification makes the same assumption.
+It is possible to run an Opus decoder at other sampling rates,
+ but all Opus packets encode samples at a sampling rate that evenly divides
+ 48&nbsp;kHz.
+Therefore, the value in the granule position field always counts samples
+ assuming a 48&nbsp;kHz decoding rate, and the rest of this specification makes
+ the same assumption.
 </t>
 
 <t>
-The duration of an Opus packet can be any multiple of 2.5&nbsp;ms, up to a
- maximum of 120&nbsp;ms.
+The duration of an Opus packet as defined in <xref target="RFC6716"/> can be
+ any multiple of 2.5&nbsp;ms, up to a maximum of 120&nbsp;ms.
 This duration is encoded in the TOC sequence at the beginning of each packet.
 The number of samples returned by a decoder corresponds to this duration
  exactly, even for the first few packets.
@@ -512,7 +578,7 @@ On the other hand, a granule position that is smaller than the number of
  decoded samples prevents a demuxer from working backwards to assign each
  packet or each individual sample a valid granule position, since granule
  positions are non-negative.
-An implementation MUST reject as invalid any stream where the granule position
+An implementation MUST treat any stream as invalid if the granule position
  is smaller than the number of samples contained in packets that complete on
  the first audio data page with a completed packet, unless that page has the
  'end of stream' flag set.
@@ -521,8 +587,8 @@ It MAY defer this action until it decodes the last packet completed on that
 </t>
 
 <t>
-If that page has the 'end of stream' flag set, a demuxer MUST reject as invalid
- any stream where its granule position is smaller than the 'pre-skip' amount.
+If that page has the 'end of stream' flag set, a demuxer MUST treat any stream
+ as invalid if its granule position is smaller than the 'pre-skip' amount.
 This would indicate that there are more samples to be skipped from the initial
  decoded output than exist in the stream.
 If the granule position is smaller than the number of decoded samples produced
@@ -706,7 +772,8 @@ Rates outside this range MAY be ignored by falling back to the default rate of
 This is a gain to be applied when decoding.
 It is 20*log10 of the factor by which to scale the decoder output to achieve
  the desired playback volume, stored in a 16-bit, signed, two's complement
- fixed-point value with 8 fractional bits (i.e., Q7.8).
+ fixed-point value with 8 fractional bits (i.e.,
+ Q7.8&nbsp;<xref target="q-notation"/>).
 <vspace blankLines="1"/>
 To apply the gain, an implementation could use
 <figure align="center">
@@ -756,13 +823,14 @@ Its contents are specified in <xref target="channel_mapping"/>.
 All fields in the ID headers are REQUIRED, except for the channel mapping
  table, which MUST be omitted when the channel mapping family is 0, but
  is REQUIRED otherwise.
-Implementations SHOULD reject streams with ID headers that do not contain
- enough data for these fields, even if they contain a valid Magic Signature.
+Implementations SHOULD treat a stream as invalid if it contains an ID header
+ that does not have enough data for these fields, even if it contain a valid
+ Magic Signature.
 Future versions of this specification, even backwards-compatible versions,
  might include additional fields in the ID header.
 If an ID header has a compatible major version, but a larger minor version,
- an implementation MUST NOT reject it for containing additional data not
- specified here, provided it still completes on the first page.
+ an implementation MUST NOT treat it as invalid for containing additional data
+ not specified here, provided it still completes on the first page.
 </t>
 
 <section anchor="channel_mapping" title="Channel Mapping">
@@ -957,9 +1025,12 @@ Players SHOULD perform channel mixing to increase or reduce the number of
 </t>
 
 <t>
-Implementations MAY use the following matrices to implement downmixing from
- multichannel files using <xref target="channel_mapping_1">Channel Mapping
- Family 1</xref>, which are known to give acceptable results for stereo.
+Implementations MAY use the matrices in
+ Figures&nbsp;<xref target="downmix-matrix-3" format="counter"/>
+ through&nbsp;<xref target="downmix-matrix-8" format="counter"/> to implement
+ downmixing from multichannel files using
+ <xref target="channel_mapping_1">Channel Mapping Family 1</xref>, which are
+ known to give acceptable results for stereo.
 Matrices for 3 and 4 channels are normalized so each coefficient row sums
  to 1 to avoid clipping.
 For 5 or more channels they are normalized to 2 as a compromise between
@@ -1176,7 +1247,8 @@ It MUST NOT indicate that the string is longer than the rest of the packet.
 </t>
 <t>User Comment #i String (variable length, UTF-8 vector):
 <vspace blankLines="1"/>
-This field contains a single user comment string.
+This field contains a single user comment encoded as a UTF-8
+ string&nbsp;<xref target="RFC3629"/>.
 There is one for each user comment indicated by the 'user comment list length'
  field.
 </t>
@@ -1185,9 +1257,10 @@ There is one for each user comment indicated by the 'user comment list length'
 
 <t>
 The vendor string length and user comment list length are REQUIRED, and
- implementations SHOULD reject comment headers that do not contain enough data
- for these fields, or that do not contain enough data for the corresponding
- vendor string or user comments they describe.
+ implementations SHOULD treat a stream as invalid if it contains a comment
+ header that does not have enough data for these fields, or that does not
+ contain enough data for the corresponding vendor string or user comments they
+ describe.
 Making this check before allocating the associated memory to contain the data
  helps prevent a possible Denial-of-Service (DoS) attack from small comment
  headers that claim to contain strings longer than the entire packet or more
@@ -1210,9 +1283,10 @@ The comment header can be arbitrarily large and might be spread over a large
  number of Ogg pages.
 Implementations MUST avoid attempting to allocate excessive amounts of memory
  when presented with a very large comment header.
-To accomplish this, implementations MAY reject a comment header larger than
- 125,829,120&nbsp;octets, and MAY ignore individual comments that are not fully
- contained within the first 61,440 octets of the comment header.
+To accomplish this, implementations MAY treat a stream as invalid if it has a
+ comment header larger than 125,829,120&nbsp;octets (120&nbsp;MB), and MAY
+ ignore individual comments that are not fully contained within the first
+ 61,440&nbsp;octets of the comment header.
 </t>
 
 <section anchor="comment_format" title="Tag Definitions">
@@ -1251,6 +1325,7 @@ R128_ALBUM_GAIN=111
  played as part of a particular collection of tracks.
 The gain is also a Q7.8 fixed point number in dB, as in the ID header's
  'output gain' field.
+The values '-573' and '111' given here are just examples.
 </t>
 <t>
 An Ogg Opus stream MUST NOT have more than one of each of these tags, and if
@@ -1299,18 +1374,19 @@ When encoding, implementations SHOULD limit the use of padding in audio data
  packets to no more than is necessary to make a variable bitrate (VBR) stream
  constant bitrate (CBR), unless they have no reasonable way to determine what
  is necessary.
-Demuxers SHOULD reject audio data packets (treat them as if they were malformed
- Opus packets with an invalid TOC sequence) larger than 61,440 octets per
- Opus stream, unless they have a specific reason for allowing extra padding.
+Demuxers SHOULD treat audio data packets as invalid (treat them as if they were
+ malformed Opus packets with an invalid TOC sequence) if they are larger than
+ 61,440&nbsp;octets per Opus stream, unless they have a specific reason for
+ allowing extra padding.
 Such packets necessarily contain more padding than needed to make a stream CBR.
 Demuxers MUST avoid attempting to allocate excessive amounts of memory when
  presented with a very large packet.
-Demuxers MAY reject or partially process audio data packets larger than
- 61,440&nbsp;octets in an Ogg Opus stream with channel mapping families&nbsp;0
- or&nbsp;1.
-Demuxers MAY reject or partially process audio data packets in any Ogg Opus
- stream if the packet is larger than 61,440&nbsp;octets and also larger than
- 7,680&nbsp;octets per Opus stream.
+Demuxers MAY treat audio data packets as invalid or partially process them if
+ they are larger than 61,440&nbsp;octets in an Ogg Opus stream with channel
+ mapping families&nbsp;0 or&nbsp;1.
+Demuxers MAY treat audio data packets as invalid or partially process them in
+ any Ogg Opus stream if the packet is larger than 61,440&nbsp;octets and also
+ larger than 7,680&nbsp;octets per Opus stream.
 The presence of an extremely large packet in the stream could indicate a
  memory exhaustion attack or stream corruption.
 </t>
@@ -1474,14 +1550,63 @@ A brief summary of major implementations of this draft is available
 Implementations of the Opus codec need to take appropriate security
  considerations into account, as outlined in <xref target="RFC4732"/>.
 This is just as much a problem for the container as it is for the codec itself.
-Robustness against malicious payloads is extremely important.
-Malicious payloads MUST NOT cause an implementation to overrun its allocated
- memory or to take an excessive amount of resources to decode.
-Although problems in encoding applications are typically rarer, the same
- applies to the muxer.
-Malicious audio input streams MUST NOT cause an implementation to overrun its
- allocated memory or consume excessive resources because this would allow an
- attacker to attack transcoding gateways.
+Malicious payloads and/or input streams can be used to attack codec
+ implementations.
+Implementations MUST NOT overrun their allocated memory nor consume excessive
+ resources when decoding payloads or processing input streams.
+Although problems in encoding applications are typically rarer, this still
+ applies to a muxer, as vulnerabilities would allow an attacker to attack
+ transcoding gateways.
+</t>
+
+<t>
+Header parsing code contains the most likely area for potential overruns.
+It is important for implementations to ensure their buffers contain enough
+ data for all of the required fields before attempting to read it (for example,
+ for all of the channel map data in the ID header).
+Implementations would do well to validate the indices of the channel map, also,
+ to ensure they meet all of the restrictions outlined in
+ <xref target="channel_mapping"/>, in order to avoid attempting to read data
+ from channels that do not exist.
+</t>
+
+<t>
+To avoid excessive resource usage, we advise implementations to be especially
+ wary of streams that might cause them to process far more data than was
+ actually transmitted.
+For example, a relatively small comment header may contain values for the
+ string lengths or user comment list length that imply that it is many
+ gigabytes in size.
+Even computing the size of the required buffer could overflow a 32-bit integer,
+ and actually attempting to allocate such a buffer before verifying it would be
+ a reasonable size is a bad idea.
+After reading the user comment list length, implementations might wish to
+ verify that the header contains at least the minimum amount of data for that
+ many comments (4&nbsp;additional octets per comment, to indicate each has a
+ length of zero) before proceeding any further, again taking care to avoid
+ overflow in these calculations.
+If allocating an array of pointers to point at these strings, the size of the
+ pointers may be larger than 4&nbsp;octets, potentially requiring a separate
+ overflow check.
+</t>
+
+<t>
+Another bug in this class we have observed more than once involves the handling
+ of invalid data at the end of a stream.
+Often, implementations will seek to the end of a stream to locate the last
+ timestamp in order to compute its total duration.
+If they do not find a valid capture pattern and Ogg page from the desired
+ logical stream, they will back up and try again.
+If care is not taken to avoid re-scanning data that was already scanned, this
+ search can quickly devolve into something with a complexity that is quadratic
+ in the amount of invalid data.
+</t>
+
+<t>
+In general when seeking, implementations will wish to be cautious about the
+ effects of invalid granule position values, and ensure all algorithms will
+ continue to make progress and eventually terminate, even if these are missing
+ or out-of-order.
 </t>
 
 <t>
@@ -1547,9 +1672,11 @@ This document updates the IANA Media Types registry to add .opus
 This document defines a new registry "Opus Channel Mapping Families" to
  indicate how the semantic meanings of the channels in a multi-channel Opus
  stream are described.
-IANA SHALL create a new name space of "Opus Channel Mapping Families".
-All maintenance within and additions to the contents of this name space MUST be
- according to the "Specification Requried with Expert Review" registration
+IANA is requested to create a new name space of "Opus Channel Mapping
+ Families".
+This will be a new registry on the IANA Matrix, and not a subregistry of an
+ existing registry.
+Modifications to this registry follow the "Specification Required" registration
  policy as defined in <xref target="RFC5226"/>.
 Each registry entry consists of a Channel Mapping Family Number, which is
  specified in decimal in the range 0 to 255, inclusive, and a Reference (or
@@ -1580,9 +1707,9 @@ The designated expert will determine if the Reference points to a specification
 
 <section anchor="Acknowledgments" title="Acknowledgments">
 <t>
-Thanks to Ben Campbell, Mark Harris, Greg Maxwell, Christopher "Monty"
- Montgomery, Jean-Marc Valin, and Mo Zanaty for their valuable contributions to
- this document.
+Thanks to Ben Campbell, Joel M. Halpern, Mark Harris, Greg Maxwell,
+ Christopher "Monty" Montgomery, Jean-Marc Valin, Stephan Wenger, and Mo Zanaty
+ for their valuable contributions to this document.
 Additional thanks to Andrew D'Addesio, Greg Maxwell, and Vincent Penquerc'h for
  their feedback based on early implementations.
 </t>
@@ -1593,19 +1720,6 @@ Additional thanks to Andrew D'Addesio, Greg Maxwell, and Vincent Penquerc'h for
 In&nbsp;<xref target="iana"/>, "RFCXXXX" is to be replaced with the RFC number
  assigned to this draft.
 </t>
-<t>
-In the Copyright Notice at the start of the document, the following paragraph
- is to be appended after the regular copyright notice text:
-</t>
-<t>
-"The licenses granted by the IETF Trust to this RFC under Section&nbsp;3.c of
- the Trust Legal Provisions shall also include the right to extract text from
- Sections&nbsp;1 through&nbsp;14 of this RFC and create derivative works from
- these extracts, and to copy, publish, display, and distribute such derivative
- works in any medium and for any purpose, provided that no such derivative work
- shall be presented, displayed, or published in a manner that states or implies
- that it is part of this RFC or any other IETF Document."
-</t>
 </section>
 
 </middle>
@@ -1614,7 +1728,6 @@ In the Copyright Notice at the start of the document, the following paragraph
  &rfc2119;
  &rfc3533;
  &rfc3629;
- &rfc4732;
  &rfc5226;
  &rfc5334;
  &rfc6381;
@@ -1646,6 +1759,7 @@ In the Copyright Notice at the start of the document, the following paragraph
 <references title="Informative References">
 
 <!--?rfc include="http://xml.resource.org/public/rfc/bibxml/reference.RFC.3550.xml"?-->
+ &rfc4732;
  &rfc6982;
  &rfc7587;
 
@@ -1659,24 +1773,24 @@ In the Copyright Notice at the start of the document, the following paragraph
 </reference>
 
 <reference anchor="hanning"
- target="https://en.wikipedia.org/wiki/Hamming_function#Hann_.28Hanning.29_window">
+ target="https://en.wikipedia.org/w/index.php?title=Window_function&amp;oldid=703074467#Hann_.28Hanning.29_window">
   <front>
     <title>Hann window</title>
     <author>
       <organization>Wikipedia</organization>
     </author>
-    <date month="May" year="2013"/>
+    <date month="February" year="2016"/>
   </front>
 </reference>
 
 <reference anchor="linear-prediction"
- target="https://en.wikipedia.org/wiki/Linear_predictive_coding">
+ target="https://en.wikipedia.org/w/index.php?title=Linear_predictive_coding&amp;oldid=687498962">
   <front>
     <title>Linear Predictive Coding</title>
     <author>
       <organization>Wikipedia</organization>
     </author>
-    <date month="January" year="2014"/>
+    <date month="October" year="2015"/>
   </front>
 </reference>
 
@@ -1691,6 +1805,14 @@ In the Copyright Notice at the start of the document, the following paragraph
 </front>
 </reference>
 
+<reference anchor="q-notation"
+ target="https://en.wikipedia.org/w/index.php?title=Q_%28number_format%29&amp;oldid=697252615">
+<front>
+<title>Q (number format)</title>
+<author><organization>Wikipedia</organization></author>
+<date month="December" year="2015"/>
+</front>
+</reference>
 
 <reference anchor="replay-gain"
  target="https://wiki.xiph.org/VorbisComment#Replay_Gain">

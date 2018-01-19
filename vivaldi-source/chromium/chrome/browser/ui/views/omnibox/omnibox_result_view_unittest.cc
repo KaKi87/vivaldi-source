@@ -1,76 +1,85 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/omnibox/omnibox_result_view.h"
+
+#include "base/memory/ptr_util.h"
+#include "chrome/browser/ui/omnibox/test_omnibox_client.h"
+#include "chrome/browser/ui/views/omnibox/omnibox_popup_contents_view.h"
+#include "components/omnibox/browser/omnibox_edit_model.h"
+#include "content/public/test/test_browser_thread_bundle.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/events/event.h"
+#include "ui/events/event_constants.h"
+#include "ui/events/event_utils.h"
+#include "ui/gfx/image/image.h"
+#include "ui/views/test/views_test_base.h"
 
-TEST(OmniboxResultViewTest, CheckComputeMatchWidths) {
-    int contents_max_width, description_max_width;
-    const int separator_width = 10;
+namespace {
 
-    // Both contents and description fit fine.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        100, separator_width, 50, 200, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(-1, contents_max_width);
-    EXPECT_EQ(-1, description_max_width);
+class TestOmniboxPopupContentsView : public OmniboxPopupContentsView {
+ public:
+  explicit TestOmniboxPopupContentsView(OmniboxEditModel* edit_model)
+      : OmniboxPopupContentsView(gfx::FontList(),
+                                 nullptr,
+                                 edit_model,
+                                 nullptr) {}
 
-    // Contents should be given as much space as it wants up to 300 pixels.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        100, separator_width, 50, 100, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(-1, contents_max_width);
-    EXPECT_EQ(0, description_max_width);
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestOmniboxPopupContentsView);
+};
 
-    // Description should be hidden if it's at least 75 pixels wide but doesn't
-    // get 75 pixels of space.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        300, separator_width, 75, 384, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(-1, contents_max_width);
-    EXPECT_EQ(0, description_max_width);
+}  // namespace
 
-    // Both contents and description will be limited.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        310, separator_width, 150, 400, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(300, contents_max_width);
-    EXPECT_EQ(400 - 300 - separator_width, description_max_width);
+class OmniboxResultViewTest : public views::ViewsTestBase {
+ public:
+  void SetUp() override {
+    ViewsTestBase::SetUp();
+    edit_model_ = base::MakeUnique<OmniboxEditModel>(
+        nullptr, nullptr, base::MakeUnique<TestOmniboxClient>());
+    popup_view_ =
+        base::MakeUnique<TestOmniboxPopupContentsView>(edit_model_.get());
+    result_view_ = base::MakeUnique<OmniboxResultView>(popup_view_.get(), 0,
+                                                       gfx::FontList());
+  }
 
-    // Contents takes all available space.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        400, separator_width, 0, 200, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(-1, contents_max_width);
-    EXPECT_EQ(0, description_max_width);
+  OmniboxResultView* result_view() { return result_view_.get(); }
 
-    // Half and half.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        395, separator_width, 395, 700, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ((700 - separator_width) / 2, contents_max_width);
-    EXPECT_EQ((700 - separator_width) / 2, description_max_width);
+ private:
+  content::TestBrowserThreadBundle test_browser_thread_bundle_;
+  std::unique_ptr<OmniboxEditModel> edit_model_;
+  std::unique_ptr<TestOmniboxPopupContentsView> popup_view_;
+  std::unique_ptr<OmniboxResultView> result_view_;
+};
 
-    // When we disallow shrinking the contents, it should get as much space as
-    // it wants.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        395, separator_width, 395, 700, false, false, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ(-1, contents_max_width);
-    EXPECT_EQ(295, description_max_width);
+TEST_F(OmniboxResultViewTest, MouseMoveAndExit) {
+  EXPECT_EQ(OmniboxResultView::NORMAL, result_view()->GetState());
 
-    // (available_width - separator_width) is odd, so contents gets the extra
-    // pixel.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        395, separator_width, 395, 699, false, true, &contents_max_width,
-        &description_max_width);
-    EXPECT_EQ((700 - separator_width) / 2, contents_max_width);
-    EXPECT_EQ((700 - separator_width) / 2 - 1, description_max_width);
+  // Moving the mouse over the view should put it in the HOVERED state.
+  ui::MouseEvent event(ui::ET_MOUSE_MOVED, gfx::Point(), gfx::Point(),
+                       ui::EventTimeForNow(), 0, 0);
+  result_view()->OnMouseMoved(event);
+  EXPECT_EQ(OmniboxResultView::HOVERED, result_view()->GetState());
 
-    // Not enough space to draw anything.
-    OmniboxResultView::ComputeMatchMaxWidths(
-        1, 1, 1, 0, false, true, &contents_max_width, &description_max_width);
-    EXPECT_EQ(0, contents_max_width);
-    EXPECT_EQ(0, description_max_width);
+  // Continuing to move over the view should not change the state.
+  result_view()->OnMouseMoved(event);
+  EXPECT_EQ(OmniboxResultView::HOVERED, result_view()->GetState());
+
+  // But exiting should revert the state to NORMAL.
+  result_view()->OnMouseExited(event);
+  EXPECT_EQ(OmniboxResultView::NORMAL, result_view()->GetState());
+}
+
+TEST_F(OmniboxResultViewTest, MousePressedCancelsHover) {
+  ui::MouseEvent move_event(ui::ET_MOUSE_MOVED, gfx::Point(), gfx::Point(),
+                            ui::EventTimeForNow(), 0, 0);
+  result_view()->OnMouseMoved(move_event);
+  EXPECT_EQ(OmniboxResultView::HOVERED, result_view()->GetState());
+
+  ui::MouseEvent press_event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+                             ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON,
+                             0);
+  EXPECT_FALSE(result_view()->OnMousePressed(press_event));
+  EXPECT_EQ(OmniboxResultView::NORMAL, result_view()->GetState());
 }

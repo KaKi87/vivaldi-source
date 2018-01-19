@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,80 +6,35 @@
 #define CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSION_INSTALLED_BUBBLE_VIEW_H_
 
 #include "base/macros.h"
-#include "chrome/browser/ui/extensions/extension_installed_bubble.h"
-#include "chrome/browser/ui/sync/bubble_sync_promo_delegate.h"
-#include "components/bubble/bubble_reference.h"
-#include "ui/views/bubble/bubble_delegate.h"
-#include "ui/views/controls/button/button.h"
-#include "ui/views/controls/link_listener.h"
+#include "components/bubble/bubble_ui.h"
+#include "ui/views/widget/widget_observer.h"
 
-class Browser;
-class BubbleSyncPromoView;
+class ExtensionInstalledBubble;
+class ExtensionInstalledBubbleView;
 
-namespace extensions {
-class Extension;
-}
-
-namespace views {
-class LabelButton;
-class Link;
-}
-
-// Provides feedback to the user upon successful installation of an
-// extension. Depending on the type of extension, the Bubble will
-// point to:
-//    OMNIBOX_KEYWORD-> The omnibox.
-//    BROWSER_ACTION -> The browserAction icon in the toolbar.
-//    PAGE_ACTION    -> A preview of the pageAction icon in the location
-//                      bar which is shown while the Bubble is shown.
-//    GENERIC        -> The app menu. This case includes pageActions that don't
-//                      specify a default icon.
-class ExtensionInstalledBubbleView : public BubbleSyncPromoDelegate,
-                                     public views::BubbleDelegateView,
-                                     public views::ButtonListener,
-                                     public views::LinkListener {
+// NB: This bubble is using the temporarily-deprecated bubble manager interface
+// BubbleUi. Do not copy this pattern.
+class ExtensionInstalledBubbleUi : public BubbleUi,
+                                   public views::WidgetObserver {
  public:
-  ExtensionInstalledBubbleView(ExtensionInstalledBubble* bubble,
-                               BubbleReference bubble_reference);
-  ~ExtensionInstalledBubbleView() override;
+  explicit ExtensionInstalledBubbleUi(ExtensionInstalledBubble* bubble);
+  ~ExtensionInstalledBubbleUi() override;
 
-  // Recalculate the anchor position for this bubble.
-  void UpdateAnchorView();
+  ExtensionInstalledBubbleView* bubble_view() { return bubble_view_; }
 
-  void InitLayout();
+  // BubbleUi:
+  void Show(BubbleReference bubble_reference) override;
+  void Close() override;
+  void UpdateAnchorPosition() override;
+
+  // WidgetObserver:
+  void OnWidgetClosing(views::Widget* widget) override;
 
  private:
-  // views::BubbleDelegateView:
-  View* CreateFootnoteView() override;
-  void WindowClosing() override;
-  gfx::Rect GetAnchorRect() const override;
-  void OnWidgetClosing(views::Widget* widget) override;
-  void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
-  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
+  ExtensionInstalledBubble* bubble_;
+  ExtensionInstalledBubbleView* bubble_view_;
 
-  // BubbleSyncPromoDelegate:
-  void OnSignInLinkClicked() override;
-
-  // views::LinkListener:
-  void LinkClicked(views::Link* source, int event_flags) override;
-
-  // views::ButtonListener:
-  void ButtonPressed(views::Button* sender, const ui::Event& event) override;
-
-  const ExtensionInstalledBubble* bubble_;
-  BubbleReference bubble_reference_;
-  const extensions::Extension* extension_;
-  Browser* browser_;
-  ExtensionInstalledBubble::BubbleType type_;
-  ExtensionInstalledBubble::AnchorPosition anchor_position_;
-
-  // The button to close the bubble.
-  views::LabelButton* close_;
-
-  // The shortcut to open the manage shortcuts page.
-  views::Link* manage_shortcut_;
-
-  DISALLOW_COPY_AND_ASSIGN(ExtensionInstalledBubbleView);
+  DISALLOW_COPY_AND_ASSIGN(ExtensionInstalledBubbleUi);
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_EXTENSIONS_EXTENSION_INSTALLED_BUBBLE_VIEW_H_
