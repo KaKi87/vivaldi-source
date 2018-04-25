@@ -27,7 +27,7 @@ class TestURLLoader : public URLLoaderWrapper {
  public:
   class LoaderData {
    public:
-    LoaderData() {}
+    LoaderData() = default;
     ~LoaderData() {
       // We should call callbacks to prevent memory leaks.
       // The callbacks don't do anything, because the objects that created the
@@ -191,7 +191,7 @@ class TestURLLoader : public URLLoaderWrapper {
 class TestClient : public DocumentLoader::Client {
  public:
   TestClient() { full_page_loader_data()->set_content_type("application/pdf"); }
-  ~TestClient() override {}
+  ~TestClient() override = default;
 
   // DocumentLoader::Client overrides:
   pp::Instance* GetPluginInstance() override { return nullptr; }
@@ -200,7 +200,7 @@ class TestClient : public DocumentLoader::Client {
         new TestURLLoader(partial_loader_data()));
   }
   void OnPendingRequestComplete() override {}
-  void OnNewDataAvailable() override {}
+  void OnNewDataReceived() override {}
   void OnDocumentComplete() override {}
   void OnDocumentCanceled() override {}
   void CancelBrowserDownload() override {}
@@ -247,10 +247,10 @@ class TestClient : public DocumentLoader::Client {
 
 class MockClient : public TestClient {
  public:
-  MockClient() {}
+  MockClient() = default;
 
   MOCK_METHOD0(OnPendingRequestComplete, void());
-  MOCK_METHOD0(OnNewDataAvailable, void());
+  MOCK_METHOD0(OnNewDataReceived, void());
   MOCK_METHOD0(OnDocumentComplete, void());
   MOCK_METHOD0(OnDocumentCanceled, void());
 
@@ -1006,38 +1006,6 @@ TEST_F(DocumentLoaderTest, PartialConnectionErrorOnRead) {
   EXPECT_TRUE(client.partial_loader_data()->closed());
 }
 
-TEST_F(DocumentLoaderTest, GetProgress) {
-  TestClient client;
-  client.SetCanUsePartialLoading();
-  client.full_page_loader_data()->set_content_length(
-      DocumentLoader::kDefaultRequestSize * 20);
-  DocumentLoader loader(&client);
-  loader.Init(client.CreateFullPageLoader(), "http://url.com");
-  EXPECT_EQ(0., loader.GetProgress());
-
-  for (int i = 0; i < 20; ++i) {
-    EXPECT_EQ(i * 100 / 20, static_cast<int>(loader.GetProgress() * 100));
-    client.full_page_loader_data()->CallReadCallback(
-        DocumentLoader::kDefaultRequestSize);
-  }
-  EXPECT_EQ(1., loader.GetProgress());
-}
-
-TEST_F(DocumentLoaderTest, GetProgressNoContentLength) {
-  TestClient client;
-  DocumentLoader loader(&client);
-  loader.Init(client.CreateFullPageLoader(), "http://url.com");
-  EXPECT_EQ(-1., loader.GetProgress());
-
-  for (int i = 0; i < 20; ++i) {
-    EXPECT_EQ(-1., loader.GetProgress());
-    client.full_page_loader_data()->CallReadCallback(
-        DocumentLoader::kDefaultRequestSize);
-  }
-  client.full_page_loader_data()->CallReadCallback(0);
-  EXPECT_EQ(1., loader.GetProgress());
-}
-
 TEST_F(DocumentLoaderTest, ClientCompleteCallbacks) {
   MockClient client;
   client.SetCanUsePartialLoading();
@@ -1108,17 +1076,17 @@ TEST_F(DocumentLoaderTest, NewDataAvailable) {
   DocumentLoader loader(&client);
   loader.Init(client.CreateFullPageLoader(), "http://url.com");
 
-  EXPECT_CALL(client, OnNewDataAvailable()).Times(1);
+  EXPECT_CALL(client, OnNewDataReceived()).Times(1);
   client.full_page_loader_data()->CallReadCallback(
       DocumentLoader::kDefaultRequestSize);
   Mock::VerifyAndClear(&client);
 
-  EXPECT_CALL(client, OnNewDataAvailable()).Times(0);
+  EXPECT_CALL(client, OnNewDataReceived()).Times(1);
   client.full_page_loader_data()->CallReadCallback(
       DocumentLoader::kDefaultRequestSize - 100);
   Mock::VerifyAndClear(&client);
 
-  EXPECT_CALL(client, OnNewDataAvailable()).Times(1);
+  EXPECT_CALL(client, OnNewDataReceived()).Times(1);
   client.full_page_loader_data()->CallReadCallback(100);
   Mock::VerifyAndClear(&client);
 }

@@ -321,8 +321,11 @@ static const arg_def_t minsection_pct =
     ARG_DEF(NULL, "minsection-pct", 1, "GOP min bitrate (% of target)");
 static const arg_def_t maxsection_pct =
     ARG_DEF(NULL, "maxsection-pct", 1, "GOP max bitrate (% of target)");
-static const arg_def_t *rc_twopass_args[] = { &bias_pct, &minsection_pct,
-                                              &maxsection_pct, NULL };
+static const arg_def_t corpus_complexity =
+    ARG_DEF(NULL, "corpus-complexity", 1, "corpus vbr complexity midpoint");
+static const arg_def_t *rc_twopass_args[] = {
+  &bias_pct, &minsection_pct, &maxsection_pct, &corpus_complexity, NULL
+};
 
 static const arg_def_t kf_min_dist =
     ARG_DEF(NULL, "kf-min-dist", 1, "Minimum keyframe interval (frames)");
@@ -441,8 +444,8 @@ static const struct arg_enum_list color_space_enum[] = {
 };
 
 static const arg_def_t input_color_space =
-    ARG_DEF_ENUM(NULL, "color-space", 1, "The color space of input content:",
-                 color_space_enum);
+    ARG_DEF_ENUM(NULL, "color-space", 1,
+                 "The color space of input content:", color_space_enum);
 
 #if CONFIG_VP9_HIGHBITDEPTH
 static const struct arg_enum_list bitdepth_enum[] = {
@@ -460,6 +463,7 @@ static const arg_def_t inbitdeptharg =
 static const struct arg_enum_list tune_content_enum[] = {
   { "default", VP9E_CONTENT_DEFAULT },
   { "screen", VP9E_CONTENT_SCREEN },
+  { "film", VP9E_CONTENT_FILM },
   { NULL, 0 }
 };
 
@@ -468,8 +472,14 @@ static const arg_def_t tune_content = ARG_DEF_ENUM(
 
 static const arg_def_t target_level = ARG_DEF(
     NULL, "target-level", 1,
-    "Target level (255: off (default); 0: only keep level stats; 10: level 1.0;"
-    " 11: level 1.1; ... 62: level 6.2)");
+    "Target level\n"
+    "                                        255: off (default)\n"
+    "                                          0: only keep level stats\n"
+    "                                          1: adaptively set alt-ref "
+    "distance and column tile limit based on picture size, and keep"
+    " level stats\n"
+    "                                         10: level 1.0  11: level 1.1  "
+    "...  62: level 6.2");
 
 static const arg_def_t row_mt =
     ARG_DEF(NULL, "row-mt", 1,
@@ -1229,6 +1239,11 @@ static int parse_stream_params(struct VpxEncoderConfig *global,
 
       if (global->passes < 2)
         warn("option %s ignored in one-pass mode.\n", arg.name);
+    } else if (arg_match(&arg, &corpus_complexity, argi)) {
+      config->cfg.rc_2pass_vbr_corpus_complexity = arg_parse_uint(&arg);
+
+      if (global->passes < 2)
+        warn("option %s ignored in one-pass mode.\n", arg.name);
     } else if (arg_match(&arg, &kf_min_dist, argi)) {
       config->cfg.kf_min_dist = arg_parse_uint(&arg);
     } else if (arg_match(&arg, &kf_max_dist, argi)) {
@@ -1425,6 +1440,7 @@ static void show_stream_config(struct stream_state *stream,
   SHOW(rc_2pass_vbr_bias_pct);
   SHOW(rc_2pass_vbr_minsection_pct);
   SHOW(rc_2pass_vbr_maxsection_pct);
+  SHOW(rc_2pass_vbr_corpus_complexity);
   SHOW(kf_mode);
   SHOW(kf_min_dist);
   SHOW(kf_max_dist);

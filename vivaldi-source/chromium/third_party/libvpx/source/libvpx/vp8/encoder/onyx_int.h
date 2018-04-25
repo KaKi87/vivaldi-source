@@ -518,11 +518,9 @@ typedef struct VP8_COMP {
 
 #if CONFIG_MULTITHREAD
   /* multithread data */
-  pthread_mutex_t *pmutex;
-  pthread_mutex_t mt_mutex; /* mutex for b_multi_threaded */
-  int *mt_current_mb_col;
+  vpx_atomic_int *mt_current_mb_col;
   int mt_sync_range;
-  int b_multi_threaded;
+  vpx_atomic_int b_multi_threaded;
   int encoding_thread_count;
   int b_lpf_running;
 
@@ -694,6 +692,9 @@ typedef struct VP8_COMP {
     int token_costs[BLOCK_TYPES][COEF_BANDS][PREV_COEF_CONTEXTS]
                    [MAX_ENTROPY_TOKENS];
   } rd_costs;
+
+  // Use the static threshold from ROI settings.
+  int use_roi_static_threshold;
 } VP8_COMP;
 
 void vp8_initialize_enc(void);

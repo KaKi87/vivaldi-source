@@ -144,8 +144,7 @@ static vpx_codec_err_t vp8_peek_si_internal(const uint8_t *data,
     }
     si->is_kf = 0;
 
-    if (data_sz >= 10 && !(clear[0] & 0x01)) /* I-Frame */
-    {
+    if (data_sz >= 10 && !(clear[0] & 0x01)) { /* I-Frame */
       si->is_kf = 1;
 
       /* vet via sync code */
@@ -415,7 +414,7 @@ static vpx_codec_err_t vp8_decode(vpx_codec_alg_priv_t *ctx,
 #endif
 
 #if CONFIG_MULTITHREAD
-        if (pbi->b_multithreaded_rd) {
+        if (vpx_atomic_load_acquire(&pbi->b_multithreaded_rd)) {
           vp8mt_alloc_temp_buffers(pbi, pc->Width, prev_mb_rows);
         }
 #else

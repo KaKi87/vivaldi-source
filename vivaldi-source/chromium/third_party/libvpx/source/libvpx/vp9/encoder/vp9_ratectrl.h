@@ -32,6 +32,8 @@ extern "C" {
 #define FIXED_GF_INTERVAL 8  // Used in some testing modes only
 #define ONEHALFONLY_RESIZE 0
 
+#define FRAME_OVERHEAD_BITS 200
+
 typedef enum {
   INTER_NORMAL = 0,
   INTER_HIGH = 1,
@@ -164,12 +166,14 @@ typedef struct {
   uint64_t prev_avg_source_sad_lag;
   int high_source_sad_lagindex;
   int alt_ref_gf_group;
+  int last_frame_is_src_altref;
   int high_source_sad;
   int count_last_scene_change;
   int avg_frame_low_motion;
   int af_ratio_onepass_vbr;
   int force_qpmin;
   int reset_high_source_sad;
+  double perc_arf_usage;
 } RATE_CONTROL;
 
 struct VP9_COMP;
