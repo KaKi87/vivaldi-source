@@ -1,18 +1,58 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2017 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# This file is the GN version of blink_platform.gypi. We rebase most paths to
-# be absolute so these lists can be used by BUILD files in different directories
-# without worrying about the base directory.
-_gypi = exec_script("//build/gypi_to_gn.py",
-                    [ rebase_path("blink_platform.gypi") ],
-                    "scope",
-                    [ "blink_platform.gypi" ])
+import("//build/config/jumbo.gni")
 
-platform_files = _gypi.platform_files
-platform_test_files = get_path_info(_gypi.platform_test_files, "abspath")
-platform_web_unittest_files =
-    get_path_info(_gypi.platform_web_unittest_files, "abspath")
-platform_test_support_files =
-    get_path_info(_gypi.platform_test_support_files, "abspath")
+platform_config_add = [
+  "//build/config/compiler:no_size_t_to_int_warning",
+  "//build/config/compiler:wexit_time_destructors",
+  "//third_party/WebKit/Source:config",
+  "//third_party/WebKit/Source:inside_blink",
+  "//third_party/WebKit/Source:non_test_config",
+  "//third_party/WebKit/Source/platform:blink_platform_config",
+  "//third_party/WebKit/Source/platform:blink_platform_implementation",
+  "//third_party/WebKit/Source/platform:blink_platform_pch",
+]
+platform_config_remove = []
+
+template("blink_platform_sources") {
+  jumbo_source_set(target_name) {
+    # Only platform can directly depend on this.
+    # Any target outside platform should instead depend on platform.
+    visibility = [ "//third_party/WebKit/Source/platform" ]
+
+    assert(
+        !defined(invoker.public_deps),
+        "$target_name's public_deps should be moved to //third_party/WebKit/Source/platform:blink_platform_public_deps")
+    deps = [
+      "//third_party/WebKit/Source/platform:blink_platform_public_deps",
+    ]
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+
+    assert(
+        !defined(invoker.public_configs),
+        "$target_name's public_configs should be moved to //third_party/WebKit/Source/platform:blink_platform_public_deps")
+    assert(
+        !defined(invoker.all_dependent_configs),
+        "$target_name's all_dependent_configs should be moved to //third_party/WebKit/Source/platform:blink_platform_public_deps")
+    configs = []
+    if (defined(invoker.configs)) {
+      configs += invoker.configs
+    }
+
+    forward_variables_from(invoker,
+                           "*",
+                           [
+                             "deps",
+                             "configs",
+                           ])
+  }
+}
+
+set_defaults("blink_platform_sources") {
+  configs =
+      default_compiler_configs + platform_config_add - platform_config_remove
+}
