@@ -4,25 +4,30 @@
 
 #include "net/spdy/multiplexed_http_stream.h"
 
+#include <utility>
+
 #include "base/logging.h"
+#include "net/http/http_raw_request_headers.h"
+#include "net/third_party/spdy/core/spdy_header_block.h"
 
 namespace net {
 
-MultiplexedHttpStream::MultiplexedHttpStream(MultiplexedSessionHandle session)
-    : session_(session) {}
+MultiplexedHttpStream::MultiplexedHttpStream(
+    std::unique_ptr<MultiplexedSessionHandle> session)
+    : session_(std::move(session)) {}
 
-MultiplexedHttpStream::~MultiplexedHttpStream() {}
+MultiplexedHttpStream::~MultiplexedHttpStream() = default;
 
 bool MultiplexedHttpStream::GetRemoteEndpoint(IPEndPoint* endpoint) {
-  return session_.GetRemoteEndpoint(endpoint);
+  return session_->GetRemoteEndpoint(endpoint);
 }
 
 void MultiplexedHttpStream::GetSSLInfo(SSLInfo* ssl_info) {
-  session_.GetSSLInfo(ssl_info);
+  session_->GetSSLInfo(ssl_info);
 }
 
 void MultiplexedHttpStream::SaveSSLInfo() {
-  session_.SaveSSLInfo();
+  session_->SaveSSLInfo();
 }
 
 void MultiplexedHttpStream::GetSSLCertRequestInfo(
@@ -36,7 +41,7 @@ Error MultiplexedHttpStream::GetTokenBindingSignature(
     crypto::ECPrivateKey* key,
     TokenBindingType tb_type,
     std::vector<uint8_t>* out) {
-  return session_.GetTokenBindingSignature(key, tb_type, out);
+  return session_->GetTokenBindingSignature(key, tb_type, out);
 }
 
 void MultiplexedHttpStream::Drain(HttpNetworkSession* session) {
@@ -54,6 +59,21 @@ void MultiplexedHttpStream::SetConnectionReused() {}
 bool MultiplexedHttpStream::CanReuseConnection() const {
   // Multiplexed streams aren't considered reusable.
   return false;
+}
+
+void MultiplexedHttpStream::SetRequestHeadersCallback(
+    RequestHeadersCallback callback) {
+  request_headers_callback_ = std::move(callback);
+}
+
+void MultiplexedHttpStream::DispatchRequestHeadersCallback(
+    const spdy::SpdyHeaderBlock& spdy_headers) {
+  if (!request_headers_callback_)
+    return;
+  HttpRawRequestHeaders raw_headers;
+  for (const auto& entry : spdy_headers)
+    raw_headers.Add(entry.first, entry.second);
+  request_headers_callback_.Run(std::move(raw_headers));
 }
 
 }  // namespace net

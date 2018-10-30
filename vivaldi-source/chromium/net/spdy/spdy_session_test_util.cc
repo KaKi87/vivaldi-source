@@ -5,19 +5,20 @@
 #include "net/spdy/spdy_session_test_util.h"
 
 #include "base/location.h"
+#include "base/message_loop/message_loop_current.h"
 #include "base/strings/string_util.h"
 
 namespace net {
 
 SpdySessionTestTaskObserver::SpdySessionTestTaskObserver(
-    const SpdyString& file_name,
-    const SpdyString& function_name)
+    const std::string& file_name,
+    const std::string& function_name)
     : executed_count_(0), file_name_(file_name), function_name_(function_name) {
-  base::MessageLoop::current()->AddTaskObserver(this);
+  base::MessageLoopCurrent::Get()->AddTaskObserver(this);
 }
 
 SpdySessionTestTaskObserver::~SpdySessionTestTaskObserver() {
-  base::MessageLoop::current()->RemoveTaskObserver(this);
+  base::MessageLoopCurrent::Get()->RemoveTaskObserver(this);
 }
 
 void SpdySessionTestTaskObserver::WillProcessTask(

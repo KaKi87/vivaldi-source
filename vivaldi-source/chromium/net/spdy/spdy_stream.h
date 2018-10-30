@@ -8,10 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <deque>
 #include <memory>
+#include <string>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
@@ -22,13 +23,18 @@
 #include "net/log/net_log_with_source.h"
 #include "net/socket/next_proto.h"
 #include "net/socket/ssl_client_socket.h"
-#include "net/spdy/platform/api/spdy_string.h"
 #include "net/spdy/spdy_buffer.h"
-#include "net/spdy/spdy_framer.h"
-#include "net/spdy/spdy_header_block.h"
-#include "net/spdy/spdy_protocol.h"
 #include "net/ssl/ssl_client_cert_type.h"
+#include "net/ssl/token_binding.h"
+#include "net/third_party/spdy/core/spdy_framer.h"
+#include "net/third_party/spdy/core/spdy_header_block.h"
+#include "net/third_party/spdy/core/spdy_protocol.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
+
+namespace crypto {
+class ECPrivateKey;
+}
 
 namespace net {
 
@@ -81,8 +87,11 @@ class NET_EXPORT_PRIVATE SpdyStream {
     //   - OnTrailers() zero or one times;
     //   - OnClose() exactly once.
 
-    // Called when headers have been received.
-    virtual void OnHeadersReceived(const SpdyHeaderBlock& response_headers) = 0;
+    // Called when response headers have been received.  In case of a pushed
+    // stream, the pushed request headers are also passed.
+    virtual void OnHeadersReceived(
+        const spdy::SpdyHeaderBlock& response_headers,
+        const spdy::SpdyHeaderBlock* pushed_request_headers) = 0;
 
     // Called when data is received.  |buffer| may be NULL, which signals EOF.
     // May cause the stream to be closed.
@@ -92,7 +101,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
     virtual void OnDataSent() = 0;
 
     // Called when trailers are received.
-    virtual void OnTrailers(const SpdyHeaderBlock& trailers) = 0;
+    virtual void OnTrailers(const spdy::SpdyHeaderBlock& trailers) = 0;
 
     // Called when SpdyStream is closed. No other delegate functions
     // will be called after this is called, and the delegate must not
@@ -119,7 +128,8 @@ class NET_EXPORT_PRIVATE SpdyStream {
              RequestPriority priority,
              int32_t initial_send_window_size,
              int32_t max_recv_window_size,
-             const NetLogWithSource& net_log);
+             const NetLogWithSource& net_log,
+             const NetworkTrafficAnnotationTag& traffic_annotation);
 
   ~SpdyStream();
 
@@ -139,13 +149,15 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   SpdyStreamType type() const { return type_; }
 
-  SpdyStreamId stream_id() const { return stream_id_; }
-  void set_stream_id(SpdyStreamId stream_id) { stream_id_ = stream_id; }
+  spdy::SpdyStreamId stream_id() const { return stream_id_; }
+  void set_stream_id(spdy::SpdyStreamId stream_id) { stream_id_ = stream_id; }
 
   const GURL& url() const { return url_; }
 
   RequestPriority priority() const { return priority_; }
-  void set_priority(RequestPriority p) { priority_ = p; }
+
+  // Update priority and send PRIORITY frames on the wire if necessary.
+  void SetPriority(RequestPriority priority);
 
   int32_t send_window_size() const { return send_window_size_; }
 
@@ -161,15 +173,16 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   // Called by the session to adjust this stream's send window size by
   // |delta_window_size|, which is the difference between the
-  // SETTINGS_INITIAL_WINDOW_SIZE in the most recent SETTINGS frame
+  // spdy::SETTINGS_INITIAL_WINDOW_SIZE in the most recent SETTINGS frame
   // and the previous initial send window size, possibly unstalling
   // this stream. Although |delta_window_size| may cause this stream's
   // send window size to go negative, it must not cause it to wrap
   // around in either direction. Does nothing if the stream is already
   // closed.
-  //
-  // If stream flow control is turned off, this must not be called.
-  void AdjustSendWindowSize(int32_t delta_window_size);
+  // Returns true if successful.  Returns false if |send_window_size_|
+  // would exceed 2^31-1 after the update, see RFC7540 Section 6.9.2.
+  // Note that |send_window_size_| should not possibly underflow.
+  bool AdjustSendWindowSize(int32_t delta_window_size) WARN_UNUSED_RESULT;
 
   // Called when bytes are consumed from a SpdyBuffer for a DATA frame
   // that is to be written or is being written. Increases the send
@@ -241,13 +254,13 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   // Called by SpdySession when headers are received for this stream.  May close
   // the stream.
-  void OnHeadersReceived(const SpdyHeaderBlock& response_headers,
+  void OnHeadersReceived(const spdy::SpdyHeaderBlock& response_headers,
                          base::Time response_time,
                          base::TimeTicks recv_first_byte_time);
 
   // Called by the SpdySession when a frame carrying request headers opening a
   // push stream is received. Stream transits to STATE_RESERVED_REMOTE state.
-  void OnPushPromiseHeadersReceived(SpdyHeaderBlock headers);
+  void OnPushPromiseHeadersReceived(spdy::SpdyHeaderBlock headers, GURL url);
 
   // Called by the SpdySession when response data has been received
   // for this stream.  This callback may be called multiple times as
@@ -270,7 +283,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // written. |frame_size| is the total size of the logical frame in bytes,
   // including framing overhead.  For fragmented headers, this is the total size
   // of the HEADERS or PUSH_PROMISE frame and subsequent CONTINUATION frames.
-  void OnFrameWriteComplete(SpdyFrameType frame_type, size_t frame_size);
+  void OnFrameWriteComplete(spdy::SpdyFrameType frame_type, size_t frame_size);
 
   // HEADERS-specific write handler invoked by OnFrameWriteComplete().
   int OnHeadersSent();
@@ -289,11 +302,11 @@ class NET_EXPORT_PRIVATE SpdyStream {
   void OnClose(int status);
 
   // Called by the SpdySession to log stream related errors.
-  void LogStreamError(int status, const SpdyString& description);
+  void LogStreamError(int error, const std::string& description);
 
   // If this stream is active, reset it, and close it otherwise. In
   // either case the stream is deleted.
-  void Cancel();
+  void Cancel(int error);
 
   // Close this stream without sending a RST_STREAM and delete
   // it.
@@ -312,7 +325,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // MORE_DATA_TO_SEND for bidirectional streams; for request/response streams,
   // it must be MORE_DATA_TO_SEND if the request has data to upload, or
   // NO_MORE_DATA_TO_SEND if not.
-  int SendRequestHeaders(SpdyHeaderBlock request_headers,
+  int SendRequestHeaders(spdy::SpdyHeaderBlock request_headers,
                          SpdySendStatus send_status);
 
   // Sends a DATA frame. The delegate will be notified via
@@ -320,10 +333,18 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // MORE_DATA_TO_SEND for bidirectional streams; for request/response
   // streams, it must be MORE_DATA_TO_SEND if there is more data to
   // upload, or NO_MORE_DATA_TO_SEND if not.
+  // Must not be called until Delegate::OnHeadersSent() is called.
   void SendData(IOBuffer* data, int length, SpdySendStatus send_status);
 
   // Fills SSL info in |ssl_info| and returns true when SSL is in use.
   bool GetSSLInfo(SSLInfo* ssl_info) const;
+
+  // Generates the signature used in Token Binding using |*key| and for a Token
+  // Binding of type |tb_type|, putting the signature in |*out|. Returns OK or
+  // ERR_FAILED.
+  Error GetTokenBindingSignature(crypto::ECPrivateKey* key,
+                                 TokenBindingType tb_type,
+                                 std::vector<uint8_t>* out) const;
 
   // Returns true if ALPN was negotiated for the underlying socket.
   bool WasAlpnNegotiated() const;
@@ -336,7 +357,8 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // set |send_stalled_by_flow_control_| to false and unstall the data
   // sending. Called by the session or by the stream itself. Must be
   // called only when the stream is still open.
-  void PossiblyResumeIfSendStalled();
+  enum ShouldRequeueStream { Requeue, DoNotRequeue };
+  ShouldRequeueStream PossiblyResumeIfSendStalled();
 
   // Returns whether or not this stream is closed. Note that the only
   // time a stream is closed and not deleted is in its delegate's
@@ -368,15 +390,23 @@ class NET_EXPORT_PRIVATE SpdyStream {
   int64_t raw_received_bytes() const { return raw_received_bytes_; }
   int64_t raw_sent_bytes() const { return raw_sent_bytes_; }
   int recv_bytes() const { return recv_bytes_; }
+  bool ShouldRetryRSTPushStream() const;
 
   bool GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const;
 
-  // Get the URL from the appropriate stream headers, or the empty
-  // GURL() if it is unknown.
-  const GURL& GetUrlFromHeaders() const { return url_from_header_block_; }
+  const spdy::SpdyHeaderBlock& request_headers() const {
+    return request_headers_;
+  }
+  const spdy::SpdyHeaderBlock& response_headers() const {
+    return response_headers_;
+  }
 
   // Returns the estimate of dynamically allocated memory in bytes.
   size_t EstimateMemoryUsage() const;
+
+  const NetworkTrafficAnnotationTag traffic_annotation() const {
+    return traffic_annotation_;
+  }
 
  private:
   class HeadersBufferProducer;
@@ -424,7 +454,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   // Produces the HEADERS frame for the stream. The stream must
   // already be activated.
-  std::unique_ptr<SpdySerializedFrame> ProduceHeadersFrame();
+  std::unique_ptr<spdy::SpdySerializedFrame> ProduceHeadersFrame();
 
   // Queues the send for next frame of the remaining data in
   // |pending_send_data_|. Must be called only when
@@ -433,13 +463,13 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   // Saves the given headers into |response_headers_| and calls
   // OnHeadersReceived() on the delegate if attached.
-  void SaveResponseHeaders(const SpdyHeaderBlock& response_headers);
+  void SaveResponseHeaders(const spdy::SpdyHeaderBlock& response_headers);
 
-  static SpdyString DescribeState(State state);
+  static std::string DescribeState(State state);
 
   const SpdyStreamType type_;
 
-  SpdyStreamId stream_id_;
+  spdy::SpdyStreamId stream_id_;
   const GURL url_;
   RequestPriority priority_;
 
@@ -470,10 +500,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
 
   // The headers for the request to send.
   bool request_headers_valid_;
-  SpdyHeaderBlock request_headers_;
-
-  // The URL from the request headers.
-  GURL url_from_header_block_;
+  spdy::SpdyHeaderBlock request_headers_;
 
   // Data waiting to be sent, and the close state of the local endpoint
   // after the data is fully written.
@@ -490,7 +517,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // For cached responses, this time could be "far" in the past.
   base::Time request_time_;
 
-  SpdyHeaderBlock response_headers_;
+  spdy::SpdyHeaderBlock response_headers_;
   ResponseState response_state_;
   base::Time response_time_;
 
@@ -522,6 +549,8 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // TODO(jgraettinger): Consider removing after crbug.com/35511 is tracked
   // down.
   bool write_handler_guard_;
+
+  const NetworkTrafficAnnotationTag traffic_annotation_;
 
   base::WeakPtrFactory<SpdyStream> weak_ptr_factory_;
 

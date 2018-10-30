@@ -24,14 +24,17 @@
 #include "net/spdy/spdy_stream.h"
 
 namespace base {
-class Timer;
+class OneShotTimer;
 }  // namespace base
+
+namespace spdy {
+class SpdyHeaderBlock;
+}  // namespace spdy
 
 namespace net {
 
 class IOBuffer;
 class NetLogWithSource;
-class SpdyHeaderBlock;
 
 class NET_EXPORT_PRIVATE BidirectionalStreamSpdyImpl
     : public BidirectionalStreamImpl,
@@ -47,12 +50,10 @@ class NET_EXPORT_PRIVATE BidirectionalStreamSpdyImpl
              const NetLogWithSource& net_log,
              bool send_request_headers_automatically,
              BidirectionalStreamImpl::Delegate* delegate,
-             std::unique_ptr<base::Timer> timer) override;
+             std::unique_ptr<base::OneShotTimer> timer,
+             const NetworkTrafficAnnotationTag& traffic_annotation) override;
   void SendRequestHeaders() override;
   int ReadData(IOBuffer* buf, int buf_len) override;
-  void SendData(const scoped_refptr<IOBuffer>& data,
-                int length,
-                bool end_stream) override;
   void SendvData(const std::vector<scoped_refptr<IOBuffer>>& buffers,
                  const std::vector<int>& lengths,
                  bool end_stream) override;
@@ -60,13 +61,16 @@ class NET_EXPORT_PRIVATE BidirectionalStreamSpdyImpl
   int64_t GetTotalReceivedBytes() const override;
   int64_t GetTotalSentBytes() const override;
   bool GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const override;
+  void PopulateNetErrorDetails(NetErrorDetails* details) override;
 
   // SpdyStream::Delegate implementation:
   void OnHeadersSent() override;
-  void OnHeadersReceived(const SpdyHeaderBlock& response_headers) override;
+  void OnHeadersReceived(
+      const spdy::SpdyHeaderBlock& response_headers,
+      const spdy::SpdyHeaderBlock* pushed_request_headers) override;
   void OnDataReceived(std::unique_ptr<SpdyBuffer> buffer) override;
   void OnDataSent() override;
-  void OnTrailers(const SpdyHeaderBlock& trailers) override;
+  void OnTrailers(const spdy::SpdyHeaderBlock& trailers) override;
   void OnClose(int status) override;
   NetLogSource source_dependency() const override;
 
@@ -86,7 +90,7 @@ class NET_EXPORT_PRIVATE BidirectionalStreamSpdyImpl
   const base::WeakPtr<SpdySession> spdy_session_;
   const BidirectionalStreamRequestInfo* request_info_;
   BidirectionalStreamImpl::Delegate* delegate_;
-  std::unique_ptr<base::Timer> timer_;
+  std::unique_ptr<base::OneShotTimer> timer_;
   SpdyStreamRequest stream_request_;
   base::WeakPtr<SpdyStream> stream_;
   const NetLogSource source_dependency_;

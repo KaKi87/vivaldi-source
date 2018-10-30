@@ -8,33 +8,36 @@
 #include <utility>
 #include <vector>
 
+#include "base/containers/circular_deque.h"
 #include "base/logging.h"
-#include "net/spdy/platform/api/spdy_estimate_memory_usage.h"
+#include "base/trace_event/memory_usage_estimator.h"
 #include "net/spdy/spdy_buffer.h"
 #include "net/spdy/spdy_buffer_producer.h"
 #include "net/spdy/spdy_stream.h"
 
 namespace net {
 
-SpdyWriteQueue::PendingWrite::PendingWrite() {}
+SpdyWriteQueue::PendingWrite::PendingWrite() = default;
 
 SpdyWriteQueue::PendingWrite::PendingWrite(
-    SpdyFrameType frame_type,
+    spdy::SpdyFrameType frame_type,
     std::unique_ptr<SpdyBufferProducer> frame_producer,
-    const base::WeakPtr<SpdyStream>& stream)
+    const base::WeakPtr<SpdyStream>& stream,
+    const MutableNetworkTrafficAnnotationTag& traffic_annotation)
     : frame_type(frame_type),
       frame_producer(std::move(frame_producer)),
       stream(stream),
+      traffic_annotation(traffic_annotation),
       has_stream(stream.get() != nullptr) {}
 
-SpdyWriteQueue::PendingWrite::~PendingWrite() {}
+SpdyWriteQueue::PendingWrite::~PendingWrite() = default;
 
 SpdyWriteQueue::PendingWrite::PendingWrite(PendingWrite&& other) = default;
 SpdyWriteQueue::PendingWrite& SpdyWriteQueue::PendingWrite::operator=(
     PendingWrite&& other) = default;
 
 size_t SpdyWriteQueue::PendingWrite::EstimateMemoryUsage() const {
-  return SpdyEstimateMemoryUsage(frame_producer);
+  return base::trace_event::EstimateMemoryUsage(frame_producer);
 }
 
 SpdyWriteQueue::SpdyWriteQueue() : removing_writes_(false) {}
@@ -51,22 +54,27 @@ bool SpdyWriteQueue::IsEmpty() const {
   return true;
 }
 
-void SpdyWriteQueue::Enqueue(RequestPriority priority,
-                             SpdyFrameType frame_type,
-                             std::unique_ptr<SpdyBufferProducer> frame_producer,
-                             const base::WeakPtr<SpdyStream>& stream) {
+void SpdyWriteQueue::Enqueue(
+    RequestPriority priority,
+    spdy::SpdyFrameType frame_type,
+    std::unique_ptr<SpdyBufferProducer> frame_producer,
+    const base::WeakPtr<SpdyStream>& stream,
+    const NetworkTrafficAnnotationTag& traffic_annotation) {
   CHECK(!removing_writes_);
   CHECK_GE(priority, MINIMUM_PRIORITY);
   CHECK_LE(priority, MAXIMUM_PRIORITY);
   if (stream.get())
     DCHECK_EQ(stream->priority(), priority);
-  queue_[priority].push_back({frame_type, std::move(frame_producer), stream});
+  queue_[priority].push_back(
+      {frame_type, std::move(frame_producer), stream,
+       MutableNetworkTrafficAnnotationTag(traffic_annotation)});
 }
 
 bool SpdyWriteQueue::Dequeue(
-    SpdyFrameType* frame_type,
+    spdy::SpdyFrameType* frame_type,
     std::unique_ptr<SpdyBufferProducer>* frame_producer,
-    base::WeakPtr<SpdyStream>* stream) {
+    base::WeakPtr<SpdyStream>* stream,
+    MutableNetworkTrafficAnnotationTag* traffic_annotation) {
   CHECK(!removing_writes_);
   for (int i = MAXIMUM_PRIORITY; i >= MINIMUM_PRIORITY; --i) {
     if (!queue_[i].empty()) {
@@ -75,6 +83,7 @@ bool SpdyWriteQueue::Dequeue(
       *frame_type = pending_write.frame_type;
       *frame_producer = std::move(pending_write.frame_producer);
       *stream = pending_write.stream;
+      *traffic_annotation = pending_write.traffic_annotation;
       if (pending_write.has_stream)
         DCHECK(stream->get());
       return true;
@@ -83,15 +92,13 @@ bool SpdyWriteQueue::Dequeue(
   return false;
 }
 
-void SpdyWriteQueue::RemovePendingWritesForStream(
-    const base::WeakPtr<SpdyStream>& stream) {
+void SpdyWriteQueue::RemovePendingWritesForStream(SpdyStream* stream) {
   CHECK(!removing_writes_);
   removing_writes_ = true;
   RequestPriority priority = stream->priority();
   CHECK_GE(priority, MINIMUM_PRIORITY);
   CHECK_LE(priority, MAXIMUM_PRIORITY);
 
-  DCHECK(stream.get());
 #if DCHECK_IS_ON()
   // |stream| should not have pending writes in a queue not matching
   // its priority.
@@ -99,51 +106,82 @@ void SpdyWriteQueue::RemovePendingWritesForStream(
     if (priority == i)
       continue;
     for (auto it = queue_[i].begin(); it != queue_[i].end(); ++it)
-      DCHECK_NE(it->stream.get(), stream.get());
+      DCHECK_NE(it->stream.get(), stream);
   }
 #endif
 
   // Defer deletion until queue iteration is complete, as
   // SpdyBuffer::~SpdyBuffer() can result in callbacks into SpdyWriteQueue.
   std::vector<std::unique_ptr<SpdyBufferProducer>> erased_buffer_producers;
-
-  // Do the actual deletion and removal, preserving FIFO-ness.
-  std::deque<PendingWrite>& queue = queue_[priority];
-  auto out_it = queue.begin();
-  for (auto it = queue.begin(); it != queue.end(); ++it) {
-    if (it->stream.get() == stream.get()) {
+  base::circular_deque<PendingWrite>& queue = queue_[priority];
+  for (auto it = queue.begin(); it != queue.end();) {
+    if (it->stream.get() == stream) {
       erased_buffer_producers.push_back(std::move(it->frame_producer));
+      it = queue.erase(it);
     } else {
-      *out_it = std::move(*it);
-      ++out_it;
+      ++it;
     }
   }
-  queue.erase(out_it, queue.end());
   removing_writes_ = false;
+
+  // Iteration on |queue| is completed.  Now |erased_buffer_producers| goes out
+  // of scope, SpdyBufferProducers are destroyed.
 }
 
 void SpdyWriteQueue::RemovePendingWritesForStreamsAfter(
-    SpdyStreamId last_good_stream_id) {
+    spdy::SpdyStreamId last_good_stream_id) {
   CHECK(!removing_writes_);
   removing_writes_ = true;
-  std::vector<std::unique_ptr<SpdyBufferProducer>> erased_buffer_producers;
 
+  // Defer deletion until queue iteration is complete, as
+  // SpdyBuffer::~SpdyBuffer() can result in callbacks into SpdyWriteQueue.
+  std::vector<std::unique_ptr<SpdyBufferProducer>> erased_buffer_producers;
   for (int i = MINIMUM_PRIORITY; i <= MAXIMUM_PRIORITY; ++i) {
-    // Do the actual deletion and removal, preserving FIFO-ness.
-    std::deque<PendingWrite>& queue = queue_[i];
-    auto out_it = queue.begin();
-    for (auto it = queue.begin(); it != queue.end(); ++it) {
+    base::circular_deque<PendingWrite>& queue = queue_[i];
+    for (auto it = queue.begin(); it != queue.end();) {
       if (it->stream.get() && (it->stream->stream_id() > last_good_stream_id ||
                                it->stream->stream_id() == 0)) {
         erased_buffer_producers.push_back(std::move(it->frame_producer));
+        it = queue.erase(it);
       } else {
-        *out_it = std::move(*it);
-        ++out_it;
+        ++it;
       }
     }
-    queue.erase(out_it, queue.end());
   }
   removing_writes_ = false;
+
+  // Iteration on each |queue| is completed.  Now |erased_buffer_producers| goes
+  // out of scope, SpdyBufferProducers are destroyed.
+}
+
+void SpdyWriteQueue::ChangePriorityOfWritesForStream(
+    SpdyStream* stream,
+    RequestPriority old_priority,
+    RequestPriority new_priority) {
+  CHECK(!removing_writes_);
+  DCHECK(stream);
+
+#if DCHECK_IS_ON()
+  // |stream| should not have pending writes in a queue not matching
+  // |old_priority|.
+  for (int i = MINIMUM_PRIORITY; i <= MAXIMUM_PRIORITY; ++i) {
+    if (i == old_priority)
+      continue;
+    for (auto it = queue_[i].begin(); it != queue_[i].end(); ++it)
+      DCHECK_NE(it->stream.get(), stream);
+  }
+#endif
+
+  base::circular_deque<PendingWrite>& old_queue = queue_[old_priority];
+  base::circular_deque<PendingWrite>& new_queue = queue_[new_priority];
+  for (auto it = old_queue.begin(); it != old_queue.end();) {
+    if (it->stream.get() == stream) {
+      new_queue.push_back(std::move(*it));
+      it = old_queue.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void SpdyWriteQueue::Clear() {
@@ -161,7 +199,7 @@ void SpdyWriteQueue::Clear() {
 }
 
 size_t SpdyWriteQueue::EstimateMemoryUsage() const {
-  return SpdyEstimateMemoryUsage(queue_);
+  return base::trace_event::EstimateMemoryUsage(queue_);
 }
 
 }  // namespace net

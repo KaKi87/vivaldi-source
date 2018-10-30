@@ -106,6 +106,16 @@ typedef struct {
   int source_alt_ref_active;
   int is_src_frame_alt_ref;
 
+  // Length of the bi-predictive frame group interval
+  int bipred_group_interval;
+
+  // NOTE: Different types of frames may have different bits allocated
+  //       accordingly, aiming to achieve the overall optimal RD performance.
+  int is_bwd_ref_frame;
+  int is_last_bipred_frame;
+  int is_bipred_frame;
+  int is_src_frame_ext_arf;
+
   int avg_frame_bandwidth;  // Average frame size target for clip
   int min_frame_bandwidth;  // Minimum allocation used for any frame
   int max_frame_bandwidth;  // Maximum burst rate allowed for a frame.
@@ -171,6 +181,7 @@ typedef struct {
   int last_frame_is_src_altref;
   int high_source_sad;
   int count_last_scene_change;
+  int hybrid_intra_scene_change;
   int avg_frame_low_motion;
   int af_ratio_onepass_vbr;
   int force_qpmin;
@@ -293,6 +304,10 @@ int vp9_resize_one_pass_cbr(struct VP9_COMP *cpi);
 void vp9_scene_detection_onepass(struct VP9_COMP *cpi);
 
 int vp9_encodedframe_overshoot(struct VP9_COMP *cpi, int frame_size, int *q);
+
+void vp9_configure_buffer_updates(struct VP9_COMP *cpi, int gf_group_index);
+
+void vp9_estimate_qp_gop(struct VP9_COMP *cpi);
 
 #ifdef __cplusplus
 }  // extern "C"

@@ -9,6 +9,8 @@
 
 namespace subresource_filter {
 
+namespace proto = url_pattern_index::proto;
+
 // UnindexedRulesetReader ------------------------------------------------------
 
 UnindexedRulesetReader::UnindexedRulesetReader(

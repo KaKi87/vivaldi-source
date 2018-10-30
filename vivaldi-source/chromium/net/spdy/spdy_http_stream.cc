@@ -6,13 +6,14 @@
 
 #include <algorithm>
 #include <list>
-#include <memory>
+#include <string>
 #include <utility>
 
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
@@ -23,21 +24,85 @@
 #include "net/http/http_response_info.h"
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_with_source.h"
-#include "net/spdy/platform/api/spdy_string.h"
-#include "net/spdy/spdy_header_block.h"
 #include "net/spdy/spdy_http_utils.h"
-#include "net/spdy/spdy_protocol.h"
+#include "net/spdy/spdy_log_util.h"
 #include "net/spdy/spdy_session.h"
+#include "net/third_party/spdy/core/spdy_header_block.h"
+#include "net/third_party/spdy/core/spdy_protocol.h"
 
 namespace net {
+
+namespace {
+
+bool ValidatePushedHeaders(const HttpRequestInfo& request_info,
+                           const spdy::SpdyHeaderBlock& pushed_request_headers,
+                           const spdy::SpdyHeaderBlock& pushed_response_headers,
+                           const HttpResponseInfo& pushed_response_info) {
+  spdy::SpdyHeaderBlock::const_iterator status_it =
+      pushed_response_headers.find(spdy::kHttp2StatusHeader);
+  DCHECK(status_it != pushed_response_headers.end());
+  // 206 Partial Content and 416 Requested Range Not Satisfiable are range
+  // responses.
+  if (status_it->second == "206" || status_it->second == "416") {
+    std::string client_request_range;
+    if (!request_info.extra_headers.GetHeader(HttpRequestHeaders::kRange,
+                                              &client_request_range)) {
+      // Client initiated request is not a range request.
+      SpdySession::RecordSpdyPushedStreamFateHistogram(
+          SpdyPushedStreamFate::kClientRequestNotRange);
+      return false;
+    }
+    spdy::SpdyHeaderBlock::const_iterator pushed_request_range_it =
+        pushed_request_headers.find("range");
+    if (pushed_request_range_it == pushed_request_headers.end()) {
+      // Pushed request is not a range request.
+      SpdySession::RecordSpdyPushedStreamFateHistogram(
+          SpdyPushedStreamFate::kPushedRequestNotRange);
+      return false;
+    }
+    if (client_request_range != pushed_request_range_it->second) {
+      // Client and pushed request ranges do not match.
+      SpdySession::RecordSpdyPushedStreamFateHistogram(
+          SpdyPushedStreamFate::kRangeMismatch);
+      return false;
+    }
+  }
+
+  HttpRequestInfo pushed_request_info;
+  ConvertHeaderBlockToHttpRequestHeaders(pushed_request_headers,
+                                         &pushed_request_info.extra_headers);
+  HttpVaryData vary_data;
+  if (!vary_data.Init(pushed_request_info,
+                      *pushed_response_info.headers.get())) {
+    // Pushed response did not contain non-empty Vary header.
+    SpdySession::RecordSpdyPushedStreamFateHistogram(
+        SpdyPushedStreamFate::kAcceptedNoVary);
+    return true;
+  }
+
+  if (vary_data.MatchesRequest(request_info,
+                               *pushed_response_info.headers.get())) {
+    SpdySession::RecordSpdyPushedStreamFateHistogram(
+        SpdyPushedStreamFate::kAcceptedMatchingVary);
+    return true;
+  }
+
+  SpdySession::RecordSpdyPushedStreamFateHistogram(
+      SpdyPushedStreamFate::kVaryMismatch);
+  return false;
+}
+
+}  // anonymous namespace
 
 const size_t SpdyHttpStream::kRequestBodyBufferSize = 1 << 14;  // 16KB
 
 SpdyHttpStream::SpdyHttpStream(const base::WeakPtr<SpdySession>& spdy_session,
-                               bool direct,
+                               spdy::SpdyStreamId pushed_stream_id,
                                NetLogSource source_dependency)
-    : MultiplexedHttpStream(MultiplexedSessionHandle(spdy_session)),
+    : MultiplexedHttpStream(
+          std::make_unique<MultiplexedSessionHandle>(spdy_session)),
       spdy_session_(spdy_session),
+      pushed_stream_id_(pushed_stream_id),
       is_reused_(spdy_session_->IsReused()),
       source_dependency_(source_dependency),
       stream_(nullptr),
@@ -49,11 +114,11 @@ SpdyHttpStream::SpdyHttpStream(const base::WeakPtr<SpdySession>& spdy_session,
       request_info_(NULL),
       response_info_(NULL),
       response_headers_complete_(false),
+      upload_stream_in_progress_(false),
       user_buffer_len_(0),
       request_body_buf_size_(0),
       buffered_read_callback_pending_(false),
       more_read_data_pending_(false),
-      direct_(direct),
       was_alpn_negotiated_(false),
       weak_factory_(this) {
   DCHECK(spdy_session_.get());
@@ -67,17 +132,19 @@ SpdyHttpStream::~SpdyHttpStream() {
 }
 
 int SpdyHttpStream::InitializeStream(const HttpRequestInfo* request_info,
+                                     bool can_send_early,
                                      RequestPriority priority,
                                      const NetLogWithSource& stream_net_log,
-                                     const CompletionCallback& callback) {
+                                     CompletionOnceCallback callback) {
   DCHECK(!stream_);
   if (!spdy_session_)
     return ERR_CONNECTION_CLOSED;
 
   request_info_ = request_info;
-  if (request_info_->method == "GET") {
-    int error = spdy_session_->GetPushStream(request_info_->url, priority,
-                                             &stream_, stream_net_log);
+  if (pushed_stream_id_ != kNoPushedStreamFound) {
+    int error =
+        spdy_session_->GetPushedStream(request_info_->url, pushed_stream_id_,
+                                       priority, &stream_, stream_net_log);
     if (error != OK)
       return error;
 
@@ -90,10 +157,11 @@ int SpdyHttpStream::InitializeStream(const HttpRequestInfo* request_info,
   }
 
   int rv = stream_request_.StartRequest(
-      SPDY_REQUEST_RESPONSE_STREAM, spdy_session_, request_info_->url,
-      priority, stream_net_log,
-      base::Bind(&SpdyHttpStream::OnStreamCreated,
-                 weak_factory_.GetWeakPtr(), callback));
+      SPDY_REQUEST_RESPONSE_STREAM, spdy_session_, request_info_->url, priority,
+      request_info_->socket_tag, stream_net_log,
+      base::BindOnce(&SpdyHttpStream::OnStreamCreated,
+                     weak_factory_.GetWeakPtr(), std::move(callback)),
+      NetworkTrafficAnnotationTag(request_info->traffic_annotation));
 
   if (rv == OK) {
     stream_ = stream_request_.ReleaseStream().get();
@@ -103,7 +171,7 @@ int SpdyHttpStream::InitializeStream(const HttpRequestInfo* request_info,
   return rv;
 }
 
-int SpdyHttpStream::ReadResponseHeaders(const CompletionCallback& callback) {
+int SpdyHttpStream::ReadResponseHeaders(CompletionOnceCallback callback) {
   CHECK(!callback.is_null());
   if (stream_closed_)
     return closed_stream_status_;
@@ -118,20 +186,13 @@ int SpdyHttpStream::ReadResponseHeaders(const CompletionCallback& callback) {
 
   // Still waiting for the response, return IO_PENDING.
   CHECK(response_callback_.is_null());
-  response_callback_ = callback;
+  response_callback_ = std::move(callback);
   return ERR_IO_PENDING;
 }
 
-int SpdyHttpStream::ReadResponseBody(
-    IOBuffer* buf, int buf_len, const CompletionCallback& callback) {
-  // Invalidate HttpRequestInfo pointer. This is to allow the stream to be
-  // shared across multiple transactions which might require this
-  // stream to outlive the request_'s owner.
-  // Only allowed when Reading of response body starts. It is safe to reset it
-  // at this point since request_->upload_data_stream is also not needed
-  // anymore.
-  request_info_ = nullptr;
-
+int SpdyHttpStream::ReadResponseBody(IOBuffer* buf,
+                                     int buf_len,
+                                     CompletionOnceCallback callback) {
   if (stream_)
     CHECK(!stream_->IsIdle());
 
@@ -150,7 +211,7 @@ int SpdyHttpStream::ReadResponseBody(
   CHECK(!user_buffer_.get());
   CHECK_EQ(0, user_buffer_len_);
 
-  response_callback_ = callback;
+  response_callback_ = std::move(callback);
   user_buffer_ = buf;
   user_buffer_len_ = buf_len;
   return ERR_IO_PENDING;
@@ -216,7 +277,7 @@ bool SpdyHttpStream::GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const {
 
 int SpdyHttpStream::SendRequest(const HttpRequestHeaders& request_headers,
                                 HttpResponseInfo* response,
-                                const CompletionCallback& callback) {
+                                CompletionOnceCallback callback) {
   if (stream_closed_) {
     return closed_stream_status_;
   }
@@ -269,23 +330,23 @@ int SpdyHttpStream::SendRequest(const HttpRequestHeaders& request_headers,
     // non-push behavior. The callback will be called when the
     // response is received.
     CHECK(response_callback_.is_null());
-    response_callback_ = callback;
+    response_callback_ = std::move(callback);
     return ERR_IO_PENDING;
   }
 
-  SpdyHeaderBlock headers;
-  CreateSpdyHeadersFromHttpRequest(*request_info_, request_headers, direct_,
-                                   &headers);
+  spdy::SpdyHeaderBlock headers;
+  CreateSpdyHeadersFromHttpRequest(*request_info_, request_headers, &headers);
   stream_->net_log().AddEvent(
       NetLogEventType::HTTP_TRANSACTION_HTTP2_SEND_REQUEST_HEADERS,
       base::Bind(&SpdyHeaderBlockNetLogCallback, &headers));
+  DispatchRequestHeadersCallback(headers);
   result = stream_->SendRequestHeaders(
       std::move(headers),
       HasUploadData() ? MORE_DATA_TO_SEND : NO_MORE_DATA_TO_SEND);
 
   if (result == ERR_IO_PENDING) {
     CHECK(request_callback_.is_null());
-    request_callback_ = callback;
+    request_callback_ = std::move(callback);
   }
   return result;
 }
@@ -294,7 +355,7 @@ void SpdyHttpStream::Cancel() {
   request_callback_.Reset();
   response_callback_.Reset();
   if (stream_) {
-    stream_->Cancel();
+    stream_->Cancel(ERR_ABORTED);
     DCHECK(!stream_);
   }
 }
@@ -308,19 +369,30 @@ void SpdyHttpStream::OnHeadersSent() {
 }
 
 void SpdyHttpStream::OnHeadersReceived(
-    const SpdyHeaderBlock& response_headers) {
+    const spdy::SpdyHeaderBlock& response_headers,
+    const spdy::SpdyHeaderBlock* pushed_request_headers) {
   DCHECK(!response_headers_complete_);
   response_headers_complete_ = true;
 
   if (!response_info_) {
     DCHECK_EQ(stream_->type(), SPDY_PUSH_STREAM);
-    push_response_info_.reset(new HttpResponseInfo);
+    push_response_info_ = std::make_unique<HttpResponseInfo>();
     response_info_ = push_response_info_.get();
   }
 
   const bool headers_valid =
       SpdyHeadersToHttpResponse(response_headers, response_info_);
   DCHECK(headers_valid);
+
+  if (pushed_request_headers &&
+      !ValidatePushedHeaders(*request_info_, *pushed_request_headers,
+                             response_headers, *response_info_)) {
+    // Cancel will call OnClose, which might call callbacks and might destroy
+    // |this|.
+    stream_->Cancel(ERR_SPDY_PUSHED_RESPONSE_DOES_NOT_MATCH);
+
+    return;
+  }
 
   response_info_->response_time = stream_->response_time();
   // Don't store the SSLInfo in the response here, HttpNetworkTransaction
@@ -332,6 +404,12 @@ void SpdyHttpStream::OnHeadersReceived(
       HttpResponseInfo::ConnectionInfoToString(response_info_->connection_info);
   response_info_->vary_data
       .Init(*request_info_, *response_info_->headers.get());
+
+  // Invalidate HttpRequestInfo pointer. This is to allow |this| to be
+  // shared across multiple consumers at the cache layer which might require
+  // this stream to outlive the request_info_'s owner.
+  if (!upload_stream_in_progress_)
+    request_info_ = nullptr;
 
   if (!response_callback_.is_null()) {
     DoResponseCallback(OK);
@@ -363,22 +441,22 @@ void SpdyHttpStream::OnDataSent() {
 }
 
 // TODO(xunjieli): Maybe do something with the trailers. crbug.com/422958.
-void SpdyHttpStream::OnTrailers(const SpdyHeaderBlock& trailers) {}
+void SpdyHttpStream::OnTrailers(const spdy::SpdyHeaderBlock& trailers) {}
 
 void SpdyHttpStream::OnClose(int status) {
+  DCHECK(stream_);
+
   // Cancel any pending reads from the upload data stream.
   if (request_info_ && request_info_->upload_data_stream)
     request_info_->upload_data_stream->Reset();
 
-  if (stream_) {
-    stream_closed_ = true;
-    closed_stream_status_ = status;
-    closed_stream_id_ = stream_->stream_id();
-    closed_stream_has_load_timing_info_ =
-        stream_->GetLoadTimingInfo(&closed_stream_load_timing_info_);
-    closed_stream_received_bytes_ = stream_->raw_received_bytes();
-    closed_stream_sent_bytes_ = stream_->raw_sent_bytes();
-  }
+  stream_closed_ = true;
+  closed_stream_status_ = status;
+  closed_stream_id_ = stream_->stream_id();
+  closed_stream_has_load_timing_info_ =
+      stream_->GetLoadTimingInfo(&closed_stream_load_timing_info_);
+  closed_stream_received_bytes_ = stream_->raw_received_bytes();
+  closed_stream_sent_bytes_ = stream_->raw_sent_bytes();
   stream_ = nullptr;
 
   // Callbacks might destroy |this|.
@@ -414,30 +492,36 @@ bool SpdyHttpStream::HasUploadData() const {
        request_info_->upload_data_stream->is_chunked());
 }
 
-void SpdyHttpStream::OnStreamCreated(
-    const CompletionCallback& callback,
-    int rv) {
+void SpdyHttpStream::OnStreamCreated(CompletionOnceCallback callback, int rv) {
   if (rv == OK) {
     stream_ = stream_request_.ReleaseStream().get();
     InitializeStreamHelper();
   }
-  callback.Run(rv);
+  std::move(callback).Run(rv);
 }
 
 void SpdyHttpStream::ReadAndSendRequestBodyData() {
   CHECK(HasUploadData());
+  upload_stream_in_progress_ = true;
+
   CHECK_EQ(request_body_buf_size_, 0);
   if (request_info_->upload_data_stream->IsEOF()) {
     MaybePostRequestCallback(OK);
+
+    // Invalidate HttpRequestInfo pointer. This is to allow |this| to be
+    // shared across multiple consumers at the cache layer which might require
+    // this stream to outlive the request_info_'s owner.
+    upload_stream_in_progress_ = false;
+    if (response_headers_complete_)
+      request_info_ = nullptr;
     return;
   }
 
   // Read the data from the request body stream.
-  const int rv = request_info_->upload_data_stream
-      ->Read(request_body_buf_.get(),
-             request_body_buf_->size(),
-             base::Bind(&SpdyHttpStream::OnRequestBodyReadCompleted,
-                        weak_factory_.GetWeakPtr()));
+  const int rv = request_info_->upload_data_stream->Read(
+      request_body_buf_.get(), request_body_buf_->size(),
+      base::BindOnce(&SpdyHttpStream::OnRequestBodyReadCompleted,
+                     weak_factory_.GetWeakPtr()));
 
   if (rv != ERR_IO_PENDING)
     OnRequestBodyReadCompleted(rv);
@@ -448,23 +532,16 @@ void SpdyHttpStream::InitializeStreamHelper() {
   was_alpn_negotiated_ = stream_->WasAlpnNegotiated();
 }
 
-void SpdyHttpStream::ResetStreamInternal() {
-  spdy_session_->ResetStream(stream()->stream_id(), ERROR_CODE_INTERNAL_ERROR,
-                             SpdyString());
+void SpdyHttpStream::ResetStream(int error) {
+  spdy_session_->ResetStream(stream()->stream_id(), error, std::string());
 }
 
 void SpdyHttpStream::OnRequestBodyReadCompleted(int status) {
   if (status < 0) {
     DCHECK_NE(ERR_IO_PENDING, status);
-    // Post |request_callback_| with received error.  This should be posted
-    // before ResetStreamInternal, because the latter would call
-    // |request_callback_| via OnClose with an error code potentially different
-    // from |status|.
-    MaybePostRequestCallback(status);
-
     base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, base::Bind(&SpdyHttpStream::ResetStreamInternal,
-                              weak_factory_.GetWeakPtr()));
+        FROM_HERE, base::BindOnce(&SpdyHttpStream::ResetStream,
+                                  weak_factory_.GetWeakPtr(), status));
 
     return;
   }
@@ -495,8 +572,9 @@ void SpdyHttpStream::ScheduleBufferedReadCallback() {
   buffered_read_callback_pending_ = true;
   const base::TimeDelta kBufferTime = base::TimeDelta::FromMilliseconds(1);
   base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
-      FROM_HERE, base::Bind(&SpdyHttpStream::DoBufferedReadCallback,
-                            weak_factory_.GetWeakPtr()),
+      FROM_HERE,
+      base::BindOnce(&SpdyHttpStream::DoBufferedReadCallback,
+                     weak_factory_.GetWeakPtr()),
       kBufferTime);
 }
 
@@ -517,13 +595,11 @@ void SpdyHttpStream::DoBufferedReadCallback() {
 
   // If the transaction is cancelled or errored out, we don't need to complete
   // the read.
-  if (!stream_ && !stream_closed_)
+  if (stream_closed_ && closed_stream_status_ != OK) {
+    if (response_callback_)
+      DoResponseCallback(closed_stream_status_);
     return;
-
-  int stream_status =
-      stream_closed_ ? closed_stream_status_ : stream_->response_status();
-  if (stream_status != OK)
-    return;
+  }
 
   // When more_read_data_pending_ is true, it means that more data has
   // arrived since we started waiting.  Wait a little longer and continue
@@ -533,15 +609,20 @@ void SpdyHttpStream::DoBufferedReadCallback() {
     return;
   }
 
-  int rv = 0;
-  if (user_buffer_.get()) {
-    rv = ReadResponseBody(user_buffer_.get(), user_buffer_len_,
-                          response_callback_);
-    CHECK_NE(rv, ERR_IO_PENDING);
-    user_buffer_ = NULL;
+  if (!user_buffer_.get())
+    return;
+
+  if (!response_body_queue_.IsEmpty()) {
+    int rv =
+        response_body_queue_.Dequeue(user_buffer_->data(), user_buffer_len_);
+    user_buffer_ = nullptr;
     user_buffer_len_ = 0;
     DoResponseCallback(rv);
+    return;
   }
+
+  if (stream_closed_ && response_callback_)
+    DoResponseCallback(closed_stream_status_);
 }
 
 void SpdyHttpStream::DoRequestCallback(int rv) {
@@ -562,8 +643,8 @@ void SpdyHttpStream::MaybePostRequestCallback(int rv) {
   CHECK_NE(ERR_IO_PENDING, rv);
   if (request_callback_)
     base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, base::Bind(&SpdyHttpStream::MaybeDoRequestCallback,
-                              weak_factory_.GetWeakPtr(), rv));
+        FROM_HERE, base::BindOnce(&SpdyHttpStream::MaybeDoRequestCallback,
+                                  weak_factory_.GetWeakPtr(), rv));
 }
 
 void SpdyHttpStream::DoResponseCallback(int rv) {
@@ -588,8 +669,9 @@ void SpdyHttpStream::PopulateNetErrorDetails(NetErrorDetails* details) {
 }
 
 void SpdyHttpStream::SetPriority(RequestPriority priority) {
-  // TODO(akalin): Plumb this through to |stream_request_| and
-  // |stream_|.
+  if (stream_) {
+    stream_->SetPriority(priority);
+  }
 }
 
 }  // namespace net

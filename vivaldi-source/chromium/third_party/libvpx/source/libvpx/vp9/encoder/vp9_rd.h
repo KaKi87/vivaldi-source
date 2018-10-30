@@ -108,9 +108,14 @@ typedef struct RD_OPT {
   int64_t prediction_type_threshes[MAX_REF_FRAMES][REFERENCE_MODES];
 
   int64_t filter_threshes[MAX_REF_FRAMES][SWITCHABLE_FILTER_CONTEXTS];
+#if CONFIG_CONSISTENT_RECODE
+  int64_t prediction_type_threshes_prev[MAX_REF_FRAMES][REFERENCE_MODES];
 
+  int64_t filter_threshes_prev[MAX_REF_FRAMES][SWITCHABLE_FILTER_CONTEXTS];
+#endif
   int RDMULT;
   int RDDIV;
+  double r0;
 } RD_OPT;
 
 typedef struct RD_COST {
@@ -133,6 +138,8 @@ int64_t vp9_compute_rd_mult_based_on_qindex(const struct VP9_COMP *cpi,
                                             int qindex);
 
 int vp9_compute_rd_mult(const struct VP9_COMP *cpi, int qindex);
+
+int vp9_get_adaptive_rdmult(const struct VP9_COMP *cpi, double beta);
 
 void vp9_initialize_rd_consts(struct VP9_COMP *cpi);
 

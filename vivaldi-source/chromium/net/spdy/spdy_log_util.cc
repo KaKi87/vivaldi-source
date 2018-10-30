@@ -4,30 +4,31 @@
 
 #include "net/spdy/spdy_log_util.h"
 
-#include "base/memory/ptr_util.h"
+#include <utility>
+
 #include "base/strings/string_number_conversions.h"
 #include "base/values.h"
 #include "net/http/http_log_util.h"
 
 namespace net {
 
-SpdyString ElideGoAwayDebugDataForNetLog(NetLogCaptureMode capture_mode,
-                                         base::StringPiece debug_data) {
+std::string ElideGoAwayDebugDataForNetLog(NetLogCaptureMode capture_mode,
+                                          base::StringPiece debug_data) {
   // Note: this logic should be kept in sync with stripGoAwayDebugData in
   // chrome/browser/resources/net_internals/log_view_painter.js.
   if (capture_mode.include_cookies_and_credentials()) {
     return debug_data.as_string();
   }
 
-  return SpdyString("[") + base::SizeTToString(debug_data.size()) +
-         SpdyString(" bytes were stripped]");
+  return std::string("[") + base::NumberToString(debug_data.size()) +
+         std::string(" bytes were stripped]");
 }
 
 std::unique_ptr<base::ListValue> ElideSpdyHeaderBlockForNetLog(
-    const SpdyHeaderBlock& headers,
+    const spdy::SpdyHeaderBlock& headers,
     NetLogCaptureMode capture_mode) {
-  auto headers_list = base::MakeUnique<base::ListValue>();
-  for (SpdyHeaderBlock::const_iterator it = headers.begin();
+  auto headers_list = std::make_unique<base::ListValue>();
+  for (spdy::SpdyHeaderBlock::const_iterator it = headers.begin();
        it != headers.end(); ++it) {
     headers_list->AppendString(
         it->first.as_string() + ": " +
@@ -35,6 +36,22 @@ std::unique_ptr<base::ListValue> ElideSpdyHeaderBlockForNetLog(
                                   it->second.as_string()));
   }
   return headers_list;
+}
+
+std::unique_ptr<base::Value> SpdyHeaderBlockNetLogCallback(
+    const spdy::SpdyHeaderBlock* headers,
+    NetLogCaptureMode capture_mode) {
+  auto dict = std::make_unique<base::DictionaryValue>();
+  auto headers_dict = std::make_unique<base::DictionaryValue>();
+  for (spdy::SpdyHeaderBlock::const_iterator it = headers->begin();
+       it != headers->end(); ++it) {
+    headers_dict->SetKey(
+        it->first.as_string(),
+        base::Value(ElideHeaderValueForNetLog(
+            capture_mode, it->first.as_string(), it->second.as_string())));
+  }
+  dict->Set("headers", std::move(headers_dict));
+  return std::move(dict);
 }
 
 }  // namespace net

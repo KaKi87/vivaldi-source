@@ -161,6 +161,17 @@ typedef enum {
   ONE_LOOP_REDUCED = 1
 } FAST_COEFF_UPDATE;
 
+typedef struct ADAPT_SUBPEL_FORCE_STOP {
+  // Threshold for full pixel motion vector;
+  int mv_thresh;
+
+  // subpel_force_stop if full pixel MV is below the threshold.
+  int force_stop_below;
+
+  // subpel_force_stop if full pixel MV is equal to or above the threshold.
+  int force_stop_above;
+} ADAPT_SUBPEL_FORCE_STOP;
+
 typedef struct MV_SPEED_FEATURES {
   // Motion search method (Diamond, NSTEP, Hex, Big Diamond, Square, etc).
   SEARCH_METHODS search_method;
@@ -188,6 +199,11 @@ typedef struct MV_SPEED_FEATURES {
   // 2: Stop at half pixel.
   // 3: Stop at full pixel.
   int subpel_force_stop;
+
+  // If it's enabled, different subpel_force_stop will be used for different MV.
+  int enable_adaptive_subpel_force_stop;
+
+  ADAPT_SUBPEL_FORCE_STOP adapt_subpel_force_stop;
 
   // This variable sets the step_param used in full pel motion search.
   int fullpel_search_step_param;
@@ -258,6 +274,9 @@ typedef struct SPEED_FEATURES {
   // alternate reference frames.
   int allow_acl;
 
+  // Temporal dependency model based encoding mode optimization
+  int enable_tpl_model;
+
   // Use transform domain distortion. Use pixel domain distortion in speed 0
   // and certain situations in higher speed to improve the RD model precision.
   int allow_txfm_domain_distortion;
@@ -271,6 +290,9 @@ typedef struct SPEED_FEATURES {
   // between options like full rd, largest for prediction size, largest
   // for intra and model coefs for the rest.
   TX_SIZE_SEARCH_METHOD tx_size_search_method;
+
+  // How many levels of tx size to search, starting from the largest.
+  int tx_size_search_depth;
 
   // Low precision 32x32 fdct keeps everything in 16 bits and thus is less
   // precise but significantly faster than the non lp version.
@@ -448,6 +470,10 @@ typedef struct SPEED_FEATURES {
   // Partition search early breakout thresholds.
   PARTITION_SEARCH_BREAKOUT_THR partition_search_breakout_thr;
 
+  // Use ML-based partition search early breakout.
+  int use_ml_partition_search_breakout;
+  float ml_partition_search_breakout_thresh[3];
+
   // Machine-learning based partition search early termination
   int ml_partition_search_early_termination;
 
@@ -508,6 +534,16 @@ typedef struct SPEED_FEATURES {
 
   // For SVC: enables use of partition from lower spatial resolution.
   int svc_use_lowres_part;
+
+  // Enable re-encoding on scene change with potential high overshoot,
+  // for real-time encoding flow.
+  int re_encode_overshoot_rt;
+
+  // Disable partitioning of 16x16 blocks.
+  int disable_16x16part_nonkey;
+
+  // Allow for disabling golden reference.
+  int disable_golden_ref;
 } SPEED_FEATURES;
 
 struct VP9_COMP;

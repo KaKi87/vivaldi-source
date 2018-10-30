@@ -14,9 +14,9 @@
 #include "base/timer/timer.h"
 #include "net/http/bidirectional_stream_request_info.h"
 #include "net/spdy/spdy_buffer.h"
-#include "net/spdy/spdy_header_block.h"
 #include "net/spdy/spdy_http_utils.h"
 #include "net/spdy/spdy_stream.h"
+#include "net/third_party/spdy/core/spdy_header_block.h"
 
 namespace net {
 
@@ -58,7 +58,8 @@ void BidirectionalStreamSpdyImpl::Start(
     const NetLogWithSource& net_log,
     bool /*send_request_headers_automatically*/,
     BidirectionalStreamImpl::Delegate* delegate,
-    std::unique_ptr<base::Timer> timer) {
+    std::unique_ptr<base::OneShotTimer> timer,
+    const NetworkTrafficAnnotationTag& traffic_annotation) {
   DCHECK(!stream_);
   DCHECK(timer);
 
@@ -77,9 +78,10 @@ void BidirectionalStreamSpdyImpl::Start(
 
   int rv = stream_request_.StartRequest(
       SPDY_BIDIRECTIONAL_STREAM, spdy_session_, request_info_->url,
-      request_info_->priority, net_log,
+      request_info_->priority, request_info_->socket_tag, net_log,
       base::Bind(&BidirectionalStreamSpdyImpl::OnStreamInitialized,
-                 weak_factory_.GetWeakPtr()));
+                 weak_factory_.GetWeakPtr()),
+      traffic_annotation);
   if (rv != ERR_IO_PENDING)
     OnStreamInitialized(rv);
 }
@@ -110,30 +112,6 @@ int BidirectionalStreamSpdyImpl::ReadData(IOBuffer* buf, int buf_len) {
   return ERR_IO_PENDING;
 }
 
-void BidirectionalStreamSpdyImpl::SendData(const scoped_refptr<IOBuffer>& data,
-                                           int length,
-                                           bool end_stream) {
-  DCHECK(length > 0 || (length == 0 && end_stream));
-  DCHECK(!write_pending_);
-
-  if (written_end_of_stream_) {
-    LOG(ERROR) << "Writing after end of stream is written.";
-    base::ThreadTaskRunnerHandle::Get()->PostTask(
-        FROM_HERE, base::Bind(&BidirectionalStreamSpdyImpl::NotifyError,
-                              weak_factory_.GetWeakPtr(), ERR_UNEXPECTED));
-    return;
-  }
-
-  write_pending_ = true;
-  written_end_of_stream_ = end_stream;
-  if (MaybeHandleStreamClosedInSendData())
-    return;
-
-  DCHECK(!stream_closed_);
-  stream_->SendData(data.get(), length,
-                    end_stream ? NO_MORE_DATA_TO_SEND : MORE_DATA_TO_SEND);
-}
-
 void BidirectionalStreamSpdyImpl::SendvData(
     const std::vector<scoped_refptr<IOBuffer>>& buffers,
     const std::vector<int>& lengths,
@@ -160,13 +138,17 @@ void BidirectionalStreamSpdyImpl::SendvData(
     total_len += len;
   }
 
-  pending_combined_buffer_ = new net::IOBuffer(total_len);
-  int len = 0;
-  // TODO(xunjieli): Get rid of extra copy. Coalesce headers and data frames.
-  for (size_t i = 0; i < buffers.size(); ++i) {
-    memcpy(pending_combined_buffer_->data() + len, buffers[i]->data(),
-           lengths[i]);
-    len += lengths[i];
+  if (buffers.size() == 1) {
+    pending_combined_buffer_ = buffers[0];
+  } else {
+    pending_combined_buffer_ = new net::IOBuffer(total_len);
+    int len = 0;
+    // TODO(xunjieli): Get rid of extra copy. Coalesce headers and data frames.
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      memcpy(pending_combined_buffer_->data() + len, buffers[i]->data(),
+             lengths[i]);
+      len += lengths[i];
+    }
   }
   stream_->SendData(pending_combined_buffer_.get(), total_len,
                     end_stream ? NO_MORE_DATA_TO_SEND : MORE_DATA_TO_SEND);
@@ -213,6 +195,9 @@ bool BidirectionalStreamSpdyImpl::GetLoadTimingInfo(
   return stream_->GetLoadTimingInfo(load_timing_info);
 }
 
+void BidirectionalStreamSpdyImpl::PopulateNetErrorDetails(
+    NetErrorDetails* details) {}
+
 void BidirectionalStreamSpdyImpl::OnHeadersSent() {
   DCHECK(stream_);
 
@@ -222,7 +207,8 @@ void BidirectionalStreamSpdyImpl::OnHeadersSent() {
 }
 
 void BidirectionalStreamSpdyImpl::OnHeadersReceived(
-    const SpdyHeaderBlock& response_headers) {
+    const spdy::SpdyHeaderBlock& response_headers,
+    const spdy::SpdyHeaderBlock* pushed_request_headers) {
   DCHECK(stream_);
 
   if (delegate_)
@@ -259,7 +245,8 @@ void BidirectionalStreamSpdyImpl::OnDataSent() {
     delegate_->OnDataSent();
 }
 
-void BidirectionalStreamSpdyImpl::OnTrailers(const SpdyHeaderBlock& trailers) {
+void BidirectionalStreamSpdyImpl::OnTrailers(
+    const spdy::SpdyHeaderBlock& trailers) {
   DCHECK(stream_);
   DCHECK(!stream_closed_);
 
@@ -300,14 +287,14 @@ NetLogSource BidirectionalStreamSpdyImpl::source_dependency() const {
 }
 
 int BidirectionalStreamSpdyImpl::SendRequestHeadersHelper() {
-  SpdyHeaderBlock headers;
+  spdy::SpdyHeaderBlock headers;
   HttpRequestInfo http_request_info;
   http_request_info.url = request_info_->url;
   http_request_info.method = request_info_->method;
   http_request_info.extra_headers = request_info_->extra_headers;
 
-  CreateSpdyHeadersFromHttpRequest(
-      http_request_info, http_request_info.extra_headers, true, &headers);
+  CreateSpdyHeadersFromHttpRequest(http_request_info,
+                                   http_request_info.extra_headers, &headers);
   written_end_of_stream_ = request_info_->end_stream_on_headers;
   return stream_->SendRequestHeaders(std::move(headers),
                                      request_info_->end_stream_on_headers

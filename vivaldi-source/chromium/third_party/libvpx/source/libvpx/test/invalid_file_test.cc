@@ -123,6 +123,8 @@ TEST_P(InvalidFileTest, ReturnCode) { RunTest(); }
 #if CONFIG_VP8_DECODER
 const DecodeParam kVP8InvalidFileTests[] = {
   { 1, "invalid-bug-1443.ivf" },
+  { 1, "invalid-token-partition.ivf" },
+  { 1, "invalid-vp80-00-comprehensive-s17661_r01-05_b6-.ivf" },
 };
 
 VP8_INSTANTIATE_TEST_CASE(InvalidFileTest,

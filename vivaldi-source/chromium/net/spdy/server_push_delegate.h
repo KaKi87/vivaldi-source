@@ -5,6 +5,8 @@
 #ifndef NET_SPDY_SERVER_PUSH_DELEGATE_H_
 #define NET_SPDY_SERVER_PUSH_DELEGATE_H_
 
+#include <memory>
+
 #include "net/base/net_export.h"
 #include "net/log/net_log_with_source.h"
 #include "url/gurl.h"

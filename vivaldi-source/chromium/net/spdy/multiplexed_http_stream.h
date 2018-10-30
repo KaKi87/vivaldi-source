@@ -5,15 +5,22 @@
 #ifndef NET_SPDY_MULTIPLEXED_HTTP_STREAM_H_
 #define NET_SPDY_MULTIPLEXED_HTTP_STREAM_H_
 
+#include <memory>
+#include <vector>
+
 #include "net/http/http_stream.h"
 #include "net/spdy/multiplexed_session.h"
 
+namespace spdy {
+class SpdyHeaderBlock;
+}  // namespace spdy
 namespace net {
 
 // Base class for SPDY and QUIC HttpStream subclasses.
 class NET_EXPORT_PRIVATE MultiplexedHttpStream : public HttpStream {
  public:
-  explicit MultiplexedHttpStream(MultiplexedSessionHandle session);
+  explicit MultiplexedHttpStream(
+      std::unique_ptr<MultiplexedSessionHandle> session);
   ~MultiplexedHttpStream() override;
 
   bool GetRemoteEndpoint(IPEndPoint* endpoint) override;
@@ -29,9 +36,18 @@ class NET_EXPORT_PRIVATE MultiplexedHttpStream : public HttpStream {
 
   // Caches SSL info from the underlying session.
   void SaveSSLInfo();
+  void SetRequestHeadersCallback(RequestHeadersCallback callback) override;
+
+ protected:
+  void DispatchRequestHeadersCallback(
+      const spdy::SpdyHeaderBlock& spdy_headers);
+
+  MultiplexedSessionHandle* session() { return session_.get(); }
+  const MultiplexedSessionHandle* session() const { return session_.get(); }
 
  private:
-  MultiplexedSessionHandle session_;
+  const std::unique_ptr<MultiplexedSessionHandle> session_;
+  RequestHeadersCallback request_headers_callback_;
 };
 
 }  // namespace net
