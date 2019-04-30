@@ -1,29 +1,33 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-var SearchField = Polymer({
+/**
+ * @fileoverview
+ * 'cr-search-field' is a simple implementation of a polymer component that
+ * uses CrSearchFieldBehavior.
+ */
+
+Polymer({
   is: 'cr-search-field',
 
   behaviors: [CrSearchFieldBehavior],
 
   properties: {
-    value_: String,
+    autofocus: {
+      type: Boolean,
+      value: false,
+    },
   },
 
-  /** @return {!HTMLInputElement} */
+  /** @return {!CrInputElement} */
   getSearchInput: function() {
     return this.$.searchInput;
   },
 
   /** @private */
-  clearSearch_: function() {
+  onTapClear_: function() {
     this.setValue('');
-    this.getSearchInput().focus();
-  },
-
-  /** @private */
-  toggleShowingSearch_: function() {
-    this.showingSearch = !this.showingSearch;
+    this.$.searchInput.focus();
   },
 });

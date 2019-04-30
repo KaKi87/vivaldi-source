@@ -9,9 +9,10 @@
 
 #include "base/rand_util.h"
 #include "base/sys_byteorder.h"
-#include "net/spdy/hpack/hpack_constants.h"
+#include "net/third_party/quiche/src/spdy/core/hpack/hpack_constants.h"
+#include "net/third_party/quiche/src/spdy/platform/api/spdy_ptr_util.h"
 
-namespace net {
+namespace spdy {
 
 namespace {
 
@@ -34,14 +35,14 @@ const size_t kValueLengthMax = 75;
 using base::RandBytesAsString;
 using std::map;
 
-HpackFuzzUtil::GeneratorContext::GeneratorContext() {}
-HpackFuzzUtil::GeneratorContext::~GeneratorContext() {}
+HpackFuzzUtil::GeneratorContext::GeneratorContext() = default;
+HpackFuzzUtil::GeneratorContext::~GeneratorContext() = default;
 
 HpackFuzzUtil::Input::Input() : offset(0) {}
-HpackFuzzUtil::Input::~Input() {}
+HpackFuzzUtil::Input::~Input() = default;
 
-HpackFuzzUtil::FuzzerContext::FuzzerContext() {}
-HpackFuzzUtil::FuzzerContext::~FuzzerContext() {}
+HpackFuzzUtil::FuzzerContext::FuzzerContext() = default;
+HpackFuzzUtil::FuzzerContext::~FuzzerContext() = default;
 
 // static
 void HpackFuzzUtil::InitializeGeneratorContext(GeneratorContext* context) {
@@ -74,26 +75,22 @@ SpdyHeaderBlock HpackFuzzUtil::NextGeneratedHeaderSet(
     GeneratorContext* context) {
   SpdyHeaderBlock headers;
 
-  size_t header_count = 1 + SampleExponential(kHeaderCountMean,
-                                              kHeaderCountMax);
+  size_t header_count =
+      1 + SampleExponential(kHeaderCountMean, kHeaderCountMax);
   for (size_t j = 0; j != header_count; ++j) {
-    size_t name_index = SampleExponential(kHeaderIndexMean,
-                                          kHeaderIndexMax);
-    size_t value_index = SampleExponential(kHeaderIndexMean,
-                                           kHeaderIndexMax);
+    size_t name_index = SampleExponential(kHeaderIndexMean, kHeaderIndexMax);
+    size_t value_index = SampleExponential(kHeaderIndexMean, kHeaderIndexMax);
     SpdyString name, value;
     if (name_index >= context->names.size()) {
-      context->names.push_back(
-          RandBytesAsString(1 + SampleExponential(kNameLengthMean,
-                                                  kNameLengthMax)));
+      context->names.push_back(RandBytesAsString(
+          1 + SampleExponential(kNameLengthMean, kNameLengthMax)));
       name = context->names.back();
     } else {
       name = context->names[name_index];
     }
     if (value_index >= context->values.size()) {
-      context->values.push_back(
-          RandBytesAsString(1 + SampleExponential(kValueLengthMean,
-                                                  kValueLengthMax)));
+      context->values.push_back(RandBytesAsString(
+          1 + SampleExponential(kValueLengthMean, kValueLengthMax)));
       value = context->values.back();
     } else {
       value = context->values[value_index];
@@ -138,9 +135,10 @@ SpdyString HpackFuzzUtil::HeaderBlockPrefix(size_t block_size) {
 
 // static
 void HpackFuzzUtil::InitializeFuzzerContext(FuzzerContext* context) {
-  context->first_stage.reset(new HpackDecoder());
-  context->second_stage.reset(new HpackEncoder(ObtainHpackHuffmanTable()));
-  context->third_stage.reset(new HpackDecoder());
+  context->first_stage = SpdyMakeUnique<HpackDecoderAdapter>();
+  context->second_stage =
+      SpdyMakeUnique<HpackEncoder>(ObtainHpackHuffmanTable());
+  context->third_stage = SpdyMakeUnique<HpackDecoderAdapter>();
 }
 
 // static
@@ -187,4 +185,4 @@ void HpackFuzzUtil::FlipBits(uint8_t* buffer,
   }
 }
 
-}  // namespace net
+}  // namespace spdy

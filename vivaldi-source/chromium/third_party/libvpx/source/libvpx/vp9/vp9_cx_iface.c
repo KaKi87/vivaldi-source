@@ -249,7 +249,7 @@ static vpx_codec_err_t validate_config(vpx_codec_alg_priv_t *ctx,
 
   RANGE_CHECK(extra_cfg, row_mt, 0, 1);
   RANGE_CHECK(extra_cfg, motion_vector_unit_test, 0, 2);
-  RANGE_CHECK(extra_cfg, enable_auto_alt_ref, 0, 2);
+  RANGE_CHECK(extra_cfg, enable_auto_alt_ref, 0, MAX_ARF_LAYERS);
   RANGE_CHECK(extra_cfg, cpu_used, -9, 9);
   RANGE_CHECK_HI(extra_cfg, noise_sensitivity, 6);
   RANGE_CHECK(extra_cfg, tile_columns, 0, 6);
@@ -1099,7 +1099,7 @@ static vpx_codec_err_t encoder_encode(vpx_codec_alg_priv_t *ctx,
       // There's no codec control for multiple alt-refs so check the encoder
       // instance for its status to determine the compressed data size.
       data_sz = ctx->cfg.g_w * ctx->cfg.g_h * get_image_bps(img) / 8 *
-                (cpi->multi_arf_allowed ? 8 : 2);
+                (cpi->multi_layer_arf ? 8 : 2);
       if (data_sz < kMinCompressedSize) data_sz = kMinCompressedSize;
       if (ctx->cx_data == NULL || ctx->cx_data_sz < data_sz) {
         ctx->cx_data_sz = data_sz;
@@ -1149,6 +1149,9 @@ static vpx_codec_err_t encoder_encode(vpx_codec_alg_priv_t *ctx,
         timebase_units_to_ticks(timebase, pts + duration);
     size_t size, cx_data_sz;
     unsigned char *cx_data;
+
+    cpi->svc.timebase_fac = timebase_units_to_ticks(timebase, 1);
+    cpi->svc.time_stamp_superframe = dst_time_stamp;
 
     // Set up internal flags
     if (ctx->base.init_flags & VPX_CODEC_USE_PSNR) cpi->b_calculate_psnr = 1;
@@ -1449,6 +1452,7 @@ static vpx_codec_err_t ctrl_set_svc_layer_id(vpx_codec_alg_priv_t *ctx,
   int sl;
 
   svc->spatial_layer_to_encode = data->spatial_layer_id;
+  svc->first_spatial_layer_to_encode = data->spatial_layer_id;
   // TODO(jianj): Deprecated to be removed.
   svc->temporal_layer_id = data->temporal_layer_id;
   // Allow for setting temporal layer per spatial layer for superframe.
@@ -1536,6 +1540,7 @@ static vpx_codec_err_t ctrl_set_svc_ref_frame_config(vpx_codec_alg_priv_t *ctx,
     cpi->svc.lst_fb_idx[sl] = data->lst_fb_idx[sl];
     cpi->svc.gld_fb_idx[sl] = data->gld_fb_idx[sl];
     cpi->svc.alt_fb_idx[sl] = data->alt_fb_idx[sl];
+    cpi->svc.duration[sl] = data->duration[sl];
   }
   return VPX_CODEC_OK;
 }
@@ -1621,6 +1626,14 @@ static vpx_codec_err_t ctrl_set_render_size(vpx_codec_alg_priv_t *ctx,
   return update_extra_cfg(ctx, &extra_cfg);
 }
 
+static vpx_codec_err_t ctrl_set_postencode_drop(vpx_codec_alg_priv_t *ctx,
+                                                va_list args) {
+  VP9_COMP *const cpi = ctx->cpi;
+  const unsigned int data = va_arg(args, unsigned int);
+  cpi->rc.ext_use_post_encode_drop = data;
+  return VPX_CODEC_OK;
+}
+
 static vpx_codec_ctrl_fn_map_t encoder_ctrl_maps[] = {
   { VP8_COPY_REFERENCE, ctrl_copy_reference },
 
@@ -1664,6 +1677,7 @@ static vpx_codec_ctrl_fn_map_t encoder_ctrl_maps[] = {
   { VP9E_SET_RENDER_SIZE, ctrl_set_render_size },
   { VP9E_SET_TARGET_LEVEL, ctrl_set_target_level },
   { VP9E_SET_ROW_MT, ctrl_set_row_mt },
+  { VP9E_SET_POSTENCODE_DROP, ctrl_set_postencode_drop },
   { VP9E_ENABLE_MOTION_VECTOR_UNIT_TEST, ctrl_enable_motion_vector_unit_test },
   { VP9E_SET_SVC_INTER_LAYER_PRED, ctrl_set_svc_inter_layer_pred },
   { VP9E_SET_SVC_FRAME_DROP_LAYER, ctrl_set_svc_frame_drop_layer },
@@ -1686,7 +1700,7 @@ static vpx_codec_enc_cfg_map_t encoder_usage_cfg_map[] = {
   { 0,
     {
         // NOLINT
-        0,  // g_usage
+        0,  // g_usage (unused)
         8,  // g_threads
         0,  // g_profile
 

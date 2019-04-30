@@ -1,6 +1,7 @@
 specific_include_rules = {
-  # TODO(crbug.com/619783): Remove this exception.
-  "^form_suggestion_controller_unittest\.mm$": [
-    "+ios/web/web_state/ui/crw_web_controller.h",
+  # web::HttpServer is deprecated in favor of net::EmbeddedTestServer.
+  # TODO:(crbug.com/891834) Remove this exception.
+  "form_input_egtest\.mm": [
+    "+ios/web/public/test/http_server",
   ],
 }

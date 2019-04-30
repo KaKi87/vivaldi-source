@@ -1,6 +1,7 @@
 specific_include_rules = {
-  # TODO(crbug.com/620489): Remove this exception.
-  "^share_to_data_builder_unittest\.mm$": [
-    "+ios/web/web_state/web_state_impl.h",
+  # web::HttpServer is deprecated in favor of net::EmbeddedTestServer.
+  # TODO:(crbug.com/891834) Remove this exception.
+  "activity_service_controller_egtest\.mm": [
+    "+ios/web/public/test/http_server",
   ],
 }

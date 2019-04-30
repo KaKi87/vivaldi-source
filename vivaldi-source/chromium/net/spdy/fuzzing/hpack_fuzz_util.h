@@ -11,19 +11,19 @@
 #include <memory>
 #include <vector>
 
-#include "net/base/net_export.h"
-#include "net/spdy/hpack/hpack_decoder.h"
-#include "net/spdy/hpack/hpack_encoder.h"
-#include "net/spdy/platform/api/spdy_string.h"
-#include "net/spdy/platform/api/spdy_string_piece.h"
+#include "net/third_party/quiche/src/spdy/core/hpack/hpack_decoder_adapter.h"
+#include "net/third_party/quiche/src/spdy/core/hpack/hpack_encoder.h"
+#include "net/third_party/quiche/src/spdy/platform/api/spdy_export.h"
+#include "net/third_party/quiche/src/spdy/platform/api/spdy_string.h"
+#include "net/third_party/quiche/src/spdy/platform/api/spdy_string_piece.h"
 
-namespace net {
+namespace spdy {
 
-class NET_EXPORT_PRIVATE HpackFuzzUtil {
+class HpackFuzzUtil {
  public:
   // A GeneratorContext holds ordered header names & values which are
   // initially seeded and then expanded with dynamically generated data.
-  struct NET_EXPORT_PRIVATE GeneratorContext {
+  struct GeneratorContext {
     GeneratorContext();
     ~GeneratorContext();
     std::vector<SpdyString> names;
@@ -41,16 +41,12 @@ class NET_EXPORT_PRIVATE HpackFuzzUtil {
   static size_t SampleExponential(size_t mean, size_t sanity_bound);
 
   // Holds an input SpdyString, and manages an offset into that SpdyString.
-  struct NET_EXPORT_PRIVATE Input {
+  struct Input {
     Input();  // Initializes |offset| to zero.
     ~Input();
 
-    size_t remaining() {
-      return input.size() - offset;
-    }
-    const char* ptr() {
-      return input.data() + offset;
-    }
+    size_t remaining() { return input.size() - offset; }
+    const char* ptr() { return input.data() + offset; }
 
     SpdyString input;
     size_t offset;
@@ -66,12 +62,12 @@ class NET_EXPORT_PRIVATE HpackFuzzUtil {
 
   // A FuzzerContext holds fuzzer input, as well as each of the decoder and
   // encoder stages which fuzzed header blocks are processed through.
-  struct NET_EXPORT_PRIVATE FuzzerContext {
+  struct FuzzerContext {
     FuzzerContext();
     ~FuzzerContext();
-    std::unique_ptr<HpackDecoder> first_stage;
+    std::unique_ptr<HpackDecoderAdapter> first_stage;
     std::unique_ptr<HpackEncoder> second_stage;
-    std::unique_ptr<HpackDecoder> third_stage;
+    std::unique_ptr<HpackDecoderAdapter> third_stage;
   };
 
   static void InitializeFuzzerContext(FuzzerContext* context);
@@ -90,6 +86,6 @@ class NET_EXPORT_PRIVATE HpackFuzzUtil {
                        size_t flip_per_thousand);
 };
 
-}  // namespace net
+}  // namespace spdy
 
 #endif  // NET_SPDY_FUZZING_HPACK_FUZZ_UTIL_H_

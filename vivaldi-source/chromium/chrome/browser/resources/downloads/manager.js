@@ -3,203 +3,182 @@
 // found in the LICENSE file.
 
 cr.define('downloads', function() {
-  /**
-   * Class to own and manage download items.
-   * @constructor
-   */
-  function Manager() {}
+  const Manager = Polymer({
+    is: 'downloads-manager',
 
-  cr.addSingletonGetter(Manager);
+    behaviors: [
+      FindShortcutBehavior,
+    ],
 
-  Manager.prototype = {
-    /** @private {string} */
-    searchText_: '',
+    properties: {
+      /** @private */
+      hasDownloads_: {
+        observer: 'hasDownloadsChanged_',
+        type: Boolean,
+      },
 
-    /**
-     * Sets the search text, updates related UIs, and tells the browser.
-     * @param {string} searchText Text we're searching for.
-     * @private
-     */
-    setSearchText_: function(searchText) {
-      this.searchText_ = searchText;
+      /** @private */
+      hasShadow_: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+      },
 
-      $('downloads-summary-text').textContent = this.searchText_ ?
-          loadTimeData.getStringF('searchResultsFor', this.searchText_) : '';
+      /** @private */
+      inSearchMode_: {
+        type: Boolean,
+        value: false,
+      },
 
-      // Split quoted terms (e.g., 'The "lazy" dog' => ['The', 'lazy', 'dog']).
-      function trim(s) { return s.trim(); }
-      chrome.send('getDownloads', searchText.split(/"([^"]*)"/).map(trim));
+      /** @private {!Array<!downloads.Data>} */
+      items_: {
+        type: Array,
+        value: function() {
+          return [];
+        },
+      },
+
+      /** @private */
+      spinnerActive_: {
+        type: Boolean,
+        notify: true,
+      },
+
+      /** @private {Element} */
+      lastFocused_: Object,
+
+      /** @private */
+      listBlurred_: Boolean,
     },
 
-    /**
-     * @return {number} A guess at how many items could be visible at once.
-     * @private
-     */
-    guesstimateNumberOfVisibleItems_: function() {
-      var headerHeight = document.querySelector('header').offsetHeight;
-      var summaryHeight = $('downloads-summary').offsetHeight;
-      var nonItemSpace = headerHeight + summaryHeight;
-      return Math.floor((window.innerHeight - nonItemSpace) / 46) + 1;
+    hostAttributes: {
+      // TODO(dbeam): this should use a class instead.
+      loading: true,
     },
 
-    /**
-     * Called when all items need to be updated.
-     * @param {!Array<!downloads.Data>} list A list of new download data.
-     * @private
-     */
-    updateAll_: function(list) {
-      var oldIdMap = this.idMap_ || {};
+    observers: [
+      'itemsChanged_(items_.*)',
+    ],
 
-      /** @private {!Object<!downloads.ItemView>} */
-      this.idMap_ = {};
+    /** @private {mdDownloads.mojom.PageCallbackRouter} */
+    mojoEventTarget_: null,
 
-      /** @private {!Array<!downloads.ItemView>} */
-      this.items_ = [];
+    /** @private {mdDownloads.mojom.PageHandlerInterface} */
+    mojoHandler_: null,
 
-      if (!this.iconLoader_) {
-        var guesstimate = Math.max(this.guesstimateNumberOfVisibleItems_(), 1);
-        /** @private {downloads.ThrottledIconLoader} */
-        this.iconLoader_ = new downloads.ThrottledIconLoader(guesstimate);
-      }
+    /** @private {?downloads.SearchService} */
+    searchService_: null,
 
-      for (var i = 0; i < list.length; ++i) {
-        var data = list[i];
-        var id = data.id;
+    /** @private {!PromiseResolver} */
+    loaded_: new PromiseResolver,
 
-        // Re-use old items when possible (saves work, preserves focus).
-        var item = oldIdMap[id] || new downloads.ItemView(this.iconLoader_);
+    /** @private {Array<number>} */
+    listenerIds_: null,
 
-        this.idMap_[id] = item;  // Associated by ID for fast lookup.
-        this.items_.push(item);  // Add to sorted list for order.
-
-        // Render |item| but don't actually add to the DOM yet. |this.items_|
-        // must be fully created to be able to find the right spot to insert.
-        item.update(data);
-
-        // Collapse redundant dates.
-        var prev = list[i - 1];
-        item.dateContainer.hidden =
-            prev && prev.date_string == data.date_string;
-
-        delete oldIdMap[id];
-      }
-
-      // Remove stale, previously rendered items from the DOM.
-      for (var id in oldIdMap) {
-        var oldNode = oldIdMap[id].node;
-        if (oldNode.parentNode)
-          oldNode.parentNode.removeChild(oldNode);
-        delete oldIdMap[id];
-      }
-
-      for (var i = 0; i < this.items_.length; ++i) {
-        var item = this.items_[i];
-        if (item.node.parentNode)  // Already in the DOM; skip.
-          continue;
-
-        var before = null;
-        // Find the next rendered item after this one, and insert before it.
-        for (var j = i + 1; !before && j < this.items_.length; ++j) {
-          if (this.items_[j].node.parentNode)
-            before = this.items_[j].node;
-        }
-        // If |before| is null, |item| will just get added at the end.
-        this.node_.insertBefore(item.node, before);
-      }
-
-      var noDownloadsOrResults = $('no-downloads-or-results');
-      noDownloadsOrResults.textContent = loadTimeData.getString(
-          this.searchText_ ? 'noSearchResults' : 'noDownloads');
-
-      var hasDownloads = this.size_() > 0;
-      this.node_.hidden = !hasDownloads;
-      noDownloadsOrResults.hidden = hasDownloads;
-
-      if (loadTimeData.getBoolean('allowDeletingHistory'))
-        $('clear-all').hidden = !hasDownloads || this.searchText_.length > 0;
-
-      this.rebuildFocusGrid_();
+    /** @override */
+    created: function() {
+      const browserProxy = downloads.BrowserProxy.getInstance();
+      this.mojoEventTarget_ = browserProxy.callbackRouter;
+      this.mojoHandler_ = browserProxy.handler;
+      this.searchService_ = downloads.SearchService.getInstance();
     },
 
-    /**
-     * @param {!downloads.Data} data Info about the item to update.
-     * @private
-     */
-    updateItem_: function(data) {
-      var activeElement = document.activeElement;
+    /** @override */
+    attached: function() {
+      document.documentElement.classList.remove('loading');
+      this.listenerIds_ = [
+        this.mojoEventTarget_.clearAll.addListener(this.clearAll_.bind(this)),
+        this.mojoEventTarget_.insertItems.addListener(
+            this.insertItems_.bind(this)),
+        this.mojoEventTarget_.removeItem.addListener(
+            this.removeItem_.bind(this)),
+        this.mojoEventTarget_.updateItem.addListener(
+            this.updateItem_.bind(this)),
+      ];
 
-      var item = this.idMap_[data.id];
-      item.update(data);
-
-      if (item.node.contains(activeElement) &&
-          !cr.ui.FocusRow.isFocusable(activeElement)) {
-        var focusRow = this.focusGrid_.getRowForRoot(item.node);
-        focusRow.getEquivalentElement(activeElement).focus();
+      // TODO(aee): Remove this conditional when the Polymer 2 migration
+      // is completed. Polymer.DomIf exists in Polymer 2 and not in Polymer 1.
+      if (typeof Polymer.DomIf == 'undefined') {
+        this.$.downloadsList.preserveFocus = false;
       }
     },
 
-    /**
-     * Rebuild the focusGrid_ using the elements that each download will have.
-     * @private
-     */
-    rebuildFocusGrid_: function() {
-      var activeElement = document.activeElement;
-
-      /** @private {!cr.ui.FocusGrid} */
-      this.focusGrid_ = this.focusGrid_ || new cr.ui.FocusGrid();
-      this.focusGrid_.destroy();
-
-      this.items_.forEach(function(item) {
-        var focusRow = new downloads.FocusRow(item.node, this.node_);
-
-        this.focusGrid_.addRow(focusRow);
-
-        if (item.node.contains(activeElement) &&
-            !cr.ui.FocusRow.isFocusable(activeElement)) {
-          focusRow.getEquivalentElement(activeElement).focus();
-        }
-      }, this);
-
-      this.focusGrid_.ensureRowActive();
-    },
-
-    /**
-     * @return {number} The number of downloads shown on the page.
-     * @private
-     */
-    size_: function() {
-      return this.items_.length;
+    /** @override */
+    detached: function() {
+      this.listenerIds_.forEach(
+          id => assert(this.mojoEventTarget_.removeListener(id)));
     },
 
     /** @private */
     clearAll_: function() {
-      if (loadTimeData.getBoolean('allowDeletingHistory')) {
-        chrome.send('clearAll');
-        this.setSearchText_('');
-      }
+      this.set('items_', []);
     },
 
     /** @private */
-    onLoad_: function() {
-      this.node_ = $('downloads-display');
+    hasDownloadsChanged_: function() {
+      if (loadTimeData.getBoolean('allowDeletingHistory')) {
+        this.$.toolbar.downloadsShowing = this.hasDownloads_;
+      }
 
-      $('clear-all').onclick = function() {
-        this.clearAll_();
-      }.bind(this);
+      if (this.hasDownloads_) {
+        this.$.downloadsList.fire('iron-resize');
+      }
+    },
 
-      $('open-downloads-folder').onclick = function() {
-        chrome.send('openDownloadsFolder');
-      };
+    /**
+     * @param {number} index
+     * @param {!Array<downloads.Data>} items
+     * @private
+     */
+    insertItems_: function(index, items) {
+      // Insert |items| at the given |index| via Array#splice().
+      if (items.length > 0) {
+        this.items_.splice.apply(this.items_, [index, 0].concat(items));
+        this.updateHideDates_(index, index + items.length);
+        this.notifySplices('items_', [{
+                             index: index,
+                             addedCount: items.length,
+                             object: this.items_,
+                             type: 'splice',
+                             removed: [],
+                           }]);
+      }
 
-      $('term').onsearch = function(e) {
-        this.setSearchText_($('term').value);
-      }.bind(this);
+      if (this.hasAttribute('loading')) {
+        this.removeAttribute('loading');
+        this.loaded_.resolve();
+      }
 
-      cr.ui.decorate('command', cr.ui.Command);
-      document.addEventListener('canExecute', this.onCanExecute_.bind(this));
-      document.addEventListener('command', this.onCommand_.bind(this));
+      this.spinnerActive_ = false;
+    },
 
-      this.setSearchText_('');
+    /** @private */
+    itemsChanged_: function() {
+      this.hasDownloads_ = this.items_.length > 0;
+
+      if (this.inSearchMode_) {
+        Polymer.IronA11yAnnouncer.requestAvailability();
+        this.fire('iron-announce', {
+          text: this.items_.length == 0 ?
+              this.noDownloadsText_() :
+              (this.items_.length == 1 ?
+                   loadTimeData.getStringF(
+                       'searchResultsSingular',
+                       this.$.toolbar.getSearchText()) :
+                   loadTimeData.getStringF(
+                       'searchResultsPlural', this.items_.length,
+                       this.$.toolbar.getSearchText()))
+        });
+      }
+    },
+
+    /**
+     * @return {string} The text to show when no download items are showing.
+     * @private
+     */
+    noDownloadsText_: function() {
+      return loadTimeData.getString(
+          this.inSearchMode_ ? 'noSearchResults' : 'noDownloads');
     },
 
     /**
@@ -207,13 +186,13 @@ cr.define('downloads', function() {
      * @private
      */
     onCanExecute_: function(e) {
-      e = /** @type {cr.ui.CanExecuteEvent} */(e);
+      e = /** @type {cr.ui.CanExecuteEvent} */ (e);
       switch (e.command.id) {
         case 'undo-command':
-          e.canExecute = document.activeElement != $('term');
+          e.canExecute = this.$.toolbar.canUndo();
           break;
         case 'clear-all-command':
-          e.canExecute = true;
+          e.canExecute = this.$.toolbar.canClearAll();
           break;
       }
     },
@@ -223,34 +202,131 @@ cr.define('downloads', function() {
      * @private
      */
     onCommand_: function(e) {
-      if (e.command.id == 'undo-command')
-        chrome.send('undo');
-      else if (e.command.id == 'clear-all-command')
-        this.clearAll_();
+      if (e.command.id == 'clear-all-command') {
+        this.mojoHandler_.clearAll();
+      } else if (e.command.id == 'undo-command') {
+        this.mojoHandler_.undo();
+      }
     },
-  };
 
-  Manager.updateAll = function(list) {
-    Manager.getInstance().updateAll_(list);
-  };
+    /** @private */
+    onScroll_: function() {
+      const container = this.$.downloadsList.scrollTarget;
+      const distanceToBottom =
+          container.scrollHeight - container.scrollTop - container.offsetHeight;
+      if (distanceToBottom <= 100) {
+        // Approaching the end of the scrollback. Attempt to load more items.
+        this.searchService_.loadMore();
+      }
+      this.hasShadow_ = container.scrollTop > 0;
+    },
 
-  Manager.updateItem = function(item) {
-    Manager.getInstance().updateItem_(item);
-  };
+    /**
+     * @return {!Promise}
+     * @private
+     */
+    onLoad_: function() {
+      cr.ui.decorate('command', cr.ui.Command);
+      document.addEventListener('canExecute', this.onCanExecute_.bind(this));
+      document.addEventListener('command', this.onCommand_.bind(this));
 
-  Manager.setSearchText = function(searchText) {
-    Manager.getInstance().setSearchText_(searchText);
-  };
+      this.searchService_.loadMore();
+      return this.loaded_.promise;
+    },
 
+    /** @private */
+    onSearchChanged_: function() {
+      this.inSearchMode_ = this.searchService_.isSearching();
+    },
+
+    /**
+     * @param {number} index
+     * @private
+     */
+    removeItem_: function(index) {
+      const removed = this.items_.splice(index, 1);
+      this.updateHideDates_(index, index);
+      this.notifySplices('items_', [{
+                           index: index,
+                           addedCount: 0,
+                           object: this.items_,
+                           type: 'splice',
+                           removed: removed,
+                         }]);
+      this.onScroll_();
+    },
+
+    /**
+     * Updates whether dates should show for |this.items_[start - end]|. Note:
+     * this method does not trigger template bindings. Use notifySplices() or
+     * after calling this method to ensure items are redrawn.
+     * @param {number} start
+     * @param {number} end
+     * @private
+     */
+    updateHideDates_: function(start, end) {
+      for (let i = start; i <= end; ++i) {
+        const current = this.items_[i];
+        if (!current) {
+          continue;
+        }
+        const prev = this.items_[i - 1];
+        current.hideDate = !!prev && prev.dateString == current.dateString;
+      }
+    },
+
+    /**
+     * @param {number} index
+     * @param {!downloads.Data} data
+     * @private
+     */
+    updateItem_: function(index, data) {
+      this.items_[index] = data;
+      this.updateHideDates_(index, index);
+
+      // TODO(aee): Remove this conditional when the Polymer 2 migration
+      // is completed. Polymer.DomIf exists in Polymer 2 and not in Polymer 1.
+      if (Polymer.DomIf) {
+        this.notifyPath(`items_.${index}`);
+      } else {
+        this.notifySplices('items_', [{
+                             index: index,
+                             addedCount: 0,
+                             object: this.items_,
+                             type: 'splice',
+                             removed: [],
+                           }]);
+      }
+      this.async(() => {
+        const list = /** @type {!IronListElement} */ (this.$.downloadsList);
+        list.updateSizeForIndex(index);
+      });
+    },
+
+    // Override FindShortcutBehavior methods.
+    handleFindShortcut: function(modalContextOpen) {
+      if (modalContextOpen) {
+        return false;
+      }
+      this.$.toolbar.focusOnSearchInput();
+      return true;
+    },
+
+    // Override FindShortcutBehavior methods.
+    searchInputHasFocus: function() {
+      return this.$.toolbar.isSearchFocused();
+    },
+  });
+
+  /** @return {!downloads.Manager} */
+  Manager.get = function() {
+    return /** @type {!downloads.Manager} */ (
+        queryRequiredElement('downloads-manager'));
+  };
+  /** @return {!Promise} */
   Manager.onLoad = function() {
-    Manager.getInstance().onLoad_();
-  };
-
-  Manager.size = function() {
-    return Manager.getInstance().size_();
+    return Manager.get().onLoad_();
   };
 
   return {Manager: Manager};
 });
-
-window.addEventListener('DOMContentLoaded', downloads.Manager.onLoad);
