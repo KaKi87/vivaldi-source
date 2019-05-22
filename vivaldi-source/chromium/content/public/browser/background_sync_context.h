@@ -1,31 +1,37 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CONTENT_PUBLIC_BROWSER_BACKGROUND_SYNC_CONTEXT_H_
 #define CONTENT_PUBLIC_BROWSER_BACKGROUND_SYNC_CONTEXT_H_
 
-#include "base/memory/ref_counted.h"
-#include "content/common/content_export.h"
+#include "base/callback_forward.h"
+#include "base/macros.h"
 
 namespace content {
 
-class BackgroundSyncManager;
+class StoragePartition;
 
-// One instance of this exists per StoragePartition, and services multiple
-// child processes/origins. Most logic is delegated to the owned
-// BackgroundSyncManager instance, which is only accessed on the IO
-// thread.
-class CONTENT_EXPORT BackgroundSyncContext
-    : public base::RefCountedThreadSafe<BackgroundSyncContext> {
+// One instance of this exists per StoragePartition, and services multiple child
+// processes/origins. It contains the context for processing Background Sync
+// registrations, and delegates most of this processing to owned instances of
+// other components.
+class CONTENT_EXPORT BackgroundSyncContext {
  public:
-  // Only callable on the IO thread.
-  virtual BackgroundSyncManager* background_sync_manager() const = 0;
+  BackgroundSyncContext() = default;
+
+  // Process any pending Background Sync registrations for |storage_partition|.
+  // This involves firing any sync events ready to be fired, and optionally
+  // scheduling a job to wake up the browser when the next event needs to be
+  // fired.
+  virtual void FireBackgroundSyncEventsForStoragePartition(
+      StoragePartition* storage_partition,
+      base::OnceClosure done_closure) = 0;
 
  protected:
-  friend class base::RefCountedThreadSafe<BackgroundSyncContext>;
+  virtual ~BackgroundSyncContext() = default;
 
-  virtual ~BackgroundSyncContext() {}
+  DISALLOW_COPY_AND_ASSIGN(BackgroundSyncContext);
 };
 
 }  // namespace content

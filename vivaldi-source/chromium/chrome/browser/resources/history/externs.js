@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,19 +27,16 @@
  *            title: string,
  *            url: string}}
  */
-var HistoryEntry;
+let HistoryEntry;
 
 /**
  * The type of the history results info object. The definition is based on
  * chrome/browser/ui/webui/browsing_history_handler.cc:
  *     BrowsingHistoryHandler::QueryComplete()
  * @typedef {{finished: boolean,
- *            hasSyncedResults: boolean,
- *            queryInterval: string,
- *            queryStartMonth: string,
  *            term: string}}
  */
-var HistoryQuery;
+let HistoryQuery;
 
 /**
  * The type of the foreign session tab object. This definition is based on
@@ -51,17 +48,16 @@ var HistoryQuery;
  *            type: string,
  *            url: string}}
  */
-var ForeignSessionTab;
+let ForeignSessionTab;
 
 /**
  * The type of the foreign session tab object. This definition is based on
  * chrome/browser/ui/webui/foreign_session_handler.cc:
  * @typedef {{timestamp: number,
- *            userVisibleTimestamp: string,
  *            sessionId: number,
  *            tabs: Array<ForeignSessionTab>}}
  */
-var ForeignSessionWindow;
+let ForeignSessionWindow;
 
 /**
  * The type of the foreign session info object. This definition is based on
@@ -74,4 +70,27 @@ var ForeignSessionWindow;
  *            timestamp: number,
  *            windows: Array<ForeignSessionWindow>}}
  */
-var ForeignSession;
+let ForeignSession;
+
+/**
+ * @typedef {{incremental: boolean,
+ *            querying: boolean,
+ *            searchTerm: string}}
+ */
+let QueryState;
+
+/**
+ * @typedef {{info: ?HistoryQuery,
+ *            results: ?Array<!HistoryEntry>,
+ *            sessionList: ?Array<!ForeignSession>}}
+ */
+let QueryResult;
+
+/**
+ * @constructor
+ * @extends {MouseEvent}
+ */
+const DomRepeatClickEvent = function() {};
+
+/** @type {Object} */
+DomRepeatClickEvent.prototype.model;

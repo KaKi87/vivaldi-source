@@ -8,18 +8,24 @@
 
 #include "base/bind.h"
 #include "base/stl_util.h"
+#include "base/task/post_task.h"
 #include "content/browser/background_sync/background_sync_manager.h"
 #include "content/browser/background_sync/background_sync_service_impl.h"
 #include "content/browser/service_worker/service_worker_context_wrapper.h"
+#include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
 namespace content {
 
-BackgroundSyncContextImpl::BackgroundSyncContextImpl() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-}
+BackgroundSyncContextImpl::BackgroundSyncContextImpl()
+    : base::RefCountedDeleteOnSequence<BackgroundSyncContextImpl>(
+          base::CreateSingleThreadTaskRunnerWithTraits({BrowserThread::IO})) {}
 
 BackgroundSyncContextImpl::~BackgroundSyncContextImpl() {
+  // The destructor must run on the IO thread because it implicitly accesses
+  // background_sync_manager_ and services_, when it runs their destructors.
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+
   DCHECK(!background_sync_manager_);
   DCHECK(services_.empty());
 }
@@ -28,37 +34,34 @@ void BackgroundSyncContextImpl::Init(
     const scoped_refptr<ServiceWorkerContextWrapper>& context) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  BrowserThread::PostTask(
-      BrowserThread::IO, FROM_HERE,
-      base::Bind(&BackgroundSyncContextImpl::CreateBackgroundSyncManager, this,
-                 context));
+  base::PostTaskWithTraits(
+      FROM_HERE, {BrowserThread::IO},
+      base::BindOnce(&BackgroundSyncContextImpl::CreateBackgroundSyncManager,
+                     this, context));
 }
 
 void BackgroundSyncContextImpl::Shutdown() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  BrowserThread::PostTask(
-      BrowserThread::IO, FROM_HERE,
-      base::Bind(&BackgroundSyncContextImpl::ShutdownOnIO, this));
+  base::PostTaskWithTraits(
+      FROM_HERE, {BrowserThread::IO},
+      base::BindOnce(&BackgroundSyncContextImpl::ShutdownOnIO, this));
 }
 
 void BackgroundSyncContextImpl::CreateService(
-    mojo::InterfaceRequest<mojom::BackgroundSyncService> request) {
+    blink::mojom::BackgroundSyncServiceRequest request) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-
-  BrowserThread::PostTask(
-      BrowserThread::IO, FROM_HERE,
-      base::Bind(&BackgroundSyncContextImpl::CreateServiceOnIOThread, this,
-                 base::Passed(&request)));
+  base::PostTaskWithTraits(
+      FROM_HERE, {BrowserThread::IO},
+      base::BindOnce(&BackgroundSyncContextImpl::CreateServiceOnIOThread, this,
+                     std::move(request)));
 }
 
 void BackgroundSyncContextImpl::ServiceHadConnectionError(
     BackgroundSyncServiceImpl* service) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  DCHECK(ContainsValue(services_, service));
+  DCHECK(base::ContainsKey(services_, service));
 
   services_.erase(service);
-  delete service;
 }
 
 BackgroundSyncManager* BackgroundSyncContextImpl::background_sync_manager()
@@ -69,10 +72,22 @@ BackgroundSyncManager* BackgroundSyncContextImpl::background_sync_manager()
 }
 
 void BackgroundSyncContextImpl::set_background_sync_manager_for_testing(
-    scoped_ptr<BackgroundSyncManager> manager) {
+    std::unique_ptr<BackgroundSyncManager> manager) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
   background_sync_manager_ = std::move(manager);
+}
+
+void BackgroundSyncContextImpl::FireBackgroundSyncEventsForStoragePartition(
+    content::StoragePartition* storage_partition,
+    base::OnceClosure done_closure) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  if (!background_sync_manager_) {
+    std::move(done_closure).Run();
+    return;
+  }
+  background_sync_manager_->FireReadyEventsThenRunCallback(
+      std::move(done_closure));
 }
 
 void BackgroundSyncContextImpl::CreateBackgroundSyncManager(
@@ -84,16 +99,18 @@ void BackgroundSyncContextImpl::CreateBackgroundSyncManager(
 }
 
 void BackgroundSyncContextImpl::CreateServiceOnIOThread(
-    mojo::InterfaceRequest<mojom::BackgroundSyncService> request) {
+    mojo::InterfaceRequest<blink::mojom::BackgroundSyncService> request) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   DCHECK(background_sync_manager_);
-  services_.insert(new BackgroundSyncServiceImpl(this, std::move(request)));
+  auto service =
+      std::make_unique<BackgroundSyncServiceImpl>(this, std::move(request));
+  services_[service.get()] = std::move(service);
 }
 
 void BackgroundSyncContextImpl::ShutdownOnIO() {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
 
-  STLDeleteElements(&services_);
+  services_.clear();
   background_sync_manager_.reset();
 }
 

@@ -1,0 +1,12 @@
+[submodule "clang_format/script"]
+	path = clang_format/script
+	url = ../llvm-project/cfe/tools/clang-format.git
+[submodule "third_party/libunwind/trunk"]
+	path = third_party/libunwind/trunk
+	url = ../../external/llvm.org/libunwind.git
+[submodule "third_party/libc++abi/trunk"]
+	path = third_party/libc++abi/trunk
+	url = ../llvm-project/libcxxabi.git
+[submodule "third_party/libc++/trunk"]
+	path = third_party/libc++/trunk
+	url = ../llvm-project/libcxx.git
