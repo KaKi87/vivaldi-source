@@ -6,10 +6,10 @@
 #define NET_QUIC_PLATFORM_IMPL_QUIC_HOSTNAME_UTILS_IMPL_H_
 
 #include "base/macros.h"
-#include "net/quic/platform/api/quic_export.h"
-#include "net/quic/platform/api/quic_string_piece.h"
+#include "net/third_party/quiche/src/quic/platform/api/quic_export.h"
+#include "net/third_party/quiche/src/quic/platform/api/quic_string_piece.h"
 
-namespace net {
+namespace quic {
 
 class QUIC_EXPORT_PRIVATE QuicHostnameUtilsImpl {
  public:
@@ -21,12 +21,12 @@ class QUIC_EXPORT_PRIVATE QuicHostnameUtilsImpl {
 
   // Convert hostname to lowercase and remove the trailing '.'.
   // WARNING: mutates |hostname| in place and returns |hostname|.
-  static char* NormalizeHostname(char* hostname);
+  static std::string NormalizeHostname(QuicStringPiece hostname);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(QuicHostnameUtilsImpl);
 };
 
-}  // namespace net
+}  // namespace quic
 
 #endif  // NET_QUIC_PLATFORM_IMPL_QUIC_HOSTNAME_UTILS_IMPL_H_

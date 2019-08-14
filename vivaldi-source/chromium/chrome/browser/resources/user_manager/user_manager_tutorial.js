@@ -1,136 +1,103 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-cr.define('cr.ui.login', function() {
-  /**
-   * Constructs a slide manager for the user manager tutorial.
-   *
-   * @constructor
-   */
-  function UserManagerTutorial() {
-  }
+/** @enum {string} */
+const TutorialSteps = {
+  YOUR_CHROME: 'yourChrome',
+  FRIENDS: 'friends',
+  GUESTS: 'guests',
+  COMPLETE: 'complete',
+  NOT_YOU: 'notYou'
+};
 
-  cr.addSingletonGetter(UserManagerTutorial);
+/**
+ * @fileoverview 'user-manager-tutorial' is the element that controls the
+ * tutorial steps for the user manager page.
+ */
+(function() {
+Polymer({
+  is: 'user-manager-tutorial',
 
-  UserManagerTutorial.prototype = {
+  properties: {
     /**
-     * Tutorial slides.
+     * True if the tutorial is currently hidden.
+     * @private {boolean}
      */
-    slides_: ['slide-your-chrome',
-              'slide-friends',
-              'slide-guests',
-              'slide-complete',
-              'slide-not-you'],
-
-    /**
-     * Current tutorial step, index in the slides array.
-     * @type {number}
-     */
-    currentStep_: 0,
+    hidden_: {type: Boolean, value: true},
 
     /**
-     * Switches to the next tutorial step.
-     * @param {number} nextStepIndex Index of the next step.
+     * Current tutorial step ID.
+     * @type {string}
      */
-    toggleStep_: function(nextStepIndex) {
-      if (nextStepIndex > this.slides_.length)
-        return;
-
-      var currentStepId = this.slides_[this.currentStep_];
-      var nextStepId = this.slides_[nextStepIndex];
-      var oldStep = $(currentStepId);
-      var newStep = $(nextStepId);
-
-      newStep.classList.remove('hidden');
-
-      if (nextStepIndex != this.currentStep_)
-        oldStep.classList.add('hidden');
-
-      this.currentStep_ = nextStepIndex;
-
-      // The last tutorial step is an information bubble that ends the tutorial.
-      if (this.currentStep_ == this.slides_.length - 1)
-        this.endTutorial_();
-    },
-
-    next_: function() {
-      var nextStep = this.currentStep_ + 1;
-      this.toggleStep_(nextStep);
-    },
-
-    skip_: function() {
-      this.endTutorial_();
-      $('user-manager-tutorial').hidden = true;
-    },
+    currentStep_: {type: String, value: ''},
 
     /**
-     * Add user button click handler.
-     * @private
+     * Enum values for the step IDs.
+     * @private {TutorialSteps}
      */
-    handleAddUserClick_: function(e) {
-      chrome.send('addUser');
-      $('user-manager-tutorial').hidden = true;
-      e.stopPropagation();
-    },
-
-    /**
-     * Add a button click handler to dismiss the last tutorial bubble.
-     * @private
-     */
-    handleDismissBubbleClick_: function(e) {
-      $('user-manager-tutorial').hidden = true;
-      e.stopPropagation();
-    },
-
-    endTutorial_: function(e) {
-      $('inner-container').classList.remove('disabled');
-    },
-
-    decorate: function() {
-      // Transitions between the tutorial slides.
-      for (var i = 0; i < this.slides_.length; ++i) {
-        var buttonNext = $(this.slides_[i] + '-next');
-        var buttonSkip = $(this.slides_[i] + '-skip');
-        if (buttonNext)
-          buttonNext.addEventListener('click', this.next_.bind(this));
-        if (buttonSkip)
-          buttonSkip.addEventListener('click', this.skip_.bind(this));
-      }
-      $('slide-add-user').addEventListener('click',
-          this.handleAddUserClick_.bind(this));
-      $('dismiss-bubble-button').addEventListener('click',
-          this.handleDismissBubbleClick_.bind(this));
-    }
-  };
+    steps_: {readOnly: true, type: Object, value: TutorialSteps}
+  },
 
   /**
-   * Initializes the tutorial manager.
+   * Determines whether a given step is displaying.
+   * @param {string} currentStep Index of the current step
+   * @param {string} step Name of the given step
+   * @return {boolean}
+   * @private
    */
-  UserManagerTutorial.startTutorial = function() {
-    $('user-manager-tutorial').hidden = false;
+  isStepHidden_: function(currentStep, step) {
+    return currentStep != step;
+  },
 
-    // If there's only one pod, show the slides to the side of the pod.
-    // Otherwise, center the slides and disable interacting with the pods
+  /**
+   * Navigates to the next step.
+   * @param {!Event} event
+   * @private
+   */
+  onNextTap_: function(event) {
+    const element = Polymer.dom(event).rootTarget;
+    this.currentStep_ = element.dataset.next;
+  },
+
+  /**
+   * Handler for the link in the last step. Takes user to the create-profile
+   * page in order to add a new profile.
+   * @param {!Event} event
+   * @private
+   */
+  onAddUserTap_: function(event) {
+    this.onDissmissTap_();
+    // Event is caught by user-manager-pages.
+    this.fire('change-page', {page: 'create-user-page'});
+  },
+
+  /**
+   * Starts the tutorial.
+   */
+  startTutorial: function() {
+    this.currentStep_ = TutorialSteps.YOUR_CHROME;
+    this.hidden_ = false;
+
+    // If there's only one pod, show the steps to the side of the pod.
+    // Otherwise, center the steps and disable interacting with the pods
     // while the tutorial is showing.
-    if ($('pod-row').pods.length == 1) {
-      $('slide-your-chrome').classList.add('single-pod');
-      $('slide-complete').classList.add('single-pod');
-    }
+    const podRow = /** @type {{focusPod: !function(), pods: !Array}} */
+        ($('pod-row'));
 
-    $('pod-row').focusPod();  // No focused pods.
+    this.classList.toggle('single-pod', podRow.pods.length == 1);
+
+    podRow.focusPod();  // No focused pods.
     $('inner-container').classList.add('disabled');
-  };
+  },
 
   /**
-   * Initializes the tutorial manager.
+   * Ends the tutorial.
+   * @private
    */
-  UserManagerTutorial.initialize = function() {
-    UserManagerTutorial.getInstance().decorate();
-  };
-
-  // Export.
-  return {
-    UserManagerTutorial: UserManagerTutorial
-  };
+  onDissmissTap_: function() {
+    $('inner-container').classList.remove('disabled');
+    this.hidden_ = true;
+  }
 });
+})();

@@ -1,23 +1,38 @@
 <!doctype html>
-<!-- Copyright 2013 The Chromium Authors. All rights reserved.
-     Use of this source code is governed by a BSD-style license that can be
-     found in the LICENSE file. -->
-<link rel="stylesheet" href="chrome://resources/css/text_defaults.css">
-<link rel="stylesheet" href="memory_internals.css">
-<link rel="stylesheet" href="list.css">
-<link rel="stylesheet" href="extension_view.css">
-<link rel="stylesheet" href="snapshot_view.css">
+<html><head>
+<title>Memory Internals</title>
+<style type="text/css">
+  body {
+    font-family: sans-serif;
+  }
+  th {
+    border-bottom: 1px solid black;
+    padding: 5px;
+    text-align: start;
+  }
+  td {
+    padding: 5px;
+  }
+  .message {
+    font-style: italic;
+    margin-bottom: 1em;
+    padding: 5px;
+  }
+  .commands {
+    padding: 5px;
+  }
+</style>
+</head><body>
 
-<script src="chrome://memory-internals/memory_internals.js"></script>
 <script src="chrome://resources/js/util.js"></script>
+<script src="chrome://resources/js/cr.js"></script>
+<script src="chrome://memory-internals/memory_internals.js"></script>
 
-<h1>Memory Internals</h1>
-<div id="buttons">
-  <button id="button-update">Update</button>
-</div>
+<h3>Experimental memory internals</h3>
 
-<h2>JSON</h2>
-<textarea id="json" readonly></textarea>
+<div class="message" id="message"></div>
 
-<include src="snapshot_view.html">
-<include src="extension_view.html">
+<div id="proclist">loading...</div>
+
+</body></html>
+

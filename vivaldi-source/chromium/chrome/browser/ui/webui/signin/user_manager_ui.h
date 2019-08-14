@@ -1,4 +1,4 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,7 @@
 #include "base/macros.h"
 #include "content/public/browser/web_ui_controller.h"
 
+class SigninCreateProfileHandler;
 class UserManagerScreenHandler;
 
 namespace base {
@@ -28,7 +29,8 @@ class UserManagerUI : public content::WebUIController {
       const base::DictionaryValue& localized_strings);
   void GetLocalizedStrings(base::DictionaryValue* localized_strings);
 
-  UserManagerScreenHandler* user_manager_screen_handler_;
+  SigninCreateProfileHandler* signin_create_profile_handler_ = nullptr;
+  UserManagerScreenHandler* user_manager_screen_handler_ = nullptr;
 
   DISALLOW_COPY_AND_ASSIGN(UserManagerUI);
 };
