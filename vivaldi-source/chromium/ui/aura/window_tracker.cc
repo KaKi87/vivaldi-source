@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,45 +8,48 @@
 
 namespace aura {
 
-WindowTracker::WindowTracker() {
+WindowTracker::WindowTracker(const WindowList& windows) {
+  for (Window* window : windows)
+    Add(window);
 }
 
-WindowTracker::WindowTracker(const WindowList& windows) {
-  // |windows| may contain dups, so call Add() instead of insert().
-  for (auto iter = windows.begin(); iter != windows.end(); iter++)
-    Add(*iter);
-}
+WindowTracker::WindowTracker() = default;
 
 WindowTracker::~WindowTracker() {
-  while (has_windows())
-    Pop()->RemoveObserver(this);
+  RemoveAll();
 }
 
 void WindowTracker::Add(Window* window) {
-  if (Contains(window))
+  if (base::ContainsValue(windows_, window))
     return;
 
   window->AddObserver(this);
   windows_.push_back(window);
 }
 
+void WindowTracker::RemoveAll() {
+  for (Window* window : windows_)
+    window->RemoveObserver(this);
+  windows_.clear();
+}
+
 void WindowTracker::Remove(Window* window) {
   auto iter = std::find(windows_.begin(), windows_.end(), window);
   if (iter != windows_.end()) {
-    windows_.erase(iter);
     window->RemoveObserver(this);
+    windows_.erase(iter);
   }
 }
 
-bool WindowTracker::Contains(Window* window) {
-  return std::find(windows_.begin(), windows_.end(), window) != windows_.end();
+Window* WindowTracker::Pop() {
+  DCHECK(!windows_.empty());
+  Window* result = windows_[0];
+  Remove(result);
+  return result;
 }
 
-aura::Window* WindowTracker::Pop() {
-  DCHECK(!windows_.empty());
-  aura::Window* window = *windows_.begin();
-  Remove(window);
-  return window;
+bool WindowTracker::Contains(Window* window) const {
+  return base::ContainsValue(windows_, window);
 }
 
 void WindowTracker::OnWindowDestroying(Window* window) {
