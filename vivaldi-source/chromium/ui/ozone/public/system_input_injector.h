@@ -5,13 +5,10 @@
 #ifndef UI_OZONE_PUBLIC_SYSTEM_INPUT_INJECTOR_H_
 #define UI_OZONE_PUBLIC_SYSTEM_INPUT_INJECTOR_H_
 
-#include <memory>
-
+#include "base/component_export.h"
 #include "base/macros.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
-#include "ui/gfx/geometry/point_f.h"
-#include "ui/ozone/ozone_base_export.h"
 
 namespace gfx {
 class PointF;
@@ -19,9 +16,9 @@ class PointF;
 
 namespace ui {
 
-// Interface for converting input into ui::Events and injecting them to the
-// Ozone platform.
-class OZONE_BASE_EXPORT SystemInputInjector {
+// Interface exposed for remoting to convert its events from the network to
+// native events.
+class COMPONENT_EXPORT(OZONE) SystemInputInjector {
  public:
   SystemInputInjector() {}
   virtual ~SystemInputInjector() {}
