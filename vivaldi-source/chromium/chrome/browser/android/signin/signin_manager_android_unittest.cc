@@ -29,7 +29,7 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/storage_partition.h"
-#include "content/public/test/test_browser_thread_bundle.h"
+#include "content/public/test/browser_task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/origin.h"
 
@@ -98,7 +98,7 @@ class SigninManagerAndroidTest : public ::testing::Test {
   }
 
  private:
-  content::TestBrowserThreadBundle thread_bundle_;
+  content::BrowserTaskEnvironment task_environment_;
   TestingProfileManager profile_manager_;
   TestingProfile* profile_;  // Owned by |profile_manager_|.
 
@@ -156,10 +156,9 @@ TEST_F(SigninManagerAndroidTest, DISABLED_DeleteGoogleServiceWorkerCaches) {
 
   // TODO(crbug.com/929456): If deleted, the key should not be present.
   for (const TestCase& test_case : kTestCases) {
-    EXPECT_EQ(
-        test_case.should_be_deleted,
-        base::ContainsKey(remaining_cache_storages,
-                          url::Origin::Create(GURL(test_case.worker_url))))
+    EXPECT_EQ(test_case.should_be_deleted,
+              base::Contains(remaining_cache_storages,
+                             url::Origin::Create(GURL(test_case.worker_url))))
         << test_case.worker_url << " should "
         << (test_case.should_be_deleted ? "" : "NOT ")
         << "be deleted, but it was"
@@ -170,17 +169,17 @@ TEST_F(SigninManagerAndroidTest, DISABLED_DeleteGoogleServiceWorkerCaches) {
 // Tests that wiping all data also deletes bookmarks.
 TEST_F(SigninManagerAndroidTest, DeleteBookmarksWhenWipingAllData) {
   bookmarks::BookmarkModel* bookmark_model = AddTestBookmarks();
-  ASSERT_GE(bookmark_model->bookmark_bar_node()->child_count(), 0);
+  ASSERT_GE(bookmark_model->bookmark_bar_node()->children().size(), 0u);
   WipeData(true);
-  EXPECT_EQ(0, bookmark_model->bookmark_bar_node()->child_count());
+  EXPECT_EQ(0u, bookmark_model->bookmark_bar_node()->children().size());
 }
 
 // Tests that wiping Google service worker caches does not delete bookmarks.
 TEST_F(SigninManagerAndroidTest, DontDeleteBookmarksWhenDeletingSWCaches) {
   bookmarks::BookmarkModel* bookmark_model = AddTestBookmarks();
-  int bookmarks_count = bookmark_model->bookmark_bar_node()->child_count();
-  ASSERT_GE(bookmarks_count, 0);
+  size_t num_bookmarks = bookmark_model->bookmark_bar_node()->children().size();
+  ASSERT_GE(num_bookmarks, 0u);
   WipeData(false);
-  EXPECT_EQ(bookmarks_count,
-            bookmark_model->bookmark_bar_node()->child_count());
+  EXPECT_EQ(num_bookmarks,
+            bookmark_model->bookmark_bar_node()->children().size());
 }

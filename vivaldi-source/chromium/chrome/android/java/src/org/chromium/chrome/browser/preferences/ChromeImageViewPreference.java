@@ -7,14 +7,14 @@ package org.chromium.chrome.browser.preferences;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.preference.Preference;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
+import android.support.v7.preference.Preference;
+import android.support.v7.preference.PreferenceViewHolder;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.ImageView;
-import android.widget.TextView;
 
 import org.chromium.chrome.R;
 
@@ -61,6 +61,7 @@ public class ChromeImageViewPreference extends Preference {
         super(context, attrs);
 
         setWidgetLayoutResource(R.layout.preference_chrome_image_view);
+        setSingleLineTitle(false);
     }
 
     /**
@@ -72,14 +73,14 @@ public class ChromeImageViewPreference extends Preference {
     }
 
     @Override
-    protected void onBindView(View view) {
-        super.onBindView(view);
-        ((TextView) view.findViewById(android.R.id.title)).setSingleLine(false);
+    public void onBindViewHolder(PreferenceViewHolder holder) {
+        super.onBindViewHolder(holder);
 
-        ImageView button = view.findViewById(R.id.image_view_widget);
+        ImageView button = (ImageView) holder.findViewById(R.id.image_view_widget);
+        View view = holder.itemView;
 
         if (mImageRes != 0) {
-            Drawable buttonImg = PreferenceUtils.getTintedIcon(view.getContext(), mImageRes);
+            Drawable buttonImg = PreferenceUtils.getTintedIcon(getContext(), mImageRes);
 
             button.setImageDrawable(buttonImg);
             button.setBackgroundColor(Color.TRANSPARENT);
