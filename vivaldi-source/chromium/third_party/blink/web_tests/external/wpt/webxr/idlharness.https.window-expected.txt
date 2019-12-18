@@ -1,22 +1,36 @@
 This is a testharness.js-based test.
-Found 202 tests; 197 PASS, 5 FAIL, 0 TIMEOUT, 0 NOTRUN.
+Found 204 tests; 202 PASS, 2 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS idl_test setup
+PASS idl_test validation
 PASS Partial interface Navigator: original interface defined
+PASS Partial interface Navigator: member names are unique
 PASS Partial dictionary WebGLContextAttributes: original dictionary defined
+PASS Partial dictionary WebGLContextAttributes: member names are unique
 PASS Partial interface mixin WebGLRenderingContextBase: original interface mixin defined
+PASS Partial interface mixin WebGLRenderingContextBase: member names are unique
+PASS Partial interface mixin NavigatorID: member names are unique
+FAIL WebGLRenderingContext includes WebGLRenderingContextBase: member names are unique assert_true: member canvas is unique expected true got false
+FAIL WebGLRenderingContext includes WebGLRenderingContextOverloads: member names are unique assert_true: member bufferData is unique expected true got false
+PASS Navigator includes NavigatorID: member names are unique
+PASS Navigator includes NavigatorLanguage: member names are unique
+PASS Navigator includes NavigatorOnLine: member names are unique
+PASS Navigator includes NavigatorContentUtils: member names are unique
+PASS Navigator includes NavigatorCookies: member names are unique
+PASS Navigator includes NavigatorPlugins: member names are unique
+PASS Navigator includes NavigatorConcurrentHardware: member names are unique
 PASS XR interface: existence and properties of interface object
 PASS XR interface object length
 PASS XR interface object name
 PASS XR interface: existence and properties of interface prototype object
 PASS XR interface: existence and properties of interface prototype object's "constructor" property
 PASS XR interface: existence and properties of interface prototype object's @@unscopables property
-PASS XR interface: operation supportsSession(XRSessionMode)
+PASS XR interface: operation isSessionSupported(XRSessionMode)
 PASS XR interface: operation requestSession(XRSessionMode, XRSessionInit)
 PASS XR interface: attribute ondevicechange
 PASS XR must be primary interface of navigator.xr
 PASS Stringification of navigator.xr
-PASS XR interface: navigator.xr must inherit property "supportsSession(XRSessionMode)" with the proper type
-PASS XR interface: calling supportsSession(XRSessionMode) on navigator.xr with too few arguments must throw TypeError
+PASS XR interface: navigator.xr must inherit property "isSessionSupported(XRSessionMode)" with the proper type
+PASS XR interface: calling isSessionSupported(XRSessionMode) on navigator.xr with too few arguments must throw TypeError
 PASS XR interface: navigator.xr must inherit property "requestSession(XRSessionMode, XRSessionInit)" with the proper type
 PASS XR interface: calling requestSession(XRSessionMode, XRSessionInit) on navigator.xr with too few arguments must throw TypeError
 PASS XR interface: navigator.xr must inherit property "ondevicechange" with the proper type
@@ -26,8 +40,7 @@ PASS XRSession interface object name
 PASS XRSession interface: existence and properties of interface prototype object
 PASS XRSession interface: existence and properties of interface prototype object's "constructor" property
 PASS XRSession interface: existence and properties of interface prototype object's @@unscopables property
-PASS XRSession interface: attribute environmentBlendMode
-FAIL XRSession interface: attribute visibilityState assert_true: The prototype object must have a property "visibilityState" expected true got false
+PASS XRSession interface: attribute visibilityState
 PASS XRSession interface: attribute renderState
 PASS XRSession interface: attribute inputSources
 PASS XRSession interface: operation updateRenderState(XRRenderStateInit)
@@ -40,7 +53,7 @@ PASS XRSession interface: attribute onselect
 PASS XRSession interface: attribute oninputsourceschange
 PASS XRSession interface: attribute onselectstart
 PASS XRSession interface: attribute onselectend
-FAIL XRSession interface: attribute onvisibilitychange assert_true: The prototype object must have a property "onvisibilitychange" expected true got false
+PASS XRSession interface: attribute onvisibilitychange
 PASS XRRenderState interface: existence and properties of interface object
 PASS XRRenderState interface object length
 PASS XRRenderState interface object name
@@ -110,15 +123,6 @@ PASS XRRigidTransform interface: attribute position
 PASS XRRigidTransform interface: attribute orientation
 PASS XRRigidTransform interface: attribute matrix
 PASS XRRigidTransform interface: attribute inverse
-PASS XRRay interface: existence and properties of interface object
-PASS XRRay interface object length
-PASS XRRay interface object name
-PASS XRRay interface: existence and properties of interface prototype object
-PASS XRRay interface: existence and properties of interface prototype object's "constructor" property
-PASS XRRay interface: existence and properties of interface prototype object's @@unscopables property
-PASS XRRay interface: attribute origin
-PASS XRRay interface: attribute direction
-PASS XRRay interface: attribute matrix
 PASS XRPose interface: existence and properties of interface object
 PASS XRPose interface object length
 PASS XRPose interface object name
@@ -144,8 +148,7 @@ PASS XRInputSource interface: attribute handedness
 PASS XRInputSource interface: attribute targetRayMode
 PASS XRInputSource interface: attribute targetRaySpace
 PASS XRInputSource interface: attribute gripSpace
-PASS XRInputSource interface: attribute gamepad
-FAIL XRInputSource interface: attribute profiles assert_true: The prototype object must have a property "profiles" expected true got false
+PASS XRInputSource interface: attribute profiles
 PASS XRInputSourceArray interface: existence and properties of interface object
 PASS XRInputSourceArray interface object length
 PASS XRInputSourceArray interface object name
@@ -154,10 +157,10 @@ PASS XRInputSourceArray interface: existence and properties of interface prototy
 PASS XRInputSourceArray interface: existence and properties of interface prototype object's @@unscopables property
 PASS XRInputSourceArray interface: iterable<XRInputSource>
 PASS XRInputSourceArray interface: attribute length
-FAIL XRWebGLLayer interface: existence and properties of interface object assert_equals: prototype of self's property "XRWebGLLayer" is not Function.prototype expected function "function () { [native code] }" but got function "function XRLayer() { [native code] }"
+PASS XRWebGLLayer interface: existence and properties of interface object
 PASS XRWebGLLayer interface object length
 PASS XRWebGLLayer interface object name
-FAIL XRWebGLLayer interface: existence and properties of interface prototype object assert_equals: prototype of XRWebGLLayer.prototype is not Object.prototype expected object "[object Object]" but got object "[object XRLayer]"
+PASS XRWebGLLayer interface: existence and properties of interface prototype object
 PASS XRWebGLLayer interface: existence and properties of interface prototype object's "constructor" property
 PASS XRWebGLLayer interface: existence and properties of interface prototype object's @@unscopables property
 PASS XRWebGLLayer interface: attribute antialias
@@ -199,7 +202,6 @@ PASS XRReferenceSpaceEvent interface: existence and properties of interface prot
 PASS XRReferenceSpaceEvent interface: existence and properties of interface prototype object's @@unscopables property
 PASS XRReferenceSpaceEvent interface: attribute referenceSpace
 PASS XRReferenceSpaceEvent interface: attribute transform
-PASS WebGLRenderingContext interface: operation makeXRCompatible()
 PASS Navigator interface: attribute xr
 PASS Navigator interface: navigator must inherit property "xr" with the proper type
 Harness: the test ran to completion.

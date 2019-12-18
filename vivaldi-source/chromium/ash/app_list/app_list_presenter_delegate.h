@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,90 +7,60 @@
 
 #include <stdint.h>
 
-#include "ash/ash_export.h"
-#include "ash/shell_observer.h"
-#include "ash/wm/tablet_mode/tablet_mode_observer.h"
-#include "base/macros.h"
-#include "ui/app_list/presenter/app_list_presenter_delegate.h"
-#include "ui/events/event_handler.h"
-#include "ui/keyboard/keyboard_controller_observer.h"
+#include "ash/app_list/app_list_export.h"
 
-namespace app_list {
-class AppListPresenterImpl;
-class AppListView;
-class AppListViewDelegateFactory;
-}
-
-namespace ui {
-class LocatedEvent;
-}
+namespace aura {
+class Window;
+}  // namespace aura
 
 namespace ash {
 
-// Non-Mus+ash implementation of AppListPresenterDelegate.
-// Responsible for laying out the app list UI as well as updating the Shelf
-// launch icon as the state of the app list changes. Listens to shell events
-// and touches/mouse clicks outside the app list to auto dismiss the UI or
-// update its layout as necessary.
-class ASH_EXPORT AppListPresenterDelegate
-    : public app_list::AppListPresenterDelegate,
-      public ui::EventHandler,
-      public keyboard::KeyboardControllerObserver,
-      public ShellObserver,
-      public TabletModeObserver {
+class AppListPresenterImpl;
+class AppListView;
+class AppListViewDelegate;
+
+// Delegate of the app list presenter which allows customizing its behavior.
+// The design of this interface was heavily influenced by the needs of Ash's
+// app list implementation (see ash::AppListPresenterDelegateImpl).
+class APP_LIST_EXPORT AppListPresenterDelegate {
  public:
-  AppListPresenterDelegate(
-      app_list::AppListPresenterImpl* presenter,
-      app_list::AppListViewDelegateFactory* view_delegate_factory);
-  ~AppListPresenterDelegate() override;
+  virtual ~AppListPresenterDelegate() {}
 
-  // app_list::AppListPresenterDelegate:
-  app_list::AppListViewDelegate* GetViewDelegate() override;
-  void Init(app_list::AppListView* view,
-            int64_t display_id,
-            int current_apps_page) override;
-  void OnShown(int64_t display_id) override;
-  void OnDismissed() override;
-  void UpdateBounds() override;
-  gfx::Vector2d GetVisibilityAnimationOffset(
-      aura::Window* root_window) override;
-  base::TimeDelta GetVisibilityAnimationDuration(aura::Window* root_window,
-                                                 bool is_visible) override;
+  // Sets the owner presenter of this delegate
+  virtual void SetPresenter(AppListPresenterImpl* presenter) = 0;
 
- private:
-  void ProcessLocatedEvent(ui::LocatedEvent* event);
+  // Called to initialize the layout of the app list.
+  virtual void Init(AppListView* view, int64_t display_id) = 0;
+  virtual void ShowForDisplay(int64_t display_id) = 0;
 
-  // ui::EventHandler overrides:
-  void OnMouseEvent(ui::MouseEvent* event) override;
-  void OnGestureEvent(ui::GestureEvent* event) override;
+  // Called when app list is closing.
+  virtual void OnClosing() = 0;
 
-  // KeyboardControllerObserver overrides:
-  void OnKeyboardWorkspaceOccludedBoundsChanging(
-      const gfx::Rect& new_bounds) override;
+  // Called when app list is closed.
+  virtual void OnClosed() = 0;
 
-  // ShellObserver overrides:
-  void OnOverviewModeStarting() override;
+  // Returns true if tablet mode is enabled.
+  virtual bool IsTabletMode() const = 0;
 
-  // TabletModeObserver:
-  void OnTabletModeStarted() override;
-  void OnTabletModeEnded() override;
+  // Returns the view delegate, which will be passed into views so that views
+  // can get access to Ash.
+  virtual AppListViewDelegate* GetAppListViewDelegate() = 0;
 
-  // Whether the app list is visible (or in the process of being shown).
-  bool is_visible_ = false;
+  // Returns whether the on-screen keyboard is shown.
+  virtual bool GetOnScreenKeyboardShown() = 0;
 
-  // Whether the fullscreen app list feature is enabled.
-  const bool is_fullscreen_app_list_enabled_;
+  // Returns the root Window for the given display id. If there is no display
+  // for |display_id| null is returned.
+  virtual aura::Window* GetRootWindowForDisplayId(int64_t display_id) = 0;
 
-  // Not owned. Pointer is guaranteed to be valid while this object is alive.
-  app_list::AppListPresenterImpl* presenter_;
+  // Called when the app list visibility changes.
+  virtual void OnVisibilityChanged(bool visible, int64_t display_id) = 0;
 
-  // Not owned. Pointer is guaranteed to be valid while this object is alive.
-  app_list::AppListViewDelegateFactory* view_delegate_factory_;
+  // Called when the app list target visibility changes.
+  virtual void OnVisibilityWillChange(bool visible, int64_t display_id) = 0;
 
-  // Owned by its widget.
-  app_list::AppListView* view_ = nullptr;
-
-  DISALLOW_COPY_AND_ASSIGN(AppListPresenterDelegate);
+  // Whether the AppList is visible.
+  virtual bool IsVisible() = 0;
 };
 
 }  // namespace ash

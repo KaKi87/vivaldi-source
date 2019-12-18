@@ -1,7 +1,3 @@
-
-post_process_target("//base:base_static") {
-  deps = [
-    "//chrome/common:version_header",
-    "//components/version_info:generate_version_info",
-  ]
+update_template_instance("//base:base") {
+  deps += [ "//components/version_info:generate_version_info" ]
 }

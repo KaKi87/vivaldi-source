@@ -1,8 +1,11 @@
 include_rules = [
+  "+content/public/common",
   "+content/public/browser",
-  "+components/page_load_metrics/browser",
-  "+components/rappor",
-  "+net/base",
-  "+third_party/WebKit/public/web/WebInputEvent.h",
-  "+ui/base/page_transition_types.h",
+  "+content/public/test",
+  "+components/data_reduction_proxy/core/browser",
+  "+components/ukm",
+  "+net",
+  "+services/metrics",
+  "+third_party/blink/public",
+  "+ui",
 ]
