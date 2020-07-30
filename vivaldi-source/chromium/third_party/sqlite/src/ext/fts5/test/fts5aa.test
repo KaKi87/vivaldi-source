@@ -153,7 +153,7 @@ do_execsql_test 6.1 {
 }
 
 do_execsql_test 6.2 {
-  INSERT INTO t1(t1) VALUES('integrity-check')
+  INSERT INTO t1(t1) VALUES('integrity-check') 
 }
 
 do_execsql_test 6.3 {
@@ -165,7 +165,7 @@ do_execsql_test 6.4 {
 }
 
 do_execsql_test 6.5 {
-  INSERT INTO t1(t1) VALUES('integrity-check')
+  INSERT INTO t1(t1) VALUES('integrity-check') 
 }
 
 do_execsql_test 6.6 {
@@ -367,7 +367,7 @@ do_execsql_test 14.1 {
   INSERT INTO t1(t1, rank) VALUES('pgsz', 32);
   WITH d(x,y) AS (
     SELECT NULL, 'xyz xyz xyz xyz xyz xyz'
-    UNION ALL
+    UNION ALL 
     SELECT NULL, 'xyz xyz xyz xyz xyz xyz' FROM d
   )
   INSERT INTO t1 SELECT * FROM d LIMIT 200;
@@ -427,7 +427,7 @@ proc funk {} {
   db eval { UPDATE n1_config SET v=50 WHERE k='version' }
   set fd [db incrblob main n1_data block 10]
   fconfigure $fd -encoding binary -translation binary
-  puts -nonewline $fd "\x44\x45"
+#  puts -nonewline $fd "\x44\x45"
   close $fd
 }
 db func funk funk
@@ -435,7 +435,7 @@ db func funk funk
 # This test case corrupts the structure record within the first invocation
 # of function funk(). Which used to cause the bm25() function to throw an
 # exception. But since bm25() can now used the cached structure record,
-# it never sees the corruption introduced by funk() and so the following
+# it never sees the corruption introduced by funk() and so the following 
 # statement no longer fails.
 #
 do_catchsql_test 16.2 {
@@ -602,6 +602,38 @@ do_execsql_test 23.1 {
 do_execsql_test 23.2 {
   SELECT * FROM t11, t10 WHERE t10.rowid IS NULL;
 }
+
+#-------------------------------------------------------------------------
+do_execsql_test 24.0 {
+  CREATE VIRTUAL TABLE t12 USING fts5(x, detail=%DETAIL%);
+  INSERT INTO t12 VALUES('aaaa');
+}
+do_execsql_test 24.1 {
+  BEGIN;
+    DELETE FROM t12 WHERE rowid=1;
+    SELECT * FROM t12('aaaa');
+    INSERT INTO t12 VALUES('aaaa');
+  END;
+}
+do_execsql_test 24.2 {
+  INSERT INTO t12(t12) VALUES('integrity-check');
+}
+do_execsql_test 24.3 {
+    SELECT * FROM t12('aaaa');
+} {aaaa}
+
+#-------------------------------------------------------------------------
+do_execsql_test 25.0 {
+  CREATE VIRTUAL TABLE t13 USING fts5(x, detail=%DETAIL%);
+}
+do_execsql_test 25.1 {
+  BEGIN;
+  INSERT INTO t13 VALUES('AAAA');
+SELECT * FROM t13('BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB*');
+
+  END;
+}
+
 
 }
 

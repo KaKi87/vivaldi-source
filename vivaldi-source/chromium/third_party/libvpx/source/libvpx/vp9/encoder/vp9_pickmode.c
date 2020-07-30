@@ -19,7 +19,7 @@
 #include "vpx/vpx_codec.h"
 #include "vpx_dsp/vpx_dsp_common.h"
 #include "vpx_mem/vpx_mem.h"
-#include "vpx_ports/mem.h"
+#include "vpx_ports/compiler_attributes.h"
 
 #include "vp9/common/vp9_blockd.h"
 #include "vp9/common/vp9_common.h"
@@ -1719,9 +1719,9 @@ void vp9_pick_inter_mode(VP9_COMP *cpi, MACROBLOCK *x, TileDataEnc *tile_data,
   // process.
   // tmp[3] points to dst buffer, and the other 3 point to allocated buffers.
   PRED_BUFFER tmp[4];
-  DECLARE_ALIGNED(16, uint8_t, pred_buf[3 * 64 * 64]);
+  DECLARE_ALIGNED(16, uint8_t, pred_buf[3 * 64 * 64] VPX_UNINITIALIZED);
 #if CONFIG_VP9_HIGHBITDEPTH
-  DECLARE_ALIGNED(16, uint16_t, pred_buf_16[3 * 64 * 64]);
+  DECLARE_ALIGNED(16, uint16_t, pred_buf_16[3 * 64 * 64] VPX_UNINITIALIZED);
 #endif
   struct buf_2d orig_dst = pd->dst;
   PRED_BUFFER *this_mode_pred = NULL;

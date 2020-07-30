@@ -1,48 +1,58 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_SETTINGS_SAFE_BROWSING_HANDLER_H_
 #define CHROME_BROWSER_UI_WEBUI_SETTINGS_SAFE_BROWSING_HANDLER_H_
 
-#include <string>
-
-#include "base/macros.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
-#include "components/prefs/pref_change_registrar.h"
+#include "chrome/browser/ui/webui/site_settings_helper.h"
+
+#include "chrome/browser/profiles/profile.h"
 
 namespace settings {
 
+constexpr char kSafeBrowsingEnhanced[] = "enhanced";
+constexpr char kSafeBrowsingStandard[] = "standard";
+constexpr char kSafeBrowsingDisabled[] = "disabled";
+
+struct SafeBrowsingRadioManagedState {
+  site_settings::ManagedState enhanced;
+  site_settings::ManagedState standard;
+  site_settings::ManagedState disabled;
+};
+
+// Settings page UI handler that provides representation of Safe Browsing
+// settings.
 class SafeBrowsingHandler : public SettingsPageUIHandler {
  public:
-  explicit SafeBrowsingHandler(PrefService* prefs);
+  explicit SafeBrowsingHandler(Profile* profile);
   ~SafeBrowsingHandler() override;
 
-  // SettingsPageUIHandler:
+  // WebUIMessageHandler implementation.
   void RegisterMessages() override;
-  void OnJavascriptAllowed() override;
-  void OnJavascriptDisallowed() override;
+
+  // Calculate and return the current Safe Browsing radio buttons.
+  void HandleGetSafeBrowsingRadioManagedState(const base::ListValue* args);
+
+  // Confirm that the current Safe Browsing Enhanced preference is appropriate
+  // for the currently enabled features, updating it if required.
+  void HandleValidateSafeBrowsingEnhanced(const base::ListValue* args);
 
  private:
-  // Handler for "getSafeBrowsingExtendedReporting" message. Passed a single
-  // callback ID argument.
-  void HandleGetSafeBrowsingExtendedReporting(const base::ListValue* args);
+  friend class SafeBrowsingHandlerTest;
+  FRIEND_TEST_ALL_PREFIXES(SafeBrowsingHandlerTest, GenerateRadioManagedState);
+  FRIEND_TEST_ALL_PREFIXES(SafeBrowsingHandlerTest, ProvideRadioManagedState);
 
-  // Handler for "setSafeBrowsingExtendedReportingEnabled" message. Passed a
-  // single |enabled| boolean argument.
-  void HandleSetSafeBrowsingExtendedReportingEnabled(
-      const base::ListValue* args);
+  // SettingsPageUIHandler implementation.
+  void OnJavascriptAllowed() override {}
+  void OnJavascriptDisallowed() override {}
 
-  // Called when the local state pref controlling Safe Browsing extended
-  // reporting changes.
-  void OnPrefChanged(const std::string& pref_name);
+  // Calculate the current Safe Browsing control state for the provided profile.
+  static SafeBrowsingRadioManagedState GetSafeBrowsingRadioManagedState(
+      Profile* profile);
 
-  // Used to track pref changes that affect whether Safe Browsing extended
-  // reporting is enabled.
-  PrefChangeRegistrar profile_pref_registrar_;
-
-  // Weak pointer.
-  PrefService* prefs_;
+  Profile* profile_;
 
   DISALLOW_COPY_AND_ASSIGN(SafeBrowsingHandler);
 };

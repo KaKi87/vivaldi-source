@@ -26,10 +26,10 @@ ifcapable !pager_pragmas||!attach||!dirsync {
   finish_test
   return
 }
-if {$::tcl_platform(platform)!="unix"
+if {$::tcl_platform(platform)!="unix" 
   || [permutation] == "journaltest"
   || [permutation] == "inmemory_journal"
-  || [atomic_batch_write test.db]
+  || [atomic_batch_write test.db] 
 } {
   finish_test
   return
@@ -56,7 +56,7 @@ do_execsql_test 1.0 {
 
 do_execsql_sync_test 1.1 { INSERT INTO t1 VALUES(3, 4) } 4
 
-# synchronous=normal. So, 1 sync on the directory, 1 on the journal, 1
+# synchronous=normal. So, 1 sync on the directory, 1 on the journal, 1 
 # on the db file. 3 in total.
 do_execsql_test      1.2.1 { PRAGMA main.synchronous = NORMAL }
 do_execsql_test      1.2.2 { PRAGMA main.synchronous }     1
@@ -66,7 +66,7 @@ do_execsql_sync_test 1.2.3 { INSERT INTO t1 VALUES(5, 6) } 3
 do_execsql_test      1.3.1 { PRAGMA main.synchronous = OFF }
 do_execsql_test      1.3.2 { PRAGMA main.synchronous }     0
 do_execsql_sync_test 1.3.3 { INSERT INTO t1 VALUES(7, 8) } 0
-
+ 
 # synchronous=full, journal_mode=delete. So, 1 sync on the directory,
 # 2 on the journal, 1 on the db file. 4 in total.
 do_execsql_test      1.4.1 { PRAGMA main.synchronous = FULL }
@@ -78,7 +78,7 @@ do_execsql_sync_test 1.4.3 { INSERT INTO t1 VALUES(9, 10) } 4
 #
 do_execsql_test      1.5 { PRAGMA journal_mode = wal } {wal}
 
-# sync=full, journal_mode=wal. One sync on the directory, two on the
+# sync=full, journal_mode=wal. One sync on the directory, two on the 
 # wal file.
 do_execsql_sync_test 1.6 { INSERT INTO t1 VALUES(11, 12) } 3
 
@@ -126,9 +126,9 @@ if {$SQLITE_DEFAULT_SYNCHRONOUS==2 && $SQLITE_DEFAULT_WAL_SYNCHRONOUS==1} {
   do_execsql_sync_test 1.13.2 { INSERT INTO t1 VALUES(24, 25) } 0
 
   do_execsql_test 1.14 { PRAGMA journal_mode = delete } {delete}
-
-  # Delete mode, sync=full. The first transaction does one sync on
-  # directory, two on the journal file, one on the db. The second does
+  
+  # Delete mode, sync=full. The first transaction does one sync on 
+  # directory, two on the journal file, one on the db. The second does 
   # the same.
   do_execsql_sync_test 1.15.1 { INSERT INTO t1 VALUES(26, 27) } 4
   do_execsql_sync_test 1.15.2 { INSERT INTO t1 VALUES(28, 29) } 4

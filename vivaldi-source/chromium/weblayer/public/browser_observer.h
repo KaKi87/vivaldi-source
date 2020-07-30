@@ -1,31 +1,32 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef WEBLAYER_PUBLIC_BROWSER_OBSERVER_H_
 #define WEBLAYER_PUBLIC_BROWSER_OBSERVER_H_
 
-class GURL;
+#include "base/observer_list.h"
 
 namespace weblayer {
 
-class BrowserObserver {
+class Tab;
+
+class BrowserObserver : public base::CheckedObserver {
  public:
-  virtual ~BrowserObserver() {}
+  // A Tab has been been added to the Browser.
+  virtual void OnTabAdded(Tab* tab) {}
 
-  // The URL bar should be updated to |url|.
-  virtual void DisplayedURLChanged(const GURL& url) {}
+  // A Tab has been removed from the Browser. |active_tab_changed| indicates
+  // if the active tab changed as a result. If the active tab changed,
+  // OnActiveTabChanged() is also called.
+  virtual void OnTabRemoved(Tab* tab, bool active_tab_changed) {}
 
-  // Indicates that loading has started (|is_loading| is true) or is done
-  // (|is_loading| is false). |to_different_document| will be true unless the
-  // load is a fragment navigation, or triggered by
-  // history.pushState/replaceState.
-  virtual void LoadingStateChanged(bool is_loading,
-                                   bool to_different_document) {}
+  // The tab the user is interacting with has changed. |tab| may be null if no
+  // tabs are active.
+  virtual void OnActiveTabChanged(Tab* tab) {}
 
-  // This is fired after each navigation has completed, to indicate that the
-  // first paint after a non-empty layout has finished.
-  virtual void FirstContentfulPaint() {}
+ protected:
+  ~BrowserObserver() override {}
 };
 
 }  // namespace weblayer

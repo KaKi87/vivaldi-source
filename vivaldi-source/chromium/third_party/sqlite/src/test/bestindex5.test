@@ -23,7 +23,7 @@ ifcapable !vtab {
 
 #-------------------------------------------------------------------------
 # Virtual table callback for a virtual table named $tbl.
-#
+#  
 proc vtab_cmd {method args} {
 
   set binops(ne)    !=
@@ -184,7 +184,7 @@ do_vtab_query_test 1.7.1 { SELECT * FROM t1 WHERE (a, b) IS (1, 2) } {
   1 2 3.0
 }
 do_vtab_query_test 1.7.2 { SELECT * FROM t1 WHERE (5, 4) IS (b, a) } {
-  {WHERE b IS '5' AND a IS '4'}
+  {WHERE b IS '5' AND a IS '4'} 
   4 5 6.0
 }
 

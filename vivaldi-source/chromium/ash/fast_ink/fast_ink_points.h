@@ -14,7 +14,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 
-namespace ash {
+namespace fast_ink {
 
 // FastInkPoints is a helper class used for displaying low-latency palette
 // tools. It contains a collection of points representing one or more
@@ -77,6 +77,6 @@ class ASH_EXPORT FastInkPoints {
   DISALLOW_COPY_AND_ASSIGN(FastInkPoints);
 };
 
-}  // namespace ash
+}  // namespace fast_ink
 
 #endif  // ASH_FAST_INK_FAST_INK_POINTS_H_

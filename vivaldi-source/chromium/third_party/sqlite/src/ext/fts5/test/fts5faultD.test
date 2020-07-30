@@ -38,7 +38,7 @@ foreach_detail_mode $testprefix {
     WITH s(i) AS ( SELECT 1 UNION ALL SELECT i+1 FROM s WHERE i<60 )
     INSERT INTO o1 SELECT 'B', 'C', 'A' FROM s;
   }
-
+  
   do_faultsim_test 1 -faults int* -prep {
     sqlite3 db test.db
   } -body {

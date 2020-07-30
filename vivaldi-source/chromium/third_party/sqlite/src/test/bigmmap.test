@@ -26,9 +26,9 @@ ifcapable !mmap||!vtab {
 }
 
 set mmap_limit 0
-db eval {
-  SELECT compile_options AS x FROM pragma_compile_options
-  WHERE x LIKE 'max_mmap_size=%'
+db eval { 
+  SELECT compile_options AS x FROM pragma_compile_options 
+  WHERE x LIKE 'max_mmap_size=%' 
 } {
   regexp {MAX_MMAP_SIZE=([0-9]*)} $x -> mmap_limit
 }
@@ -63,7 +63,7 @@ for {set i 1} {$i < 8} {incr i} {
 }
 
 #-------------------------------------------------------------------------
-# Check that data can be retrieved from the db with a variety of
+# Check that data can be retrieved from the db with a variety of 
 # configured mmap size limits.
 #
 for {set i 0} {$i < 9} {incr i} {
@@ -81,15 +81,15 @@ for {set i 0} {$i < 9} {incr i} {
       SELECT count(*) FROM t$t;
       SELECT count(b || c) FROM t$t GROUP BY b;
     " {100 100}
-
+  
     do_execsql_test 2.$i.$t.2 "
-      SELECT * FROM t$t AS o WHERE
+      SELECT * FROM t$t AS o WHERE 
         NOT EXISTS( SELECT * FROM t$t AS i WHERE a=o.a AND +b=o.b AND +c=o.c )
       ORDER BY b, c;
     " {}
-
+    
     do_eqp_test 2.$i.$t.3 "
-      SELECT * FROM t$t AS o WHERE
+      SELECT * FROM t$t AS o WHERE 
         NOT EXISTS( SELECT * FROM t$t AS i WHERE a=o.a AND +b=o.b AND +c=o.c )
       ORDER BY b, c;
     " [string map {"\n    " "\n"} "

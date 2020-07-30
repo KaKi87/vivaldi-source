@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-# This file implements regression tests for SQLite library.
+# This file implements regression tests for SQLite library. 
 #
 # The focus of this file is testing how SQLite generates the names
 # of columns in a result set.
@@ -54,7 +54,7 @@ do_test colname-2.1 {
     INSERT INTO txyz VALUES(4,5,6);
     CREATE TABLE tboth(a,b,c,x,y,z);
     INSERT INTO tboth VALUES(11,12,13,14,15,16);
-    CREATE VIEW v1 AS SELECT tabC.a, txyZ.x, *
+    CREATE VIEW v1 AS SELECT tabC.a, txyZ.x, * 
       FROM tabc, txyz ORDER BY 1 LIMIT 1;
     CREATE VIEW v2 AS SELECT tabC.a, txyZ.x, tboTh.a, tbotH.x, *
       FROM tabc, txyz, tboth ORDER BY 1 LIMIT 1;
@@ -113,7 +113,7 @@ do_test colname-3.1 {
     PRAGMA full_column_names=OFF;
     CREATE VIEW v3 AS SELECT tabC.a, txyZ.x, *
       FROM tabc, txyz ORDER BY 1 LIMIT 1;
-    CREATE VIEW v4 AS SELECT tabC.a, txyZ.x, tboTh.a, tbotH.x, *
+    CREATE VIEW v4 AS SELECT tabC.a, txyZ.x, tboTh.a, tbotH.x, * 
       FROM tabc, txyz, tboth ORDER BY 1 LIMIT 1;
   }
   execsql2 {
@@ -179,7 +179,7 @@ do_test colname-4.1 {
     PRAGMA full_column_names=ON;
     CREATE VIEW v5 AS SELECT tabC.a, txyZ.x, *
       FROM tabc, txyz ORDER BY 1 LIMIT 1;
-    CREATE VIEW v6 AS SELECT tabC.a, txyZ.x, tboTh.a, tbotH.x, *
+    CREATE VIEW v6 AS SELECT tabC.a, txyZ.x, tboTh.a, tbotH.x, * 
       FROM tabc, txyz, tboth ORDER BY 1 LIMIT 1;
   }
   execsql2 {
@@ -399,6 +399,12 @@ ifcapable vtab {
     SELECT name FROM pragma_table_info('t2');
   } {Bbb}
 }
+do_execsql_test colname-9.330 { -- added 2019-08-10 to invalidate
+  DROP TABLE IF EXISTS t1;      -- a couple assert()s that were
+  CREATE TABLE t1(a);           -- added by ticket 3b44500725
+  INSERT INTO t1 VALUES(17),(2),(99),(-3),(7);
+  SELECT (SELECT avg(a) UNION SELECT min(a) OVER()) FROM t1;
+} {17}
 
 # Issue detected by OSSFuzz on 2017-12-24 (Christmas Eve)
 # caused by check-in https://sqlite.org/src/info/6b2ff26c25

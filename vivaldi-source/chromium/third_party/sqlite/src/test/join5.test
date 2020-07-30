@@ -216,13 +216,13 @@ do_execsql_test 5.5 {
 #
 reset_db
 do_execsql_test 6.1 {
-  CREATE TABLE t1(x);
+  CREATE TABLE t1(x); 
   INSERT INTO t1 VALUES(1);
 
   CREATE TABLE t2(y INTEGER PRIMARY KEY,a,b);
   INSERT INTO t2 VALUES(1,2,3);
-  CREATE INDEX t2a ON t2(a);
-  CREATE INDEX t2b ON t2(b);
+  CREATE INDEX t2a ON t2(a); 
+  CREATE INDEX t2b ON t2(b); 
 }
 
 do_execsql_test 6.2 {
@@ -247,7 +247,7 @@ do_execsql_test 6.100 {
   CREATE TABLE t1(aa, bb);
   CREATE INDEX t1x1 on t1(abs(aa), abs(bb));
   INSERT INTO t1 VALUES(-2,-3),(+2,-3),(-2,+3),(+2,+3);
-  SELECT * FROM (t1)
+  SELECT * FROM (t1) 
    WHERE ((abs(aa)=1 AND 1=2) OR abs(aa)=2)
      AND abs(bb)=3
   ORDER BY +1, +2;
@@ -304,6 +304,27 @@ do_eqp_test 7.4 {
   QUERY PLAN
   |--SCAN TABLE t3
   `--SEARCH TABLE t4 USING INDEX t4xz (x=?)
+} 
+
+reset_db
+do_execsql_test 8.0 {
+  CREATE TABLE t0 (c0, c1, PRIMARY KEY (c0, c1));
+  CREATE TABLE t1 (c0);
+
+  INSERT INTO t1 VALUES (2);
+
+  INSERT INTO t0 VALUES(0, 10);
+  INSERT INTO t0 VALUES(1, 10);
+  INSERT INTO t0 VALUES(2, 10);
+  INSERT INTO t0 VALUES(3, 10);
+}
+
+do_execsql_test 8.1 {
+  SELECT * FROM t0, t1 
+  WHERE (t0.c1 >= 1 OR t0.c1 < 1) AND t0.c0 IN (1, t1.c0) ORDER BY 1;
+} {
+  1 10 2
+  2 10 2
 }
 
 finish_test

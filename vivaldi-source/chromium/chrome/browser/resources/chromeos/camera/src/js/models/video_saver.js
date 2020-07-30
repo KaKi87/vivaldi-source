@@ -1,60 +1,76 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-'use strict';
+import {Intent} from '../intent.js';  // eslint-disable-line no-unused-vars
+import * as Comlink from '../lib/comlink.js';
+
+import {AsyncWriter} from './async_writer.js';
+import {createPrivateTempVideoFile} from './filesystem.js';
+import {getFileWriter} from './filesystem.js';
+
+const VideoProcessor =
+    Comlink.wrap(new Worker('/js/models/video_processor.js', {type: 'module'}));
 
 /**
- * Namespace for the Camera app.
+ * @param {!AsyncWriter} output
+ * @return {!Promise<!AsyncWriter>}
  */
-var cca = cca || {};
+async function createVideoProcesoor(output) {
+  // Comlink proxies all calls asynchronously, including constructors.
+  return await new VideoProcessor(Comlink.proxy(output));
+}
 
 /**
- * Namespace for models.
+ * @param {!FileEntry} file
+ * @return {!Promise<!AsyncWriter>}
  */
-cca.models = cca.models || {};
+async function createWriterForFile(file) {
+  const fileWriter = await getFileWriter(file);
+  const doWrite = (blob) => new Promise((resolve) => {
+    fileWriter.onwriteend = resolve;
+    fileWriter.write(blob);
+  });
+  return new AsyncWriter(doWrite);
+}
+
+/**
+ * @param {!Intent} intent
+ * @return {!AsyncWriter}
+ */
+function createWriterForIntent(intent) {
+  const doWrite = async (blob) => {
+    await intent.appendData(new Uint8Array(await blob.arrayBuffer()));
+  };
+  return new AsyncWriter(doWrite);
+}
 
 /**
  * Used to save captured video.
  */
-cca.models.VideoSaver = class {
+export class VideoSaver {
   /**
    * @param {!FileEntry} file
-   * @param {!FileWriter} writer
-   * @private
+   * @param {!AsyncWriter} processor
    */
-  constructor(file, writer) {
+  constructor(file, processor) {
     /**
      * @const {!FileEntry}
      */
     this.file_ = file;
 
     /**
-     * @const {!FileWriter}
+     * @const {!AsyncWriter}
      */
-    this.writer_ = writer;
-
-    /**
-     * Promise of the ongoing write.
-     * @type {!Promise}
-     */
-    this.curWrite_ = Promise.resolve();
+    this.processor_ = processor;
   }
 
   /**
    * Writes video data to result video.
    * @param {!Blob} blob Video data to be written.
-   * @return {!Promise}
    */
-  async write(blob) {
-    this.curWrite_ = (async () => {
-      await this.curWrite_;
-      await new Promise((resolve) => {
-        this.writer_.onwriteend = resolve;
-        this.writer_.write(blob);
-      });
-    })();
-    await this.curWrite_;
+  write(blob) {
+    this.processor_.write(blob);
   }
 
   /**
@@ -62,19 +78,32 @@ cca.models.VideoSaver = class {
    * @return {!Promise<!FileEntry>} Result video file.
    */
   async endWrite() {
-    await this.curWrite_;
+    await this.processor_.close();
     return this.file_;
   }
 
   /**
-   * Create VideoSaver.
-   * @param {!FileEntry} file The file which VideoSaver saves the result video
-   *     into.
-   * @return {!Promise<!cca.models.VideoSaver>}
+   * Creates video saver for the given file.
+   * @param {!FileEntry} file
+   * @return {!Promise<!VideoSaver>}
    */
-  static async create(file) {
-    const writer = await new Promise(
-        (resolve, reject) => file.createWriter(resolve, reject));
-    return new cca.models.VideoSaver(file, writer);
+  static async createForFile(file) {
+    const writer = await createWriterForFile(file);
+    const processor = await createVideoProcesoor(writer);
+    return new VideoSaver(file, processor);
   }
-};
+
+  /**
+   * Creates video saver for the given intent.
+   * @param {!Intent} intent
+   * @return {!Promise<!VideoSaver>}
+   */
+  static async createForIntent(intent) {
+    const file = await createPrivateTempVideoFile();
+    const fileWriter = await createWriterForFile(file);
+    const intentWriter = createWriterForIntent(intent);
+    const writer = AsyncWriter.combine(fileWriter, intentWriter);
+    const processor = await createVideoProcesoor(writer);
+    return new VideoSaver(file, processor);
+  }
+}

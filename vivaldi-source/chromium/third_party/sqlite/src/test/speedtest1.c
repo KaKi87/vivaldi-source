@@ -7,7 +7,7 @@ static const char zHelp[] =
   "Usage: %s [--options] DATABASE\n"
   "Options:\n"
   "  --autovacuum        Enable AUTOVACUUM mode\n"
-  "  --cachesize N       Set the cache size to N\n"
+  "  --cachesize N       Set the cache size to N\n" 
   "  --exclusive         Enable locking_mode=EXCLUSIVE\n"
   "  --explain           Like --sqlonly but with added EXPLAIN keywords\n"
   "  --heap SZ MIN       Memory allocator uses SZ bytes & min allocation MIN\n"
@@ -223,8 +223,8 @@ unsigned roundup_allones(unsigned limit){
 **     speedtest1_numbername(123)   ->  "one hundred twenty three"
 */
 int speedtest1_numbername(unsigned int n, char *zOut, int nOut){
-  static const char *ones[] = {  "zero", "one", "two", "three", "four", "five",
-                  "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+  static const char *ones[] = {  "zero", "one", "two", "three", "four", "five", 
+                  "six", "seven", "eight", "nine", "ten", "eleven", "twelve", 
                   "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
                   "eighteen", "nineteen" };
   static const char *tens[] = { "", "ten", "twenty", "thirty", "forty",
@@ -333,7 +333,7 @@ static void printSql(const char *zSql){
   if( g.bExplain ) printf("EXPLAIN ");
   printf("%.*s;\n", n, zSql);
   if( g.bExplain
-#if SQLITE_VERSION_NUMBER>=3007017
+#if SQLITE_VERSION_NUMBER>=3007017 
    && ( sqlite3_strglob("CREATE *", zSql)==0
      || sqlite3_strglob("DROP *", zSql)==0
      || sqlite3_strglob("ALTER *", zSql)==0
@@ -1143,7 +1143,7 @@ void testset_fp(void){
   int i;
   char zFP1[100];
   char zFP2[100];
-
+  
   n = g.szTest*5000;
   speedtest1_begin_test(100, "Fill a table with %d FP values", n*2);
   speedtest1_exec("BEGIN");
@@ -1190,6 +1190,19 @@ void testset_fp(void){
     sqlite3_bind_text(g.pStmt, 2, zFP2, -1, SQLITE_STATIC);
     speedtest1_run();
   }
+  speedtest1_end_test();
+
+  n = g.szTest*5000;
+  speedtest1_begin_test(140, "%d calls to round()", n);
+  speedtest1_exec("SELECT sum(round(a,2)+round(b,4)) FROM t1;");
+  speedtest1_end_test();
+
+
+  speedtest1_begin_test(150, "%d printf() calls", n*4);
+  speedtest1_exec(
+    "WITH c(fmt) AS (VALUES('%%g'),('%%e'),('%%!g'),('%%.20f'))"
+    "SELECT sum(printf(fmt,a)) FROM t1, c"
+  );
   speedtest1_end_test();
 }
 
@@ -1306,7 +1319,7 @@ void testset_rtree(int p1, int p2){
     }
     speedtest1_end_test();
   }
-
+  
   n = g.szTest*200;
   speedtest1_begin_test(120, "%d one-dimensional overlap slice queries", n);
   speedtest1_prepare("SELECT count(*) FROM rt1 WHERE y1>=?1 AND y0<=?2");
@@ -1335,7 +1348,7 @@ void testset_rtree(int p1, int p2){
     }
     speedtest1_end_test();
   }
-
+  
 
   n = g.szTest*200;
   speedtest1_begin_test(125, "%d custom geometry callback queries", n);
@@ -1946,7 +1959,7 @@ static void displayLinuxIoStats(FILE *out){
     }
   }
   fclose(in);
-}
+}   
 #endif
 
 #if SQLITE_VERSION_NUMBER<3006018
@@ -2135,7 +2148,7 @@ int main(int argc, char **argv){
     sqlite3_config(SQLITE_CONFIG_LOOKASIDE, 0, 0);
   }
 #endif
-
+ 
   /* Open the database and the input file */
   if( sqlite3_open(zDbName, &g.db) ){
     fatal_error("Cannot open database file: %s\n", zDbName);
@@ -2233,12 +2246,12 @@ int main(int argc, char **argv){
     printf("-- Page cache misses:           %d\n", iCur);
 #if SQLITE_VERSION_NUMBER>=3007012
     sqlite3_db_status(g.db, SQLITE_DBSTATUS_CACHE_WRITE, &iCur, &iHi, 1);
-    printf("-- Page cache writes:           %d\n", iCur);
+    printf("-- Page cache writes:           %d\n", iCur); 
 #endif
     sqlite3_db_status(g.db, SQLITE_DBSTATUS_SCHEMA_USED, &iCur, &iHi, 0);
-    printf("-- Schema Heap Usage:           %d bytes\n", iCur);
+    printf("-- Schema Heap Usage:           %d bytes\n", iCur); 
     sqlite3_db_status(g.db, SQLITE_DBSTATUS_STMT_USED, &iCur, &iHi, 0);
-    printf("-- Statement Heap Usage:        %d bytes\n", iCur);
+    printf("-- Statement Heap Usage:        %d bytes\n", iCur); 
   }
 #endif
 

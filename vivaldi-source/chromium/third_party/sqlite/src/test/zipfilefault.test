@@ -31,7 +31,7 @@ do_faultsim_test 1 -prep {
 } -body {
   execsql { CREATE VIRTUAL TABLE aaa USING zipfile('test.zip') }
 } -test {
-  faultsim_test_result {0 {}}
+  faultsim_test_result {0 {}} 
 }
 
 forcedelete test.zip
@@ -45,12 +45,12 @@ do_execsql_test 2.0 {
 do_faultsim_test 2.1 -faults oom* -body {
   execsql { SELECT name,data FROM zipfile('test.zip') }
 } -test {
-  faultsim_test_result {0 {a.txt 1234567890}}
+  faultsim_test_result {0 {a.txt 1234567890}} 
 }
 ifcapable json1 {
   do_faultsim_test 2.2 -faults oom* -body {
-    execsql {
-      SELECT json_extract( zipfile_cds(z), '$.version-made-by' )
+    execsql { 
+      SELECT json_extract( zipfile_cds(z), '$.version-made-by' ) 
       FROM zipfile('test.zip')
     }
   } -test {
@@ -69,7 +69,7 @@ do_execsql_test 3.0 {
 do_faultsim_test 3 -faults oom* -body {
   execsql { SELECT name,data FROM zipfile('test.zip') }
 } -test {
-  faultsim_test_result {0 {a.txt aaaaaaaaaaaaaaaaaaaaaaaaaaaa}}
+  faultsim_test_result {0 {a.txt aaaaaaaaaaaaaaaaaaaaaaaaaaaa}} 
 }
 
 do_faultsim_test 4 -faults oom* -body {
@@ -90,14 +90,14 @@ sqlite3_db_config_lookaside db 0 0 0
 load_static_extension db zipfile
 
 do_execsql_test 5.0 {
-  CREATE VIRTUAL TABLE setup USING zipfile('test.zip')
+  CREATE VIRTUAL TABLE setup USING zipfile('test.zip') 
 }
 
 do_faultsim_test 5.1 -faults oom* -prep {
   forcedelete test.zip
 } -body {
   execsql {
-    INSERT INTO setup(name, data)
+    INSERT INTO setup(name, data) 
     VALUES('a.txt', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   }
 } -test {
@@ -116,10 +116,10 @@ do_faultsim_test 5.2 -faults oom* -prep {
 
 do_faultsim_test 5.3 -faults oom* -prep {
   forcedelete test.zip
-  execsql {
+  execsql { 
     DROP TABLE IF EXISTS setup;
     BEGIN;
-      CREATE VIRTUAL TABLE setup USING zipfile('test.zip')
+      CREATE VIRTUAL TABLE setup USING zipfile('test.zip') 
   }
 } -body {
   execsql {

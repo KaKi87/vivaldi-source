@@ -18,25 +18,25 @@ ifcapable {!trigger} {
   return
 }
 
-# Test cases for ticket
+# Test cases for ticket 
 # https://www.sqlite.org/src/tktview/06796225f59c057cd120f
 #
 # The OP_Once opcode was not working correctly for recursive triggers.
 #
 do_execsql_test 100 {
   PRAGMA recursive_triggers = 1;
-
+  
   CREATE TABLE t1(a);
   CREATE INDEX i1 ON t1(a);
   INSERT INTO t1(a) VALUES(0),(2),(3),(8),(9);
   CREATE TABLE t2(b);
   CREATE TABLE t3(c);
-
+  
   CREATE TRIGGER tr AFTER INSERT ON t3 BEGIN
     INSERT INTO t3 SELECT new.c+1 WHERE new.c<5;
     INSERT INTO t2 SELECT new.c*100+a FROM t1 WHERE a IN (1, 2, 3, 4);
   END;
-
+  
   INSERT INTO t3 VALUES(2);
   SELECT c FROM t3 ORDER BY c;;
 } {2 3 4 5}
@@ -74,5 +74,21 @@ do_execsql_test 300 {
 do_catchsql_test 310 {
   INSERT INTO t4 VALUES(1);
 } {1 {hex literal too big: 0x2147483648e0e0099}}
+
+#-------------------------------------------------------------------------
+# 
+do_execsql_test 400 {
+  CREATE VIEW v0(a) AS SELECT 1234;
+  CREATE TRIGGER t0001 INSTEAD OF DELETE ON v0 BEGIN
+    SELECT old.a;
+  END;
+}
+do_execsql_test 405 {
+  SELECT a FROM v0;
+} {1234}
+do_execsql_test 410 {
+  DELETE FROM v0;
+}
+
 
 finish_test

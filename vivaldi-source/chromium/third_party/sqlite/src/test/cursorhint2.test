@@ -35,8 +35,8 @@ proc extract_hints {sql} {
       OpenRead {
         set csr($a(p1)) $lookup($a(p2))
       }
-      CursorHint {
-        lappend ret $csr($a(p1)) $a(p4)
+      CursorHint { 
+        lappend ret $csr($a(p1)) $a(p4) 
       }
     }
   }
@@ -144,32 +144,32 @@ if {0} {
   } {
     x2 {EQ(c0,r[2])}
   }
-
+  
   do_extract_hints_test 2.7 {
     SELECT * FROM x1 LEFT JOIN x2 ON (a=x) WHERE 0 = (b IS NOT +NULL)
   } {
     x2 {EQ(c0,r[2])}
   }
-
+  
   do_extract_hints_test 2.8 {
     SELECT * FROM x1 LEFT JOIN x2 ON (a=x) WHERE b IS NOT +NULL
   } {
     x2 {EQ(c0,r[2])}
   }
-
+  
   do_extract_hints_test 2.9 {
     SELECT * FROM x1 LEFT JOIN x2 ON (a=x)
       WHERE CASE b WHEN 0 THEN 0 ELSE 1 END;
   } {
     x2 {EQ(c0,r[2])}
   }
-
+  
   do_extract_hints_test 2.10 {
     SELECT * FROM x1 LEFT JOIN x2 ON (a=x) WHERE x2.b = 32+32
   } {
     x2 {AND(EQ(c1,ADD(32,32)),EQ(c0,r[2]))}
   }
-
+  
   ifcapable !icu {
     # This test only works using the built-in LIKE, not the ICU LIKE extension.
     do_extract_hints_test 2.11 {
@@ -179,7 +179,7 @@ if {0} {
     }
   }
 }
-
+  
 do_extract_hints_test 2.12 {
   SELECT * FROM x1 LEFT JOIN x2 ON (a=x) WHERE coalesce(x2.b, 1)
 } {
@@ -188,8 +188,8 @@ do_extract_hints_test 2.12 {
 
 reset_db
 do_execsql_test 3.0 {
-  CREATE TABLE t1 (i1 TEXT);
-  CREATE TABLE t2 (i2 TEXT UNIQUE);
+  CREATE TABLE t1 (i1 TEXT);    
+  CREATE TABLE t2 (i2 TEXT UNIQUE);    
   INSERT INTO t1 VALUES('0');
   INSERT INTO t2 VALUES('0');
 }

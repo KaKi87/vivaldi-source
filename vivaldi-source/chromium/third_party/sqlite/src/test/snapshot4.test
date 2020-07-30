@@ -35,7 +35,7 @@ do_execsql_test 1.0 {
   PRAGMA journal_mode = wal;
   WITH s(i) AS (
     SELECT 2 UNION ALL SELECT i+1 FROM s WHERE i<100
-  )
+  ) 
   INSERT INTO t1 SELECT i, randomblob(400) FROM s;
 } {wal}
 
@@ -47,9 +47,9 @@ do_test 1.1 {
 } {100}
 
 do_test 1.2 {
-  db2 eval {
+  db2 eval { 
     SELECT count(*) FROM t1;
-    CREATE TABLE t2(x);
+    CREATE TABLE t2(x); 
   }
 } {100}
 
@@ -67,7 +67,7 @@ do_test 1.4 {
   sqlite3_snapshot_open_blob db main $::snap
   execsql {
     SELECT count(*) FROM t1
-  }
+  } 
 } {100}
 
 

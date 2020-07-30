@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-#
+# 
 
 set testdir [file dirname $argv0]
 source $testdir/tester.tcl
@@ -79,7 +79,7 @@ proc vtab_command {src method args} {
 
 do_execsql_test 1.0 {
   CREATE TABLE t1(id int, value text);
-  CREATE TABLE t2(ctx int, id int, value text);
+  CREATE TABLE t2(ctx int, id int, value text); 
 
   INSERT INTO t1 VALUES(1,'try');
   INSERT INTO t2 VALUES(1,1,'good');
@@ -94,12 +94,12 @@ do_execsql_test 1.1 {
 } {2 2 evil {} {}}
 
 do_execsql_test 1.2 {
-  select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is null;
+  select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is null; 
 } {2 2 evil {} {}}
 
 unset -nocomplain xxx
 do_execsql_test 1.3 {
-  select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is $xxx;
+  select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is $xxx; 
 } {2 2 evil {} {}}
 
 do_execsql_test 1.4 {

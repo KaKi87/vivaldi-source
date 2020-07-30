@@ -24,7 +24,7 @@ ifcapable !fts5 {
 do_execsql_test 1.0 {
   CREATE VIRTUAL TABLE t1 USING fts5(x);
   CREATE VIRTUAL TABLE t2 USING fts5(
-      x,
+      x, 
       tokenize="unicode61 remove_diacritics 2"
   );
 }

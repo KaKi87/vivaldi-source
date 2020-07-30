@@ -24,7 +24,7 @@ faultsim_save_and_close
 
 do_faultsim_test 1 -faults oom* -prep {
   faultsim_restore_and_reopen
-  db eval { SELECT * FROM sqlite_master }
+  db eval { SELECT * FROM sqlite_master } 
 } -body {
   execsql {
      INSERT INTO t1 VALUES(3, 2, 2, NULL) ON CONFLICT(b, c) DO

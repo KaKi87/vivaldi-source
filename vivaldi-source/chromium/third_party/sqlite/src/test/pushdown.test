@@ -26,7 +26,7 @@ proc f {val} {
   lappend ::L $val
   return 0
 }
-db func f f
+db func f f 
 
 do_test 1.1 {
   set L [list]
@@ -87,5 +87,5 @@ do_test 2.2 {
 } {three}
 
 
-
+  
 finish_test

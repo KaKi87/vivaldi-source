@@ -4,23 +4,18 @@
 
 #include "third_party/blink/renderer/platform/graphics/touch_action_rect.h"
 
-#include "base/containers/flat_map.h"
 #include "cc/base/region.h"
-#include "cc/layers/touch_action_region.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 namespace blink {
 
-// static
-cc::TouchActionRegion TouchActionRect::BuildRegion(
-    const Vector<TouchActionRect>& touch_action_rects) {
-  base::flat_map<TouchAction, cc::Region> region_map;
-  region_map.reserve(touch_action_rects.size());
-  for (const TouchActionRect& touch_action_rect : touch_action_rects) {
-    TouchAction action = touch_action_rect.whitelisted_touch_action;
-    const LayoutRect& rect = touch_action_rect.rect;
-    region_map[action].Union(EnclosingIntRect(rect));
-  }
-  return cc::TouchActionRegion(std::move(region_map));
+String TouchActionRect::ToString() const {
+  return rect.ToString() + " " + cc::TouchActionToString(allowed_touch_action);
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const TouchActionRect& hit_test_rect) {
+  return os << hit_test_rect.ToString();
 }
 
 }  // namespace blink

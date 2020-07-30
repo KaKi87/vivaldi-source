@@ -32,7 +32,7 @@ do_test 1.1 {
   forcedelete test.db2journal test.db-journal
 
   close [open test.db-journal w]
-
+  
   hexio_write test.db-journal 0 746573742e6462326a6f75726e616c00
   hexio_write test.db-journal 16 00000010
   hexio_write test.db-journal 20 000005e1
@@ -63,7 +63,7 @@ do_execsql_test 1.4 {
 }
 
 # And now test that nothing bad happens if a master journal contains a
-# pointer to a journal file that does not have a "-" in the name.
+# pointer to a journal file that does not have a "-" in the name. 
 #
 do_test 1.5 {
   forcedelete test.db2-master test.db-journal test1

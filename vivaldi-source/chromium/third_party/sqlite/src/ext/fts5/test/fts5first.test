@@ -40,7 +40,7 @@ foreach {tn expr ok} {
 }
 
 #-------------------------------------------------------------------------
-#
+# 
 do_execsql_test 2.0 {
   INSERT INTO x1 VALUES('a b c', 'b c a');
 }
@@ -61,7 +61,7 @@ foreach {tn expr match} {
 }
 
 #-------------------------------------------------------------------------
-#
+# 
 do_execsql_test 3.0 {
   DELETE FROM x1;
   INSERT INTO x1 VALUES('b a', 'c a');
@@ -80,7 +80,7 @@ foreach {tn expr expect} {
 }
 
 #-------------------------------------------------------------------------
-#
+# 
 do_execsql_test 3.1 {
   CREATE VIRTUAL TABLE x2 USING fts5(a, b, c, detail=column);
 }

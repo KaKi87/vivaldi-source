@@ -22,7 +22,7 @@ do_execsql_test 1.5 {
   WITH freelist_trunk(i, d, n) AS (
     SELECT 1, NULL, sqlite_readint32(data, 32) FROM sqlite_dbpage WHERE pgno=1
       UNION ALL
-    SELECT n, data, sqlite_readint32(data)
+    SELECT n, data, sqlite_readint32(data) 
     FROM freelist_trunk, sqlite_dbpage WHERE pgno=n
   )
   SELECT i FROM freelist_trunk WHERE i!=1;
@@ -48,8 +48,8 @@ db func get_int get_int
 
 do_execsql_test 1.7 {
   BEGIN;
-    UPDATE sqlite_dbpage
-      SET data = set_int(data, 1, get_int(data, 1)-1)
+    UPDATE sqlite_dbpage 
+      SET data = set_int(data, 1, get_int(data, 1)-1) 
       WHERE pgno=4860;
     SELECT checkfreelist('main');
   ROLLBACK;
@@ -57,7 +57,7 @@ do_execsql_test 1.7 {
 
 do_execsql_test 1.8 {
   BEGIN;
-    UPDATE sqlite_dbpage
+    UPDATE sqlite_dbpage 
       SET data = set_int(data, 5, (SELECT * FROM pragma_page_count)+1)
       WHERE pgno=4860;
     SELECT checkfreelist('main');
@@ -66,7 +66,7 @@ do_execsql_test 1.8 {
 
 do_execsql_test 1.9 {
   BEGIN;
-    UPDATE sqlite_dbpage
+    UPDATE sqlite_dbpage 
       SET data = set_int(data, 5, 0)
       WHERE pgno=4860;
     SELECT checkfreelist('main');
@@ -75,7 +75,7 @@ do_execsql_test 1.9 {
 
 do_execsql_test 1.10 {
   BEGIN;
-    UPDATE sqlite_dbpage
+    UPDATE sqlite_dbpage 
       SET data = set_int(data, get_int(data, 1)+1, 0)
       WHERE pgno=5;
     SELECT checkfreelist('main');
@@ -84,7 +84,7 @@ do_execsql_test 1.10 {
 
 do_execsql_test 1.11 {
   BEGIN;
-    UPDATE sqlite_dbpage
+    UPDATE sqlite_dbpage 
       SET data = set_int(data, 1, 249)
       WHERE pgno=5;
     SELECT checkfreelist('main');

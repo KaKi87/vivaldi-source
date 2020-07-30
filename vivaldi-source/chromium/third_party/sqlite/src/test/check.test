@@ -11,7 +11,6 @@
 # This file implements regression tests for SQLite library.  The
 # focus of this file is testing CHECK constraints
 #
-# $Id: check.test,v 1.13 2009/06/05 17:09:12 drh Exp $
 
 set testdir [file dirname $argv0]
 source $testdir/tester.tcl
@@ -35,7 +34,7 @@ do_test check-1.2 {
   execsql {
     INSERT INTO t1 VALUES(3,4);
     SELECT * FROM t1;
-  }
+  }  
 } {3 4.0}
 do_test check-1.3 {
   catchsql {
@@ -45,7 +44,7 @@ do_test check-1.3 {
 do_test check-1.4 {
   execsql {
     SELECT * FROM t1;
-  }
+  }  
 } {3 4.0}
 do_test check-1.5 {
   catchsql {
@@ -55,7 +54,7 @@ do_test check-1.5 {
 do_test check-1.6 {
   execsql {
     SELECT * FROM t1;
-  }
+  }  
 } {3 4.0}
 do_test check-1.7 {
   catchsql {
@@ -65,7 +64,7 @@ do_test check-1.7 {
 do_test check-1.8 {
   execsql {
     SELECT * FROM t1;
-  }
+  }  
 } {3 4.0 {} 6.0}
 do_test check-1.9 {
   catchsql {
@@ -75,7 +74,7 @@ do_test check-1.9 {
 do_test check-1.10 {
   execsql {
     SELECT * FROM t1;
-  }
+  }  
 } {3 4.0 {} 6.0 2 {}}
 do_test check-1.11 {
   execsql {
@@ -117,11 +116,18 @@ do_test check-1.17 {
 
 do_test check-2.1 {
   execsql {
+    PRAGMA writable_schema = 1;
     CREATE TABLE t2(
       x INTEGER CONSTRAINT one CHECK( typeof(coalesce(x,0))=="integer" ),
       y REAL CONSTRAINT two CHECK( typeof(coalesce(y,0.1))=='real' ),
       z TEXT CONSTRAINT three CHECK( typeof(coalesce(z,''))=='text' )
     );
+    CREATE TABLE t2n(
+      x INTEGER CONSTRAINT one CHECK( typeof(coalesce(x,0))=="integer" ),
+      y NUMERIC CONSTRAINT two CHECK( typeof(coalesce(y,0.1))=='real' ),
+      z TEXT CONSTRAINT three CHECK( typeof(coalesce(z,''))=='text' )
+    );
+    PRAGMA writable_schema = 0;
   }
 } {}
 do_test check-2.2 {
@@ -144,8 +150,16 @@ do_test check-2.4 {
   }
 } {1 {CHECK constraint failed: one}}
 do_test check-2.5 {
+  # The 5 gets automatically promoted to 5.0 because the column type is REAL
   catchsql {
     INSERT INTO t2 VALUES(NULL, 5, NULL);
+  }
+} {0 {}}
+do_test check-2.5b {
+  # This time the column type is NUMERIC, so not automatic promption to REAL
+  # occurs and the constraint fails.
+  catchsql {
+    INSERT INTO t2n VALUES(NULL, 5, NULL);
   }
 } {1 {CHECK constraint failed: two}}
 do_test check-2.6 {
@@ -193,6 +207,7 @@ do_test check-2.cleanup {
   execsql {
     DROP TABLE IF EXISTS t2b;
     DROP TABLE IF EXISTS t2c;
+    DROP TABLE IF EXISTS t2n;
   }
 } {}
 
@@ -426,7 +441,7 @@ do_test check-6.15 {
 #
 reset_db
 proc myfunc {x} {expr $x < 10}
-db func myfunc myfunc
+db func myfunc -deterministic myfunc
 
 do_execsql_test  7.1 { CREATE TABLE t6(a CHECK (myfunc(a))) }
 do_execsql_test  7.2 { INSERT INTO t6 VALUES(9)  }
@@ -435,7 +450,7 @@ do_catchsql_test 7.3 { INSERT INTO t6 VALUES(11) } \
 
 do_test 7.4 {
   sqlite3 db2 test.db
-  execsql { SELECT * FROM t6 } db2
+  execsql { SELECT * FROM t6 } db2 
 } {9}
 
 do_test 7.5 {
@@ -492,5 +507,99 @@ do_execsql_test 10.1 {
   CREATE VIEW v1(y) AS SELECT x FROM t1;
   PRAGMA integrity_check;
 } {ok}
+
+#-------------------------------------------------------------------------
+reset_db
+do_execsql_test 11.0 {
+  CREATE TABLE t1 (Col0 CHECK(1 COLLATE BINARY BETWEEN 1 AND 1) ) ;
+}
+do_execsql_test 11.1 {
+  INSERT INTO t1 VALUES (NULL);
+}
+do_execsql_test 11.2 {
+  INSERT  INTO t1 VALUES (NULL);
+}
+
+do_execsql_test 11.3 {
+  CREATE TABLE t2(b, a CHECK(
+      CASE 'abc' COLLATE nocase WHEN a THEN 1 ELSE 0 END)
+  );
+}
+do_execsql_test 11.4 {
+  INSERT INTO t2(a) VALUES('abc');
+}
+do_execsql_test 11.5 {
+  INSERT INTO t2(b, a) VALUES(1, 'abc'||'');
+}
+do_execsql_test 11.6 {
+  INSERT INTO t2(b, a) VALUES(2, 'abc');
+}
+
+# 2019-12-24 ticket b383b90278186263
+#
+reset_db
+do_execsql_test 12.10 {
+  CREATE TABLE t1(a TEXT, CHECK(a=+a));
+  INSERT INTO t1(a) VALUES(NULL),('xyz'),(5),(x'303132'),(4.75);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL 'xyz' '5' X'303132' '4.75'}
+do_execsql_test 12.20 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(a<>+a));
+  INSERT INTO t1(a) VALUES(NULL);
+} {}
+do_catchsql_test 12.21 {
+  INSERT INTO t1(a) VALUES('xyz');
+} {1 {CHECK constraint failed: t1}}
+do_catchsql_test 12.22 {
+  INSERT INTO t1(a) VALUES(123);
+} {1 {CHECK constraint failed: t1}}
+do_execsql_test 12.30 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(NOT(a=+a)));
+  INSERT INTO t1(a) VALUES(NULL);
+} {}
+do_catchsql_test 12.31 {
+  INSERT INTO t1(a) VALUES('xyz');
+} {1 {CHECK constraint failed: t1}}
+do_catchsql_test 12.32 {
+  INSERT INTO t1(a) VALUES(123);
+} {1 {CHECK constraint failed: t1}}
+do_execsql_test 12.40 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(NOT(a<>+a)));
+  INSERT INTO t1(a) VALUES(NULL),('xyz'),(5),(x'303132'),(4.75);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL 'xyz' '5' X'303132' '4.75'}
+do_execsql_test 12.50 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(a BETWEEN 0 AND +a));
+  INSERT INTO t1(a) VALUES(NULL),('xyz'),(5),(x'303132'),(4.75);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL 'xyz' '5' X'303132' '4.75'}
+do_execsql_test 12.60 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(a NOT BETWEEN 0 AND +a));
+  INSERT INTO t1(a) VALUES(NULL);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL}
+do_catchsql_test 12.61 {
+  INSERT INTO t1(a) VALUES(456);
+} {1 {CHECK constraint failed: t1}}
+do_execsql_test 12.70 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(a BETWEEN +a AND 999999));
+  INSERT INTO t1(a) VALUES(NULL),(5);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL '5'}
+do_execsql_test 12.80 {
+  DROP TABLE t1;
+  CREATE TABLE t1(a TEXT, CHECK(a NOT BETWEEN +a AND 999999));
+  INSERT INTO t1(a) VALUES(NULL);
+  SELECT quote(a) FROM t1 ORDER BY rowid;
+} {NULL}
+do_catchsql_test 12.81 {
+  INSERT INTO t1(a) VALUES(456);
+} {1 {CHECK constraint failed: t1}}
 
 finish_test

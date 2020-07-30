@@ -74,11 +74,11 @@ db3 close
 
 if {[permutation]=="unix-excl"} {
   do_test 2.0 {
-    for {set i 0} {$i < 256} {incr i} {
-      sqlite3 db$i test.db
+    for {set i 0} {$i < 256} {incr i} { 
+      sqlite3 db$i test.db 
       execsql { SELECT * FROM t1 } db$i
     }
-    for {set i 0} {$i < 255} {incr i} {
+    for {set i 0} {$i < 255} {incr i} { 
       set rc [vfs_shmlock db$i main shared lock 4 1]
       if {$rc != "SQLITE_OK"} { error $rc }
     }
@@ -93,7 +93,7 @@ if {[permutation]=="unix-excl"} {
   do_test 2.5 { vfs_shmlock db255 main exclusive lock   4 1 } SQLITE_BUSY
 
   do_test 2.6 {
-    for {set i 1} {$i < 255} {incr i} {
+    for {set i 1} {$i < 255} {incr i} { 
       set rc [vfs_shmlock db255 main exclusive lock 4 1]
       if {$rc != "SQLITE_BUSY"} { error $rc }
       set rc [vfs_shmlock db$i main shared unlock 4 1]
@@ -155,7 +155,7 @@ proc random_lock_test {idx} {
           if {$res != "SQLITE_BUSY"} { error "BUSY not detected" }
           set bBusy 1
           break
-        }
+        } 
       }
 
       if {$bBusy==0} {

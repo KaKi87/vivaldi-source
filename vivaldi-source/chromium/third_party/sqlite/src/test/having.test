@@ -36,7 +36,7 @@ foreach {tn sql res} {
   do_execsql_test 1.$tn $sql $res
 }
 
-# Run an EXPLAIN command for both SQL statements. Return true if
+# Run an EXPLAIN command for both SQL statements. Return true if 
 # the outputs are identical, or false otherwise.
 #
 proc compare_vdbe {sql1 sql2} {
@@ -72,10 +72,10 @@ foreach {tn sql1 sql2} {
     "SELECT count(*) FROM t1,t2 WHERE a=c AND b=d GROUP BY b, d"
 
   7 {
-      SELECT count(*) FROM t1,t2 WHERE a=c GROUP BY b, d
+      SELECT count(*) FROM t1,t2 WHERE a=c GROUP BY b, d 
       HAVING b=d COLLATE nocase
     } {
-      SELECT count(*) FROM t1,t2 WHERE a=c AND b=d COLLATE nocase
+      SELECT count(*) FROM t1,t2 WHERE a=c AND b=d COLLATE nocase 
       GROUP BY b, d
     }
 
@@ -90,14 +90,14 @@ foreach {tn sql1 sql2} {
 #
 do_execsql_test 2.4a {
   SELECT x,y FROM (
-    SELECT a AS x, sum(b) AS y FROM t1
+    SELECT a AS x, sum(b) AS y FROM t1 
     GROUP BY a
   ) WHERE x BETWEEN 2 AND 9999
 } {2 12}
 do_execsql_test 2.4b {
   SELECT x,y FROM (
-    SELECT a AS x, sum(b) AS y FROM t1
-    WHERE x BETWEEN 2 AND 9999
+    SELECT a AS x, sum(b) AS y FROM t1 
+    WHERE x BETWEEN 2 AND 9999 
     GROUP BY a
   )
 } {2 12}

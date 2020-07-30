@@ -154,7 +154,7 @@ do_execsql_test 502 {
 # Incorrect result when an idnex is used for an ordered join.
 #
 # This test case is in the limit2.test module because the problem was first
-# exposed by check-in https://www.sqlite.org/src/info/559733b09e which
+# exposed by check-in https://www.sqlite.org/src/info/559733b09e which 
 # implemented the ORDER BY LIMIT optimization that limit2.test strives to
 # test.
 #

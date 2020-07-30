@@ -21,7 +21,7 @@ ifcapable !fts5 {
 }
 
 do_execsql_test 1.0 {
-  CREATE VIRTUAL TABLE sss USING fts5(a, prefix=3);
+  CREATE VIRTUAL TABLE sss USING fts5(a, prefix=3); 
 }
 
 do_execsql_test 1.1 {

@@ -30,7 +30,7 @@ proc m_value {ctx} {
 
   set nVal [llength $lSort]
   set n [expr $nVal/2]
-
+  
   if {($nVal % 2)==0 && $nVal>0} {
     set a [lindex $lSort $n]
     set b [lindex $lSort $n-1]
@@ -84,8 +84,8 @@ do_execsql_test 2.1 {
 
 test_override_sum db
 do_catchsql_test 3.0 {
-  SELECT sum(a) OVER
-  (ORDER BY b ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+  SELECT sum(a) OVER 
+  (ORDER BY b ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) 
   FROM t1;
 } {1 {sum() may not be used as a window function}}
 do_execsql_test 3.1 {

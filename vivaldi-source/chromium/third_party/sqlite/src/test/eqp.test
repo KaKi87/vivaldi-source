@@ -269,7 +269,7 @@ det 3.2.1 {
   `--USE TEMP B-TREE FOR ORDER BY
 }
 det 3.2.2 {
-  SELECT * FROM
+  SELECT * FROM 
     (SELECT * FROM t1 ORDER BY x LIMIT 10) AS x1,
     (SELECT * FROM t2 ORDER BY x LIMIT 10) AS x2
   ORDER BY x2.y LIMIT 5
@@ -462,7 +462,7 @@ do_eqp_test 4.3.3 {
 
 if 0 {
 #-------------------------------------------------------------------------
-# This next block of tests verifies that the examples on the
+# This next block of tests verifies that the examples on the 
 # lang_explain.html page are correct.
 #
 drop_all_tables
@@ -614,9 +614,9 @@ det 5.13 "SELECT a FROM t1 EXCEPT SELECT d FROM t2 ORDER BY 1" {
 
 if {![nonzero_reserved_bytes]} {
   #-------------------------------------------------------------------------
-  # The following tests - eqp-6.* - test that the example C code on
+  # The following tests - eqp-6.* - test that the example C code on 
   # documentation page eqp.html works. The C code is duplicated in test1.c
-  # and wrapped in Tcl command [print_explain_query_plan]
+  # and wrapped in Tcl command [print_explain_query_plan] 
   #
   set boilerplate {
     proc explain_query_plan {db sql} {
@@ -629,13 +629,13 @@ if {![nonzero_reserved_bytes]} {
     db close
     exit
   }
-
+  
   # Do a "Print Explain Query Plan" test.
   proc do_peqp_test {tn sql res} {
     set fd [open script.tcl w]
     puts $fd [string map [list %SQL% $sql] $::boilerplate]
     close $fd
-
+  
     uplevel do_test $tn [list {
       set fd [open "|[info nameofexec] script.tcl"]
       set data [read $fd]
@@ -643,7 +643,7 @@ if {![nonzero_reserved_bytes]} {
       set data
     }] [list $res]
   }
-
+  
   do_peqp_test 6.1 {
     SELECT a, b FROM t1 EXCEPT SELECT d, 99 FROM t2 ORDER BY 1
   } [string trimleft {
@@ -684,7 +684,7 @@ do_execsql_test 7.3 {
   INSERT INTO t2(a,b) VALUES(1, 2);
   INSERT INTO t2(a,b) VALUES(3, 4);
   INSERT INTO t2(a,b) VALUES(5, 6);
-
+ 
   ANALYZE;
 }
 

@@ -60,7 +60,7 @@
 **       ./kvtest run x1.db --count 10000 --max-id 1000000
 **       ./kvtest run x1 --count 10000 --max-id 1000000
 */
-static const char zHelp[] =
+static const char zHelp[] = 
 "Usage: kvtest COMMAND ARGS...\n"
 "\n"
 "   kvtest init DBFILE --count N --size M --pagesize X\n"
@@ -558,7 +558,7 @@ static int exportMain(int argc, char **argv){
       sqlite3_snprintf(20, zTail, "%02d/%02d/%02d",
                        iKey/10000, (iKey/100)%100, iKey%100);
     }
-    out = fopen(zFN, "wb");
+    out = fopen(zFN, "wb");      
     nWrote = fwrite(pData, 1, (size_t)nData, out);
     fclose(out);
     printf("\r%s   ", zTail); fflush(stdout);
@@ -576,8 +576,8 @@ static int exportMain(int argc, char **argv){
 
 /*
 ** Read the content of file zName into memory obtained from sqlite3_malloc64()
-** and return a pointer to the buffer. The caller is responsible for freeing
-** the memory.
+** and return a pointer to the buffer. The caller is responsible for freeing 
+** the memory. 
 **
 ** If parameter pnByte is not NULL, (*pnByte) is set to the number of bytes
 ** read.
@@ -632,7 +632,7 @@ static void updateFile(const char *zName, sqlite3_int64 *pnByte, int doFsync){
   if( pBuf==0 ){
     fatalError("Cannot allocate %lld bytes\n", sz);
   }
-  sqlite3_randomness((int)sz, pBuf);
+  sqlite3_randomness((int)sz, pBuf); 
 #if defined(_WIN32)
   if( doFsync ) zMode = "wbc";
 #endif
@@ -813,7 +813,7 @@ static int runMain(int argc, char **argv){
   unsigned char *pData = 0;   /* Content of the blob */
   sqlite3_int64 nAlloc = 0;   /* Space allocated for pData[] */
   const char *zJMode = 0;     /* Journal mode */
-
+  
 
   assert( strcmp(argv[1],"run")==0 );
   assert( argc>=3 );
@@ -1026,12 +1026,12 @@ static int runMain(int argc, char **argv){
           sqlite3_create_function(db, "remember", 2, SQLITE_UTF8, 0,
                                   rememberFunc, 0, 0);
 
-          rc = sqlite3_prepare_v2(db,
+          rc = sqlite3_prepare_v2(db, 
             "UPDATE kv SET v=randomblob(remember(length(v),?2))"
             " WHERE k=?1", -1, &pStmt, 0);
           sqlite3_bind_int64(pStmt, 2, SQLITE_PTR_TO_INT(&nData));
         }else{
-          rc = sqlite3_prepare_v2(db,
+          rc = sqlite3_prepare_v2(db, 
                  "SELECT v FROM kv WHERE k=?1", -1, &pStmt, 0);
         }
         if( rc ){

@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-#
+# 
 # Test cases found by Matthew Denton's fuzzer at Chrome.
 #
 
@@ -24,7 +24,7 @@ do_execsql_test fuzz4-100 {
 
 do_execsql_test fuzz4-110 {
   CREATE TABLE Table1(
-    Col0 TEXT DEFAULT (CASE WHEN 1 IS 3530822107858468864
+    Col0 TEXT DEFAULT (CASE WHEN 1 IS 3530822107858468864 
                             THEN 1 ELSE quote(1) IS 3530822107858468864 END)
   );
   INSERT INTO Table1 DEFAULT VALUES;

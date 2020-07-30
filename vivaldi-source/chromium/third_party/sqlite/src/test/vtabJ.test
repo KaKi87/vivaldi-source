@@ -107,12 +107,12 @@ do_execsql_test 171 {
   SELECT name, value FROM tclvar where name = 'xx';
 } {xx a}
 do_execsql_test 172 {
-  UPDATE tclvar SET value = value || 't'
+  UPDATE tclvar SET value = value || 't' 
   WHERE name = 'xx' OR name = 'x'||'x';
   SELECT name, value FROM tclvar where name = 'xx';
 } {xx at}
 do_execsql_test 173 {
-  UPDATE tclvar SET value = value || 't'
+  UPDATE tclvar SET value = value || 't' 
   WHERE name = 'xx' OR name BETWEEN 'xx' AND 'xx';
   SELECT name, value FROM tclvar where name = 'xx';
 } {xx att}

@@ -77,5 +77,5 @@ do_faultsim_test 3 -faults oom* -prep {
 } -test {
   faultsim_test_result {0 SQLITE_OK} {0 SQLITE_NOMEM}
 }
-
+ 
 finish_test

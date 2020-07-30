@@ -56,10 +56,10 @@ do_test 2.0 {
   forcedelete testdir
   file mkdir testdir
   execsql { CREATE VIRTUAL TABLE hhh USING zipfile('testdir') }
-  lindex [catchsql {
+  lindex [catchsql { 
     SELECT * FROM hhh;
     INSERT INTO hhh(name, data) VALUES('1.txt', 'file data');
-  }] 0
+  }] 0 
 } 1
 
 
@@ -91,7 +91,7 @@ set blob [blob $archive]
 do_execsql_test 3.2 {
   SELECT name,mtime,data FROM zipfile($blob)
 } {
-  a.txt 1000000 {contents of a.txt}
+  a.txt 1000000 {contents of a.txt} 
   b.txt 1000000 {contents of b.txt}
 }
 
@@ -117,7 +117,7 @@ for {set i 0} {$i < [llength $L]} {incr i} {
   do_execsql_test 3.4.$i {
     SELECT name,data FROM zipfile($blob)
   } {
-    a.txt {contents of a.txt}
+    a.txt {contents of a.txt} 
     b.txt {contents of b.txt}
   }
 }
@@ -129,7 +129,7 @@ for {set i 0} {$i < [llength $L]} {incr i} {
   do_execsql_test 3.5.$i {
     SELECT name,data FROM zipfile($blob)
   } {
-    a.txt {contents of a.txt}
+    a.txt {contents of a.txt} 
     b.txt {contents of b.txt}
   }
 }
@@ -202,7 +202,7 @@ do_test 5.0 {
  }]
 
   set hex [binary encode hex $blob]
-  set hex [string map {6e6f7461646972 6e6f746164692f} $hex]
+  set hex [string map {6e6f7461646972 6e6f746164692f} $hex] 
   set blob2 [binary decode hex $hex]
 
   execsql { SELECT name, data IS NULL FROM zipfile($blob2) }
@@ -214,9 +214,9 @@ do_test 5.0 {
 #
 forcedelete test.zip
 do_execsql_test 6.0 {
-  CREATE VIRTUAL TABLE temp.zip USING zipfile('test.zip');
-  INSERT INTO temp.zip (name,data) VALUES ('test1','test');
-  INSERT INTO temp.zip (name,data) VALUES ('test2','test');
+  CREATE VIRTUAL TABLE temp.zip USING zipfile('test.zip'); 
+  INSERT INTO temp.zip (name,data) VALUES ('test1','test'); 
+  INSERT INTO temp.zip (name,data) VALUES ('test2','test'); 
 }
 do_catchsql_test 6.1 {
   UPDATE temp.zip SET name='test1' WHERE name='test2'
@@ -225,17 +225,17 @@ do_catchsql_test 6.1 {
 forcedelete test.zip
 do_catchsql_test 6.2 {
   DROP TABLE zip;
-  CREATE VIRTUAL TABLE temp.zip USING zipfile('test.zip');
-  INSERT INTO temp.zip (name,data) VALUES ('test','test');
-  UPDATE  temp.zip set name=name||'new' where name='test';
-  INSERT INTO temp.zip (name,data) VALUES ('test','test');
-  UPDATE  temp.zip set name=name||'new' where name='test';
+  CREATE VIRTUAL TABLE temp.zip USING zipfile('test.zip'); 
+  INSERT INTO temp.zip (name,data) VALUES ('test','test'); 
+  UPDATE  temp.zip set name=name||'new' where name='test'; 
+  INSERT INTO temp.zip (name,data) VALUES ('test','test'); 
+  UPDATE  temp.zip set name=name||'new' where name='test'; 
 } {1 {duplicate name: "testnew"}}
 
 forcedelete test.zip
 do_execsql_test 6.3 {
-  INSERT INTO temp.zip (name,data) VALUES ('test1','test');
-  INSERT INTO temp.zip (name,data) VALUES ('test2','test');
+  INSERT INTO temp.zip (name,data) VALUES ('test1','test'); 
+  INSERT INTO temp.zip (name,data) VALUES ('test2','test'); 
   UPDATE OR REPLACE zip SET name='test2' WHERE name='test1';
   SELECT name FROM zip;
 } {test2}

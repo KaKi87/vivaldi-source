@@ -32,5 +32,5 @@ do_test tkt-c694113d5.100 {
   }
   set answer
 } {a=1 a=2 {CREATE INDEX} a=3 a=4}
-
+    
 finish_test

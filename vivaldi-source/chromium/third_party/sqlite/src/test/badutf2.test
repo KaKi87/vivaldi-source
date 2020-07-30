@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-# This file implements regression tests for SQLite library.
+# This file implements regression tests for SQLite library. 
 #
 # This file checks to make sure SQLite is able to gracEFully
 # handle malformed UTF-8.
@@ -52,7 +52,7 @@ do_test badutf2-4.0 {
   set S [sqlite3_prepare_v2 db "SELECT ?" -1 dummy]
   sqlite3_expired $S
 } {0}
-
+        
 foreach { i len uval xstr ustr u2u } {
 1 1 00     \x00         {}        {}
 2 1 01     \x01         "\\u0001" 01
@@ -98,12 +98,18 @@ foreach { i len uval xstr ustr u2u } {
     } $uval
   }
 
-  do_test badutf2-4.1.$i {
-    sqlite3_reset $S
-    sqlite3_bind_text $S 1 $xstr $len
-    sqlite3_step $S
-    utf8_to_ustr2 [ sqlite3_column_text $S 0 ]
-  } $ustr
+  # Tcl 8.7 and later do automatic bad-utf8 correction for
+  # characters 0x80 thru 0x9f so test case 5 does not work here.
+  if {$i==5 && $tcl_version>=8.7} {
+     # no-op
+  } else {
+    do_test badutf2-4.1.$i {
+      sqlite3_reset $S
+      sqlite3_bind_text $S 1 $xstr $len
+      sqlite3_step $S
+      utf8_to_ustr2 [ sqlite3_column_text $S 0 ]
+    } $ustr
+  }
 
   ifcapable debug {
     do_test badutf2-5.1.$i {

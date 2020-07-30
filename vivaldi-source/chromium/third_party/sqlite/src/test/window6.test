@@ -34,22 +34,22 @@ foreach {tn vars} {
   1 {}
   2 { set A(%t1) over }
   3 { set A(%x)  over }
-  4 {
-    set A(%alias)   over
-    set A(%x)       following
-    set A(%y)       over
+  4 { 
+    set A(%alias)   over 
+    set A(%x)       following 
+    set A(%y)       over 
   }
-  5 {
+  5 { 
     set A(%t1)      over
-    set A(%x)       following
-    set A(%y)       preceding
-    set A(%w)       current
+    set A(%x)       following 
+    set A(%y)       preceding 
+    set A(%w)       current 
     set A(%alias)   filter
     set A(%typename)  window
   }
 
-  6 {
-    set A(%x)       window
+  6 { 
+    set A(%x)       window 
   }
 } {
   set A(%t1)    t1
@@ -108,7 +108,7 @@ do_execsql_test 3.1 {
 do_execsql_test 4.0 { CREATE TABLE t4(x, y); }
 
 # do_execsql_test 4.1 { PRAGMA parser_trace = 1 }
-do_execsql_test 4.1 {
+do_execsql_test 4.1 { 
   SELECT * FROM t4 window, t4;
 }
 
@@ -159,7 +159,7 @@ ifcapable !icu {
   } {1 {near "window": syntax error}}
 }
 
-reset_db
+reset_db 
 do_execsql_test 7.0 {
   CREATE TABLE t1(x TEXT);
   CREATE INDEX i1 ON t1(x COLLATE nocase);
@@ -176,37 +176,37 @@ ifcapable !icu {
 #
 do_execsql_test 8.0 {
   CREATE TABLE IF NOT EXISTS "sample" (
-      "id" INTEGER NOT NULL PRIMARY KEY,
-      "counter" INTEGER NOT NULL,
+      "id" INTEGER NOT NULL PRIMARY KEY, 
+      "counter" INTEGER NOT NULL, 
       "value" REAL NOT NULL
   );
 
-  INSERT INTO "sample" (counter, value)
+  INSERT INTO "sample" (counter, value) 
   VALUES (1, 10.), (1, 20.), (2, 1.), (2, 3.), (3, 100.);
 }
 
 do_execsql_test 8.1 {
-  SELECT "counter", "value", RANK() OVER w AS "rank"
+  SELECT "counter", "value", RANK() OVER w AS "rank" 
   FROM "sample"
-  WINDOW w AS (PARTITION BY "counter" ORDER BY "value" DESC)
+  WINDOW w AS (PARTITION BY "counter" ORDER BY "value" DESC) 
   ORDER BY "counter", RANK() OVER w
 } {
   1 20.0 1   1 10.0 2   2 3.0 1   2 1.0 2  3 100.0 1
 }
 
 do_execsql_test 8.2 {
-  SELECT "counter", "value", SUM("value") OVER
-  (ORDER BY "id" ROWS 2 PRECEDING)
-    FROM "sample"
+  SELECT "counter", "value", SUM("value") OVER 
+  (ORDER BY "id" ROWS 2 PRECEDING) 
+    FROM "sample" 
   ORDER BY "id"
 } {
   1 10.0 10.0   1 20.0 30.0   2 1.0 31.0   2 3.0 24.0   3 100.0 104.0
 }
 
 do_execsql_test 8.3 {
-  SELECT SUM("value") OVER
-  (ORDER BY "id" ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
-    FROM "sample"
+  SELECT SUM("value") OVER 
+  (ORDER BY "id" ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) 
+    FROM "sample" 
   ORDER BY "id"
 } {
   10.0   30.0   31.0   24.0   104.0
@@ -219,17 +219,17 @@ do_execsql_test 9.0 {
 } {
   1 1  2 1,2  3 1,2,3  4 2,3,4  5 3,4,5
 }
-do_catchsql_test 9.1 {
-  WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
-  SELECT x, group_concat(x) OVER (ORDER BY x RANGE 2 PRECEDING)
-  FROM c;
-} {1 {RANGE must use only UNBOUNDED or CURRENT ROW}}
-
-do_catchsql_test 9.2 {
-  WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
-  SELECT x, group_concat(x) OVER (ORDER BY x RANGE BETWEEN UNBOUNDED PRECEDING AND 2 FOLLOWING)
-  FROM c;
-} {1 {RANGE must use only UNBOUNDED or CURRENT ROW}}
+#do_catchsql_test 9.1 {
+#  WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
+#  SELECT x, group_concat(x) OVER (ORDER BY x RANGE 2 PRECEDING)
+#  FROM c;
+#} {1 {RANGE must use only UNBOUNDED or CURRENT ROW}}
+#
+#do_catchsql_test 9.2 {
+#  WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
+#  SELECT x, group_concat(x) OVER (ORDER BY x RANGE BETWEEN UNBOUNDED PRECEDING AND 2 FOLLOWING)
+#  FROM c;
+#} {1 {RANGE must use only UNBOUNDED or CURRENT ROW}}
 
 do_catchsql_test 9.3 {
   WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
@@ -260,9 +260,9 @@ foreach {tn frame} {
   do_catchsql_test 9.7.$tn "
     WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<5)
     SELECT count() OVER (
-        ORDER BY x ROWS $frame
+        ORDER BY x ROWS $frame 
     ) FROM c;
-  " {1 {unsupported frame delimiter for ROWS}}
+  " {1 {unsupported frame specification}}
 }
 
 do_catchsql_test 9.8.1 {
@@ -333,8 +333,38 @@ do_execsql_test 11.2 {
   SELECT a, (SELECT y FROM t3 WHERE x=a), sum(a) OVER (ORDER BY a)
     FROM t1 ORDER BY a;
 } {
-  10 ten 10   15 fifteen 25   20 {} 65        20 {} 65
+  10 ten 10   15 fifteen 25   20 {} 65        20 {} 65   
   25 {} 90    30 thirty 150   30 thirty 150   50 {} 200
+}
+
+do_execsql_test 11.3.1 {
+  SELECT a, sum(a) OVER win FROM t1
+  WINDOW win AS (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+} {
+  10 10 15 25 20 45 20 65 25 90 30 120 30 150 50 200
+}
+do_execsql_test 11.3.2 {
+  SELECT a, sum(a) OVER win FROM t1
+  WINDOW win AS (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 0 FOLLOWING)
+} {
+  10 10 15 25 20 45 20 65 25 90 30 120 30 150 50 200
+}
+do_execsql_test 11.3.3 {
+  SELECT a, sum(a) OVER win FROM t1
+  WINDOW win AS (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 0 PRECEDING)
+} {
+  10 10 15 25 20 45 20 65 25 90 30 120 30 150 50 200
+}
+
+do_execsql_test 11.4.1 {
+  SELECT y, group_concat(y, '.') OVER win FROM t3
+  WINDOW win AS (
+    ORDER BY y RANGE BETWEEN UNBOUNDED PRECEDING AND 10 PRECEDING
+  );
+} {
+  fifteen fifteen 
+  ten     fifteen.ten 
+  thirty  fifteen.ten.thirty
 }
 
 finish_test

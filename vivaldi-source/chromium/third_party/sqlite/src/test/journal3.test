@@ -17,7 +17,7 @@ source $testdir/lock_common.tcl
 source $testdir/malloc_common.tcl
 
 #-------------------------------------------------------------------------
-# If a connection is required to create a journal file, it creates it with
+# If a connection is required to create a journal file, it creates it with 
 # the same file-system permissions as the database file itself. Test this.
 #
 if {$::tcl_platform(platform) == "unix"
@@ -38,16 +38,20 @@ if {$::tcl_platform(platform) == "unix"
   } {
     db close
     #set effective [format %.5o [expr $permissions & ~$umask]]
+    set res "/[regsub {^00} $permissions {0.}]/"
+    if {$tcl_version>=8.7} {
+       regsub {^00} $permissions {0o} permissions
+    }
     set effective $permissions
     do_test journal3-1.2.$tn.1 {
       catch { forcedelete test.db-journal }
       file attributes test.db -permissions $permissions
       file attributes test.db -permissions
-    } $permissions
+    } $res
     do_test journal3-1.2.$tn.2 { file exists test.db-journal } {0}
     do_test journal3-1.2.$tn.3 {
       sqlite3 db test.db
-      execsql {
+      execsql { 
         BEGIN;
           INSERT INTO tx DEFAULT VALUES;
       }
@@ -55,7 +59,7 @@ if {$::tcl_platform(platform) == "unix"
     } {1}
     do_test journal3-1.2.$tn.4 {
       file attr test.db-journal -perm
-    } $effective
+    } $res
     do_execsql_test journal3-1.2.$tn.5 { ROLLBACK } {}
   }
 

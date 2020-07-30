@@ -1,4 +1,4 @@
-# 2012 January 11 {}
+# 2019 April 23
 #
 # The author disclaims copyright to this source code.  In place of
 # a legal notice, here is a blessing:
@@ -8,157 +8,127 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-# This file implements regression tests for SQLite library.
 #
-# This file implements tests for the recover module, which can read
-# through corrupt rows and pages.
+# Test the shell tool ".ar" command.
 #
-# $Id$
-
-# TODO(shess): These all test that the module correctly reads good
-# data.  It would be good to implement tests of corrupt data.
 
 set testdir [file dirname $argv0]
 source $testdir/tester.tcl
+set testprefix recover
 
-db eval {
-  DROP TABLE IF EXISTS altered;
-  CREATE TABLE altered (
-    c TEXT
-  );
-  INSERT INTO altered VALUES ('a');
-  INSERT INTO altered VALUES ('b');
-  INSERT INTO altered VALUES ('c');
-  ALTER TABLE altered ADD COLUMN i INTEGER NOT NULL DEFAULT 10;
-  INSERT INTO altered VALUES ('d', 5);
+ifcapable !vtab {
+  finish_test; return
+}
+set CLI [test_find_cli]
+
+proc compare_result {db1 db2 sql} {
+  set r1 [$db1 eval $sql]
+  set r2 [$db2 eval $sql]
+  if {$r1 != $r2} {
+  puts "r1: $r1"
+  puts "r2: $r2"
+    error "mismatch for $sql"
+  }
+  return ""
 }
 
-# SQLite will fill the earlier rows with the default.
-do_test recover-alter-1.0 {
-  execsql {SELECT c, i FROM altered ORDER BY rowid}
-} {a 10 b 10 c 10 d 5}
-
-# recover sees NULL for those rows.
-do_test recover-alter-1.1 {
-  db eval {
-    DROP TABLE IF EXISTS temp.altered_recover;
-    CREATE VIRTUAL TABLE temp.altered_recover USING recover(
-      altered,
-      c TEXT,
-      i INTEGER
-    );
-  }
-  execsql {SELECT c, i FROM altered_recover ORDER BY rowid}
-} {a {} b {} c {} d 5}
-
-# Can skip those NULL columns like if they contained a real NULL.
-do_test recover-alter-1.2 {
-  db eval {
-    DROP TABLE IF EXISTS temp.altered_recover;
-    CREATE VIRTUAL TABLE temp.altered_recover USING recover(
-      altered,
-      c TEXT,
-      i INTEGER NOT NULL
-    );
-  }
-  execsql {SELECT c, i FROM altered_recover ORDER BY rowid}
-} {d 5}
-
-if {0} {
-# It would be neat if this could work.  I tried putting "DEFAULT ..."
-# in the schema exposed by the recover table, but it doesn't do the
-# trick.
-do_test recover-alter-1.2 {
-  db eval {
-    DROP TABLE IF EXISTS temp.altered_recover;
-    CREATE VIRTUAL TABLE temp.altered_recover USING recover(
-      altered,
-      c TEXT,
-      i INTEGER NOT NULL DEFAULT 10
-    );
-  }
-  execsql {SELECT c, i FROM altered_recover ORDER BY rowid}
-} {a 10 b 10 c 10 d 5}
-}
-
-# Helper function to generate an arbitrarily-sized table.
-proc generate {table base count} {
-  db eval "DROP TABLE IF EXISTS $table"
-  db transaction immediate {
-    db eval "CREATE TABLE $table (t TEXT,n INT)"
-    for {set i 0} {$i<$count} {incr i} {
-      set t [concat $base $i]
-      db eval [concat {INSERT INTO} $table {VALUES ($t, $i)}]
-    }
+proc compare_dbs {db1 db2} {
+  compare_result $db1 $db2 "SELECT sql FROM sqlite_master ORDER BY 1"
+  foreach tbl [$db1 eval {SELECT name FROM sqlite_master WHERE type='table'}] {
+    compare_result $db1 $db2 "SELECT * FROM $tbl"
   }
 }
 
-# Leaf-only database parses.
-do_test recover-leaf-1.0 {
-  db close
-  sqlite3 db test.db
-  generate "leaf" "Leaf-node-generating line " 10
+proc do_recover_test {tn {tsql {}} {res {}}} {
+  set fd [open "|$::CLI test.db .recover"]
+  fconfigure $fd -encoding binary
+  fconfigure $fd -translation binary
+  set sql [read $fd]
+  close $fd
 
-  db eval {
-    DROP TABLE IF EXISTS temp.leaf_recover;
-    CREATE VIRTUAL TABLE temp.leaf_recover USING recover(
-      leaf,
-      t TEXT,
-      n INTEGER
-    );
+  forcedelete test.db2
+  sqlite3 db2 test.db2
+  execsql $sql db2
+  if {$tsql==""} {
+    uplevel [list do_test $tn [list compare_dbs db db2] {}]
+  } else {
+    uplevel [list do_execsql_test -db db2 $tn $tsql $res]
   }
-  execsql {SELECT t, n FROM leaf_recover ORDER BY rowid}
-} {{Leaf-node-generating line 0} 0 {Leaf-node-generating line 1} 1 {Leaf-node-generating line 2} 2 {Leaf-node-generating line 3} 3 {Leaf-node-generating line 4} 4 {Leaf-node-generating line 5} 5 {Leaf-node-generating line 6} 6 {Leaf-node-generating line 7} 7 {Leaf-node-generating line 8} 8 {Leaf-node-generating line 9} 9}
+  db2 close
+}
 
-# Empty table gives empty results.
-do_test recover-leaf-2.0 {
-  db close
-  sqlite3 db test.db
-  generate "empty" "Leaf-node-generating line " 0
+set doc {
+  hello
+  world
+}
+do_execsql_test 1.1.1 {
+  CREATE TABLE t1(a INTEGER PRIMARY KEY, b, c);
+  INSERT INTO t1 VALUES(1, 4, X'1234567800');
+  INSERT INTO t1 VALUES(2, 'test', 8.1);
+  INSERT INTO t1 VALUES(3, $doc, 8.4);
+}
+do_recover_test 1.1.2
 
-  db eval {
-    DROP TABLE IF EXISTS temp.leaf_recover;
-    CREATE VIRTUAL TABLE temp.leaf_recover USING recover(
-      empty,
-      t TEXT,
-      n INTEGER
-    );
-  }
-  execsql {SELECT t, n FROM leaf_recover ORDER BY rowid}
-} {}
+do_execsql_test 1.2.1 "
+  DELETE FROM t1;
+  INSERT INTO t1 VALUES(13, 'hello\r\nworld', 13);
+"
+do_recover_test 1.2.2
 
-# Single level of interior node.
-do_test recover-interior-1.0 {
-  db close
-  sqlite3 db test.db
-  generate "interior" "Interior-node-generating line " 100
+do_execsql_test 1.3.1 "
+  CREATE TABLE t2(i INTEGER PRIMARY KEY AUTOINCREMENT, b, c);
+  INSERT INTO t2 VALUES(NULL, 1, 2);
+  INSERT INTO t2 VALUES(NULL, 3, 4);
+  INSERT INTO t2 VALUES(NULL, 5, 6);
+  CREATE TABLE t3(i INTEGER PRIMARY KEY AUTOINCREMENT, b, c);
+  INSERT INTO t3 VALUES(NULL, 1, 2);
+  INSERT INTO t3 VALUES(NULL, 3, 4);
+  INSERT INTO t3 VALUES(NULL, 5, 6);
+  DELETE FROM t2;
+"
+do_recover_test 1.3.2
 
-  db eval {
-    DROP TABLE IF EXISTS temp.interior_recover;
-    CREATE VIRTUAL TABLE temp.interior_recover USING recover(
-      interior,
-      t TEXT,
-      n INTEGER
-    );
-  }
-  execsql {SELECT t, n FROM interior_recover WHERE (rowid%10)=0 ORDER BY rowid}
-} {{Interior-node-generating line 9} 9 {Interior-node-generating line 19} 19 {Interior-node-generating line 29} 29 {Interior-node-generating line 39} 39 {Interior-node-generating line 49} 49 {Interior-node-generating line 59} 59 {Interior-node-generating line 69} 69 {Interior-node-generating line 79} 79 {Interior-node-generating line 89} 89 {Interior-node-generating line 99} 99}
+#-------------------------------------------------------------------------
+reset_db
+do_execsql_test 2.1.0 {
+  PRAGMA auto_vacuum = 0;
+  CREATE TABLE t1(a, b, c, PRIMARY KEY(b, c)) WITHOUT ROWID;
+  INSERT INTO t1 VALUES(1, 2, 3);
+  INSERT INTO t1 VALUES(4, 5, 6);
+  INSERT INTO t1 VALUES(7, 8, 9);
+}
 
-# Multiple levels of interior node.
-do_test recover-interior-2.0 {
-  db close
-  sqlite3 db test.db
-  generate "interior2" "Interior-node-generating line " 5000
+do_recover_test 2.1.1
 
-  db eval {
-    DROP TABLE IF EXISTS temp.interior2_recover;
-    CREATE VIRTUAL TABLE temp.interior2_recover USING recover(
-      interior2,
-      t TEXT,
-      n INTEGER
-    );
-  }
-  execsql {SELECT t, n FROM interior2_recover WHERE (rowid%500)=0 ORDER BY rowid}
-} {{Interior-node-generating line 499} 499 {Interior-node-generating line 999} 999 {Interior-node-generating line 1499} 1499 {Interior-node-generating line 1999} 1999 {Interior-node-generating line 2499} 2499 {Interior-node-generating line 2999} 2999 {Interior-node-generating line 3499} 3499 {Interior-node-generating line 3999} 3999 {Interior-node-generating line 4499} 4499 {Interior-node-generating line 4999} 4999}
+do_execsql_test 2.2.0 {
+  PRAGMA writable_schema = 1;
+  DELETE FROM sqlite_master WHERE name='t1';
+}
+do_recover_test 2.2.1 {
+  SELECT name FROM sqlite_master
+} {lost_and_found}
+
+do_execsql_test 2.3.0 {
+  CREATE TABLE lost_and_found(a, b, c);
+}
+do_recover_test 2.3.1 {
+  SELECT name FROM sqlite_master
+} {lost_and_found lost_and_found_0}
+
+do_execsql_test 2.4.0 {
+  CREATE TABLE lost_and_found_0(a, b, c);
+}
+do_recover_test 2.4.1 {
+  SELECT name FROM sqlite_master;
+  SELECT * FROM lost_and_found_1;
+} {lost_and_found lost_and_found_0 lost_and_found_1
+  2 2 3 {} 2 3 1
+  2 2 3 {} 5 6 4
+  2 2 3 {} 8 9 7
+}
+
+#-------------------------------------------------------------------------
+reset_db
+do_recover_test 3.0
 
 finish_test

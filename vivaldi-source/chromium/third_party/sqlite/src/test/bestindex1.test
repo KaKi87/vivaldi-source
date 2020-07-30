@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-#
+# 
 #
 
 set testdir [file dirname $argv0]
@@ -68,7 +68,7 @@ register_tcl_module db
 #   "use"  - Implement filtering. Use the constraint, but do not set omit.
 #   "use2" - Do not implement filtering. Use the constraint anyway.
 #
-#
+#   
 proc t1_vtab {mode method args} {
   switch -- $method {
     xConnect {
@@ -133,11 +133,11 @@ foreach {tn mode} {
 
   do_execsql_test 2.2.$mode.2 {SELECT * FROM t1} {one 1 two 2 three 3 four 4}
   do_execsql_test 2.2.$mode.3 {SELECT rowid FROM t1} {1 2 3 4}
-  do_execsql_test 2.2.$mode.4 {SELECT rowid FROM t1 WHERE a='two'} {2}
+  do_execsql_test 2.2.$mode.4 {SELECT rowid FROM t1 WHERE a='two'} {2} 
 
   do_execsql_test 2.2.$mode.5 {
     SELECT rowid FROM t1 WHERE a IN ('one', 'four') ORDER BY +rowid
-  } {1 4}
+  } {1 4} 
 
   set plan(use) {
     QUERY PLAN
@@ -155,7 +155,7 @@ foreach {tn mode} {
     `--USE TEMP B-TREE FOR ORDER BY
   }
 
-  do_eqp_test 2.2.$mode.6 {
+  do_eqp_test 2.2.$mode.6 { 
     SELECT rowid FROM t1 WHERE a IN ('one', 'four') ORDER BY +rowid
   } [string map {"\n  " "\n"} $plan($mode)]
 }
@@ -206,10 +206,10 @@ proc vtab_command {method args} {
 
       set map [list]
       for {set i 0} {$i < [llength $vals]} {incr i} {
-        lappend map "%$i%"
+        lappend map "%$i%" 
         set v [lindex $vals $i]
-        if {[string is integer $v]} {
-          lappend map $v
+        if {[string is integer $v]} { 
+          lappend map $v 
         } else {
           lappend map "'$v'"
         }
@@ -245,7 +245,7 @@ do_execsql_test 3.2 {
 do_execsql_test 3.3 { SELECT primarykey FROM VirtualTableA } {1 2 3 4}
 
 do_execsql_test 3.4 {
-  SELECT * FROM
+  SELECT * FROM 
   VirtualTableA a CROSS JOIN VirtualTableB b ON b.PrimaryKey=a.PrimaryKey
   WHERE a.ColumnA IN ('ValueA', 'ValueB') AND a.FlagA=0
 } {
@@ -256,15 +256,72 @@ do_execsql_test 3.4 {
 }
 
 do_execsql_test 3.5 {
-  SELECT * FROM
+  SELECT * FROM 
   VirtualTableA a CROSS JOIN VirtualTableB b ON b.PrimaryKey=a.PrimaryKey
-  WHERE a.FlagA=0 AND a.ColumnA IN ('ValueA', 'ValueB')
+  WHERE a.FlagA=0 AND a.ColumnA IN ('ValueA', 'ValueB') 
 } {
   1 0 ValueA 1 0 ValueA
   2 0 ValueA 2 0 ValueA
   3 0 ValueB 3 0 ValueB
   4 0 ValueB 4 0 ValueB
 }
+
+#-------------------------------------------------------------------------
+# If there is an IN(..) condition in the WHERE clause of a query on a
+# virtual table, the xBestIndex method is first invoked with the IN(...)
+# represented by a "usable" SQLITE_INDEX_CONSTRAINT_EQ constraint. If
+# the virtual table elects to use the IN(...) constraint, then the 
+# xBestIndex method is invoked again, this time with the IN(...) marked
+# as "not usable". Depending on the relative costs of the two plans as
+# defined by the virtual table implementation, and the cardinality of the
+# IN(...) operator, SQLite chooses the most efficient plan. 
+#
+# At one point the second invocation of xBestIndex() was only being made
+# for join queries. The following tests check that this problem has been
+# fixed.
+#
+proc vtab_command {method args} {
+  switch -- $method {
+    xConnect {
+      return "CREATE TABLE t1(a, b, c, d)"
+    }
+
+    xBestIndex {
+      set clist [lindex $args 0]
+      lappend ::bestindex_calls $clist
+      set ret "cost 1000000 idxnum 555"
+      for {set i 0} {$i < [llength $clist]} {incr i} {
+        array set C [lindex $clist $i]
+        if {$C(usable)} { lappend ret use $i }
+      }
+      return $ret
+    }
+  }
+  return {}
+}
+
+do_execsql_test 4.0 {
+  CREATE VIRTUAL TABLE x1 USING tcl(vtab_command);
+} {}
+
+do_test 4.1 {
+  set ::bestindex_calls [list]
+  execsql {
+    SELECT * FROM x1 WHERE a=? AND b BETWEEN ? AND ? AND c IN (1, 2, 3, 4);
+  }
+  set ::bestindex_calls
+} [list \
+    [list {op eq column 0 usable 1} \
+          {op eq column 2 usable 1} \
+          {op ge column 1 usable 1} \
+          {op le column 1 usable 1} \
+    ] \
+    [list {op eq column 0 usable 1} \
+          {op eq column 2 usable 0} \
+          {op ge column 1 usable 1} \
+          {op le column 1 usable 1}
+    ]
+]
 
 
 finish_test

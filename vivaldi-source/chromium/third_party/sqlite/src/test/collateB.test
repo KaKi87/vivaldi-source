@@ -70,7 +70,7 @@ do_execsql_test 2.1 {
   CREATE INDEX i4 ON t4(a);
   INSERT INTO t4 VALUES('one'), ('two'), ('three');
   VACUUM;
-}
+} 
 
 integrity_check 2.2
 

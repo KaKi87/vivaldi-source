@@ -28,7 +28,7 @@ do_test 100 {
     PRAGMA page_size=4096;
     PRAGMA journal_mode=WAL;
   }
-  execsql {
+  execsql { 
     CREATE TABLE t1(a,b);
     WITH RECURSIVE c(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM c WHERE x<100)
       INSERT INTO t1(a,b) SELECT x, printf('%d-x%.*c',x,x,'x') FROM c;
@@ -85,7 +85,7 @@ do_catchsql_test 230 {
 } {0 ok}
 do_execsql_test 240 {
   DELETE FROM saved_content;
-  INSERT INTO saved_content(x)
+  INSERT INTO saved_content(x) 
      SELECT data FROM sqlite_dbpage WHERE schema='aux1' AND pgno=2;
 } {}
 do_execsql_test 241 {

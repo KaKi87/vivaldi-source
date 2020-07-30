@@ -67,7 +67,7 @@
 #include "sqlite3.c"
 
 /* Create a test database.  This will be an in-memory database */
-static const char zInitSql[] =
+static const char zInitSql[] = 
   "CREATE TABLE t1(a INTEGER PRIMARY KEY,b,c,d);\n"
   "CREATE TABLE t2(e TEXT PRIMARY KEY NOT NULL,f,g);\n"
   "CREATE TABLE t3(w REAL PRIMARY KEY NOT NULL,x,y);\n"
@@ -75,7 +75,7 @@ static const char zInitSql[] =
 ;
 
 /* Code to populate the database */
-static const char zFillSql[] =
+static const char zFillSql[] = 
   "INSERT INTO t1(a,b,c,d) VALUES\n"
   "  (1,2,3,4),\n"
   "  (2,3.5,'four',x'556677'),\n"
@@ -830,7 +830,6 @@ static int conflictCall(
 ){
   (void)NotUsed;
   (void)p;
-  printf("Conflict %d\n", eConflict);
   return SQLITE_CHANGESET_OMIT;
 }
 
@@ -861,7 +860,7 @@ static void db_reset(sqlite3 *db){
 /*
 ** Given a full file pathname, return a pointer to the tail.
 ** Example:
-**
+** 
 **   input:    /home/drh/sqlite/abc.db
 **   output:   abc.db
 */
@@ -915,7 +914,7 @@ int main(int argc, char **argv){
     }
     runSql(db, "INSERT INTO t4(z) VALUES('');");
     makeChangeset("c1.txt", pSess);
-    runSql(db,
+    runSql(db, 
       "UPDATE t1 SET b=c, c=b WHERE a IN (5,7);\n"
       "DELETE FROM t2 WHERE rowid IN (8,2);\n"
       "INSERT OR IGNORE INTO t4 SELECT b FROM t1 WHERE b IS TRUE LIMIT 2;");
@@ -936,20 +935,20 @@ int main(int argc, char **argv){
         continue;
       }
       readFile(argv[i], &pChgset, &nChgset);
-      if( nChgset >= 512
-       && memcmp(pChgset, "SQLite format 3", 16)==0
+      if( nChgset >= 512 
+       && memcmp(pChgset, "SQLite format 3", 16)==0 
       ){
         sqlite3 *db2;
         sqlite3_stmt *pStmt2;
         int nCase = 0;
         /* This file is an SQL Archive containing many changesets */
         if( !bVerbose ){ printf("%s: ", fileTail(argv[i])); fflush(stdout); }
-        sqlite3_open_v2(":memory:", &db2,
+        sqlite3_open_v2(":memory:", &db2, 
                         SQLITE_OPEN_CREATE|SQLITE_OPEN_READWRITE, "memdb");
         sqlite3_deserialize(db2, 0, pChgset, nChgset, nChgset,
               SQLITE_DESERIALIZE_READONLY | SQLITE_DESERIALIZE_FREEONCLOSE);
         sqlite3_create_function(db2, "sqlar_uncompress", 2, SQLITE_UTF8, 0,
-                                 sqlarUncompressFunc, 0, 0);
+                                 sqlarUncompressFunc, 0, 0);        
         rc = sqlite3_prepare_v2(db2, "SELECT name, sqlar_uncompress(data,sz)"
                                      "  FROM sqlar", -1, &pStmt2, 0);
         if( rc ){

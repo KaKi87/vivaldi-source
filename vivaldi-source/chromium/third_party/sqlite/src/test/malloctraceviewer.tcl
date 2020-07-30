@@ -12,17 +12,17 @@ namespace eval autoscroll {
     set vs [::ttk::scrollbar ${path}.vs]
     set hs [::ttk::scrollbar ${path}.hs -orient horizontal]
     grid $w  -row 0 -column 0 -sticky nsew
-
+  
     grid rowconfigure    $path 0 -weight 1
     grid columnconfigure $path 0 -weight 1
-
+  
     set grid [list grid $vs -row 0 -column 1 -sticky nsew]
     $w configure -yscrollcommand [list ::autoscroll::scrollcommand $grid $vs]
     $vs configure -command       [list $w yview]
     set grid [list grid $hs -row 1 -column 0 -sticky nsew]
     $w configure -xscrollcommand [list ::autoscroll::scrollcommand $grid $hs]
     $hs configure -command       [list $w xview]
-
+  
     return $w
   }
   proc scrollcommand {grid sb args} {
@@ -67,7 +67,7 @@ proc populate_text_widget {db} {
 
 proc populate_index {db} {
   $::O(text) configure -state normal
-
+  
   $::O(text) delete 0.0 end
   $::O(text) insert end "\n\n"
 
@@ -77,10 +77,10 @@ proc populate_index {db} {
 
   $db eval {
     SELECT 'TOTAL' AS ztest, sum(ncall) AS calls, sum(nbyte) AS bytes
-    FROM malloc
+    FROM malloc 
       UNION ALL
     SELECT ztest AS ztest, sum(ncall) AS calls, sum(nbyte) AS bytes
-    FROM malloc
+    FROM malloc 
     GROUP BY ztest
 
     ORDER BY 3 DESC
@@ -152,8 +152,8 @@ proc populate_tree_widget {db zTest} {
 
   for {set ii 0} {$ii < 15} {incr ii} {
     $db eval {
-      SELECT
-        sum(ncall) AS calls,
+      SELECT 
+        sum(ncall) AS calls, 
         sum(nbyte) AS bytes,
         trim_frames(lrange(lstack, 0, $ii)) AS stack
       FROM malloc
@@ -239,7 +239,7 @@ proc open_database {} {
   mddb function trim_frames -argcount 1 trim_frames
 
   mddb eval {
-    SELECT frame FROM frame
+    SELECT frame FROM frame 
     WHERE line LIKE '%malloc.c:%' OR line LIKE '%mem2.c:%'
   } {
     set ::O(ignore.$frame) 1

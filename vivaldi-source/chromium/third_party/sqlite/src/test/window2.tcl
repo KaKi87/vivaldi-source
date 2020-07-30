@@ -77,7 +77,7 @@ execsql_test 2.5 {
 execsql_test 2.6 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING
   ) FROM t1
 }
@@ -85,49 +85,49 @@ execsql_test 2.6 {
 execsql_test 2.7 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 0 PRECEDING AND 0 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.8 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.9 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN UNBOUNDED PRECEDING AND 2 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.10 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.11 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
   ) FROM t1
 }
 
 execsql_test 2.13 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 2 PRECEDING AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.14 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING
   ) FROM t1
 }
@@ -135,7 +135,7 @@ execsql_test 2.14 {
 execsql_test 2.15 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 PRECEDING AND 0 PRECEDING
   ) FROM t1
 }
@@ -143,7 +143,7 @@ execsql_test 2.15 {
 execsql_test 2.16 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
   ) FROM t1
 }
@@ -151,7 +151,7 @@ execsql_test 2.16 {
 execsql_test 2.17 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 PRECEDING AND 2 PRECEDING
   ) FROM t1
 }
@@ -159,7 +159,7 @@ execsql_test 2.17 {
 execsql_test 2.18 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN UNBOUNDED PRECEDING AND 2 PRECEDING
   ) FROM t1
 }
@@ -167,21 +167,21 @@ execsql_test 2.18 {
 execsql_test 2.19 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.20 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.21 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
@@ -189,14 +189,14 @@ execsql_test 2.21 {
 execsql_test 2.22 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.23 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
@@ -204,14 +204,14 @@ execsql_test 2.23 {
 execsql_test 2.24 {
   SELECT a, sum(d) OVER (
     PARTITION BY a%2
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.25 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
@@ -219,14 +219,14 @@ execsql_test 2.25 {
 execsql_test 2.26 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
 
 execsql_test 2.27 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND CURRENT ROW
   ) FROM t1
 }
@@ -234,20 +234,20 @@ execsql_test 2.27 {
 execsql_test 2.28 {
   SELECT a, sum(d) OVER (
     PARTITION BY b
-    ORDER BY d
+    ORDER BY d 
     ROWS BETWEEN CURRENT ROW AND CURRENT ROW
   ) FROM t1
 }
 
 execsql_test 2.29 {
   SELECT a, sum(d) OVER (
-    ORDER BY d
+    ORDER BY d 
     RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
 execsql_test 2.30 {
   SELECT a, sum(d) OVER (
-    ORDER BY b
+    ORDER BY b 
     RANGE BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
   ) FROM t1
 }
@@ -302,8 +302,8 @@ execsql_test 4.0 {
   (90,72), (91,41), (92,9), (93,61), (94,73), (95,95), (96,65), (97,13),
   (98,58), (99,96), (100,98), (101,1), (102,21), (103,74), (104,65), (105,35),
   (106,5), (107,73), (108,11), (109,51), (110,87), (111,41), (112,12), (113,8),
-  (114,20), (115,31), (116,31), (117,15), (118,95), (119,22), (120,73),
-  (121,79), (122,88), (123,34), (124,8), (125,11), (126,49), (127,34),
+  (114,20), (115,31), (116,31), (117,15), (118,95), (119,22), (120,73), 
+  (121,79), (122,88), (123,34), (124,8), (125,11), (126,49), (127,34), 
   (128,90), (129,59), (130,96), (131,60), (132,55), (133,75), (134,77),
   (135,44), (136,2), (137,7), (138,85), (139,57), (140,74), (141,29), (142,70),
   (143,59), (144,19), (145,39), (146,26), (147,26), (148,47), (149,80),
@@ -417,7 +417,77 @@ execsql_test 4.8.4 {
   ) FROM t2 ORDER BY 1, 2;
 }
 
+execsql_float_test 4.9 {
+  SELECT 
+    rank() OVER win AS rank,
+    cume_dist() OVER win AS cume_dist FROM t1
+  WINDOW win AS (ORDER BY 1);
+}
 
+execsql_test 4.10 {
+  SELECT count(*) OVER (ORDER BY b) FROM t1
+}
+
+execsql_test 4.11 {
+  SELECT count(distinct a) FILTER (WHERE b='odd') FROM t1
+}
+
+==========
+
+execsql_test 5.0 {
+  DROP TABLE IF EXISTS t1;
+  CREATE TABLE t1(x INTEGER, y INTEGER);
+  INSERT INTO t1 VALUES(10, 1);
+  INSERT INTO t1 VALUES(20, 2);
+  INSERT INTO t1 VALUES(3, 3);
+  INSERT INTO t1 VALUES(2, 4);
+  INSERT INTO t1 VALUES(1, 5);
+}
+
+execsql_float_test 5.1 {
+  SELECT avg(x) OVER (ORDER BY y) AS z FROM t1 ORDER BY z;
+}
+
+==========
+
+execsql_test 6.0 {
+  DROP TABLE IF EXISTS t0;
+  CREATE TABLE t0(c0 INTEGER UNIQUE);
+  INSERT INTO t0 VALUES(0);
+}
+execsql_test 6.1 {
+  SELECT DENSE_RANK() OVER(), LAG(0) OVER() FROM t0;
+}
+execsql_test 6.2 {
+  SELECT * FROM t0 WHERE 
+      (0, t0.c0) IN (SELECT DENSE_RANK() OVER(), LAG(0) OVER() FROM t0);
+} 
+
+==========
+
+execsql_test 7.0 {
+  DROP TABLE IF EXISTS t1;
+  CREATE TABLE t1(a INTEGER, b INTEGER, c INTEGER);
+  INSERT INTO t1 VALUES(1, 1, 1);
+  INSERT INTO t1 VALUES(1, 2, 2);
+  INSERT INTO t1 VALUES(3, 3, 3);
+  INSERT INTO t1 VALUES(3, 4, 4);
+}
+
+execsql_test 7.1 {
+  SELECT c, sum(c) OVER win1 FROM t1 
+  WINDOW win1 AS (ORDER BY b)
+}
+
+execsql_test 7.2 {
+  SELECT c, sum(c) OVER win1 FROM t1 
+  WINDOW win1 AS (PARTITION BY 1 ORDER BY b)
+}
+
+execsql_test 7.3 {
+  SELECT c, sum(c) OVER win1 FROM t1 
+  WINDOW win1 AS (ORDER BY 1)
+}
 
 finish_test
 

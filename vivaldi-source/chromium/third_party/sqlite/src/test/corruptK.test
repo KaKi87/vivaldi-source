@@ -25,7 +25,7 @@ if {[nonzero_reserved_bytes]} {finish_test; return;}
 database_may_be_corrupt
 
 # Initialize the database.
-#
+# 
 do_execsql_test 1.1 {
   PRAGMA page_size=1024;
   PRAGMA auto_vacuum=0;
@@ -41,7 +41,7 @@ do_execsql_test 1.1 {
 } {2}
 
 
-# Corrupt the database so that the blob stored immediately before
+# Corrupt the database so that the blob stored immediately before 
 # the free slot (rowid==3) has an overlarge length field. So that
 # we can use sqlite3_blob_write() to manipulate the size field of
 # the free slot.
@@ -68,9 +68,15 @@ do_test 1.2 {
 do_execsql_test 1.3 {
   INSERT INTO t1 VALUES(randomblob(20));
 }
+
+# This test no longer functions due to the deferred computation of
+# MemPage.nFree.
+#
+if 0 {
 do_catchsql_test 1.4 {
   INSERT INTO t1 VALUES(randomblob(90));
 } {1 {database disk image is malformed}}
+}
 
 #-------------------------------------------------------------------------
 reset_db
@@ -119,7 +125,7 @@ if {[permutation]!="inmemory_journal"} {
       if {[string is space $l]} continue
       set L [list]
       foreach b [split $l] {
-        if {[string is xdigit $b] && [string length $b]==2} {
+        if {[string is xdigit $b] && [string length $b]==2} { 
           lappend L [expr "0x$b"]
         }
       }
@@ -128,13 +134,13 @@ if {[permutation]!="inmemory_journal"} {
       }
       set bytes [concat $bytes $L]
     }
-
+  
     binary format c* $bytes
   }
-
+  
   reset_db
   db func hex2blob hex2blob
-
+  
   do_execsql_test 3.1 {
     PRAGMA page_size=1024;
     CREATE TABLE t1(a, b, c);
@@ -207,15 +213,15 @@ if {[permutation]!="inmemory_journal"} {
    3a0: 5e 01 07 17 1b 1b 01 81 13 74 61 62 6c 65 73 65 ^........tablese
    3b0: 6e 73 6f 32 73 73 65 6e 73 6f 72 73 02 43 52 45 nso2ssensors.CRE
    3c0: 41 54 45 20 54 41 42 4c 45 20 73 65 6e 73 6f 72 ATE TABLE sensor
-   3d0: 73 20 0a 20 20 24 20 20 20 20 20 20 20 20 20 20 s .  $
-   3e0: b8 6e 61 6d 65 21 74 65 78 74 2c 20 79 61 6c 20 .name!text, yal
+   3d0: 73 20 0a 20 20 24 20 20 20 20 20 20 20 20 20 20 s .  $          
+   3e0: b8 6e 61 6d 65 21 74 65 78 74 2c 20 79 61 6c 20 .name!text, yal 
    3f0: 72 65 61 6c 2c 20 74 69 6d 65 20 74 65 78 74 29 real, time text)
     ') WHERE pgno=1
   }
-
+  
   db close
   sqlite3 db test.db
-
+  
   do_catchsql_test 3.3 {
     PRAGMA integrity_check;
   } {1 {database disk image is malformed}}

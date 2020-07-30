@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-#
+# 
 # This file implements tests to show that certain CREATE TABLE statements
 # generate identical database files.  For example, changes in identifier
 # names, white-space, and formatting of the CREATE TABLE statement should

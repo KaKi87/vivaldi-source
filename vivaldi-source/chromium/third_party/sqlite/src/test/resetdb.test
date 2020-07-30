@@ -22,7 +22,7 @@ ifcapable !vtab||!compound {
   return
 }
 
-# In the "inmemory_journal" permutation, each new connection executes
+# In the "inmemory_journal" permutation, each new connection executes 
 # "PRAGMA journal_mode = memory". This fails with SQLITE_BUSY if attempted
 # on a wal mode database with existing connections. For this and a few
 # other reasons, this test is not run as part of "inmemory_journal".
@@ -83,7 +83,7 @@ do_test 210 {
   db eval VACUUM
   sqlite3_db_config db RESET_DB 0
 
-  # If using sqlite3_prepare() instead of _v2() or _v3(), the block
+  # If using sqlite3_prepare() instead of _v2() or _v3(), the block 
   # below raises an SQLITE_SCHEMA error. The following fixes this.
   if {[permutation]=="prepare"} { catchsql "SELECT * FROM sqlite_master" db2 }
 

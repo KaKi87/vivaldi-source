@@ -1,53 +1,132 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/web_applications/web_app.h"
 
-#include <memory>
-
-#include "base/files/file_path.h"
-#include "base/strings/string_util.h"
-#include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/web_applications/web_app.h"
-#include "chrome/common/render_messages.h"
-#include "chrome/test/base/chrome_render_view_host_test_harness.h"
-#include "content/public/test/test_renderer_host.h"
-#include "extensions/buildflags/buildflags.h"
+#include "chrome/browser/web_applications/components/web_app_constants.h"
+#include "chrome/browser/web_applications/components/web_app_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if defined(TOOLKIT_VIEWS)
-#include "chrome/browser/extensions/tab_helper.h"
-#include "chrome/browser/favicon/favicon_utils.h"
-#endif
+namespace web_app {
 
-class WebApplicationTest : public ChromeRenderViewHostTestHarness {
- protected:
-  void SetUp() override {
-    ChromeRenderViewHostTestHarness::SetUp();
-#if defined(TOOLKIT_VIEWS)
-    extensions::TabHelper::CreateForWebContents(web_contents());
-    favicon::CreateContentFaviconDriverForWebContents(web_contents());
-#endif
+TEST(WebAppTest, HasAnySources) {
+  WebApp app{GenerateAppIdFromURL(GURL("https://example.com"))};
+
+  EXPECT_FALSE(app.HasAnySources());
+  for (int i = Source::kMinValue; i <= Source::kMaxValue; ++i) {
+    app.AddSource(static_cast<Source::Type>(i));
+    EXPECT_TRUE(app.HasAnySources());
   }
-};
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-TEST_F(WebApplicationTest, AppDirWithId) {
-  base::FilePath profile_path(FILE_PATH_LITERAL("profile"));
-  base::FilePath result(
-      web_app::GetWebAppDataDirectory(profile_path, "123", GURL()));
-  base::FilePath expected = profile_path.AppendASCII("Web Applications")
-                                  .AppendASCII("_crx_123");
-  EXPECT_EQ(expected, result);
+  for (int i = Source::kMinValue; i <= Source::kMaxValue; ++i) {
+    EXPECT_TRUE(app.HasAnySources());
+    app.RemoveSource(static_cast<Source::Type>(i));
+  }
+  EXPECT_FALSE(app.HasAnySources());
 }
 
-TEST_F(WebApplicationTest, AppDirWithUrl) {
-  base::FilePath profile_path(FILE_PATH_LITERAL("profile"));
-  base::FilePath result(web_app::GetWebAppDataDirectory(
-      profile_path, std::string(), GURL("http://example.com")));
-  base::FilePath expected = profile_path.AppendASCII("Web Applications")
-      .AppendASCII("example.com").AppendASCII("http_80");
-  EXPECT_EQ(expected, result);
+TEST(WebAppTest, HasOnlySource) {
+  WebApp app{GenerateAppIdFromURL(GURL("https://example.com"))};
+
+  for (int i = Source::kMinValue; i <= Source::kMaxValue; ++i) {
+    auto source = static_cast<Source::Type>(i);
+
+    app.AddSource(source);
+    EXPECT_TRUE(app.HasOnlySource(source));
+
+    app.RemoveSource(source);
+    EXPECT_FALSE(app.HasOnlySource(source));
+  }
+
+  app.AddSource(Source::kMinValue);
+  EXPECT_TRUE(app.HasOnlySource(Source::kMinValue));
+
+  for (int i = Source::kMinValue + 1; i <= Source::kMaxValue; ++i) {
+    auto source = static_cast<Source::Type>(i);
+    app.AddSource(source);
+    EXPECT_FALSE(app.HasOnlySource(source));
+    EXPECT_FALSE(app.HasOnlySource(Source::kMinValue));
+  }
+
+  for (int i = Source::kMinValue + 1; i <= Source::kMaxValue; ++i) {
+    auto source = static_cast<Source::Type>(i);
+    EXPECT_FALSE(app.HasOnlySource(Source::kMinValue));
+    app.RemoveSource(source);
+    EXPECT_FALSE(app.HasOnlySource(source));
+  }
+
+  EXPECT_TRUE(app.HasOnlySource(Source::kMinValue));
+  app.RemoveSource(Source::kMinValue);
+  EXPECT_FALSE(app.HasOnlySource(Source::kMinValue));
+  EXPECT_FALSE(app.HasAnySources());
 }
-#endif // ENABLE_EXTENSIONS
+
+TEST(WebAppTest, WasInstalledByUser) {
+  WebApp app{GenerateAppIdFromURL(GURL("https://example.com"))};
+
+  app.AddSource(Source::kSync);
+  EXPECT_TRUE(app.WasInstalledByUser());
+
+  app.AddSource(Source::kWebAppStore);
+  EXPECT_TRUE(app.WasInstalledByUser());
+
+  app.RemoveSource(Source::kSync);
+  EXPECT_TRUE(app.WasInstalledByUser());
+
+  app.RemoveSource(Source::kWebAppStore);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.AddSource(Source::kDefault);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.AddSource(Source::kSystem);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.AddSource(Source::kPolicy);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.RemoveSource(Source::kDefault);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.RemoveSource(Source::kSystem);
+  EXPECT_FALSE(app.WasInstalledByUser());
+
+  app.RemoveSource(Source::kPolicy);
+  EXPECT_FALSE(app.WasInstalledByUser());
+}
+
+TEST(WebAppTest, CanUserUninstallExternalApp) {
+  WebApp app{GenerateAppIdFromURL(GURL("https://example.com"))};
+
+  app.AddSource(Source::kDefault);
+  EXPECT_TRUE(app.IsDefaultApp());
+  EXPECT_TRUE(app.CanUserUninstallExternalApp());
+
+  app.AddSource(Source::kSync);
+  EXPECT_TRUE(app.CanUserUninstallExternalApp());
+  app.AddSource(Source::kWebAppStore);
+  EXPECT_TRUE(app.CanUserUninstallExternalApp());
+
+  app.AddSource(Source::kPolicy);
+  EXPECT_FALSE(app.CanUserUninstallExternalApp());
+  app.AddSource(Source::kSystem);
+  EXPECT_FALSE(app.CanUserUninstallExternalApp());
+
+  app.RemoveSource(Source::kSync);
+  EXPECT_FALSE(app.CanUserUninstallExternalApp());
+  app.RemoveSource(Source::kWebAppStore);
+  EXPECT_FALSE(app.CanUserUninstallExternalApp());
+
+  app.RemoveSource(Source::kSystem);
+  EXPECT_FALSE(app.CanUserUninstallExternalApp());
+
+  app.RemoveSource(Source::kPolicy);
+  EXPECT_TRUE(app.CanUserUninstallExternalApp());
+
+  EXPECT_TRUE(app.IsDefaultApp());
+  app.RemoveSource(Source::kDefault);
+  EXPECT_FALSE(app.IsDefaultApp());
+}
+
+}  // namespace web_app

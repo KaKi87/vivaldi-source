@@ -23,7 +23,7 @@ set testprefix walvfs
 ifcapable !wal {finish_test ; return }
 
 db close
-testvfs tvfs
+testvfs tvfs 
 tvfs script xSync
 tvfs filter xSync
 set ::sync_count 0
@@ -176,8 +176,8 @@ db close
 
 tvfs filter xShmMap
 tvfs script xShmMap
-proc xShmMap {method file args} {
-  return SQLITE_READONLY
+proc xShmMap {method file args} { 
+  return SQLITE_READONLY 
 }
 sqlite3 db test.db -vfs tvfs
 do_catchsql_test 4.1 {
@@ -186,7 +186,7 @@ do_catchsql_test 4.1 {
 
 set ::cnt 5
 tvfs filter {xShmMap xShmLock}
-proc xShmMap {method file name args} {
+proc xShmMap {method file name args} { 
   switch -- $method {
     xShmMap {  return SQLITE_READONLY }
     xShmLock {
@@ -205,7 +205,7 @@ do_catchsql_test 4.2 {
 #-------------------------------------------------------------------------
 #
 reset_db
-db close
+db close 
 sqlite3 db test.db -vfs tvfs
 tvfs filter {}
 do_execsql_test 5.0 {
@@ -238,7 +238,7 @@ do_test 5.3 {
   list [vfs_set_readmark db main 1] \
        [vfs_set_readmark db main 2] \
        [vfs_set_readmark db main 3] \
-       [vfs_set_readmark db main 4]
+       [vfs_set_readmark db main 4] 
 } {24 100 100 100}
 
 tvfs script xShmLock
@@ -303,7 +303,7 @@ do_execsql_test 6.0 {
 } {wal}
 
 do_test 6.1 {
-  execsql { PRAGMA wal_checkpoint }
+  execsql { PRAGMA wal_checkpoint } 
   set {} {}
 } {}
 
@@ -383,10 +383,11 @@ do_test 8.2 {
   db2 close
 } {}
 
-do_execsql_test 8.3 {
+do_execsql_test 8.3 { 
   PRAGMA wal_checkpoint;
-  SELECT count(*) FROM t1
+  SELECT count(*) FROM t1 
 } {0 5 5 21}
+db close
 tvfs2 delete
 
 #-------------------------------------------------------------------------
@@ -426,4 +427,3 @@ db close
 db2 close
 tvfs delete
 finish_test
-

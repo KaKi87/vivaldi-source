@@ -95,7 +95,7 @@ do_faultsim_test 4 -faults oom-* -prep {
     ALTER TABLE rr RENAME a TO c;
   }
 } -test {
-  faultsim_test_result {0 {}}
+  faultsim_test_result {0 {}} 
 }
 
 finish_test

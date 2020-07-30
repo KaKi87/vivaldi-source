@@ -129,15 +129,15 @@ do_execsql_test -db db2 2.4 {
 }
 
 # Finalize the statement handle, causing the first connection to be
-# closed. Test that this has not corrupted the database file by
+# closed. Test that this has not corrupted the database file by 
 # deleting the new wal file from the file-system. If it has, this
 # test should fail with an IO or corruption error.
 #
 do_test 2.5 {
   sqlite3_finalize $::stmt
   sqlite3 db3 test.db
-  execsql {
-    PRAGMA integrity_check;
+  execsql { 
+    PRAGMA integrity_check; 
     SELECT * FROM y1;
   } db3
 } {ok a b c d e g}

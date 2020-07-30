@@ -139,7 +139,7 @@ ifcapable fts3_unicode {
     }
     faultsim_save_and_close
   } {}
-
+  
   do_faultsim_test 5.1 -faults oom* -prep {
     faultsim_restore_and_reopen
     db eval {SELECT * FROM sqlite_master}
@@ -191,7 +191,7 @@ do_faultsim_test 7.1 -faults oom* -body {
 }
 
 #-------------------------------------------------------------------------
-# Inject faults into a opening an existing fts3 table that has been
+# Inject faults into a opening an existing fts3 table that has been 
 # upgraded to add an %_stat table.
 #
 reset_db

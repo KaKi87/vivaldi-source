@@ -21,7 +21,7 @@ ifcapable !fts5 {
 }
 
 #-------------------------------------------------------------------------
-# The tests in this file test the outcome of a schema-reset happening
+# The tests in this file test the outcome of a schema-reset happening 
 # within the xConnect() method of an FTS5 table. At one point this
 # was causing a problem in SQLite. Each test proceeds as follows:
 #
@@ -31,11 +31,11 @@ ifcapable !fts5 {
 #   2. Connection [db2] opens the db and modifies the db schema.
 #
 #   3. Connection [db] reads or writes an existing fts5 table. That the
-#      schema has been modified is detected inside the fts5 xConnect()
-#      callback that is invoked by sqlite3_prepare().
+#      schema has been modified is detected inside the fts5 xConnect() 
+#      callback that is invoked by sqlite3_prepare(). 
 #
 #   4. Verify that the statement in 3 has worked. SQLite should detect
-#      that the schema has changed and successfully prepare the
+#      that the schema has changed and successfully prepare the 
 #      statement against the new schema.
 #
 # Test plan:

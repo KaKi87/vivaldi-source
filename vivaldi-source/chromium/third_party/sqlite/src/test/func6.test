@@ -46,7 +46,7 @@ proc loadhex {file} {
   fconfigure $fd -translation binary -encoding binary
   set data [read $fd]
   close $fd
-  binary encode hex $data
+  binary encode hex $data 
 }
 
 # Each argument is either an integer between 0 and 65535, a text value, or

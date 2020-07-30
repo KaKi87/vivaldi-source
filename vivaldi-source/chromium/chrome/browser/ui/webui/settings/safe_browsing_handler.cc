@@ -1,82 +1,130 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/settings/safe_browsing_handler.h"
 
-#include "base/bind.h"
-#include "base/bind_helpers.h"
-#include "base/values.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
-#include "components/safe_browsing/common/safe_browsing_prefs.h"
-#include "content/public/browser/web_ui.h"
+#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/safe_browsing/core/features.h"
 
 namespace settings {
 
-namespace {
-
-base::DictionaryValue GetSberStateDictionaryValue(const PrefService& prefs) {
-  base::DictionaryValue dict;
-  dict.SetBoolean("enabled", safe_browsing::IsExtendedReportingEnabled(prefs));
-  // TODO(crbug.com/813107): SBEROIA policy is being deprecated, revisit this
-  // after it is removed.
-  dict.SetBoolean("managed",
-                  !safe_browsing::IsExtendedReportingOptInAllowed(prefs) ||
-                      safe_browsing::IsExtendedReportingPolicyManaged(prefs));
-  return dict;
-}
-
-}  // namespace
-
-SafeBrowsingHandler::SafeBrowsingHandler(PrefService* prefs) : prefs_(prefs) {}
-SafeBrowsingHandler::~SafeBrowsingHandler() {}
+SafeBrowsingHandler::SafeBrowsingHandler(Profile* profile)
+    : profile_(profile) {}
+SafeBrowsingHandler::~SafeBrowsingHandler() = default;
 
 void SafeBrowsingHandler::RegisterMessages() {
   web_ui()->RegisterMessageCallback(
-      "getSafeBrowsingExtendedReporting",
+      "getSafeBrowsingRadioManagedState",
       base::BindRepeating(
-          &SafeBrowsingHandler::HandleGetSafeBrowsingExtendedReporting,
+          &SafeBrowsingHandler::HandleGetSafeBrowsingRadioManagedState,
           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
-      "setSafeBrowsingExtendedReportingEnabled",
+      "validateSafeBrowsingEnhanced",
       base::BindRepeating(
-          &SafeBrowsingHandler::HandleSetSafeBrowsingExtendedReportingEnabled,
+          &SafeBrowsingHandler::HandleValidateSafeBrowsingEnhanced,
           base::Unretained(this)));
 }
 
-void SafeBrowsingHandler::OnJavascriptAllowed() {
-  profile_pref_registrar_.Init(prefs_);
-  profile_pref_registrar_.Add(
-      prefs::kSafeBrowsingScoutReportingEnabled,
-      base::Bind(&SafeBrowsingHandler::OnPrefChanged, base::Unretained(this)));
-}
-
-void SafeBrowsingHandler::OnJavascriptDisallowed() {
-  profile_pref_registrar_.RemoveAll();
-}
-
-void SafeBrowsingHandler::HandleGetSafeBrowsingExtendedReporting(
+void SafeBrowsingHandler::HandleGetSafeBrowsingRadioManagedState(
     const base::ListValue* args) {
   AllowJavascript();
-  const base::Value* callback_id;
-  CHECK(args->Get(0, &callback_id));
+  CHECK_EQ(1U, args->GetList().size());
+  std::string callback_id = args->GetList()[0].GetString();
 
-  ResolveJavascriptCallback(*callback_id, GetSberStateDictionaryValue(*prefs_));
+  auto state = GetSafeBrowsingRadioManagedState(profile_);
+
+  base::Value result(base::Value::Type::DICTIONARY);
+  // TODO(crbug.com/1063265): Move managed state functions out of site_settings.
+  result.SetKey(kSafeBrowsingEnhanced,
+                site_settings::GetValueForManagedState(state.enhanced));
+  result.SetKey(kSafeBrowsingStandard,
+                site_settings::GetValueForManagedState(state.standard));
+  result.SetKey(kSafeBrowsingDisabled,
+                site_settings::GetValueForManagedState(state.disabled));
+
+  ResolveJavascriptCallback(base::Value(callback_id), result);
 }
 
-void SafeBrowsingHandler::HandleSetSafeBrowsingExtendedReportingEnabled(
+void SafeBrowsingHandler::HandleValidateSafeBrowsingEnhanced(
     const base::ListValue* args) {
-  bool enabled;
-  CHECK(args->GetBoolean(0, &enabled));
-  safe_browsing::SetExtendedReportingPrefAndMetric(
-      prefs_, enabled, safe_browsing::SBER_OPTIN_SITE_CHROME_SETTINGS);
+  // TODO(crbug.com/1074499) Remove this logic when Enhanced protection is
+  // considered stable.
+  if (!base::FeatureList::IsEnabled(safe_browsing::kEnhancedProtection))
+    profile_->GetPrefs()->SetBoolean(prefs::kSafeBrowsingEnhanced, false);
 }
 
-void SafeBrowsingHandler::OnPrefChanged(const std::string& pref_name) {
-  DCHECK(pref_name == prefs::kSafeBrowsingScoutReportingEnabled);
+SafeBrowsingRadioManagedState
+SafeBrowsingHandler::GetSafeBrowsingRadioManagedState(Profile* profile) {
+  // Create a default managed state that is updated based on preferences.
+  SafeBrowsingRadioManagedState managed_state;
 
-  FireWebUIListener("safe-browsing-extended-reporting-change",
-                    GetSberStateDictionaryValue(*prefs_));
+  // Computing the effective Safe Browsing managed state requires inspecting
+  // three different preferences. It is possible that these may be in
+  // temporarily conflicting managed states. The enabled preference is always
+  // taken as the canonical source of management.
+  const PrefService::Preference* enabled_pref =
+      profile->GetPrefs()->FindPreference(prefs::kSafeBrowsingEnabled);
+  const bool enabled_enforced = !enabled_pref->IsUserModifiable();
+  const bool enabled_recommended =
+      (enabled_pref && enabled_pref->GetRecommendedValue());
+  const bool enabled_recommended_on =
+      enabled_recommended && enabled_pref->GetRecommendedValue()->GetBool();
+  const auto enabled_policy_indicator =
+      site_settings::GetPolicyIndicatorFromPref(enabled_pref);
+
+  // The enhanced preference may have a recommended setting. This only takes
+  // effect if the enabled preference also has a recommended setting.
+  const PrefService::Preference* enhanced_pref =
+      profile->GetPrefs()->FindPreference(prefs::kSafeBrowsingEnhanced);
+  const bool enhanced_recommended_on =
+      enhanced_pref->GetRecommendedValue() &&
+      enhanced_pref->GetRecommendedValue()->GetBool();
+
+  // A forcefully disabled reporting preference will disallow enhanced from
+  // being selected and thus it must also be considered.
+  const PrefService::Preference* reporting_pref =
+      profile->GetPrefs()->FindPreference(
+          prefs::kSafeBrowsingScoutReportingEnabled);
+  const bool reporting_on = reporting_pref->GetValue()->GetBool();
+  const bool reporting_enforced = !reporting_pref->IsUserModifiable();
+  const auto reporting_policy_indicator =
+      site_settings::GetPolicyIndicatorFromPref(reporting_pref);
+
+  if (!enabled_enforced && !enabled_recommended && !reporting_enforced) {
+    // No relevant policies are applied, return the default state.
+    return managed_state;
+  }
+  if (enabled_enforced) {
+    // All radio controls are managed.
+    managed_state.enhanced.disabled = true;
+    managed_state.enhanced.indicator = enabled_policy_indicator;
+    managed_state.standard.disabled = true;
+    managed_state.standard.indicator = enabled_policy_indicator;
+    managed_state.disabled.disabled = true;
+    managed_state.disabled.indicator = enabled_policy_indicator;
+    return managed_state;
+  }
+  if (enabled_recommended) {
+    if (enhanced_recommended_on) {
+      managed_state.enhanced.indicator = enabled_policy_indicator;
+    } else if (enabled_recommended_on) {
+      managed_state.standard.indicator = enabled_policy_indicator;
+    } else {
+      managed_state.disabled.indicator = enabled_policy_indicator;
+    }
+    return managed_state;
+  }
+  if (reporting_enforced && !reporting_on) {
+    // Disable enhanced protection when reporting has been enforced off.
+    managed_state.enhanced.disabled = true;
+    managed_state.enhanced.indicator = reporting_policy_indicator;
+    return managed_state;
+  }
+
+  return managed_state;
 }
 
 }  // namespace settings

@@ -315,6 +315,9 @@ ifcapable floatingpoint {
   do_test func-4.38 {
     execsql {SELECT round(9999999999999.556,2);}
   } {9999999999999.56}
+  do_test func-4.39 {
+    string tolower [db eval {SELECT round(1e500), round(-1e500);}]
+  } {inf -inf}
 }
 
 # Test the upper() and lower() functions
@@ -513,12 +516,12 @@ do_execsql_test func-9.14 {
      UNION ALL
      SELECT x+1 FROM c WHERE x<1040
   )
-  SELECT
+  SELECT 
     count(*),
     sum(length(replace(printf('abc%.*cxyz',x,'m'),'m','nnnn'))-(6+x*4))
   FROM c;
 } {1040 0}
-
+  
 # Use the "sqlite_register_test_function" TCL command which is part of
 # the text fixture in order to verify correct operation of some of
 # the user-defined SQL function APIs that are not used by the built-in
@@ -587,7 +590,7 @@ do_test func-11.1 {
 
 # Test that destructors passed to sqlite3 by calls to sqlite3_result_text()
 # etc. are called. These tests use two special user-defined functions
-# (implemented in func.c) only available in test builds.
+# (implemented in func.c) only available in test builds. 
 #
 # Function test_destructor() takes one argument and returns a copy of the
 # text form of that argument. A destructor is associated with the return
@@ -724,7 +727,7 @@ do_execsql_test 13.8.6 {
 do_test func-14.1 {
   catch {
     db function [string repeat X 254] {return "hello"}
-  }
+  } 
 } {0}
 do_test func-14.2 {
   catch {
@@ -872,7 +875,7 @@ ifcapable compound&&subquery {
 
 do_test func-18.15 {
   catchsql {
-    SELECT sum(x) FROM
+    SELECT sum(x) FROM 
        (SELECT 9223372036854775807 AS x UNION ALL
         SELECT 10 AS x);
   }
@@ -880,14 +883,14 @@ do_test func-18.15 {
 if {[working_64bit_int]} {
   do_test func-18.16 {
     catchsql {
-      SELECT sum(x) FROM
+      SELECT sum(x) FROM 
          (SELECT 9223372036854775807 AS x UNION ALL
           SELECT -10 AS x);
     }
   } {0 9223372036854775797}
   do_test func-18.17 {
     catchsql {
-      SELECT sum(x) FROM
+      SELECT sum(x) FROM 
          (SELECT -9223372036854775807 AS x UNION ALL
           SELECT 10 AS x);
     }
@@ -895,7 +898,7 @@ if {[working_64bit_int]} {
 }
 do_test func-18.18 {
   catchsql {
-    SELECT sum(x) FROM
+    SELECT sum(x) FROM 
        (SELECT -9223372036854775807 AS x UNION ALL
         SELECT -10 AS x);
   }
@@ -1035,8 +1038,8 @@ do_test func-21.8 {
 
 ifcapable tclvar {
   do_test func-21.9 {
-    # Attempt to exploit a buffer-overflow that at one time existed
-    # in the REPLACE function.
+    # Attempt to exploit a buffer-overflow that at one time existed 
+    # in the REPLACE function. 
     set ::str "[string repeat A 29998]CC[string repeat A 35537]"
     set ::rep [string repeat B 65536]
     execsql {
@@ -1350,7 +1353,7 @@ do_test func-29.6 {
 #
 do_execsql_test func-29.10 {
   CREATE TABLE t29b(a,b,c,d,e,f,g,h,i);
-  INSERT INTO t29b
+  INSERT INTO t29b 
    VALUES(1, hex(randomblob(2000)), null, 0, 1, '', zeroblob(0),'x',x'01');
   SELECT typeof(c), typeof(d), typeof(e), typeof(f),
          typeof(g), typeof(h), typeof(i) FROM t29b;
@@ -1388,7 +1391,90 @@ for {set i 65536} {$i<=0x10ffff} {incr i 139} {
 
 # Test char().
 #
-do_execsql_test func-31.1 {
-  SELECT char(), length(char()), typeof(char())
+do_execsql_test func-31.1 { 
+  SELECT char(), length(char()), typeof(char()) 
 } {{} 0 text}
+
+# sqlite3_value_frombind()
+#
+do_execsql_test func-32.100 {
+  SELECT test_frombind(1,2,3,4);
+} {0}
+do_execsql_test func-32.110 {
+  SELECT test_frombind(1,2,?,4);
+} {4}
+do_execsql_test func-32.120 {
+  SELECT test_frombind(1,(?),4,?+7);
+} {2}
+do_execsql_test func-32.130 {
+  DROP TABLE IF EXISTS t1;
+  CREATE TABLE t1(a,b,c,e,f);
+  INSERT INTO t1 VALUES(1,2.5,'xyz',x'e0c1b2a3',null);
+  SELECT test_frombind(a,b,c,e,f,$xyz) FROM t1;
+} {32}
+do_execsql_test func-32.140 {
+  SELECT test_frombind(a,b,c,e,f,$xyz+f) FROM t1;
+} {0}
+do_execsql_test func-32.150 {
+  SELECT test_frombind(x.a,y.b,x.c,:123,y.e,x.f,$xyz+y.f) FROM t1 x, t1 y;
+} {8}
+
+# 2019-08-15
+# Direct-only functions.
+#
+proc testdirectonly {x} {return [expr {$x*2}]}
+do_test func-33.1 {
+  db func testdirectonly -directonly testdirectonly
+  db eval {SELECT testdirectonly(15)}
+} {30}
+do_catchsql_test func-33.2 {
+  CREATE VIEW v33(y) AS SELECT testdirectonly(15);
+  SELECT * FROM v33;
+} {1 {unsafe use of testdirectonly()}}
+do_execsql_test func-33.3 {
+  SELECT * FROM (SELECT testdirectonly(15)) AS v33;
+} {30}
+do_execsql_test func-33.4 {
+  WITH c(x) AS (SELECT testdirectonly(15))
+  SELECT * FROM c;
+} {30}
+do_catchsql_test func-33.5 {
+  WITH c(x) AS (SELECT * FROM v33)
+  SELECT * FROM c;
+} {1 {unsafe use of testdirectonly()}}
+do_execsql_test func-33.10 {
+  CREATE TABLE t33a(a,b);
+  CREATE TABLE t33b(x,y);
+  CREATE TRIGGER r1 AFTER INSERT ON t33a BEGIN
+    INSERT INTO t33b(x,y) VALUES(testdirectonly(new.a),new.b);
+  END;
+} {}
+do_catchsql_test func-33.11 {
+  INSERT INTO t33a VALUES(1,2);
+} {1 {unsafe use of testdirectonly()}}
+do_execsql_test func-33.20 {
+  ALTER TABLE t33a RENAME COLUMN a TO aaa;
+  SELECT sql FROM sqlite_master WHERE name='r1';
+} {{CREATE TRIGGER r1 AFTER INSERT ON t33a BEGIN
+    INSERT INTO t33b(x,y) VALUES(testdirectonly(new.aaa),new.b);
+  END}}
+
+# 2020-01-09 Yongheng fuzzer find
+# The bug is in the register-validity debug logic, not in the SQLite core
+# and as such it only impacts debug builds.  Release builds work fine.
+#
+reset_db
+do_execsql_test func-34.10 {
+  CREATE TABLE t1(a INT CHECK(
+     datetime( 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+              10,11,12,13,14,15,16,17,18,19,
+              20,21,22,23,24,25,26,27,28,29,
+              30,31,32,33,34,35,36,37,38,39,
+              40,41,42,43,44,45,46,47,48,a)
+   )
+  );
+  INSERT INTO t1(a) VALUES(1),(2);
+  SELECT * FROM t1;
+} {1 2}
+
 finish_test

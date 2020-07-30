@@ -30,7 +30,7 @@ if {[string match {*unknown command*} [catchcmd :memory: .archive]]} {
 proc populate_dir {dirname spec} {
   # First delete the current tree, if one exists.
   file delete -force $dirname
-
+  
   # Recreate the root of the new tree.
   file mkdir $dirname
 
@@ -56,7 +56,7 @@ proc dir_to_list {dirname {n -1}} {
       set perm 0
     }
     set relpath [file join {*}[lrange [file split $f] $n end]]
-    lappend res
+    lappend res 
     if {[file isdirectory $f]} {
       lappend res [list $relpath / $mtime $perm]
       lappend res {*}[dir_to_list $f]
@@ -126,7 +126,7 @@ foreach {tn tcl} {
   # Populate directory "ar1" with some files.
   #
   populate_dir ar1 {
-    file1 "abcd"
+    file1 "abcd" 
     file2 "efgh"
     dir1/file3 "ijkl"
   }
@@ -154,7 +154,7 @@ foreach {tn tcl} {
     dir_to_list ar3
   } $expected
 
-  # This is a repeat of test 1.$tn.1, except that there is a 2 second
+  # This is a repeat of test 1.$tn.1, except that there is a 2 second 
   # pause between creating the archive and extracting its contents.
   # This is to test that timestamps are set correctly.
   #

@@ -21,7 +21,6 @@ execsql_test 1.0 {
   DROP TABLE IF EXISTS t2;
   CREATE TABLE t2(a INTEGER PRIMARY KEY, b INTEGER);
   INSERT INTO t2(a, b) VALUES
-  (1,0), (2,74), (3,41), (4,74), (5,23), (6,99), (7,26), (8,33), (9,2),
   (10,89), (11,81), (12,96), (13,59), (14,38), (15,68), (16,39), (17,62),
   (18,91), (19,46), (20,6), (21,99), (22,97), (23,27), (24,46), (25,78),
   (26,54), (27,97), (28,8), (29,67), (30,29), (31,93), (32,84), (33,77),
@@ -35,8 +34,8 @@ execsql_test 1.0 {
   (90,72), (91,41), (92,9), (93,61), (94,73), (95,95), (96,65), (97,13),
   (98,58), (99,96), (100,98), (101,1), (102,21), (103,74), (104,65), (105,35),
   (106,5), (107,73), (108,11), (109,51), (110,87), (111,41), (112,12), (113,8),
-  (114,20), (115,31), (116,31), (117,15), (118,95), (119,22), (120,73),
-  (121,79), (122,88), (123,34), (124,8), (125,11), (126,49), (127,34),
+  (114,20), (115,31), (116,31), (117,15), (118,95), (119,22), (120,73), 
+  (121,79), (122,88), (123,34), (124,8), (125,11), (126,49), (127,34), 
   (128,90), (129,59), (130,96), (131,60), (132,55), (133,75), (134,77),
   (135,44), (136,2), (137,7), (138,85), (139,57), (140,74), (141,29), (142,70),
   (143,59), (144,19), (145,39), (146,26), (147,26), (148,47), (149,80),
@@ -73,6 +72,11 @@ foreach {tn window} {
   15 "ROWS BETWEEN 4 PRECEDING    AND UNBOUNDED FOLLOWING"
   16 "ROWS BETWEEN CURRENT ROW         AND UNBOUNDED FOLLOWING"
   17 "ROWS BETWEEN 4 FOLLOWING    AND UNBOUNDED FOLLOWING"
+
+  18 "ROWS BETWEEN 4 PRECEDING    AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW"
+  19 "ROWS BETWEEN 4 PRECEDING    AND UNBOUNDED FOLLOWING EXCLUDE TIES"
+  20 "ROWS BETWEEN 4 PRECEDING    AND UNBOUNDED FOLLOWING EXCLUDE GROUP"
+
 } {
   execsql_test 1.$tn.2.1 "SELECT max(b) OVER ( ORDER BY a $window ) FROM t2"
   execsql_test 1.$tn.2.2 "SELECT min(b) OVER ( ORDER BY a $window ) FROM t2"
@@ -126,7 +130,7 @@ foreach {tn window} {
   "
 
   execsql_test 1.$tn.6.1 "
-    SELECT
+    SELECT 
       row_number() OVER ( PARTITION BY b%2 ORDER BY b%10 $window ),
       rank() OVER ( PARTITION BY b%2 ORDER BY b%10 $window ),
       dense_rank() OVER ( PARTITION BY b%2 ORDER BY b%10 $window )
@@ -307,26 +311,48 @@ foreach {tn window} {
     SELECT string_agg(CAST(b AS TEXT), '.') OVER (PARTITION BY b%2,a ORDER BY b%10 $window) FROM t2
   "
 
+  execsql_test 1.$tn.14.7 "
+    SELECT string_agg(CAST(b AS TEXT), '.') OVER (win1 ORDER BY b%10 $window) 
+    FROM t2
+    WINDOW win1 AS (PARTITION BY b%2,a)
+    ORDER BY 1
+  "
+
+  execsql_test 1.$tn.14.8 "
+    SELECT string_agg(CAST(b AS TEXT), '.') OVER (win1 $window) 
+    FROM t2
+    WINDOW win1 AS (PARTITION BY b%2,a ORDER BY b%10)
+    ORDER BY 1
+  "
+
+  execsql_test 1.$tn.14.9 "
+    SELECT string_agg(CAST(b AS TEXT), '.') OVER win2
+    FROM t2
+    WINDOW win1 AS (PARTITION BY b%2,a ORDER BY b%10),
+           win2 AS (win1 $window)
+    ORDER BY 1
+  "
+
   execsql_test 1.$tn.15.1 "
-    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.')
+    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.') 
     FILTER (WHERE a%2=0) OVER win FROM t2
     WINDOW win AS (ORDER BY a $window)
   "
 
   execsql_test 1.$tn.15.2 "
-    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.')
+    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.') 
     FILTER (WHERE 0=1) OVER win FROM t2
     WINDOW win AS (ORDER BY a $window)
   "
 
   execsql_test 1.$tn.15.3 "
-    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.')
+    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.') 
     FILTER (WHERE 1=0) OVER win FROM t2
     WINDOW win AS (PARTITION BY (a%10) ORDER BY a $window)
   "
 
   execsql_test 1.$tn.15.4 "
-    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.')
+    SELECT count(*) OVER win, string_agg(CAST(b AS TEXT), '.') 
     FILTER (WHERE a%2=0) OVER win FROM t2
     WINDOW win AS (PARTITION BY (a%10) ORDER BY a $window)
   "

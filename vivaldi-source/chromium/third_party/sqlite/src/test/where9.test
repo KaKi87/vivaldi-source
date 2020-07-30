@@ -29,8 +29,8 @@ proc count_steps {sql} {
 }
 
 
-# Construct test data.
-#
+# Construct test data.  
+# 
 do_test where9-1.1 {
   db eval {
     CREATE TABLE t1(a INTEGER PRIMARY KEY,b,c,d,e,f,g);
@@ -248,7 +248,7 @@ do_test where9-1.4 {
   }
 } {87 88 89 90 91 scan 0 sort 1}
 do_test where9-1.5 {
-  # When this test was originally written, SQLite used a rowset object
+  # When this test was originally written, SQLite used a rowset object 
   # to optimize the "ORDER BY a" clause. Now that it is using a rowhash,
   # this is not possible. So we have to comment out one term of the OR
   # expression in order to prevent SQLite from deeming a full-table
@@ -382,7 +382,7 @@ ifcapable explain {
        `--INDEX 2
           `--SEARCH TABLE t2 USING COVERING INDEX t2f (f=?)
   }]
-}
+} 
 
 # Make sure that INDEXED BY and multi-index OR clauses play well with
 # one another.
@@ -667,7 +667,7 @@ do_test where9-6.5.1 {
         OR b=913
         OR c=28028
         OR (d>=82 AND d<83)
-        OR (e>2802 AND e<2803)
+        OR (e>2802 AND e<2803) 
         OR f='fghijklmn'
         OR g='hgfedcb'
   }
@@ -688,7 +688,7 @@ do_test where9-6.5.3 {
         OR b=913
         OR c=28028
         OR (d>=82 AND d<83)
-        OR (e>2802 AND e<2803)
+        OR (e>2802 AND e<2803) 
         OR f='fghijklmn'
         OR g='hgfedcb'
   }
@@ -787,7 +787,7 @@ do_test where9-6.8.2 {
 } {1 {no query solution}}
 
 set solution_possible 0
-ifcapable stat4||stat3 {
+ifcapable stat4 {
   if {[permutation] != "no_optimization"} { set solution_possible 1 }
 }
 if $solution_possible {
@@ -860,11 +860,6 @@ do_test where9-7.0 {
     INSERT INTO t6 SELECT * FROM t5;
     ANALYZE t5;
   }
-  ifcapable stat3 {
-    sqlite3 db2 test.db
-    db2 eval { DROP TABLE IF EXISTS sqlite_stat3 }
-    db2 close
-  }
 } {}
 do_test where9-7.1.1 {
   count_steps {
@@ -915,12 +910,12 @@ do_test where9-8.1 {
     CREATE TABLE t81(a INTEGER PRIMARY KEY, b, c, d);
     CREATE TABLE t82(x INTEGER PRIMARY KEY, y);
     CREATE TABLE t83(p INTEGER PRIMARY KEY, q);
-
+    
     INSERT INTO t81 VALUES(2,3,4,5);
     INSERT INTO t81 VALUES(3,4,5,6);
     INSERT INTO t82 VALUES(2,4);
     INSERT INTO t83 VALUES(5,55);
-
+    
     SELECT *
       FROM t81 LEFT JOIN t82 ON y=b JOIN t83
      WHERE c==p OR d==p
@@ -945,7 +940,7 @@ do_test where9-8.3 {
 } {2 3 4 5 {} {} 5 55 3 4 5 6 2 4 5 55}
 
 # Fix for ticket [f2369304e47167e3e644e2f1fe9736063391d7b7]
-# Incorrect results when OR is used in the ON clause of a LEFT JOIN
+# Incorrect results when OR is used in the ON clause of a LEFT JOIN 
 #
 do_test where9-9.1 {
   db eval {

@@ -1,364 +1,254 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/model_impl/processor_entity_tracker.h"
 
-#include "base/base64.h"
-#include "base/metrics/histogram_functions.h"
-#include "base/metrics/histogram_macros.h"
-#include "base/sha1.h"
-#include "base/strings/stringprintf.h"
+#include <utility>
+
 #include "base/trace_event/memory_usage_estimator.h"
-#include "components/sync/base/sync_base_switches.h"
-#include "components/sync/base/time.h"
-#include "components/sync/engine/non_blocking_sync_common.h"
+#include "components/sync/model_impl/processor_entity.h"
 #include "components/sync/protocol/proto_memory_estimations.h"
 
 namespace syncer {
 
-namespace {
-
-// Max number of sever version for which E2E latency is calculated.
-// Used for E2E latency measurements with UMA.
-const size_t kMaxTrackedCommittedServerVersions = 20;
-
-void HashSpecifics(const sync_pb::EntitySpecifics& specifics,
-                   std::string* hash) {
-  DCHECK_GT(specifics.ByteSize(), 0);
-  base::Base64Encode(base::SHA1HashString(specifics.SerializeAsString()), hash);
-}
-
-}  // namespace
-
-std::unique_ptr<ProcessorEntityTracker> ProcessorEntityTracker::CreateNew(
-    const std::string& storage_key,
-    const std::string& client_tag_hash,
-    const std::string& id,
-    base::Time creation_time) {
-  // Initialize metadata
-  sync_pb::EntityMetadata metadata;
-  metadata.set_client_tag_hash(client_tag_hash);
-  if (!id.empty())
-    metadata.set_server_id(id);
-  metadata.set_sequence_number(0);
-  metadata.set_acked_sequence_number(0);
-  metadata.set_server_version(kUncommittedVersion);
-  metadata.set_creation_time(TimeToProtoTime(creation_time));
-
-  return std::unique_ptr<ProcessorEntityTracker>(
-      new ProcessorEntityTracker(storage_key, &metadata));
-}
-
-std::unique_ptr<ProcessorEntityTracker>
-ProcessorEntityTracker::CreateFromMetadata(const std::string& storage_key,
-                                           sync_pb::EntityMetadata* metadata) {
-  DCHECK(!storage_key.empty());
-  return std::unique_ptr<ProcessorEntityTracker>(
-      new ProcessorEntityTracker(storage_key, metadata));
+ProcessorEntityTracker::ProcessorEntityTracker(ModelType type) {
+  InitializeMetadata(type);
 }
 
 ProcessorEntityTracker::ProcessorEntityTracker(
-    const std::string& storage_key,
-    sync_pb::EntityMetadata* metadata)
-    : storage_key_(storage_key),
-      commit_data_requested_(false),
-      commit_requested_sequence_number_(metadata->acked_sequence_number()) {
-  DCHECK(metadata->has_client_tag_hash());
-  DCHECK(metadata->has_creation_time());
-  metadata_.Swap(metadata);
+    std::map<std::string, std::unique_ptr<sync_pb::EntityMetadata>>
+        metadata_map,
+    const sync_pb::ModelTypeState& model_type_state)
+    : model_type_state_(model_type_state) {
+  DCHECK(model_type_state.initial_sync_done());
+  for (auto& kv : metadata_map) {
+    std::unique_ptr<ProcessorEntity> entity =
+        ProcessorEntity::CreateFromMetadata(kv.first, std::move(*kv.second));
+    const ClientTagHash client_tag_hash =
+        ClientTagHash::FromHashed(entity->metadata().client_tag_hash());
+
+    DCHECK(storage_key_to_tag_hash_.find(entity->storage_key()) ==
+           storage_key_to_tag_hash_.end());
+    DCHECK(entities_.find(client_tag_hash) == entities_.end());
+    storage_key_to_tag_hash_[entity->storage_key()] = client_tag_hash;
+    entities_[client_tag_hash] = std::move(entity);
+  }
 }
 
-ProcessorEntityTracker::~ProcessorEntityTracker() {}
+ProcessorEntityTracker::~ProcessorEntityTracker() = default;
 
-void ProcessorEntityTracker::SetStorageKey(const std::string& storage_key) {
-  DCHECK(storage_key_.empty());
-  DCHECK(!storage_key.empty());
-  storage_key_ = storage_key;
-}
-
-void ProcessorEntityTracker::SetCommitData(EntityData* data) {
-  DCHECK(data);
-  // Update data's fields from metadata.
-  data->client_tag_hash = metadata_.client_tag_hash();
-  if (!metadata_.server_id().empty())
-    data->id = metadata_.server_id();
-  data->creation_time = ProtoTimeToTime(metadata_.creation_time());
-  data->modification_time = ProtoTimeToTime(metadata_.modification_time());
-
-  commit_data_.reset();
-  CacheCommitData(data->PassToPtr());
-}
-
-void ProcessorEntityTracker::CacheCommitData(const EntityDataPtr& data_ptr) {
-  DCHECK(RequiresCommitData());
-  commit_data_ = data_ptr;
-  commit_data_requested_ = false;
-  DCHECK(HasCommitData());
-}
-
-void ProcessorEntityTracker::SetCommitDataRequested() {
-  commit_data_requested_ = true;
-}
-
-bool ProcessorEntityTracker::HasCommitData() const {
-  return !commit_data_->client_tag_hash.empty();
-}
-
-bool ProcessorEntityTracker::MatchesData(const EntityData& data) const {
-  if (metadata_.is_deleted())
-    return data.is_deleted();
-  if (data.is_deleted())
-    return false;
-  return MatchesSpecificsHash(data.specifics);
-}
-
-bool ProcessorEntityTracker::MatchesBaseData(const EntityData& data) const {
-  DCHECK(IsUnsynced());
-  if (data.is_deleted() || metadata_.base_specifics_hash().empty()) {
+bool ProcessorEntityTracker::AllStorageKeysPopulated() const {
+  for (const auto& kv : entities_) {
+    const ProcessorEntity* entity = kv.second.get();
+    if (entity->storage_key().empty())
+      return false;
+  }
+  if (entities_.size() != storage_key_to_tag_hash_.size()) {
     return false;
   }
-  std::string hash;
-  HashSpecifics(data.specifics, &hash);
-  return hash == metadata_.base_specifics_hash();
-}
-
-bool ProcessorEntityTracker::IsUnsynced() const {
-  return metadata_.sequence_number() > metadata_.acked_sequence_number();
-}
-
-bool ProcessorEntityTracker::RequiresCommitRequest() const {
-  return metadata_.sequence_number() > commit_requested_sequence_number_;
-}
-
-bool ProcessorEntityTracker::RequiresCommitData() const {
-  return RequiresCommitRequest() && !HasCommitData() && !metadata_.is_deleted();
-}
-
-bool ProcessorEntityTracker::FailedGettingCommitData() const {
-  return RequiresCommitData() && commit_data_requested_;
-}
-
-bool ProcessorEntityTracker::CanClearMetadata() const {
-  return metadata_.is_deleted() && !IsUnsynced();
-}
-
-bool ProcessorEntityTracker::UpdateIsReflection(int64_t update_version) const {
-  return metadata_.server_version() >= update_version;
-}
-
-void ProcessorEntityTracker::RecordEntityUpdateLatency(int64_t update_version,
-                                                       const ModelType& type) {
-  auto first_greater =
-      unsynced_time_per_committed_server_version_.upper_bound(update_version);
-  if (first_greater == unsynced_time_per_committed_server_version_.begin()) {
-    return;
-  }
-
-  DCHECK(base::FeatureList::IsEnabled(switches::kSyncE2ELatencyMeasurement));
-
-  for (auto it = unsynced_time_per_committed_server_version_.begin();
-       it != first_greater; ++it) {
-    const base::TimeDelta latency = base::Time::Now() - it->second;
-    base::UmaHistogramLongTimes(
-        std::string("Sync.E2ELatency.") + ModelTypeToHistogramSuffix(type),
-        latency);
-  }
-
-  unsynced_time_per_committed_server_version_.erase(
-      unsynced_time_per_committed_server_version_.begin(), first_greater);
-}
-
-void ProcessorEntityTracker::RecordIgnoredUpdate(
-    const UpdateResponseData& update) {
-  DCHECK(metadata_.server_id().empty() ||
-         metadata_.server_id() == update.entity->id);
-  metadata_.set_server_id(update.entity->id);
-  metadata_.set_server_version(update.response_version);
-  // Either these already matched, acked was just bumped to squash a pending
-  // commit and this should follow, or the pending commit needs to be requeued.
-  commit_requested_sequence_number_ = metadata_.acked_sequence_number();
-  // If local change was made while server assigned a new id to the entity,
-  // update id in cached commit data.
-  if (HasCommitData() && commit_data_->id != metadata_.server_id()) {
-    DCHECK(commit_data_->id.empty());
-    commit_data_ = commit_data_->UpdateId(metadata_.server_id());
-  }
-}
-
-void ProcessorEntityTracker::RecordAcceptedUpdate(
-    const UpdateResponseData& update) {
-  DCHECK(!IsUnsynced());
-  RecordIgnoredUpdate(update);
-  metadata_.set_is_deleted(update.entity->is_deleted());
-  metadata_.set_modification_time(
-      TimeToProtoTime(update.entity->modification_time));
-  UpdateSpecificsHash(update.entity->specifics);
-}
-
-void ProcessorEntityTracker::RecordForcedUpdate(
-    const UpdateResponseData& update) {
-  DCHECK(IsUnsynced());
-  // There was a conflict and the server just won it. Explicitly ack all
-  // pending commits so they are never enqueued again.
-  metadata_.set_acked_sequence_number(metadata_.sequence_number());
-  commit_data_.reset();
-  commit_data_requested_ = false;
-  RecordAcceptedUpdate(update);
-}
-
-void ProcessorEntityTracker::MakeLocalChange(std::unique_ptr<EntityData> data) {
-  DCHECK(!metadata_.client_tag_hash().empty());
-
-  // Update metadata fields from updated data.
-  base::Time modification_time = !data->modification_time.is_null()
-                                     ? data->modification_time
-                                     : base::Time::Now();
-
-  // IncrementSequenceNumber should be called before UpdateSpecificHash since
-  // it remembers specifics hash before the modifications.
-  IncrementSequenceNumber(modification_time);
-  UpdateSpecificsHash(data->specifics);
-  if (!data->creation_time.is_null())
-    metadata_.set_creation_time(TimeToProtoTime(data->creation_time));
-  metadata_.set_modification_time(TimeToProtoTime(modification_time));
-  metadata_.set_is_deleted(false);
-
-  // SetCommitData will update data's fields from metadata and wrap it into
-  // immutable EntityDataPtr.
-  SetCommitData(data.get());
-}
-
-bool ProcessorEntityTracker::Delete() {
-  IncrementSequenceNumber(base::Time::Now());
-  metadata_.set_modification_time(TimeToProtoTime(base::Time::Now()));
-  metadata_.set_is_deleted(true);
-  metadata_.clear_specifics_hash();
-  // Clear any cached pending commit data.
-  commit_data_.reset();
-  commit_data_requested_ = false;
-  // Return true if server might know about this entity.
-  // TODO(crbug/740757): This check will prevent sending tombstone in situation
-  // when it should have been sent under following conditions:
-  //  - Original centity was committed to server, but client crashed before
-  //    receiving response.
-  //  - Entity was deleted while client was offline.
-  // Correct behavior is to send tombstone anyway, but directory based
-  // implementation doesn't and it is unclear how server will react to such
-  // tombstones. Change the behavior to always sending tombstone after
-  // experimenting with server.
-  return (metadata_.server_version() != kUncommittedVersion) ||
-         (commit_requested_sequence_number_ >
-          metadata_.acked_sequence_number());
-}
-
-void ProcessorEntityTracker::InitializeCommitRequestData(
-    CommitRequestData* request) {
-  if (!metadata_.is_deleted()) {
-    DCHECK(HasCommitData());
-    DCHECK_EQ(commit_data_->client_tag_hash, metadata_.client_tag_hash());
-    DCHECK_EQ(commit_data_->id, metadata_.server_id());
-    request->entity = commit_data_;
-  } else {
-    // Make an EntityData with empty specifics to indicate deletion. This is
-    // done lazily here to simplify loading a pending deletion on startup.
-    EntityData data;
-    data.client_tag_hash = metadata_.client_tag_hash();
-    data.id = metadata_.server_id();
-    data.creation_time = ProtoTimeToTime(metadata_.creation_time());
-    data.modification_time = ProtoTimeToTime(metadata_.modification_time());
-    request->entity = data.PassToPtr();
-  }
-
-  request->sequence_number = metadata_.sequence_number();
-  request->base_version = metadata_.server_version();
-  request->specifics_hash = metadata_.specifics_hash();
-  request->unsynced_time = unsynced_time_;
-  commit_requested_sequence_number_ = metadata_.sequence_number();
-}
-
-void ProcessorEntityTracker::ReceiveCommitResponse(
-    const CommitResponseData& data,
-    bool commit_only) {
-  DCHECK_EQ(metadata_.client_tag_hash(), data.client_tag_hash);
-  DCHECK_GT(data.sequence_number, metadata_.acked_sequence_number());
-  // Version is not valid for commit only types, as it's stripped before being
-  // sent to the server, so it cannot behave correctly.
-  DCHECK(commit_only || data.response_version > metadata_.server_version())
-      << data.response_version << " vs " << metadata_.server_version();
-
-  if (base::FeatureList::IsEnabled(switches::kSyncE2ELatencyMeasurement) &&
-      unsynced_time_per_committed_server_version_.size() <
-          kMaxTrackedCommittedServerVersions) {
-    unsynced_time_per_committed_server_version_[metadata_.server_version()] =
-        data.unsynced_time;
-  }
-
-  // The server can assign us a new ID in a commit response.
-  metadata_.set_server_id(data.id);
-  metadata_.set_acked_sequence_number(data.sequence_number);
-  metadata_.set_server_version(data.response_version);
-  if (!IsUnsynced()) {
-    // Clear pending commit data if there hasn't been another commit request
-    // since the one that is currently getting acked.
-    commit_data_.reset();
-    metadata_.clear_base_specifics_hash();
-  } else {
-    metadata_.set_base_specifics_hash(data.specifics_hash);
-    // If local change was made while server assigned a new id to the entity,
-    // update id in cached commit data.
-    if (HasCommitData() && commit_data_->id != metadata_.server_id()) {
-      DCHECK(commit_data_->id.empty());
-      commit_data_ = commit_data_->UpdateId(metadata_.server_id());
-    }
-  }
+  return true;
 }
 
 void ProcessorEntityTracker::ClearTransientSyncState() {
-  // If we have any unacknowledged commit requests outstanding, they've been
-  // dropped and we should forget about them.
-  commit_requested_sequence_number_ = metadata_.acked_sequence_number();
+  for (const auto& kv : entities_) {
+    kv.second->ClearTransientSyncState();
+  }
 }
 
-void ProcessorEntityTracker::IncrementSequenceNumber(
-    base::Time modification_time) {
-  DCHECK(metadata_.has_sequence_number());
-  if (!IsUnsynced()) {
-    // Update the base specifics hash if this entity wasn't already out of sync.
-    metadata_.set_base_specifics_hash(metadata_.specifics_hash());
-    unsynced_time_ = modification_time;
+size_t ProcessorEntityTracker::CountNonTombstoneEntries() const {
+  size_t count = 0;
+  for (const auto& kv : entities_) {
+    if (!kv.second->metadata().is_deleted()) {
+      ++count;
+    }
   }
-  metadata_.set_sequence_number(metadata_.sequence_number() + 1);
-  DCHECK(IsUnsynced());
+  return count;
+}
+
+ProcessorEntity* ProcessorEntityTracker::Add(const std::string& storage_key,
+                                             const EntityData& data) {
+  DCHECK(!data.client_tag_hash.value().empty());
+  DCHECK(!GetEntityForTagHash(data.client_tag_hash));
+  DCHECK(storage_key.empty() || storage_key_to_tag_hash_.find(storage_key) ==
+                                    storage_key_to_tag_hash_.end());
+  std::unique_ptr<ProcessorEntity> entity = ProcessorEntity::CreateNew(
+      storage_key, data.client_tag_hash, data.id, data.creation_time);
+  ProcessorEntity* entity_ptr = entity.get();
+  entities_[data.client_tag_hash] = std::move(entity);
+  if (!storage_key.empty())
+    storage_key_to_tag_hash_[storage_key] = data.client_tag_hash;
+  return entity_ptr;
+}
+
+void ProcessorEntityTracker::RemoveEntityForClientTagHash(
+    const ClientTagHash& client_tag_hash) {
+  DCHECK(model_type_state_.initial_sync_done());
+  DCHECK(!client_tag_hash.value().empty());
+  const ProcessorEntity* entity = GetEntityForTagHash(client_tag_hash);
+  if (entity == nullptr || entity->storage_key().empty()) {
+    entities_.erase(client_tag_hash);
+  } else {
+    DCHECK(storage_key_to_tag_hash_.find(entity->storage_key()) !=
+           storage_key_to_tag_hash_.end());
+    RemoveEntityForStorageKey(entity->storage_key());
+  }
+}
+
+void ProcessorEntityTracker::RemoveEntityForStorageKey(
+    const std::string& storage_key) {
+  DCHECK(model_type_state_.initial_sync_done());
+  // Look-up the client tag hash.
+  auto iter = storage_key_to_tag_hash_.find(storage_key);
+  if (iter == storage_key_to_tag_hash_.end()) {
+    // Missing is as good as untracked as far as the model is concerned.
+    return;
+  }
+
+  DCHECK_EQ(entities_[iter->second]->storage_key(), storage_key);
+  entities_.erase(iter->second);
+  storage_key_to_tag_hash_.erase(iter);
+}
+
+void ProcessorEntityTracker::ClearStorageKey(const std::string& storage_key) {
+  DCHECK(!storage_key.empty());
+
+  ProcessorEntity* entity = GetEntityForStorageKey(storage_key);
+  DCHECK(entity);
+  DCHECK_EQ(entity->storage_key(), storage_key);
+  storage_key_to_tag_hash_.erase(storage_key);
+  entity->ClearStorageKey();
 }
 
 size_t ProcessorEntityTracker::EstimateMemoryUsage() const {
-  using base::trace_event::EstimateMemoryUsage;
   size_t memory_usage = 0;
-  memory_usage += EstimateMemoryUsage(storage_key_);
-  memory_usage += EstimateMemoryUsage(metadata_);
-  memory_usage += EstimateMemoryUsage(commit_data_);
+  memory_usage += sync_pb::EstimateMemoryUsage(model_type_state_);
+  memory_usage += base::trace_event::EstimateMemoryUsage(entities_);
   memory_usage +=
-      EstimateMemoryUsage(unsynced_time_per_committed_server_version_);
+      base::trace_event::EstimateMemoryUsage(storage_key_to_tag_hash_);
   return memory_usage;
 }
 
-bool ProcessorEntityTracker::MatchesSpecificsHash(
-    const sync_pb::EntitySpecifics& specifics) const {
-  DCHECK(!metadata_.is_deleted());
-  DCHECK_GT(specifics.ByteSize(), 0);
-  std::string hash;
-  HashSpecifics(specifics, &hash);
-  return hash == metadata_.specifics_hash();
+ProcessorEntity* ProcessorEntityTracker::GetEntityForTagHash(
+    const ClientTagHash& tag_hash) {
+  return const_cast<ProcessorEntity*>(
+      static_cast<const ProcessorEntityTracker*>(this)->GetEntityForTagHash(
+          tag_hash));
 }
 
-void ProcessorEntityTracker::UpdateSpecificsHash(
-    const sync_pb::EntitySpecifics& specifics) {
-  if (specifics.ByteSize() > 0) {
-    HashSpecifics(specifics, metadata_.mutable_specifics_hash());
-  } else {
-    metadata_.clear_specifics_hash();
+const ProcessorEntity* ProcessorEntityTracker::GetEntityForTagHash(
+    const ClientTagHash& tag_hash) const {
+  auto it = entities_.find(tag_hash);
+  return it != entities_.end() ? it->second.get() : nullptr;
+}
+
+ProcessorEntity* ProcessorEntityTracker::GetEntityForStorageKey(
+    const std::string& storage_key) {
+  return const_cast<ProcessorEntity*>(
+      static_cast<const ProcessorEntityTracker*>(this)->GetEntityForStorageKey(
+          storage_key));
+}
+
+const ProcessorEntity* ProcessorEntityTracker::GetEntityForStorageKey(
+    const std::string& storage_key) const {
+  auto iter = storage_key_to_tag_hash_.find(storage_key);
+  if (iter == storage_key_to_tag_hash_.end()) {
+    return nullptr;
   }
+  return GetEntityForTagHash(iter->second);
+}
+
+std::vector<const ProcessorEntity*>
+ProcessorEntityTracker::GetAllEntitiesIncludingTombstones() const {
+  std::vector<const ProcessorEntity*> entities;
+  entities.reserve(entities_.size());
+  for (const auto& entity : entities_) {
+    entities.push_back(entity.second.get());
+  }
+  return entities;
+}
+
+std::vector<ProcessorEntity*>
+ProcessorEntityTracker::GetEntitiesWithLocalChanges(size_t max_entries) {
+  std::vector<ProcessorEntity*> entities;
+  for (const auto& kv : entities_) {
+    ProcessorEntity* entity = kv.second.get();
+    if (entity->RequiresCommitRequest() && !entity->RequiresCommitData()) {
+      entities.push_back(entity);
+      if (entities.size() >= max_entries)
+        break;
+    }
+  }
+  return entities;
+}
+
+bool ProcessorEntityTracker::HasLocalChanges() const {
+  for (const auto& kv : entities_) {
+    ProcessorEntity* entity = kv.second.get();
+    if (entity->RequiresCommitRequest()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+size_t ProcessorEntityTracker::size() const {
+  return entities_.size();
+}
+
+void ProcessorEntityTracker::InitializeMetadata(ModelType type) {
+  model_type_state_.mutable_progress_marker()->set_data_type_id(
+      GetSpecificsFieldNumberFromModelType(type));
+}
+
+std::vector<const ProcessorEntity*>
+ProcessorEntityTracker::IncrementSequenceNumberForAllExcept(
+    const std::unordered_set<std::string>& already_updated_storage_keys) {
+  std::vector<const ProcessorEntity*> affected_entities;
+  for (const auto& kv : entities_) {
+    ProcessorEntity* entity = kv.second.get();
+    if (entity->storage_key().empty() ||
+        (already_updated_storage_keys.find(entity->storage_key()) !=
+         already_updated_storage_keys.end())) {
+      // Entities with empty storage key were already processed. ProcessUpdate()
+      // incremented their sequence numbers and cached commit data. Their
+      // metadata will be persisted in UpdateStorageKey().
+      continue;
+    }
+    entity->IncrementSequenceNumber(base::Time::Now());
+    affected_entities.push_back(entity);
+  }
+  return affected_entities;
+}
+
+void ProcessorEntityTracker::UpdateOrOverrideStorageKey(
+    const ClientTagHash& client_tag_hash,
+    const std::string& storage_key) {
+  ProcessorEntity* entity = GetEntityForTagHash(client_tag_hash);
+  DCHECK(entity);
+  // If the entity already had a storage key, clear it.
+  const std::string previous_storage_key = entity->storage_key();
+  DCHECK_NE(previous_storage_key, storage_key);
+  if (!previous_storage_key.empty()) {
+    DCHECK(entity->metadata().is_deleted());
+    ClearStorageKey(previous_storage_key);
+  }
+  DCHECK(storage_key_to_tag_hash_.find(previous_storage_key) ==
+         storage_key_to_tag_hash_.end());
+  // Populate the new storage key in the existing entity.
+  entity->SetStorageKey(storage_key);
+  DCHECK(storage_key_to_tag_hash_.find(storage_key) ==
+         storage_key_to_tag_hash_.end());
+  storage_key_to_tag_hash_[storage_key] = client_tag_hash;
+}
+
+base::Optional<ClientTagHash> ProcessorEntityTracker::GetClientTagHash(
+    const std::string& storage_key) const {
+  auto iter = storage_key_to_tag_hash_.find(storage_key);
+  if (iter != storage_key_to_tag_hash_.end()) {
+    return iter->second;
+  }
+  return base::nullopt;
 }
 
 }  // namespace syncer

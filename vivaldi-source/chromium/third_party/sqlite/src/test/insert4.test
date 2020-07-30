@@ -22,7 +22,7 @@ ifcapable !view||!subquery {
   return
 }
 
-# The sqlite3_xferopt_count variable is incremented whenever the
+# The sqlite3_xferopt_count variable is incremented whenever the 
 # insert transfer optimization applies.
 #
 # This procedure runs a test to see if the sqlite3_xferopt_count is
@@ -34,8 +34,8 @@ proc xferopt_test {testname N} {
 
 # Create tables used for testing.
 #
+sqlite3_db_config db LEGACY_FILE_FORMAT 0
 execsql {
-  PRAGMA legacy_file_format = 0;
   CREATE TABLE t1(a int, b int, check(b>a));
   CREATE TABLE t2(x int, y int);
   CREATE VIEW v2 AS SELECT y, x FROM t2;
@@ -128,11 +128,11 @@ xferopt_test insert4-2.4.4 0
 # transfer is successful and that the transfer optimization was used or
 # not, as appropriate.
 #
-#     xfer_check TESTID  XFER-USED   INIT-DATA   DEST-SCHEMA   SRC-SCHEMA
+#     xfer_check TESTID  XFER-USED   INIT-DATA   DEST-SCHEMA   SRC-SCHEMA 
 #
 # The TESTID argument is the symbolic name for this test.  The XFER-USED
 # argument is true if the transfer optimization should be employed and
-# false if not.  INIT-DATA is a single row of data that is to be
+# false if not.  INIT-DATA is a single row of data that is to be 
 # transfered.  DEST-SCHEMA and SRC-SCHEMA are table declarations for
 # the destination and source tables.
 #
@@ -200,7 +200,7 @@ xfer_check insert4-3.8 0 {1 9} \
 
 
 # Do run the transfer optimization if the destination table and
-# source table have the same NOT NULL constraints or if the
+# source table have the same NOT NULL constraints or if the 
 # source table has extra NOT NULL constraints.
 #
 xfer_check insert4-3.9 1 {1 9} \
@@ -245,7 +245,7 @@ ifcapable vacuum {
       INSERT INTO t4 VALUES(NULL,0);
       INSERT INTO t4 VALUES(NULL,1);
       INSERT INTO t4 VALUES(NULL,1);
-      VACUUM;
+      VACUUM;   
     }
   } {}
 }
@@ -258,7 +258,7 @@ do_test insert4-5.1 {
 } {1 {no such table: nosuchtable}}
 do_test insert4-5.2 {
   # Number of columns does not match.
-  catchsql {
+  catchsql { 
     CREATE TABLE t5(a, b, c);
     INSERT INTO t4 SELECT * FROM t5;
   }
@@ -267,7 +267,7 @@ do_test insert4-5.2 {
 do_test insert4-6.1 {
   set ::sqlite3_xferopt_count 0
   execsql {
-    CREATE INDEX t2_i2 ON t2(x, y COLLATE nocase);
+    CREATE INDEX t2_i2 ON t2(x, y COLLATE nocase); 
     CREATE INDEX t2_i1 ON t2(x ASC, y DESC);
     CREATE INDEX t3_i1 ON t3(a, b);
     INSERT INTO t2 SELECT * FROM t3;
@@ -458,7 +458,7 @@ do_test insert4-8.6 {
   execsql {
     SELECT * FROM t1;
   }
-} {-99 100 1 2}
+} {-99 100 1 2} 
 do_test insert4-8.7 {
   execsql {
     DROP TABLE IF EXISTS t1;
@@ -478,7 +478,7 @@ do_test insert4-8.8 {
   execsql {
     SELECT * FROM t1;
   }
-} {1 2}
+} {1 2} 
 do_test insert4-8.9 {
   execsql {
     DROP TABLE IF EXISTS t1;
@@ -503,7 +503,7 @@ do_test insert4-8.11 {
   execsql {
     SELECT * FROM t1;
   }
-} {1 2}
+} {1 2} 
 
 do_test insert4-8.21 {
   execsql {
@@ -568,7 +568,7 @@ do_catchsql_test insert4-9.1 {
 } {1 {no such collation sequence: xyzzy}}
 
 #-------------------------------------------------------------------------
-# Check that running an integrity-check does not disable the xfer
+# Check that running an integrity-check does not disable the xfer 
 # optimization for tables with CHECK constraints.
 #
 do_execsql_test 10.1 {
@@ -598,5 +598,25 @@ do_test 10.3 {
   set sqlite3_xferopt_count
 } {1}
 
+#-------------------------------------------------------------------------
+# xfer transfer between tables where the source has an empty partial index.
+#
+do_execsql_test 11.0 {
+  CREATE TABLE t9(a, b, c);
+  CREATE INDEX t9a ON t9(a);
+  CREATE INDEX t9b ON t9(b) WHERE c=0;
+
+  INSERT INTO t9 VALUES(1, 1, 1);
+  INSERT INTO t9 VALUES(2, 2, 2);
+  INSERT INTO t9 VALUES(3, 3, 3);
+
+  CREATE TABLE t10(a, b, c);
+  CREATE INDEX t10a ON t10(a);
+  CREATE INDEX t10b ON t10(b) WHERE c=0;
+
+  INSERT INTO t10 SELECT * FROM t9;
+  SELECT * FROM t10;
+  PRAGMA integrity_check;
+} {1 1 1  2 2 2  3 3 3  ok}
 
 finish_test

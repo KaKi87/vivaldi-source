@@ -388,6 +388,7 @@ proc print_help_and_quit {} {
   puts {Options:
   --pause                  Wait for user input before continuing
   --soft-heap-limit=N      Set the soft-heap-limit to N
+  --hard-heap-limit=N      Set the hard-heap-limit to N
   --maxerror=N             Quit after N errors
   --verbose=(0|1)          Control the amount of output.  Default '1'
   --output=FILE            set --verbose=2 and output to FILE.  Implies -q
@@ -408,6 +409,7 @@ if {[info exists cmdlinearg]==0} {
   #
   #   --pause
   #   --soft-heap-limit=NN
+  #   --hard-heap-limit=NN
   #   --maxerror=NN
   #   --malloctrace=N
   #   --backtrace=N
@@ -424,6 +426,7 @@ if {[info exists cmdlinearg]==0} {
   #   --help
   #
   set cmdlinearg(soft-heap-limit)    0
+  set cmdlinearg(hard-heap-limit)    0
   set cmdlinearg(maxerror)        1000
   set cmdlinearg(malloctrace)        0
   set cmdlinearg(backtrace)         10
@@ -449,6 +452,9 @@ if {[info exists cmdlinearg]==0} {
       }
       {^-+soft-heap-limit=.+$} {
         foreach {dummy cmdlinearg(soft-heap-limit)} [split $a =] break
+      }
+      {^-+hard-heap-limit=.+$} {
+        foreach {dummy cmdlinearg(hard-heap-limit)} [split $a =] break
       }
       {^-+maxerror=.+$} {
         foreach {dummy cmdlinearg(maxerror)} [split $a =] break
@@ -576,13 +582,18 @@ if {[info exists cmdlinearg]==0} {
   if {$cmdlinearg(verbose)==""} {
     set cmdlinearg(verbose) 1
   }
+
+  if {[info commands vdbe_coverage]!=""} {
+    vdbe_coverage start
+  }
 }
 
 # Update the soft-heap-limit each time this script is run. In that
 # way if an individual test file changes the soft-heap-limit, it
 # will be reset at the start of the next test file.
 #
-sqlite3_soft_heap_limit $cmdlinearg(soft-heap-limit)
+sqlite3_soft_heap_limit64 $cmdlinearg(soft-heap-limit)
+sqlite3_hard_heap_limit64 $cmdlinearg(hard-heap-limit)
 
 # Create a test database
 #
@@ -705,8 +716,8 @@ proc output2_if_no_verbose {args} {
   }
 }
 
-# Override the [puts] command so that if no channel is explicitly
-# specified the string is written to both stdout and to the file
+# Override the [puts] command so that if no channel is explicitly 
+# specified the string is written to both stdout and to the file 
 # specified by "--output=", if any.
 #
 proc puts_override {args} {
@@ -1003,7 +1014,7 @@ proc query_plan_graph {sql} {
 #            Children of $id are $cx($id)
 #
 #   level:   Render all lines that are children of $level
-#
+# 
 proc append_graph {prefix dxname cxname level} {
   upvar $dxname dx $cxname cx
   set a ""
@@ -1028,7 +1039,7 @@ proc append_graph {prefix dxname cxname level} {
 
 # Do an EXPLAIN QUERY PLAN test on input $sql with expected results $res
 #
-# If $res begins with a "\s+QUERY PLAN\n" then it is assumed to be the
+# If $res begins with a "\s+QUERY PLAN\n" then it is assumed to be the 
 # complete graph which must match the output of [query_plan_graph $sql]
 # exactly.
 #
@@ -1203,7 +1214,8 @@ proc finalize_testing {} {
   db close
   sqlite3_reset_auto_extension
 
-  sqlite3_soft_heap_limit 0
+  sqlite3_soft_heap_limit64 0
+  sqlite3_hard_heap_limit64 0
   set nTest [incr_ntest]
   set nErr [set_test_counter errors]
 
@@ -1296,6 +1308,9 @@ proc finalize_testing {} {
       memdebug_log_sql leaks.tcl
     }
   }
+  if {[info commands vdbe_coverage]!=""} {
+    vdbe_coverage_report
+  }
   foreach f [glob -nocomplain test.db-*-journal] {
     forcedelete $f
   }
@@ -1303,6 +1318,39 @@ proc finalize_testing {} {
     forcedelete $f
   }
   exit [expr {$nErr>0}]
+}
+
+proc vdbe_coverage_report {} {
+  puts "Writing vdbe coverage report to vdbe_coverage.txt"
+  set lSrc [list]
+  set iLine 0
+  if {[file exists ../sqlite3.c]} {
+    set fd [open ../sqlite3.c]
+    set iLine
+    while { ![eof $fd] } {
+      set line [gets $fd]
+      incr iLine
+      if {[regexp {^/\** Begin file (.*\.c) \**/} $line -> file]} {
+        lappend lSrc [list $iLine $file]
+      }
+    }
+    close $fd
+  }
+  set fd [open vdbe_coverage.txt w]
+  foreach miss [vdbe_coverage report] {
+    foreach {line branch never} $miss {}
+    set nextfile ""
+    while {[llength $lSrc]>0 && [lindex $lSrc 0 0] < $line} {
+      set nextfile [lindex $lSrc 0 1]
+      set lSrc [lrange $lSrc 1 end]
+    }
+    if {$nextfile != ""} {
+      puts $fd ""
+      puts $fd "### $nextfile ###"
+    }
+    puts $fd "Vdbe branch $line: never $never (path $branch)"
+  }
+  close $fd
 }
 
 # Display memory statistics for analysis and debugging purposes.
@@ -1377,7 +1425,7 @@ proc explain_i {sql {db db}} {
   # Set up colors for the different opcodes. Scheme is as follows:
   #
   #   Red:   Opcodes that write to a b-tree.
-  #   Blue:  Opcodes that reposition or seek a cursor.
+  #   Blue:  Opcodes that reposition or seek a cursor. 
   #   Green: The ResultRow opcode.
   #
   if { [catch {fconfigure stdout -mode}]==0 } {
@@ -1421,7 +1469,7 @@ proc explain_i {sql {db db}} {
       }
     }
 
-    if {$opcode=="Next"  || $opcode=="Prev"
+    if {$opcode=="Next"  || $opcode=="Prev" 
      || $opcode=="VNext" || $opcode=="VPrev"
      || $opcode=="SorterNext" || $opcode=="NextIfOpen"
     } {
@@ -1645,7 +1693,7 @@ proc crashsql {args} {
   # pages. This is done in case the build is configured to omit
   # "PRAGMA cache_size".
   if {$opendb!=""} {
-    puts $f $opendb
+    puts $f $opendb 
     puts $f {db eval {SELECT * FROM sqlite_master;}}
     puts $f {set bt [btree_from_db db]}
     puts $f {btree_set_cache_size $bt 10}
@@ -2078,7 +2126,7 @@ proc memdebug_log_sql {filename} {
   }
 
   set escaped "BEGIN; ${tbl}${tbl2}${tbl3}${sql} ; COMMIT;"
-  set escaped [string map [list "{" "\\{" "}" "\\}"] $escaped]
+  set escaped [string map [list "{" "\\{" "}" "\\}"] $escaped] 
 
   set fd [open $filename w]
   puts $fd "set BUILTIN {"
@@ -2329,7 +2377,7 @@ proc db_delete_and_reopen {{file test.db}} {
 
 # Close any connections named [db], [db2] or [db3]. Then use sqlite3_config
 # to configure the size of the PAGECACHE allocation using the parameters
-# provided to this command. Save the old PAGECACHE parameters in a global
+# provided to this command. Save the old PAGECACHE parameters in a global 
 # variable so that [test_restore_config_pagecache] can restore the previous
 # configuration.
 #
@@ -2360,7 +2408,7 @@ proc test_restore_config_pagecache {} {
 
   sqlite3_shutdown
   eval sqlite3_config_pagecache $::old_pagecache_config
-  unset ::old_pagecache_config
+  unset ::old_pagecache_config 
   sqlite3_initialize
   autoinstall_test_functions
   sqlite3 db test.db
@@ -2423,7 +2471,7 @@ set AUTOVACUUM $sqlite_options(default_autovacuum)
 set sqlite_fts3_enable_parentheses 0
 
 # During testing, assume that all database files are well-formed.  The
-# few test cases that deliberately corrupt database files should rescind
+# few test cases that deliberately corrupt database files should rescind 
 # this setting by invoking "database_can_be_corrupt"
 #
 database_never_corrupt

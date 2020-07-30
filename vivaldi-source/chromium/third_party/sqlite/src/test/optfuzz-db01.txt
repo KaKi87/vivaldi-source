@@ -82,7 +82,7 @@ INSERT INTO t5(b) VALUES
    ('tree'),
    ('wrath');
 UPDATE t1 SET e=(SELECT b FROM t5 WHERE t5.a=(t1.e%51));
-UPDATE t5 SET (c,d,e) =
+UPDATE t5 SET (c,d,e) = 
    (SELECT c,d,e FROM t1 WHERE t1.a=abs(t5.a+random()/100)%50+1);
 UPDATE t2 SET e=(SELECT b FROM t5 WHERE t5.a=(t2.e%51));
 UPDATE t3 SET e=(SELECT b FROM t5 WHERE t5.a=t3.e);

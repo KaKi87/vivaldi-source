@@ -199,7 +199,7 @@ do_test 4.7 {
 
 #-------------------------------------------------------------------------
 reset_db
-sqlite3 db2 test.db
+sqlite3 db2 test.db 
 do_execsql_test 5.0 {
   CREATE TABLE t2(x);
   PRAGMA journal_mode = wal;
@@ -209,7 +209,7 @@ do_execsql_test 5.0 {
 } {wal}
 
 do_test 5.1 {
-  execsql {
+  execsql { 
     SELECT * FROM t2;
     BEGIN;
   } db2
@@ -231,7 +231,7 @@ do_test 5.3 {
 } {abc def ghi}
 
 do_test 5.4 {
-  execsql { INSERT INTO t2 VALUES('jkl') }
+  execsql { INSERT INTO t2 VALUES('jkl') } 
   execsql BEGIN db2
   list [catch { sqlite3_snapshot_open_blob db2 main $snap } msg] $msg
 } {1 SQLITE_ERROR_SNAPSHOT}

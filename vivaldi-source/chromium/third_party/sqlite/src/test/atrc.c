@@ -60,7 +60,7 @@ int rename_all_columns_of_table(
     }
   }
   sqlite3_finalize(pStmt);
-  return SQLITE_OK;
+  return SQLITE_OK; 
 }
 
 /* Rename all tables and their columns in the main database
@@ -146,5 +146,5 @@ int main(int argc, char **argv){
   sqlite3_free(zSql2);
   printf("PRAGMA integrity_check;\n");
   printf("ROLLBACK;\n");
-  return 0;
+  return 0; 
 }

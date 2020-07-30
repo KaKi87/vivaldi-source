@@ -8,7 +8,7 @@
 #    May you share freely, never taking more than you give.
 #
 #***********************************************************************
-# The focus of this file is testing the OR optimization on WITHOUT ROWID
+# The focus of this file is testing the OR optimization on WITHOUT ROWID 
 # tables.
 #
 

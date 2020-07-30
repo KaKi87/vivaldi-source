@@ -29,7 +29,7 @@ if {[llength [info command client_step]]==0 || [sqlite3 -has-codec]} {
 # This test does not work on older PPC Macs due to problems in the
 # pthreads library.  So skip it.
 #
-if {$tcl_platform(machine)=="Power Macintosh" &&
+if {$tcl_platform(machine)=="Power Macintosh" && 
     $tcl_platform(byteOrder)=="bigEndian"} {
   finish_test
   return
@@ -175,6 +175,6 @@ do_test server1-2.6 {
   client_result C
 } SQLITE_OK
 
-client_halt *
+client_halt *   
 sqlite3_enable_shared_cache 0
 finish_test

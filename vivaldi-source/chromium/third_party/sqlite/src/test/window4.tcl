@@ -1,4 +1,4 @@
-# 2018 May 19
+## 2018 May 19
 #
 # The author disclaims copyright to this source code.  In place of
 # a legal notice, here is a blessing:
@@ -93,13 +93,13 @@ execsql_test 3.2 {
 
 execsql_test 3.3 {
   SELECT a, count(*) OVER abc, count(*) OVER def FROM t5
-  WINDOW abc AS (ORDER BY a),
+  WINDOW abc AS (ORDER BY a), 
          def AS (ORDER BY a DESC)
   ORDER BY a;
 }
 
 execsql_test 3.4 {
-  SELECT a, max(a) FILTER (WHERE (a%2)=0) OVER w FROM t5
+  SELECT a, max(a) FILTER (WHERE (a%2)=0) OVER w FROM t5 
   WINDOW w AS (ORDER BY a)
 }
 
@@ -184,12 +184,12 @@ set lRows {
 
 set tn 1
 set SQL {
-  SELECT max(c) OVER ($p1 $o1 $r1),
+  SELECT max(c) OVER ($p1 $o1 $r1), 
   min(c) OVER ($p2 $o2 $r2)
   FROM ttt ORDER BY a
 }
 set SQL2 {
-  SELECT sum(c) OVER ($p1 $o1 $r1),
+  SELECT sum(c) OVER ($p1 $o1 $r1), 
          sum(c) OVER ($p2 $o2 $r2)
   FROM ttt ORDER BY a
 }
@@ -198,7 +198,7 @@ set o1 [lindex $lOrder 0]
 set o2 [lindex $lOrder 0]
 set r1 [lindex $lRange 0]
 set r2 [lindex $lRange 0]
-foreach p1 $lPart { foreach p2 $lPart {
+foreach p1 $lPart { foreach p2 $lPart { 
   execsql_test 4.5.$tn.1 [subst $SQL]
   execsql_test 4.5.$tn.2 [subst $SQL2]
   incr tn
@@ -208,12 +208,12 @@ set o1 [lindex $lOrder 0]
 set o2 [lindex $lOrder 0]
 set p1 [lindex $lPart 0]
 set p2 [lindex $lPart 0]
-foreach r1 $lRange { foreach r2 $lRange {
+foreach r1 $lRange { foreach r2 $lRange { 
   execsql_test 4.5.$tn.1 [subst $SQL]
   execsql_test 4.5.$tn.2 [subst $SQL2]
   incr tn
 }}
-foreach r1 $lRows { foreach r2 $lRows {
+foreach r1 $lRows { foreach r2 $lRows { 
   execsql_test 4.5.$tn.1 [subst $SQL]
   execsql_test 4.5.$tn.2 [subst $SQL2]
   incr tn
@@ -223,7 +223,7 @@ set r1 [lindex $lRange 0]
 set r2 [lindex $lRange 0]
 set p1 [lindex $lPart 0]
 set p2 [lindex $lPart 0]
-foreach o1 $lOrder { foreach o2 $lOrder {
+foreach o1 $lOrder { foreach o2 $lOrder { 
   execsql_test 4.5.$tn.1 [subst $SQL]
   execsql_test 4.5.$tn.2 [subst $SQL2]
   incr tn
@@ -257,16 +257,16 @@ execsql_test 7.3 {
 }
 
 execsql_test 7.4 {
-  SELECT
+  SELECT 
     lead(y) OVER win, lead(y) OVER win
   FROM t1
   WINDOW win AS (ORDER BY x)
 }
 
 execsql_test 7.5 {
-  SELECT
-    lead(y) OVER win,
-    lead(y, 2) OVER win,
+  SELECT 
+    lead(y) OVER win, 
+    lead(y, 2) OVER win, 
     lead(y, 3, -1) OVER win
   FROM t1
   WINDOW win AS (ORDER BY x)
@@ -385,6 +385,26 @@ execsql_test 11.4 {
   ) sub;
 }
 
+execsql_test 12.0 {
+  DROP TABLE IF EXISTS t2;
+  CREATE TABLE t2(a INTEGER);
+  INSERT INTO t2 VALUES(1), (2), (3);
+}
+
+execsql_test 12.1 {
+  SELECT (SELECT min(a) OVER ()) FROM t2
+}
+
+execsql_float_test 12.2 {
+  SELECT (SELECT avg(a)) FROM t2 ORDER BY 1
+}
+
+execsql_float_test 12.3 {
+  SELECT 
+    (SELECT avg(a) UNION SELECT min(a) OVER ()) 
+  FROM t2 GROUP BY a
+  ORDER BY 1
+}
 
 finish_test
 

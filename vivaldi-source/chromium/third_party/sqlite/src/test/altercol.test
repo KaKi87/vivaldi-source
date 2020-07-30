@@ -9,7 +9,7 @@
 #
 #*************************************************************************
 # This file implements regression tests for SQLite library.  The
-# focus of this script is testing that SQLite can handle a subtle
+# focus of this script is testing that SQLite can handle a subtle 
 # file format change that may be used in the future to implement
 # "ALTER TABLE ... RENAME COLUMN ... TO".
 #
@@ -31,7 +31,7 @@ ifcapable !altertable {
 #
 proc drop_all_tables_and_views {db} {
   set SQL {
-    SELECT name, type FROM sqlite_master
+    SELECT name, type FROM sqlite_master 
     WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'
     ORDER BY 1
   }
@@ -353,8 +353,8 @@ proc do_rename_column_test {tn old new lSchema} {
     drop_all_tables_and_views db
 
     set lSorted [list]
-    foreach sql $lSchema {
-      execsql $sql
+    foreach sql $lSchema { 
+      execsql $sql 
       lappend lSorted [string trim $sql]
     }
     set lSorted [lsort $lSorted]
@@ -420,7 +420,7 @@ foreach {tn old new lSchema} {
 }
 
 #-------------------------------------------------------------------------
-# Test that views can be edited even if there are missing collation
+# Test that views can be edited even if there are missing collation 
 # sequences or user defined functions.
 #
 reset_db
@@ -431,17 +431,17 @@ ifcapable vtab {
       { CREATE TABLE t1(a, b, _x_) }
       { CREATE VIEW s1 AS SELECT a, b, _x_ FROM t1 WHERE _x_='abc' COLLATE xyz }
     }
-
+  
     2 _x_ _xxx_ {
       { CREATE TABLE t1(a, b, _x_) }
       { CREATE VIEW v1 AS SELECT a, b, _x_ FROM t1 WHERE scalar(_x_) }
     }
-
+  
     3 _x_ _xxx_ {
       { CREATE TABLE t1(a, b, _x_) }
       { CREATE VIEW v1 AS SELECT a, b, _x_ FROM t1 WHERE _x_ = unicode(1, 2, 3) }
     }
-
+  
     4 _x_ _xxx_ {
       { CREATE TABLE t1(a, b, _x_) }
       { CREATE VIRTUAL TABLE e1 USING echo(t1) }
@@ -450,7 +450,7 @@ ifcapable vtab {
     register_echo_module db
     do_rename_column_test 10.$tn $old $new $lSchema
   }
-
+  
   #--------------------------------------------------------------------------
   # Test that if a view or trigger refers to a virtual table for which the
   # module is not available, RENAME COLUMN cannot proceed.
@@ -463,16 +463,16 @@ ifcapable vtab {
   }
   db close
   sqlite3 db test.db
-
+  
   do_execsql_test 11.1 {
     ALTER TABLE x1 RENAME b TO bbb;
     SELECT sql FROM sqlite_master;
   } { {CREATE TABLE x1(a, bbb, c)} {CREATE VIRTUAL TABLE e1 USING echo(x1)} }
-
+  
   do_execsql_test 11.2 {
     CREATE VIEW v1 AS SELECT e1.*, x1.c FROM e1, x1;
   }
-
+  
   do_catchsql_test 11.3 {
     ALTER TABLE x1 RENAME c TO ccc;
   } {1 {error in view v1: no such module: echo}}
@@ -587,14 +587,14 @@ foreach {tn trigger error} {
 
   2 {
     CREATE TRIGGER tr1 AFTER INSERT ON x1 BEGIN
-      INSERT INTO data(x, y) VALUES(new.i, new.t, 1)
+      INSERT INTO data(x, y) VALUES(new.i, new.t, 1) 
         ON CONFLICT (x) DO UPDATE SET z=zz+1;
     END;
   } {no such column: zz}
 
   3 {
     CREATE TRIGGER tr1 AFTER INSERT ON x1 BEGIN
-      INSERT INTO x1(i, t) VALUES(new.i+1, new.t||'1')
+      INSERT INTO x1(i, t) VALUES(new.i+1, new.t||'1') 
         ON CONFLICT (tttttt) DO UPDATE SET t=i+1;
     END;
   } {no such column: tttttt}
@@ -618,7 +618,7 @@ foreach {tn trigger error} {
 #-------------------------------------------------------------------------
 # Passing invalid parameters directly to sqlite_rename_column().
 #
-sqlite3_test_control SQLITE_TESTCTRL_INTERNAL_FUNCTIONS 1
+sqlite3_test_control SQLITE_TESTCTRL_INTERNAL_FUNCTIONS db
 do_execsql_test 14.1 {
   CREATE TABLE ddd(sql, type, object, db, tbl, icol, znew, bquote);
   INSERT INTO ddd VALUES(
@@ -637,11 +637,11 @@ do_execsql_test 14.1 {
 } {}
 
 do_execsql_test 14.2 {
-  SELECT
+  SELECT 
   sqlite_rename_column(sql, type, object, db, tbl, icol, znew, bquote, 0)
   FROM ddd;
 } {{} {} {} {}}
-sqlite3_test_control SQLITE_TESTCTRL_INTERNAL_FUNCTIONS 0
+sqlite3_test_control SQLITE_TESTCTRL_INTERNAL_FUNCTIONS db
 
 # If the INTERNAL_FUNCTIONS test-control is disabled (which is the default)
 # then the sqlite_rename_table() SQL function is not accessible to
@@ -713,7 +713,7 @@ do_execsql_test 16.1.6 {
 } {4 5 0}
 
 do_execsql_test 16.2.1 {
-  CREATE VIEW temp.v5 AS SELECT "big c" FROM t1;
+  CREATE VIEW temp.v5 AS SELECT "big c" FROM t1; 
   SELECT * FROM v5;
 } {3 456 20456 0}
 

@@ -40,7 +40,7 @@ ifcapable !vtab {
 #
 #   "WHERE a=? AND b=?"    ->   "cost  900 rows  900"
 #   "WHERE c=? AND b<?"    ->   "cost 1000 rows 1000"
-#
+#  
 proc vtab_cmd {tbl cols method args} {
   switch -- $method {
     xConnect {
@@ -129,7 +129,7 @@ do_execsql_test 1.7.1 {
   CREATE TABLE x1(a, b);
 }
 do_eqp_test 1.7.2 {
-  SELECT * FROM x1 CROSS JOIN t1, t2, t3
+  SELECT * FROM x1 CROSS JOIN t1, t2, t3 
     WHERE t1.a = t2.c AND t1.b = t3.e
 } {
   QUERY PLAN

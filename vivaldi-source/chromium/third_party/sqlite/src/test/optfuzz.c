@@ -150,7 +150,7 @@ static int optfuzz_exec(
       "INSERT INTO \"%w\"(x) VALUES('### %q ###')",
       zOutTab, sqlite3_sql(pStmt)
     );
-    run_sql(dbOut,
+    run_sql(dbOut, 
       "INSERT INTO \"%w\"(x) SELECT group_concat(x,char(10))"
       "  FROM (SELECT x FROM staging ORDER BY x)",
       zOutTab
@@ -299,7 +299,7 @@ int main(int argc, char **argv){
     sqlite3_free(zSql);
   }
   sqlite3_close(dbRun);
-  sqlite3_close(dbOut);
+  sqlite3_close(dbOut);    
   free(azIn);
   if( sqlite3_memory_used() ){
     printf("Memory leak of %lld bytes\n", sqlite3_memory_used());

@@ -160,7 +160,7 @@ do_test whereA-4.6 {
 
 # Ticket https://sqlite.org/src/tktview/cb91bf4290c211  2017-08-01
 # Assertion fault following PRAGMA reverse_unordered_selects=ON.
-#
+# 
 do_execsql_test whereA-5.1 {
   PRAGMA reverse_unordered_selects=on;
   DROP TABLE IF EXISTS t1;

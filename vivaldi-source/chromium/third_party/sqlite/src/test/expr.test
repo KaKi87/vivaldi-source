@@ -534,7 +534,7 @@ test_expr expr-5.67b {t1='abc_', t2='A%7_'} {t1 LIKE t2 ESCAPE '7'} $NCSL
 test_expr expr-5.68a {t1='abc7', t2='a%7_'} {t1 LIKE t2 ESCAPE '7'} 0
 test_expr expr-5.68b {t1='abc7', t2='A%7_'} {t1 LIKE t2 ESCAPE '7'} 0
 
-# These are the same test as the block above, but using a multi-byte
+# These are the same test as the block above, but using a multi-byte 
 # character as the escape character.
 if {"\u1234"!="u1234"} {
   test_expr expr-5.69a "t1='abc', t2='a_c'" \
@@ -704,8 +704,8 @@ test_expr expr-case.11 {i1=null} \
 test_expr expr-case.12 {i1=1} \
 	{CASE i1 WHEN 1 THEN null WHEN 2 THEN 'two' ELSE 3 END} {{}}
 test_expr expr-case.13 {i1=7} \
-	{ CASE WHEN i1 < 5 THEN 'low'
-	       WHEN i1 < 10 THEN 'medium'
+	{ CASE WHEN i1 < 5 THEN 'low' 
+	       WHEN i1 < 10 THEN 'medium' 
                WHEN i1 < 15 THEN 'high' ELSE 'error' END} medium
 
 
@@ -978,7 +978,7 @@ do_execsql_test expr-13.9 {
 } {1}
 
 # 2018-02-26. Ticket https://www.sqlite.org/src/tktview/36fae083b450e3af85
-#
+# 
 do_execsql_test expr-14.1 {
   DROP TABLE IF EXISTS t1;
   CREATE TABLE t1(x);
@@ -1035,5 +1035,25 @@ foreach {tn val} [list 1 NaN 2 -NaN 3 NaN0 4 -NaN0 5 Inf 6 -Inf] {
      WHERE x
   } {0}
 }
+
+reset_db
+sqlite3_test_control SQLITE_TESTCTRL_INTERNAL_FUNCTIONS db
+do_execsql_test expr-16.1 {
+  CREATE TABLE t1(a,b,c);
+  CREATE TABLE dual(dummy);
+  INSERT INTO dual VALUES('X');
+} {}
+do_execsql_test expr-16.100 {
+  SELECT implies_nonnull_row( (b=1 AND 0)>(b=3 AND 0),a)
+  FROM dual LEFT JOIN t1;
+} {0}
+do_execsql_test expr-16.101 {
+  SELECT implies_nonnull_row( (b=1 AND 0)>(b=3 AND a=4),a)
+  FROM dual LEFT JOIN t1;
+} {1}
+do_execsql_test expr-16.102 {
+  SELECT implies_nonnull_row( (b=1 AND a=2)>(b=3 AND a=4),a)
+  FROM dual LEFT JOIN t1;
+} {1}
 
 finish_test
