@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,584 +6,268 @@
 
 #include <utility>
 
-#include "components/sync/base/model_type.h"
-#include "components/sync/base/time.h"
-#include "components/sync/engine/non_blocking_sync_common.h"
-#include "components/sync/protocol/sync.pb.h"
+#include "components/sync/model/metadata_batch.h"
+#include "components/sync/model_impl/processor_entity.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace syncer {
 
 namespace {
 
-const char kKey[] = "key";
-const char kHash[] = "hash";
-const char kId[] = "id";
-const char kName[] = "name";
-const char kValue1[] = "value1";
-const char kValue2[] = "value2";
-const char kValue3[] = "value3";
+using testing::ElementsAre;
+using testing::IsNull;
+using testing::NotNull;
+using testing::UnorderedElementsAre;
 
-sync_pb::EntitySpecifics GenerateSpecifics(const std::string& name,
-                                           const std::string& value) {
-  sync_pb::EntitySpecifics specifics;
-  specifics.mutable_preference()->set_name(name);
-  specifics.mutable_preference()->set_value(value);
-  return specifics;
+const char kEmptyStorageKey[] = "";
+const char kStorageKey1[] = "key1";
+const char kStorageKey2[] = "key2";
+
+sync_pb::ModelTypeState GenerateModelTypeState() {
+  sync_pb::ModelTypeState model_type_state;
+  model_type_state.set_initial_sync_done(true);
+  return model_type_state;
 }
 
-std::unique_ptr<EntityData> GenerateEntityData(const std::string& hash,
-                                               const std::string& name,
-                                               const std::string& value) {
-  std::unique_ptr<EntityData> entity_data(new EntityData());
-  entity_data->client_tag_hash = hash;
-  entity_data->specifics = GenerateSpecifics(name, value);
-  entity_data->non_unique_name = name;
+std::unique_ptr<sync_pb::EntityMetadata> GenerateMetadata(
+    const std::string& storage_key,
+    const ClientTagHash& client_tag_hash) {
+  sync_pb::EntityMetadata metadata;
+  metadata.set_creation_time(1);
+  metadata.set_modification_time(1);
+  metadata.set_client_tag_hash(client_tag_hash.value());
+  metadata.set_specifics_hash("specifics_hash");
+  return std::make_unique<sync_pb::EntityMetadata>(std::move(metadata));
+}
+
+std::unique_ptr<sync_pb::EntityMetadata> GenerateTombstoneMetadata(
+    const std::string& storage_key,
+    const ClientTagHash& client_tag_hash) {
+  std::unique_ptr<sync_pb::EntityMetadata> metadata =
+      GenerateMetadata(storage_key, client_tag_hash);
+  metadata->set_is_deleted(true);
+  metadata->set_base_specifics_hash(metadata->specifics_hash());
+  metadata->clear_specifics_hash();
+  return metadata;
+}
+
+EntityData GenerateEntityData(const std::string& storage_key,
+                              const ClientTagHash& client_tag_hash) {
+  EntityData entity_data;
+  entity_data.client_tag_hash = client_tag_hash;
+  entity_data.creation_time = base::Time::Now();
+  entity_data.modification_time = entity_data.creation_time;
+  entity_data.name = storage_key;
+  // The tracker requires non-empty specifics with any data type.
+  entity_data.specifics.mutable_preference();
   return entity_data;
 }
 
-UpdateResponseData GenerateUpdate(const ProcessorEntityTracker& entity,
-                                  const std::string& hash,
-                                  const std::string& id,
-                                  const std::string& name,
-                                  const std::string& value,
-                                  const base::Time& mtime,
-                                  int64_t version) {
-  std::unique_ptr<EntityData> data = GenerateEntityData(hash, name, value);
-  data->id = id;
-  data->modification_time = mtime;
-  UpdateResponseData update;
-  update.entity = data->PassToPtr();
-  update.response_version = version;
-  return update;
-}
-
-UpdateResponseData GenerateTombstone(const ProcessorEntityTracker& entity,
-                                     const std::string& hash,
-                                     const std::string& id,
-                                     const std::string& name,
-                                     const base::Time& mtime,
-                                     int64_t version) {
-  std::unique_ptr<EntityData> data = std::make_unique<EntityData>();
-  data->client_tag_hash = hash;
-  data->non_unique_name = name;
-  data->id = id;
-  data->modification_time = mtime;
-  UpdateResponseData update;
-  update.entity = data->PassToPtr();
-  update.response_version = version;
-  return update;
-}
-
-CommitResponseData GenerateAckData(const CommitRequestData& request,
-                                   const std::string id,
-                                   int64_t version) {
-  CommitResponseData response;
-  response.id = id;
-  response.client_tag_hash = request.entity->client_tag_hash;
-  response.sequence_number = request.sequence_number;
-  response.response_version = version;
-  response.specifics_hash = request.specifics_hash;
-  return response;
-}
-
-}  // namespace
-
-// Some simple sanity tests for the ProcessorEntityTracker.
-//
-// A lot of the more complicated sync logic is implemented in the
-// ClientTagBasedModelTypeProcessor that owns the ProcessorEntityTracker.  We
-// can't unit test it here.
-//
-// Instead, we focus on simple tests to make sure that variables are getting
-// properly intialized and flags properly set.  Anything more complicated would
-// be a redundant and incomplete version of the ClientTagBasedModelTypeProcessor
-// tests.
 class ProcessorEntityTrackerTest : public ::testing::Test {
  public:
   ProcessorEntityTrackerTest()
-      : ctime_(base::Time::Now() - base::TimeDelta::FromSeconds(1)) {}
+      : entity_tracker_(GenerateModelTypeState(), {}) {}
+  ~ProcessorEntityTrackerTest() override = default;
 
-  std::unique_ptr<ProcessorEntityTracker> CreateNew() {
-    return ProcessorEntityTracker::CreateNew(kKey, kHash, "", ctime_);
-  }
+  const ClientTagHash kClientTagHash1 =
+      ClientTagHash::FromHashed("client_tag_hash_1");
+  const ClientTagHash kClientTagHash2 =
+      ClientTagHash::FromHashed("client_tag_hash_2");
 
-  std::unique_ptr<ProcessorEntityTracker> CreateNewWithEmptyStorageKey() {
-    return ProcessorEntityTracker::CreateNew("", kHash, "", ctime_);
-  }
-
-  std::unique_ptr<ProcessorEntityTracker> CreateSynced() {
-    std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-    entity->RecordAcceptedUpdate(
-        GenerateUpdate(*entity, kHash, kId, kName, kValue1, ctime_, 1));
-    DCHECK(!entity->IsUnsynced());
-    return entity;
-  }
-
-  std::unique_ptr<ProcessorEntityTracker> RestoreFromMetadata(
-      sync_pb::EntityMetadata* entity_metadata) {
-    return ProcessorEntityTracker::CreateFromMetadata(kKey, entity_metadata);
-  }
-
-  const base::Time ctime_;
+ protected:
+  ProcessorEntityTracker entity_tracker_;
 };
 
-// Test the state of the default new tracker.
-TEST_F(ProcessorEntityTrackerTest, DefaultTracker) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
+TEST_F(ProcessorEntityTrackerTest, ShouldLoadFromMetadata) {
+  EntityMetadataMap metadata_map;
+  metadata_map.emplace(kStorageKey1,
+                       GenerateMetadata(kStorageKey1, kClientTagHash1));
+  metadata_map.emplace(
+      kStorageKey2, GenerateTombstoneMetadata(kStorageKey2, kClientTagHash2));
+  ProcessorEntityTracker entity_tracker(GenerateModelTypeState(),
+                                        std::move(metadata_map));
 
-  EXPECT_EQ(kKey, entity->storage_key());
-  EXPECT_EQ(kHash, entity->metadata().client_tag_hash());
-  EXPECT_EQ("", entity->metadata().server_id());
+  // Check some getters for the entity tracker.
+  EXPECT_EQ(2u, entity_tracker.size());
+  EXPECT_EQ(1u, entity_tracker.CountNonTombstoneEntries());
+  EXPECT_TRUE(entity_tracker.model_type_state().initial_sync_done());
+  EXPECT_TRUE(entity_tracker.AllStorageKeysPopulated());
+  EXPECT_FALSE(entity_tracker.HasLocalChanges());
+
+  // Check each entity thoroughly.
+  const ProcessorEntity* entity =
+      entity_tracker.GetEntityForStorageKey(kStorageKey1);
+  ASSERT_THAT(entity, NotNull());
+  EXPECT_EQ(entity, entity_tracker.GetEntityForTagHash(kClientTagHash1));
+
+  EXPECT_EQ(kStorageKey1, entity->storage_key());
+  EXPECT_EQ(1u, entity->metadata().creation_time());
+  EXPECT_EQ(1u, entity->metadata().modification_time());
+  EXPECT_EQ("specifics_hash", entity->metadata().specifics_hash());
+  EXPECT_EQ(entity->metadata().client_tag_hash(), kClientTagHash1.value());
   EXPECT_FALSE(entity->metadata().is_deleted());
-  EXPECT_EQ(0, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(kUncommittedVersion, entity->metadata().server_version());
-  EXPECT_EQ(TimeToProtoTime(ctime_), entity->metadata().creation_time());
-  EXPECT_EQ(0, entity->metadata().modification_time());
-  EXPECT_TRUE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
 
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->UpdateIsReflection(1));
-  EXPECT_FALSE(entity->HasCommitData());
+  const ProcessorEntity* tombstone_entity =
+      entity_tracker.GetEntityForStorageKey(kStorageKey2);
+  ASSERT_THAT(tombstone_entity, NotNull());
+  EXPECT_EQ(kStorageKey2, tombstone_entity->storage_key());
+  EXPECT_EQ(1u, tombstone_entity->metadata().creation_time());
+  EXPECT_EQ(1u, tombstone_entity->metadata().modification_time());
+  EXPECT_EQ("specifics_hash",
+            tombstone_entity->metadata().base_specifics_hash());
+  EXPECT_FALSE(tombstone_entity->metadata().has_specifics_hash());
+  EXPECT_EQ(tombstone_entity->metadata().client_tag_hash(),
+            kClientTagHash2.value());
+  EXPECT_TRUE(tombstone_entity->metadata().is_deleted());
+
+  const std::vector<const ProcessorEntity*> all_entities =
+      entity_tracker.GetAllEntitiesIncludingTombstones();
+  EXPECT_THAT(all_entities, UnorderedElementsAre(entity, tombstone_entity));
 }
 
-// Test creating and commiting a new local item.
-TEST_F(ProcessorEntityTrackerTest, NewLocalItem) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue1));
+TEST_F(ProcessorEntityTrackerTest, ShouldAddNewEntity) {
+  EntityData entity_data = GenerateEntityData(kStorageKey1, kClientTagHash1);
+  const ProcessorEntity* entity =
+      entity_tracker_.Add(kStorageKey1, entity_data);
+  ASSERT_THAT(entity, NotNull());
 
-  EXPECT_EQ("", entity->metadata().server_id());
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_EQ(1u, entity_tracker_.CountNonTombstoneEntries());
+  EXPECT_EQ(entity,
+            entity_tracker_.GetEntityForTagHash(entity_data.client_tag_hash));
+  EXPECT_EQ(entity, entity_tracker_.GetEntityForStorageKey(kStorageKey1));
+  EXPECT_FALSE(entity_tracker_.HasLocalChanges());
+  EXPECT_EQ(kStorageKey1, entity->storage_key());
+  EXPECT_EQ(entity->metadata().client_tag_hash(),
+            entity_data.client_tag_hash.value());
   EXPECT_FALSE(entity->metadata().is_deleted());
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(kUncommittedVersion, entity->metadata().server_version());
-  EXPECT_NE(0, entity->metadata().modification_time());
-  EXPECT_FALSE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
+}
 
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_TRUE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->UpdateIsReflection(1));
-  EXPECT_TRUE(entity->HasCommitData());
+TEST_F(ProcessorEntityTrackerTest, ShouldAddEntityWithoutStorageKey) {
+  EntityData entity_data = GenerateEntityData(kStorageKey1, kClientTagHash1);
+  const ProcessorEntity* entity =
+      entity_tracker_.Add(kEmptyStorageKey, entity_data);
+  ASSERT_THAT(entity, NotNull());
 
-  EXPECT_EQ(kValue1, entity->commit_data()->specifics.preference().value());
+  // The entity should be available by the client tag hash only.
+  EXPECT_EQ(kEmptyStorageKey, entity->storage_key());
+  EXPECT_EQ(entity, entity_tracker_.GetEntityForTagHash(kClientTagHash1));
 
-  // Generate a commit request. The metadata should not change.
-  const sync_pb::EntityMetadata metadata_v1 = entity->metadata();
-  CommitRequestData request;
-  entity->InitializeCommitRequestData(&request);
-  EXPECT_EQ(metadata_v1.SerializeAsString(),
-            entity->metadata().SerializeAsString());
+  // The empty storage key must not be used.
+  EXPECT_THAT(entity_tracker_.GetEntityForStorageKey(kEmptyStorageKey),
+              IsNull());
 
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->UpdateIsReflection(1));
-  EXPECT_TRUE(entity->HasCommitData());
-
-  const EntityData& data = request.entity.value();
-  EXPECT_EQ("", data.id);
-  EXPECT_EQ(kHash, data.client_tag_hash);
-  EXPECT_EQ(kName, data.non_unique_name);
-  EXPECT_EQ(kValue1, data.specifics.preference().value());
-  EXPECT_EQ(TimeToProtoTime(ctime_), TimeToProtoTime(data.creation_time));
-  EXPECT_EQ(entity->metadata().modification_time(),
-            TimeToProtoTime(data.modification_time));
-  EXPECT_FALSE(data.is_deleted());
-  EXPECT_EQ(1, request.sequence_number);
-  EXPECT_EQ(kUncommittedVersion, request.base_version);
-  EXPECT_EQ(entity->metadata().specifics_hash(), request.specifics_hash);
-
-  // Ack the commit.
-  entity->ReceiveCommitResponse(GenerateAckData(request, kId, 1), false);
-
-  EXPECT_EQ(kId, entity->metadata().server_id());
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_EQ(1u, entity_tracker_.CountNonTombstoneEntries());
+  EXPECT_EQ(entity->metadata().client_tag_hash(),
+            entity_data.client_tag_hash.value());
   EXPECT_FALSE(entity->metadata().is_deleted());
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(1, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(1, entity->metadata().server_version());
-  EXPECT_EQ(metadata_v1.creation_time(), entity->metadata().creation_time());
-  EXPECT_EQ(metadata_v1.modification_time(),
-            entity->metadata().modification_time());
-  EXPECT_FALSE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
 
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->UpdateIsReflection(1));
-  EXPECT_FALSE(entity->HasCommitData());
+  // Check that tracker is waiting for the storage key to be populated.
+  EXPECT_FALSE(entity_tracker_.AllStorageKeysPopulated());
+
+  entity_tracker_.UpdateOrOverrideStorageKey(kClientTagHash1, kStorageKey1);
+  EXPECT_EQ(entity, entity_tracker_.GetEntityForStorageKey(kStorageKey1));
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_EQ(1u, entity_tracker_.CountNonTombstoneEntries());
+
+  EXPECT_TRUE(entity_tracker_.AllStorageKeysPopulated());
 }
 
-// Test state for a newly synced server item.
-TEST_F(ProcessorEntityTrackerTest, NewServerItem) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
+TEST_F(ProcessorEntityTrackerTest, ShouldClearStorageKeyForTombstone) {
+  ProcessorEntity* entity = entity_tracker_.Add(
+      kStorageKey1, GenerateEntityData(kStorageKey1, kClientTagHash1));
+  ASSERT_EQ(entity, entity_tracker_.GetEntityForStorageKey(kStorageKey1));
+  ASSERT_EQ(kStorageKey1, entity->storage_key());
 
-  const base::Time mtime = base::Time::Now();
-  entity->RecordAcceptedUpdate(
-      GenerateUpdate(*entity, kHash, kId, kName, kValue1, mtime, 10));
-
-  EXPECT_EQ(kId, entity->metadata().server_id());
-  EXPECT_FALSE(entity->metadata().is_deleted());
-  EXPECT_EQ(0, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(10, entity->metadata().server_version());
-  EXPECT_EQ(TimeToProtoTime(mtime), entity->metadata().modification_time());
-  EXPECT_FALSE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->UpdateIsReflection(9));
-  EXPECT_TRUE(entity->UpdateIsReflection(10));
-  EXPECT_FALSE(entity->UpdateIsReflection(11));
-  EXPECT_FALSE(entity->HasCommitData());
-}
-
-// Test creating tracker for new server item with empty storage key, applying
-// update and updating storage key.
-TEST_F(ProcessorEntityTrackerTest, NewServerItem_EmptyStorageKey) {
-  std::unique_ptr<ProcessorEntityTracker> entity =
-      CreateNewWithEmptyStorageKey();
-
-  EXPECT_EQ("", entity->storage_key());
-
-  const base::Time mtime = base::Time::Now();
-  entity->RecordAcceptedUpdate(
-      GenerateUpdate(*entity, kHash, kId, kName, kValue1, mtime, 10));
-  entity->SetStorageKey(kKey);
-  EXPECT_EQ(kKey, entity->storage_key());
-}
-
-// Test state for a tombstone received for a previously unknown item.
-TEST_F(ProcessorEntityTrackerTest, NewServerTombstone) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-
-  const base::Time mtime = base::Time::Now();
-  entity->RecordAcceptedUpdate(
-      GenerateTombstone(*entity, kHash, kId, kName, mtime, 1));
-
-  EXPECT_EQ(kId, entity->metadata().server_id());
-  EXPECT_TRUE(entity->metadata().is_deleted());
-  EXPECT_EQ(0, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(1, entity->metadata().server_version());
-  EXPECT_EQ(TimeToProtoTime(mtime), entity->metadata().modification_time());
-  EXPECT_TRUE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_TRUE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->UpdateIsReflection(1));
-  EXPECT_FALSE(entity->UpdateIsReflection(2));
-  EXPECT_FALSE(entity->HasCommitData());
-}
-
-// Apply a deletion update to a synced item.
-TEST_F(ProcessorEntityTrackerTest, ServerTombstone) {
-  // Start with a non-deleted state with version 1.
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateSynced();
-  // A deletion update one version later.
-  const base::Time mtime = base::Time::Now();
-  entity->RecordAcceptedUpdate(
-      GenerateTombstone(*entity, kHash, kId, kName, mtime, 2));
-
-  EXPECT_TRUE(entity->metadata().is_deleted());
-  EXPECT_EQ(0, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(2, entity->metadata().server_version());
-  EXPECT_EQ(TimeToProtoTime(mtime), entity->metadata().modification_time());
-  EXPECT_TRUE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_TRUE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->UpdateIsReflection(2));
-  EXPECT_FALSE(entity->UpdateIsReflection(3));
-  EXPECT_FALSE(entity->HasCommitData());
-}
-
-// Test a local change of a synced item.
-TEST_F(ProcessorEntityTrackerTest, LocalChange) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateSynced();
-  const int64_t mtime_v0 = entity->metadata().modification_time();
-  const std::string specifics_hash_v0 = entity->metadata().specifics_hash();
-
-  // Make a local change with different specifics.
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue2));
-
-  const int64_t mtime_v1 = entity->metadata().modification_time();
-  const std::string specifics_hash_v1 = entity->metadata().specifics_hash();
-
-  EXPECT_FALSE(entity->metadata().is_deleted());
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(1, entity->metadata().server_version());
-  EXPECT_LT(mtime_v0, mtime_v1);
-  EXPECT_NE(specifics_hash_v0, specifics_hash_v1);
-  EXPECT_EQ(specifics_hash_v0, entity->metadata().base_specifics_hash());
-
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_TRUE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->HasCommitData());
-
-  // Make a commit.
-  CommitRequestData request;
-  entity->InitializeCommitRequestData(&request);
-
-  EXPECT_EQ(kId, request.entity->id);
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-
-  // Ack the commit.
-  entity->ReceiveCommitResponse(GenerateAckData(request, kId, 2), false);
-
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(1, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(2, entity->metadata().server_version());
-  EXPECT_EQ(mtime_v1, entity->metadata().modification_time());
-  EXPECT_EQ(specifics_hash_v1, entity->metadata().specifics_hash());
-  EXPECT_EQ("", entity->metadata().base_specifics_hash());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->HasCommitData());
-}
-
-// Test a local deletion of a synced item.
-TEST_F(ProcessorEntityTrackerTest, LocalDeletion) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateSynced();
-  const int64_t mtime = entity->metadata().modification_time();
-  const std::string specifics_hash = entity->metadata().specifics_hash();
-
-  // Make a local delete.
+  // Mark the entity as removed.
   entity->Delete();
+  ASSERT_EQ(1u, entity_tracker_.size());
+  ASSERT_EQ(0u, entity_tracker_.CountNonTombstoneEntries());
 
-  EXPECT_TRUE(entity->metadata().is_deleted());
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(1, entity->metadata().server_version());
-  EXPECT_LT(mtime, entity->metadata().modification_time());
-  EXPECT_TRUE(entity->metadata().specifics_hash().empty());
-  EXPECT_EQ(specifics_hash, entity->metadata().base_specifics_hash());
-
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_TRUE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->HasCommitData());
-
-  // Generate a commit request. The metadata should not change.
-  const sync_pb::EntityMetadata metadata_v1 = entity->metadata();
-  CommitRequestData request;
-  entity->InitializeCommitRequestData(&request);
-  EXPECT_EQ(metadata_v1.SerializeAsString(),
-            entity->metadata().SerializeAsString());
-
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->HasCommitData());
-
-  const EntityData& data = request.entity.value();
-  EXPECT_EQ(kId, data.id);
-  EXPECT_EQ(kHash, data.client_tag_hash);
-  EXPECT_EQ("", data.non_unique_name);
-  EXPECT_EQ(TimeToProtoTime(ctime_), TimeToProtoTime(data.creation_time));
-  EXPECT_EQ(entity->metadata().modification_time(),
-            TimeToProtoTime(data.modification_time));
-  EXPECT_TRUE(data.is_deleted());
-  EXPECT_EQ(1, request.sequence_number);
-  EXPECT_EQ(1, request.base_version);
-  EXPECT_EQ(entity->metadata().specifics_hash(), request.specifics_hash);
-
-  // Ack the deletion.
-  entity->ReceiveCommitResponse(GenerateAckData(request, kId, 2), false);
-
-  EXPECT_TRUE(entity->metadata().is_deleted());
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(1, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(2, entity->metadata().server_version());
-  EXPECT_EQ(metadata_v1.modification_time(),
-            entity->metadata().modification_time());
-  EXPECT_TRUE(entity->metadata().specifics_hash().empty());
-  EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_TRUE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->HasCommitData());
+  entity_tracker_.ClearStorageKey(kStorageKey1);
+  EXPECT_THAT(entity_tracker_.GetEntityForStorageKey(kStorageKey1), IsNull());
+  EXPECT_TRUE(entity->storage_key().empty());
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_EQ(0u, entity_tracker_.CountNonTombstoneEntries());
 }
 
-// Test that hashes and sequence numbers are handled correctly for the "commit
-// commit, ack ack" case.
-TEST_F(ProcessorEntityTrackerTest, LocalChangesInterleaved) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateSynced();
-  const std::string specifics_hash_v0 = entity->metadata().specifics_hash();
+TEST_F(ProcessorEntityTrackerTest, ShouldOverrideTombstone) {
+  ProcessorEntity* entity = entity_tracker_.Add(
+      kStorageKey1, GenerateEntityData(kStorageKey1, kClientTagHash1));
+  ASSERT_THAT(entity, NotNull());
+  ASSERT_EQ(entity, entity_tracker_.GetEntityForStorageKey(kStorageKey1));
+  ASSERT_EQ(kStorageKey1, entity->storage_key());
 
-  // Make the first change.
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue2));
-  const std::string specifics_hash_v1 = entity->metadata().specifics_hash();
+  // Mark the entity as removed.
+  entity->Delete();
+  ASSERT_EQ(1u, entity_tracker_.size());
+  ASSERT_EQ(0u, entity_tracker_.CountNonTombstoneEntries());
 
-  EXPECT_EQ(1, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_NE(specifics_hash_v0, specifics_hash_v1);
-  EXPECT_EQ(specifics_hash_v0, entity->metadata().base_specifics_hash());
+  // Mimic an entity being created with the same client tag hash.
+  entity_tracker_.UpdateOrOverrideStorageKey(kClientTagHash1, kStorageKey2);
+  EXPECT_EQ(kStorageKey2, entity->storage_key());
+  EXPECT_THAT(entity_tracker_.GetEntityForStorageKey(kStorageKey1), IsNull());
+  EXPECT_EQ(entity, entity_tracker_.GetEntityForStorageKey(kStorageKey2));
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_EQ(0u, entity_tracker_.CountNonTombstoneEntries());
+}
 
-  // Request the first commit.
-  CommitRequestData request_v1;
-  entity->InitializeCommitRequestData(&request_v1);
+TEST_F(ProcessorEntityTrackerTest, ShouldRemoveEntityForStorageKey) {
+  const ProcessorEntity* entity = entity_tracker_.Add(
+      kStorageKey1, GenerateEntityData(kStorageKey1, kClientTagHash1));
+  ASSERT_THAT(entity, NotNull());
+  ASSERT_EQ(1u, entity_tracker_.size());
 
-  // Make the second change.
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue3));
-  const std::string specifics_hash_v2 = entity->metadata().specifics_hash();
+  entity_tracker_.RemoveEntityForStorageKey(kStorageKey1);
+  EXPECT_EQ(0u, entity_tracker_.size());
+}
 
-  EXPECT_EQ(2, entity->metadata().sequence_number());
-  EXPECT_EQ(0, entity->metadata().acked_sequence_number());
-  EXPECT_NE(specifics_hash_v1, specifics_hash_v2);
-  EXPECT_EQ(specifics_hash_v0, entity->metadata().base_specifics_hash());
+TEST_F(ProcessorEntityTrackerTest, ShouldRemoveEntityForClientTagHash) {
+  const ProcessorEntity* entity = entity_tracker_.Add(
+      kStorageKey1, GenerateEntityData(kStorageKey1, kClientTagHash1));
+  ASSERT_THAT(entity, NotNull());
+  ASSERT_EQ(entity, entity_tracker_.GetEntityForTagHash(kClientTagHash1));
 
-  // Request the second commit.
-  CommitRequestData request_v2;
-  entity->InitializeCommitRequestData(&request_v2);
+  const ProcessorEntity* entity_no_key = entity_tracker_.Add(
+      kEmptyStorageKey, GenerateEntityData(kStorageKey2, kClientTagHash2));
+  ASSERT_THAT(entity_no_key, NotNull());
+  ASSERT_EQ(entity_no_key,
+            entity_tracker_.GetEntityForTagHash(kClientTagHash2));
+  ASSERT_EQ(2u, entity_tracker_.size());
 
+  entity_tracker_.RemoveEntityForClientTagHash(kClientTagHash2);
+  EXPECT_EQ(1u, entity_tracker_.size());
+  EXPECT_THAT(entity_tracker_.GetEntityForTagHash(kClientTagHash2), IsNull());
+
+  // A second call does not affect anything.
+  entity_tracker_.RemoveEntityForClientTagHash(kClientTagHash2);
+  EXPECT_EQ(1u, entity_tracker_.size());
+
+  entity_tracker_.RemoveEntityForClientTagHash(kClientTagHash1);
+  EXPECT_EQ(0u, entity_tracker_.size());
+}
+
+TEST_F(ProcessorEntityTrackerTest, ShouldReturnLocalChanges) {
+  ProcessorEntity* entity = entity_tracker_.Add(
+      kStorageKey1, GenerateEntityData(kStorageKey1, kClientTagHash1));
+  ASSERT_THAT(entity, NotNull());
+  ASSERT_FALSE(entity->IsUnsynced());
+  ASSERT_FALSE(entity_tracker_.HasLocalChanges());
+  ASSERT_TRUE(
+      entity_tracker_.GetEntitiesWithLocalChanges(/*max_entries=*/1).empty());
+
+  // Mark the entity as ready to commit.
+  entity->MakeLocalChange(std::make_unique<EntityData>(
+      GenerateEntityData(kStorageKey1, kClientTagHash1)));
+  entity_tracker_.IncrementSequenceNumberForAllExcept({});
   EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->HasCommitData());
-
-  // Ack the first commit.
-  entity->ReceiveCommitResponse(GenerateAckData(request_v1, kId, 2), false);
-
-  EXPECT_EQ(2, entity->metadata().sequence_number());
-  EXPECT_EQ(1, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(2, entity->metadata().server_version());
-  EXPECT_EQ(specifics_hash_v2, entity->metadata().specifics_hash());
-  EXPECT_EQ(specifics_hash_v1, entity->metadata().base_specifics_hash());
-
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_TRUE(entity->HasCommitData());
-
-  // Ack the second commit.
-  entity->ReceiveCommitResponse(GenerateAckData(request_v2, kId, 3), false);
-
-  EXPECT_EQ(2, entity->metadata().sequence_number());
-  EXPECT_EQ(2, entity->metadata().acked_sequence_number());
-  EXPECT_EQ(3, entity->metadata().server_version());
-  EXPECT_EQ(specifics_hash_v2, entity->metadata().specifics_hash());
-  EXPECT_EQ("", entity->metadata().base_specifics_hash());
-
-  EXPECT_FALSE(entity->IsUnsynced());
-  EXPECT_FALSE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_FALSE(entity->CanClearMetadata());
-  EXPECT_FALSE(entity->HasCommitData());
+  EXPECT_TRUE(entity_tracker_.HasLocalChanges());
+  EXPECT_THAT(entity_tracker_.GetEntitiesWithLocalChanges(/*max_entries=*/2),
+              ElementsAre(entity));
 }
 
-// Tests that updating entity id with commit response while next local change is
-// pending correctly updates that change's id and version.
-TEST_F(ProcessorEntityTrackerTest, NewLocalChangeUpdatedId) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-  // Create new local change. Make sure initial id is empty.
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue1));
-
-  CommitRequestData request;
-  entity->InitializeCommitRequestData(&request);
-  EXPECT_TRUE(request.entity->id.empty());
-
-  // Before receiving commit response make local modification to the entity.
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue2));
-  entity->ReceiveCommitResponse(GenerateAckData(request, kId, 1), false);
-
-  // Receiving commit response with valid id should update
-  // ProcessorEntityTracker. Consecutive commit requests should include updated
-  // id.
-  entity->InitializeCommitRequestData(&request);
-  EXPECT_EQ(kId, request.entity->id);
-  EXPECT_EQ(1, request.base_version);
-}
-
-// Tests that entity restored after restart accepts specifics that don't match
-// the ones passed originally to MakeLocalChange.
-TEST_F(ProcessorEntityTrackerTest, RestoredLocalChangeWithUpdatedSpecifics) {
-  // Create new entity and preserver its metadata.
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue1));
-  sync_pb::EntityMetadata entity_metadata = entity->metadata();
-
-  // Restore entity from metadata and emulate bridge passing different specifics
-  // to SetCommitData.
-  entity = RestoreFromMetadata(&entity_metadata);
-  auto entity_data = GenerateEntityData(kHash, kName, kValue2);
-  entity->SetCommitData(entity_data.get());
-
-  // No verification is necessary. SetCommitData shouldn't DCHECK.
-}
-
-// Tests the scenario where a local creation conflicts with a remote deletion,
-// where usually (and in this test) local wins. In this case, the remote update
-// should be ignored but the server IDs should be updated.
-TEST_F(ProcessorEntityTrackerTest, LocalCreationConflictsWithServerTombstone) {
-  std::unique_ptr<ProcessorEntityTracker> entity = CreateNew();
-  entity->MakeLocalChange(GenerateEntityData(kHash, kName, kValue1));
-
-  ASSERT_TRUE(entity->IsUnsynced());
-  ASSERT_TRUE(entity->RequiresCommitRequest());
-  ASSERT_FALSE(entity->RequiresCommitData());
-  ASSERT_TRUE(entity->HasCommitData());
-  ASSERT_FALSE(entity->metadata().is_deleted());
-  ASSERT_TRUE(entity->metadata().server_id().empty());
-
-  {
-    // Local creation should use a temporary server ID (which in this tracker
-    // involves an empty string).
-    CommitRequestData request;
-    entity->InitializeCommitRequestData(&request);
-    EXPECT_TRUE(request.entity->id.empty());
-  }
-
-  // Before anything gets committed, we receive a remote tombstone, but local
-  // would usually win so the remote update is ignored.
-  entity->RecordIgnoredUpdate(
-      GenerateTombstone(*entity, kHash, kId, kName, base::Time::Now(), 2));
-
-  EXPECT_EQ(kId, entity->metadata().server_id());
-  EXPECT_TRUE(entity->IsUnsynced());
-  EXPECT_TRUE(entity->RequiresCommitRequest());
-  EXPECT_FALSE(entity->RequiresCommitData());
-  EXPECT_TRUE(entity->HasCommitData());
-  EXPECT_FALSE(entity->metadata().is_deleted());
-
-  // Generate a commit request. The server ID should have been reused from the
-  // otherwise ignored update.
-  const sync_pb::EntityMetadata metadata_v1 = entity->metadata();
-  CommitRequestData request;
-  entity->InitializeCommitRequestData(&request);
-  EXPECT_EQ(kId, request.entity->id);
-}
+}  // namespace
 
 }  // namespace syncer

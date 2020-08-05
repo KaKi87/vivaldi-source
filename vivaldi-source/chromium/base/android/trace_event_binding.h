@@ -1,17 +1,18 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef BASE_ANDROID_TRACE_EVENT_BINDING_H_
 #define BASE_ANDROID_TRACE_EVENT_BINDING_H_
 
-#include <jni.h>
-
 namespace base {
 namespace android {
+namespace internal {
 
-extern bool RegisterTraceEvent(JNIEnv* env);
+constexpr const char kJavaTraceCategory[] = "Java";
+constexpr const char kToplevelTraceCategory[] = "toplevel";
 
+}  // namespace internal
 }  // namespace android
 }  // namespace base
 

@@ -4,22 +4,19 @@
 <script src="/resources/testharnessreport.js"></script>
 <script src="support/helper.sub.js"></script>
 
-<meta http-equiv="Content-Security-Policy" content="trusted-types *">
+<meta http-equiv="Content-Security-Policy" content="require-trusted-types-for 'script';">
 <body>
 <div id="target"></div>
 <script>
-
   const policy = trustedTypes.createPolicy("anythinggoes", {
     "createHTML": x => x,
     "createScript": x => x,
-    "createURL": x => x,
     "createScriptURL": x => x,
   });
 
   const create_value = {
     "TrustedHTML": policy.createHTML("hello"),
     "TrustedScript": policy.createScript("x => x + x"),
-    "TrustedURL": policy.createURL("https://url.invalid/"),
     "TrustedScriptURL": policy.createScriptURL("https://url.invalid/blubb.js"),
     null: "empty",
   };
@@ -34,8 +31,7 @@
   // Also add several event handlers (onclick).
   let elements = ['madeup', 'b'];
   let properties = ['madeup', 'id', "onerror", "onclick"];
-  const types = [null, "TrustedHTML", "TrustedScript", "TrustedScriptURL",
-                 "TrustedURL"];
+  const types = [null, "TrustedHTML", "TrustedScript", "TrustedScriptURL"];
 
   // We'll wrap construction of the elements/properties list in a test, mainly
   // so we'll get decent error messages when it might fail.
@@ -70,7 +66,7 @@
         //     test_fn();
         //     assert_equals(element[property], value);
         //   } else {
-        //     assert_throws(..., test_fn, ...);
+        //     assert_throws_js(..., test_fn, ...);
         //   }
         //
         // Below is the same logic, but extended to handle the various edge
@@ -112,6 +108,11 @@
               // return and hence skip the result comparison.
               case "outerHTML":
                 return;
+              // URL-typed accessors
+              case "src":
+                if (elem == "iframe")
+                  return;
+                break;
               // Properties starting with "on" are usually error handlers,
               // which will parse their input as a function. In this case,
               // also skip the result comparison.
@@ -121,7 +122,7 @@
             }
             assert_equals("" + result_value, "" + value);
           } else {
-            assert_throws(new TypeError(), test_fn, "throws");
+            assert_throws_js(TypeError, test_fn, "throws");
           }
         }, `Test assignment of ${type ? type : "string"} on ${elem}.${property}`);
 
@@ -136,12 +137,11 @@
             test_fn();
             assert_equals("" + element.getAttribute(property), "" + value);
           } else {
-            assert_throws(new TypeError(), test_fn, "throws");
+            assert_throws_js(TypeError, test_fn, "throws");
           }
         }, `Test assignment of ${type ? type : "string"} on ${elem}.setAttribute(${property},..)`);
       }
     }
   }
-
 </script>
 </body>
