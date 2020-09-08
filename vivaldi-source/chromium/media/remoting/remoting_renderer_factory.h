@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,36 +6,68 @@
 #define MEDIA_REMOTING_REMOTING_RENDERER_FACTORY_H_
 
 #include "media/base/renderer_factory.h"
-#include "media/remoting/remoting_renderer_controller.h"
+#include "media/mojo/mojom/remoting.mojom.h"
+#include "media/remoting/rpc_broker.h"
+#include "mojo/public/cpp/bindings/pending_remote.h"
 
 namespace media {
+namespace remoting {
 
-// Create renderer for local playback or remoting according to info from
-// |remoting_renderer_controller|.
+class Receiver;
+class ReceiverController;
+
 class RemotingRendererFactory : public RendererFactory {
  public:
   RemotingRendererFactory(
-      std::unique_ptr<RendererFactory> default_renderer_factory,
-      std::unique_ptr<RemotingRendererController> remoting_renderer_controller);
+      mojo::PendingRemote<mojom::Remotee> remotee,
+      std::unique_ptr<RendererFactory> renderer_factory,
+      const scoped_refptr<base::SingleThreadTaskRunner>& media_task_runner);
   ~RemotingRendererFactory() override;
 
+  // RendererFactory implementation
   std::unique_ptr<Renderer> CreateRenderer(
       const scoped_refptr<base::SingleThreadTaskRunner>& media_task_runner,
       const scoped_refptr<base::TaskRunner>& worker_task_runner,
       AudioRendererSink* audio_renderer_sink,
       VideoRendererSink* video_renderer_sink,
-      const RequestSurfaceCB& request_surface_cb,
-      bool use_platform_media_pipeline,
-      bool platform_pipeline_enlarges_buffers_on_underflow) override;
+      RequestOverlayInfoCB request_overlay_info_cb,
+      const gfx::ColorSpace& target_color_space,
+      bool use_platform_media_pipeline = false) override;
 
  private:
-  const std::unique_ptr<RendererFactory> default_renderer_factory_;
-  const std::unique_ptr<RemotingRendererController>
-      remoting_renderer_controller_;
+  // Callback function when RPC message is received.
+  void OnReceivedRpc(std::unique_ptr<pb::RpcMessage> message);
+  void OnAcquireRenderer(std::unique_ptr<pb::RpcMessage> message);
+  void OnAcquireRendererDone(int receiver_rpc_handle);
 
-  DISALLOW_COPY_AND_ASSIGN(RemotingRendererFactory);
+  // Indicates whether RPC_ACQUIRE_RENDERER_DONE is sent or not.
+  bool is_acquire_renderer_done_sent_ = false;
+
+  ReceiverController* receiver_controller_;
+
+  RpcBroker* rpc_broker_;  // Outlives this class.
+
+  // The RPC handle used by all Receiver instances created by |this|. Sent only
+  // once to the sender side, through RPC_ACQUIRE_RENDERER_DONE, regardless of
+  // how many times CreateRenderer() is called."
+  const int renderer_handle_ = RpcBroker::kInvalidHandle;
+
+  // The RPC handle of the CourierRenderer on the sender side. Will be received
+  // once, via an RPC_ACQUIRE_RENDERER message"
+  int remote_renderer_handle_ = RpcBroker::kInvalidHandle;
+
+  // Used to set remote handle if receiving RPC_ACQUIRE_RENDERER after
+  // CreateRenderer() is called.
+  base::WeakPtr<Receiver> waiting_for_remote_handle_receiver_;
+  std::unique_ptr<RendererFactory> real_renderer_factory_;
+
+  // Used to instantiate |receiver_|.
+  const scoped_refptr<base::SingleThreadTaskRunner> media_task_runner_;
+
+  base::WeakPtrFactory<RemotingRendererFactory> weak_factory_{this};
 };
 
+}  // namespace remoting
 }  // namespace media
 
 #endif  // MEDIA_REMOTING_REMOTING_RENDERER_FACTORY_H_

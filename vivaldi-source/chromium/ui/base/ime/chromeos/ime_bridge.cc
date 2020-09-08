@@ -5,23 +5,25 @@
 #include "ui/base/ime/chromeos/ime_bridge.h"
 
 #include <map>
-#include "base/logging.h"
+
+#include "base/macros.h"
 #include "base/memory/singleton.h"
+#include "base/observer_list.h"
+#include "build/build_config.h"
 
-namespace chromeos {
+namespace ui {
 
-static IMEBridge* g_ime_bridge = NULL;
+static IMEBridge* g_ime_bridge = nullptr;
 
 // An implementation of IMEBridge.
 class IMEBridgeImpl : public IMEBridge {
  public:
   IMEBridgeImpl()
-      : input_context_handler_(NULL),
-        engine_handler_(NULL),
-        candidate_window_handler_(NULL),
-        current_input_context_(ui::TEXT_INPUT_TYPE_NONE,
+      : current_input_context_(ui::TEXT_INPUT_TYPE_NONE,
                                ui::TEXT_INPUT_MODE_DEFAULT,
-                               0) {}
+                               0,
+                               ui::TextInputClient::FOCUS_REASON_NONE,
+                               false /* should_do_learning */) {}
 
   ~IMEBridgeImpl() override {}
 
@@ -34,6 +36,8 @@ class IMEBridgeImpl : public IMEBridge {
   void SetInputContextHandler(
       IMEInputContextHandlerInterface* handler) override {
     input_context_handler_ = handler;
+    for (auto& observer : observers_)
+      observer.OnInputContextHandlerChanged();
   }
 
   // IMEBridge override.
@@ -44,18 +48,6 @@ class IMEBridgeImpl : public IMEBridge {
   // IMEBridge override.
   IMEEngineHandlerInterface* GetCurrentEngineHandler() const override {
     return engine_handler_;
-  }
-
-  // IMEBridge override.
-  IMECandidateWindowHandlerInterface* GetCandidateWindowHandler()
-      const override {
-    return candidate_window_handler_;
-  }
-
-  // IMEBridge override.
-  void SetCandidateWindowHandler(
-      IMECandidateWindowHandlerInterface* handler) override {
-    candidate_window_handler_ = handler;
   }
 
   // IMEBridge override.
@@ -70,22 +62,69 @@ class IMEBridgeImpl : public IMEBridge {
     return current_input_context_;
   }
 
+  // IMEBridge override.
+  void AddObserver(ui::IMEBridgeObserver* observer) override {
+    observers_.AddObserver(observer);
+  }
+
+  // IMEBridge override.
+  void RemoveObserver(ui::IMEBridgeObserver* observer) override {
+    observers_.RemoveObserver(observer);
+  }
+
+  // IMEBridge override.
+  void MaybeSwitchEngine() override {
+    for (auto& observer : observers_)
+      observer.OnRequestSwitchEngine();
+  }
+
+#if defined(OS_CHROMEOS)
+  // IMEBridge override.
+  void SetCandidateWindowHandler(
+      chromeos::IMECandidateWindowHandlerInterface* handler) override {
+    candidate_window_handler_ = handler;
+  }
+
+  // IMEBridge override.
+  chromeos::IMECandidateWindowHandlerInterface* GetCandidateWindowHandler()
+      const override {
+    return candidate_window_handler_;
+  }
+
+  // IMEBridge override.
+  void SetAssistiveWindowHandler(
+      chromeos::IMEAssistiveWindowHandlerInterface* handler) override {
+    assistive_window_handler_ = handler;
+  }
+
+  // IMEBridge override.
+  chromeos::IMEAssistiveWindowHandlerInterface* GetAssistiveWindowHandler()
+      const override {
+    return assistive_window_handler_;
+  }
+#endif
+
  private:
-  IMEInputContextHandlerInterface* input_context_handler_;
-  IMEEngineHandlerInterface* engine_handler_;
-  IMECandidateWindowHandlerInterface* candidate_window_handler_;
+  IMEInputContextHandlerInterface* input_context_handler_ = nullptr;
+  IMEEngineHandlerInterface* engine_handler_ = nullptr;
+  base::ObserverList<IMEBridgeObserver> observers_;
   IMEEngineHandlerInterface::InputContext current_input_context_;
+
+#if defined(OS_CHROMEOS)
+  chromeos::IMECandidateWindowHandlerInterface* candidate_window_handler_ =
+      nullptr;
+  chromeos::IMEAssistiveWindowHandlerInterface* assistive_window_handler_ =
+      nullptr;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(IMEBridgeImpl);
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // IMEBridge
-IMEBridge::IMEBridge() {
-}
+IMEBridge::IMEBridge() {}
 
-IMEBridge::~IMEBridge() {
-}
+IMEBridge::~IMEBridge() {}
 
 // static.
 void IMEBridge::Initialize() {
@@ -96,7 +135,7 @@ void IMEBridge::Initialize() {
 // static.
 void IMEBridge::Shutdown() {
   delete g_ime_bridge;
-  g_ime_bridge = NULL;
+  g_ime_bridge = nullptr;
 }
 
 // static.
@@ -104,4 +143,4 @@ IMEBridge* IMEBridge::Get() {
   return g_ime_bridge;
 }
 
-}  // namespace chromeos
+}  // namespace ui

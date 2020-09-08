@@ -4,7 +4,7 @@
 
 package org.chromium.chrome.browser.tab;
 
-import org.chromium.chrome.browser.fullscreen.FullscreenManager;
+import org.chromium.base.ObserverList.RewindableIterator;
 import org.chromium.content_public.browser.GestureListenerManager;
 import org.chromium.content_public.browser.GestureStateListener;
 import org.chromium.content_public.browser.WebContents;
@@ -28,7 +28,8 @@ public final class TabGestureStateListener extends TabWebContentsUserData {
     public static TabGestureStateListener from(Tab tab) {
         TabGestureStateListener listener = tab.getUserDataHost().getUserData(USER_DATA_KEY);
         if (listener == null) {
-            tab.getUserDataHost().setUserData(USER_DATA_KEY, new TabGestureStateListener(tab));
+            listener = tab.getUserDataHost().setUserData(
+                    USER_DATA_KEY, new TabGestureStateListener(tab));
         }
         return listener;
     }
@@ -63,13 +64,11 @@ public final class TabGestureStateListener extends TabWebContentsUserData {
             }
 
             private void onScrollingStateChanged() {
-                FullscreenManager fullscreenManager = FullscreenManager.from(mTab);
-                if (fullscreenManager == null) return;
-                fullscreenManager.onContentViewScrollingStateChanged(isScrollInProgress());
-            }
-
-            private boolean isScrollInProgress() {
-                return manager != null ? manager.isScrollInProgress() : false;
+                boolean scrolling = manager != null ? manager.isScrollInProgress() : false;
+                RewindableIterator<TabObserver> observers = ((TabImpl) mTab).getTabObservers();
+                while (observers.hasNext()) {
+                    observers.next().onContentViewScrollingStateChanged(scrolling);
+                }
             }
         };
         manager.addListener(mGestureListener);
@@ -77,8 +76,10 @@ public final class TabGestureStateListener extends TabWebContentsUserData {
 
     @Override
     public void cleanupWebContents(WebContents webContents) {
-        GestureListenerManager manager = GestureListenerManager.fromWebContents(webContents);
-        if (manager != null) manager.removeListener(mGestureListener);
+        if (webContents != null) {
+            GestureListenerManager manager = GestureListenerManager.fromWebContents(webContents);
+            if (manager != null) manager.removeListener(mGestureListener);
+        }
         mGestureListener = null;
     }
 }

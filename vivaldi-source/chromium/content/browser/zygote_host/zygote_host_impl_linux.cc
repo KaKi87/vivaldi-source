@@ -10,14 +10,13 @@
 
 #include "base/allocator/allocator_extension.h"
 #include "base/files/file_enumerator.h"
+#include "base/logging.h"
 #include "base/posix/unix_domain_socket.h"
 #include "base/process/kill.h"
 #include "base/process/memory.h"
 #include "base/strings/string_number_conversions.h"
-#include "content/browser/sandbox_host_linux.h"
-#include "content/common/zygote_commands_linux.h"
-#include "content/public/common/common_sandbox_support_linux.h"
-#include "content/public/common/content_switches.h"
+#include "build/build_config.h"
+#include "content/common/zygote/zygote_commands_linux.h"
 #include "sandbox/linux/services/credentials.h"
 #include "sandbox/linux/services/namespace_sandbox.h"
 #include "sandbox/linux/suid/client/setuid_sandbox_host.h"
@@ -74,11 +73,12 @@ ZygoteHostImpl* ZygoteHostImpl::GetInstance() {
 }
 
 void ZygoteHostImpl::Init(const base::CommandLine& command_line) {
-  if (command_line.HasSwitch(switches::kNoSandbox)) {
+  if (command_line.HasSwitch(service_manager::switches::kNoSandbox)) {
     return;
   }
 
-  // Exit early if running as root without --no-sandbox. See crbug.com/638180.
+  // Exit early if running as root without --no-sandbox. See
+  // https://crbug.com/638180.
   // When running as root with the sandbox enabled, the browser process
   // crashes on zygote initialization. Running as root with the sandbox
   // is not supported, and if Chrome were able to display UI it would be showing
@@ -87,7 +87,8 @@ void ZygoteHostImpl::Init(const base::CommandLine& command_line) {
   uid_t uid = 0;
   gid_t gid = 0;
   if (!sandbox::Credentials::GetRESIds(&uid, &gid) || uid == 0) {
-    LOG(ERROR) << "Running as root without --" << switches::kNoSandbox
+    LOG(ERROR) << "Running as root without --"
+               << service_manager::switches::kNoSandbox
                << " is not supported. See https://crbug.com/638180.";
     exit(EXIT_FAILURE);
   }
@@ -98,20 +99,10 @@ void ZygoteHostImpl::Init(const base::CommandLine& command_line) {
     sandbox_binary_ = setuid_sandbox_host->GetSandboxBinaryPath().value();
   }
 
-  if (!command_line.HasSwitch(switches::kDisableNamespaceSandbox) &&
+  if (!command_line.HasSwitch(
+          service_manager::switches::kDisableNamespaceSandbox) &&
       sandbox::Credentials::CanCreateProcessInNewUserNS()) {
     use_namespace_sandbox_ = true;
-
-#if defined(OS_CHROMEOS)
-    // Chrome OS has a kernel patch that restricts oom_score_adj. See
-    // crbug.com/576409 for details.
-    if (!sandbox_binary_.empty()) {
-      use_suid_sandbox_for_adj_oom_score_ = true;
-    } else {
-      LOG(ERROR) << "SUID sandbox binary is missing. Won't be able to adjust "
-                    "OOM scores.";
-    }
-#endif
   } else if (!command_line.HasSwitch(
                  service_manager::switches::kDisableSetuidSandbox) &&
              !sandbox_binary_.empty()) {
@@ -126,11 +117,11 @@ void ZygoteHostImpl::Init(const base::CommandLine& command_line) {
     LOG(FATAL)
         << "No usable sandbox! Update your kernel or see "
            "https://chromium.googlesource.com/chromium/src/+/master/"
-           "docs/linux_suid_sandbox_development.md for more information on "
+           "docs/linux/suid_sandbox_development.md for more information on "
            "developing with the SUID sandbox. "
            "If you want to live dangerously and need an immediate workaround, "
            "you can try using --"
-        << switches::kNoSandbox << ".";
+        << service_manager::switches::kNoSandbox << ".";
   }
 }
 
@@ -148,26 +139,27 @@ void ZygoteHostImpl::SetRendererSandboxStatus(int status) {
   renderer_sandbox_status_ = status;
 }
 
-int ZygoteHostImpl::GetRendererSandboxStatus() const {
+int ZygoteHostImpl::GetRendererSandboxStatus() {
   return renderer_sandbox_status_;
 }
 
-pid_t ZygoteHostImpl::LaunchZygote(base::CommandLine* cmd_line,
-                                   base::ScopedFD* control_fd) {
+pid_t ZygoteHostImpl::LaunchZygote(
+    base::CommandLine* cmd_line,
+    base::ScopedFD* control_fd,
+    base::FileHandleMappingVector additional_remapped_fds) {
   int fds[2];
   CHECK_EQ(0, socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds));
   CHECK(base::UnixDomainSocket::EnableReceiveProcessId(fds[0]));
 
   base::LaunchOptions options;
-  options.fds_to_remap.push_back(std::make_pair(fds[1], kZygoteSocketPairFd));
+  options.fds_to_remap = std::move(additional_remapped_fds);
+  options.fds_to_remap.emplace_back(fds[1], kZygoteSocketPairFd);
 
-  // Start up the sandbox host process and get the file descriptor for the
-  // sandboxed processes to talk to it.
-  const int sfd = SandboxHostLinux::GetInstance()->GetChildSocket();
-  options.fds_to_remap.push_back(std::make_pair(sfd, GetSandboxFD()));
+  const bool is_sandboxed_zygote =
+      !cmd_line->HasSwitch(service_manager::switches::kNoZygoteSandbox);
 
   base::ScopedFD dummy_fd;
-  if (use_suid_sandbox_) {
+  if (is_sandboxed_zygote && use_suid_sandbox_) {
     std::unique_ptr<sandbox::SetuidSandboxHost> sandbox_host(
         sandbox::SetuidSandboxHost::Create());
     sandbox_host->PrependWrapper(cmd_line);
@@ -176,7 +168,7 @@ pid_t ZygoteHostImpl::LaunchZygote(base::CommandLine* cmd_line,
   }
 
   base::Process process =
-      use_namespace_sandbox_
+      (is_sandboxed_zygote && use_namespace_sandbox_)
           ? sandbox::NamespaceSandbox::LaunchProcess(*cmd_line, options)
           : base::LaunchProcess(*cmd_line, options);
   CHECK(process.IsValid()) << "Failed to launch zygote process";
@@ -187,7 +179,7 @@ pid_t ZygoteHostImpl::LaunchZygote(base::CommandLine* cmd_line,
 
   pid_t pid = process.Pid();
 
-  if (use_namespace_sandbox_ || use_suid_sandbox_) {
+  if (is_sandboxed_zygote && (use_namespace_sandbox_ || use_suid_sandbox_)) {
     // The namespace and SUID sandbox will execute the zygote in a new
     // PID namespace, and the main zygote process will then fork from
     // there. Watch now our elaborate dance to find and validate the
@@ -204,7 +196,7 @@ pid_t ZygoteHostImpl::LaunchZygote(base::CommandLine* cmd_line,
     CHECK_GT(boot_pid, 1)
         << "Received invalid process ID for zygote; kernel might be too old? "
            "See crbug.com/357670 or try using --"
-        << switches::kNoSandbox << " to workaround.";
+        << service_manager::switches::kNoSandbox << " to workaround.";
 
     // Now receive the message that the zygote's ready to go, along with the
     // main zygote process's ID.
@@ -215,7 +207,7 @@ pid_t ZygoteHostImpl::LaunchZygote(base::CommandLine* cmd_line,
 
     if (real_pid != pid) {
       // Reap the sandbox.
-      base::EnsureProcessGetsReaped(pid);
+      base::EnsureProcessGetsReaped(std::move(process));
     }
     pid = real_pid;
   }
@@ -284,8 +276,8 @@ void ZygoteHostImpl::AdjustRendererOOMScore(base::ProcessHandle pid,
   std::vector<std::string> adj_oom_score_cmdline;
   adj_oom_score_cmdline.push_back(sandbox_binary_);
   adj_oom_score_cmdline.push_back(sandbox::kAdjustOOMScoreSwitch);
-  adj_oom_score_cmdline.push_back(base::Int64ToString(pid));
-  adj_oom_score_cmdline.push_back(base::IntToString(score));
+  adj_oom_score_cmdline.push_back(base::NumberToString(pid));
+  adj_oom_score_cmdline.push_back(base::NumberToString(score));
 
   // sandbox_helper_process is a setuid binary.
   base::LaunchOptions options;
@@ -294,7 +286,7 @@ void ZygoteHostImpl::AdjustRendererOOMScore(base::ProcessHandle pid,
   base::Process sandbox_helper_process =
       base::LaunchProcess(adj_oom_score_cmdline, options);
   if (sandbox_helper_process.IsValid())
-    base::EnsureProcessGetsReaped(sandbox_helper_process.Pid());
+    base::EnsureProcessGetsReaped(std::move(sandbox_helper_process));
 }
 #endif
 
