@@ -1,280 +1,158 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/exo/gamepad.h"
 
-#include <cmath>
-
 #include "base/bind.h"
-#include "base/location.h"
-#include "base/single_thread_task_runner.h"
-#include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
-#include "components/exo/gamepad_delegate.h"
-#include "components/exo/shell_surface.h"
-#include "components/exo/surface.h"
-#include "device/gamepad/gamepad_data_fetcher.h"
-#include "device/gamepad/gamepad_pad_state_provider.h"
-#include "device/gamepad/gamepad_platform_data_fetcher_linux.h"
-#include "ui/aura/window.h"
+#include "base/logging.h"
+#include "chromeos/constants/chromeos_features.h"
 
 namespace exo {
-namespace {
 
-constexpr double kGamepadButtonValueEpsilon = 0.001;
-bool GamepadButtonValuesAreEqual(double a, double b) {
-  return fabs(a - b) < kGamepadButtonValueEpsilon;
-}
-
-std::unique_ptr<device::GamepadDataFetcher> CreateGamepadPlatformDataFetcher() {
-  return std::unique_ptr<device::GamepadDataFetcher>(
-      new device::GamepadPlatformDataFetcherLinux());
-}
-
-// Time between gamepad polls in milliseconds.
-constexpr unsigned kPollingTimeIntervalMs = 16;
-
-}  // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-// Gamepad::ThreadSafeGamepadChangeFetcher
-
-// Implements all methods and resources running on the polling thread.
-// This class is reference counted to allow it to shut down safely on the
-// polling thread even if the Gamepad has been destroyed on the origin thread.
-class Gamepad::ThreadSafeGamepadChangeFetcher
-    : public device::GamepadPadStateProvider,
-      public base::RefCountedThreadSafe<
-          Gamepad::ThreadSafeGamepadChangeFetcher> {
- public:
-  using ProcessGamepadChangesCallback =
-      base::Callback<void(const blink::WebGamepad)>;
-
-  ThreadSafeGamepadChangeFetcher(
-      const ProcessGamepadChangesCallback& post_gamepad_changes,
-      const CreateGamepadDataFetcherCallback& create_fetcher_callback,
-      base::SingleThreadTaskRunner* task_runner)
-      : process_gamepad_changes_(post_gamepad_changes),
-        create_fetcher_callback_(create_fetcher_callback),
-        polling_task_runner_(task_runner),
-        origin_task_runner_(base::ThreadTaskRunnerHandle::Get()) {
-    thread_checker_.DetachFromThread();
-  }
-
-  // Enable or disable gamepad polling. Can be called from any thread.
-  void EnablePolling(bool enabled) {
-    polling_task_runner_->PostTask(
-        FROM_HERE,
-        base::Bind(
-            &ThreadSafeGamepadChangeFetcher::EnablePollingOnPollingThread,
-            make_scoped_refptr(this), enabled));
-  }
-
- private:
-  friend class base::RefCountedThreadSafe<ThreadSafeGamepadChangeFetcher>;
-
-  ~ThreadSafeGamepadChangeFetcher() override {}
-
-  // Enables or disables polling.
-  void EnablePollingOnPollingThread(bool enabled) {
-    DCHECK(thread_checker_.CalledOnValidThread());
-    is_enabled_ = enabled;
-
-    if (is_enabled_) {
-      if (!fetcher_) {
-        fetcher_ = create_fetcher_callback_.Run();
-        InitializeDataFetcher(fetcher_.get());
-        DCHECK(fetcher_);
-      }
-      SchedulePollOnPollingThread();
-    } else {
-      fetcher_.reset();
-    }
-  }
-
-  // Schedules the next poll on the polling thread.
-  void SchedulePollOnPollingThread() {
-    DCHECK(thread_checker_.CalledOnValidThread());
-    DCHECK(fetcher_);
-
-    if (!is_enabled_ || has_poll_scheduled_)
-      return;
-
-    has_poll_scheduled_ = true;
-    polling_task_runner_->PostDelayedTask(
-        FROM_HERE,
-        base::Bind(&ThreadSafeGamepadChangeFetcher::PollOnPollingThread,
-                   make_scoped_refptr(this)),
-        base::TimeDelta::FromMilliseconds(kPollingTimeIntervalMs));
-  }
-
-  // Polls devices for new data and posts gamepad changes back to origin thread.
-  void PollOnPollingThread() {
-    DCHECK(thread_checker_.CalledOnValidThread());
-
-    has_poll_scheduled_ = false;
-    if (!is_enabled_)
-      return;
-
-    DCHECK(fetcher_);
-
-    blink::WebGamepads new_state = state_;
-    fetcher_->GetGamepadData(
-        false /* No hardware changed notification from the system */);
-
-    device::PadState& pad_state = pad_states_.get()[0];
-
-    // After querying the gamepad clear the state if it did not have it's active
-    // state updated but is still listed as being associated with a specific
-    // source. This indicates the gamepad is disconnected.
-    if (!pad_state.active_state &&
-        pad_state.source != device::GAMEPAD_SOURCE_NONE) {
-      ClearPadState(pad_state);
-    }
-
-    MapAndSanitizeGamepadData(&pad_state, &new_state.items[0],
-                              false /* Don't sanitize gamepad data */);
-
-    // If the gamepad is still actively reporting the next call to
-    // GetGamepadData will set the active state to active again.
-    if (pad_state.active_state)
-      pad_state.active_state = device::GAMEPAD_INACTIVE;
-
-    if (new_state.items[0].connected != state_.items[0].connected ||
-        new_state.items[0].timestamp > state_.items[0].timestamp) {
-      origin_task_runner_->PostTask(
-          FROM_HERE, base::Bind(process_gamepad_changes_, new_state.items[0]));
-    }
-
-    state_ = new_state;
-    SchedulePollOnPollingThread();
-  }
-
-  // Callback to ProcessGamepadChanges using weak reference to Gamepad.
-  ProcessGamepadChangesCallback process_gamepad_changes_;
-
-  // Callback method to create a gamepad data fetcher.
-  CreateGamepadDataFetcherCallback create_fetcher_callback_;
-
-  // Reference to task runner on polling thread.
-  scoped_refptr<base::SingleThreadTaskRunner> polling_task_runner_;
-
-  // Reference to task runner on origin thread.
-  scoped_refptr<base::SingleThreadTaskRunner> origin_task_runner_;
-
-  // Gamepad data fetcher used for querying gamepad devices.
-  std::unique_ptr<device::GamepadDataFetcher> fetcher_;
-
-  // The current state of all gamepads.
-  blink::WebGamepads state_;
-
-  // True if a poll has been scheduled.
-  bool has_poll_scheduled_ = false;
-
-  // True if the polling thread is paused.
-  bool is_enabled_ = false;
-
-  // ThreadChecker for the polling thread.
-  base::ThreadChecker thread_checker_;
-
-  DISALLOW_COPY_AND_ASSIGN(ThreadSafeGamepadChangeFetcher);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// Gamepad, public:
-
-Gamepad::Gamepad(GamepadDelegate* delegate,
-                 base::SingleThreadTaskRunner* polling_task_runner)
-    : Gamepad(delegate,
-              polling_task_runner,
-              base::Bind(CreateGamepadPlatformDataFetcher)) {}
-
-Gamepad::Gamepad(GamepadDelegate* delegate,
-                 base::SingleThreadTaskRunner* polling_task_runner,
-                 CreateGamepadDataFetcherCallback create_fetcher_callback)
-    : delegate_(delegate), weak_factory_(this) {
-  gamepad_change_fetcher_ = new ThreadSafeGamepadChangeFetcher(
-      base::Bind(&Gamepad::ProcessGamepadChanges, weak_factory_.GetWeakPtr()),
-      create_fetcher_callback, polling_task_runner);
-
-  auto* helper = WMHelper::GetInstance();
-  helper->AddFocusObserver(this);
-  OnWindowFocused(helper->GetFocusedWindow(), nullptr);
-}
+Gamepad::Gamepad(const ui::GamepadDevice& gamepad_device)
+    : device(gamepad_device),
+      input_controller_(
+          ui::OzonePlatform::GetInstance()->GetInputController()) {}
 
 Gamepad::~Gamepad() {
-  // Disable polling. Since ThreadSafeGamepadChangeFetcher are reference
-  // counted, we can safely have it shut down after Gamepad has been destroyed.
-  gamepad_change_fetcher_->EnablePolling(false);
+  for (GamepadObserver& observer : observer_list_)
+    observer.OnGamepadDestroying(this);
 
-  delegate_->OnGamepadDestroying(this);
-  WMHelper::GetInstance()->RemoveFocusObserver(this);
+  if (delegate_)
+    delegate_->OnRemoved();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// aura::client::FocusChangeObserver overrides:
-
-void Gamepad::OnWindowFocused(aura::Window* gained_focus,
-                              aura::Window* lost_focus) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  Surface* target = nullptr;
-  if (gained_focus) {
-    target = Surface::AsSurface(gained_focus);
-    if (!target) {
-      aura::Window* top_level_window = gained_focus->GetToplevelWindow();
-      if (top_level_window)
-        target = ShellSurface::GetMainSurface(top_level_window);
-    }
-  }
-
-  bool focused = target && delegate_->CanAcceptGamepadEventsForSurface(target);
-  gamepad_change_fetcher_->EnablePolling(focused);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Gamepad, private:
-
-void Gamepad::ProcessGamepadChanges(const blink::WebGamepad new_pad) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  bool send_frame = false;
-
-  // Update connection state.
-  if (new_pad.connected != pad_state_.connected) {
-    delegate_->OnStateChange(new_pad.connected);
-  }
-
-  if (!new_pad.connected || new_pad.timestamp <= pad_state_.timestamp) {
-    pad_state_ = new_pad;
+void Gamepad::Vibrate(const std::vector<int64_t>& duration_millis,
+                      const std::vector<uint8_t>& amplitudes,
+                      int32_t repeat) {
+  if (!device.supports_vibration_rumble) {
+    VLOG(2) << "Vibrate failed because gamepad does not support vibration.";
     return;
   }
 
-  // Notify delegate of updated axes.
-  for (size_t axis = 0;
-       axis < std::max(pad_state_.axesLength, new_pad.axesLength); ++axis) {
-    if (!GamepadButtonValuesAreEqual(new_pad.axes[axis],
-                                     pad_state_.axes[axis])) {
-      send_frame = true;
-      delegate_->OnAxis(axis, new_pad.axes[axis]);
-    }
+  if (duration_millis.size() != amplitudes.size()) {
+    VLOG(2) << "Vibrate failed because the amplitudes vector and "
+               "duration_millis vector are not the same size.";
+    return;
   }
 
-  // Notify delegate of updated buttons.
-  for (size_t button_id = 0;
-       button_id < std::max(pad_state_.buttonsLength, new_pad.buttonsLength);
-       ++button_id) {
-    auto button = pad_state_.buttons[button_id];
-    auto new_button = new_pad.buttons[button_id];
-    if (button.pressed != new_button.pressed ||
-        !GamepadButtonValuesAreEqual(button.value, new_button.value)) {
-      send_frame = true;
-      delegate_->OnButton(button_id, new_button.pressed, new_button.value);
-    }
-  }
-  if (send_frame)
-    delegate_->OnFrame();
+  vibration_timer_.Stop();
+  vibration_timer_.Start(
+      FROM_HERE, base::TimeDelta::FromMilliseconds(0),
+      base::BindOnce(&Gamepad::HandleVibrate, base::Unretained(this),
+                     duration_millis, amplitudes, repeat, /*index=*/0,
+                     /*duration_already_vibrated=*/0));
+}
 
-  pad_state_ = new_pad;
+void Gamepad::HandleVibrate(const std::vector<int64_t>& duration_millis,
+                            const std::vector<uint8_t>& amplitudes,
+                            int32_t repeat,
+                            size_t index,
+                            int64_t duration_already_vibrated) {
+  size_t vector_size = duration_millis.size();
+  if (index >= vector_size)
+    return;
+
+  if (!can_vibrate_) {
+    VLOG(2) << "Gamepad is not allowed to vibrate because it is not in focus.";
+    return;
+  }
+
+  int64_t duration_left_to_vibrate =
+      duration_millis[index] - duration_already_vibrated;
+
+  if (duration_left_to_vibrate > kMaxDurationMillis) {
+    //  The device does not support effects this long. Issue periodic vibration
+    //  commands until the effect is complete.
+    SendVibrate(amplitudes[index], kMaxDurationMillis);
+    vibration_timer_.Start(
+        FROM_HERE, base::TimeDelta::FromMilliseconds(kMaxDurationMillis),
+        base::BindOnce(&Gamepad::HandleVibrate, base::Unretained(this),
+                       duration_millis, amplitudes, repeat, index,
+                       /*duration_already_vibrated=*/duration_already_vibrated +
+                           kMaxDurationMillis));
+  } else {
+    SendVibrate(amplitudes[index], duration_left_to_vibrate);
+    index++;
+    bool needs_to_repeat = index >= vector_size && repeat >= 0 &&
+                           repeat < static_cast<int32_t>(vector_size);
+    if (needs_to_repeat)
+      index = repeat;
+
+    vibration_timer_.Start(
+        FROM_HERE, base::TimeDelta::FromMilliseconds(duration_left_to_vibrate),
+        base::BindOnce(&Gamepad::HandleVibrate, base::Unretained(this),
+                       duration_millis, amplitudes, repeat, index,
+                       /*duration_already_vibrated=*/0));
+  }
+}
+
+void Gamepad::SendVibrate(uint8_t amplitude, int64_t duration_millis) {
+  // |duration_millis| is always <= |kMaxDurationMillis|, which is the max value
+  // for uint16_t, so it is safe to cast it to uint16_t here.
+  input_controller_->PlayVibrationEffect(
+      device.id, amplitude, static_cast<uint16_t>(duration_millis));
+}
+
+void Gamepad::CancelVibration() {
+  if (!device.supports_vibration_rumble) {
+    VLOG(2)
+        << "CancelVibration failed because gamepad does not support vibration.";
+    return;
+  }
+
+  if (!vibration_timer_.IsRunning())
+    return;
+
+  vibration_timer_.Stop();
+  SendCancelVibration();
+}
+
+void Gamepad::SendCancelVibration() {
+  input_controller_->StopVibration(device.id);
+}
+
+void Gamepad::SetDelegate(std::unique_ptr<GamepadDelegate> delegate) {
+  DCHECK(!delegate_);
+  delegate_ = std::move(delegate);
+}
+
+void Gamepad::AddObserver(GamepadObserver* observer) {
+  observer_list_.AddObserver(observer);
+}
+
+bool Gamepad::HasObserver(GamepadObserver* observer) const {
+  return observer_list_.HasObserver(observer);
+}
+
+void Gamepad::RemoveObserver(GamepadObserver* observer) {
+  observer_list_.RemoveObserver(observer);
+}
+
+void Gamepad::OnGamepadFocused() {
+  can_vibrate_ =
+      base::FeatureList::IsEnabled(chromeos::features::kGamepadVibration);
+}
+
+void Gamepad::OnGamepadFocusLost() {
+  can_vibrate_ = false;
+  CancelVibration();
+}
+
+void Gamepad::OnGamepadEvent(const ui::GamepadEvent& event) {
+  DCHECK(delegate_);
+  switch (event.type()) {
+    case ui::GamepadEventType::BUTTON:
+      delegate_->OnButton(event.code(), event.value(), event.timestamp());
+      break;
+    case ui::GamepadEventType::AXIS:
+      delegate_->OnAxis(event.code(), event.value(), event.timestamp());
+      break;
+    case ui::GamepadEventType::FRAME:
+      delegate_->OnFrame(event.timestamp());
+      break;
+  }
 }
 
 }  // namespace exo

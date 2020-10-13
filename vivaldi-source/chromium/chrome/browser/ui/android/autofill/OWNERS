@@ -1,3 +1,1 @@
-per-file password_generation_popup_view_android.*=rouslan@chromium.org
-
-# COMPONENT: UI>Browser>Autofill
+file://chrome/android/java/src/org/chromium/chrome/browser/autofill/OWNERS

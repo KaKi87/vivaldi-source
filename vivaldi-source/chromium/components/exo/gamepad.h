@@ -1,70 +1,105 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_EXO_GAMEPAD_H_
 #define COMPONENTS_EXO_GAMEPAD_H_
 
-#include <memory>
+#include <vector>
 
-#include "base/macros.h"
-#include "base/memory/weak_ptr.h"
-#include "base/sequenced_task_runner.h"
-#include "base/synchronization/lock.h"
-#include "base/threading/thread.h"
-#include "base/threading/thread_task_runner_handle.h"
-#include "components/exo/wm_helper.h"
-#include "device/gamepad/gamepad_data_fetcher.h"
-#include "ui/aura/client/focus_change_observer.h"
+#include "base/observer_list.h"
+#include "base/timer/timer.h"
+#include "components/exo/gamepad_delegate.h"
+#include "components/exo/gamepad_observer.h"
+#include "ui/events/devices/gamepad_device.h"
+#include "ui/events/ozone/gamepad/gamepad_event.h"
+#include "ui/ozone/public/input_controller.h"
+#include "ui/ozone/public/ozone_platform.h"
 
 namespace exo {
-class GamepadDelegate;
 
-using CreateGamepadDataFetcherCallback =
-    base::Callback<std::unique_ptr<device::GamepadDataFetcher>()>;
+// Maximum force feedback duration supported by Linux.
+constexpr int64_t kMaxDurationMillis = 0xFFFF;
 
-// This class represents one or more gamepads, it uses a background thread
-// for polling gamepad devices and notifies the GamepadDelegate of any
-// changes.
-class Gamepad : public WMHelper::FocusObserver {
+// This class represents one gamepad. It allows control over the gamepad's
+// vibration and provides focus tracking for the gamepad.
+class Gamepad {
  public:
-  // This class will post tasks to invoke the delegate on the thread runner
-  // which is associated with the thread that is creating this instance.
-  Gamepad(GamepadDelegate* delegate,
-          base::SingleThreadTaskRunner* polling_task_runner);
-  // Allows test cases to specify a CreateGamepadDataFetcherCallback that
-  // overrides the default GamepadPlatformDataFetcher.
-  Gamepad(GamepadDelegate* delegate,
-          base::SingleThreadTaskRunner* polling_task_runner,
-          CreateGamepadDataFetcherCallback create_fetcher_callback);
-  ~Gamepad() override;
+  explicit Gamepad(const ui::GamepadDevice& gamepad_device);
+  Gamepad(const Gamepad& other) = delete;
+  Gamepad& operator=(const Gamepad& other) = delete;
 
-  // Overridden WMHelper::FocusObserver:
-  void OnWindowFocused(aura::Window* gained_focus,
-                       aura::Window* lost_focus) override;
+  // The destructor also informs GamepadObservers and GamepadDelegate when a
+  // gamepad has been disconnected.
+  virtual ~Gamepad();
+
+  // Controls vibration effects on the gamepad.
+  // The duration_millis/amplitude pairs determine the duration and strength of
+  // the vibration. Note that the two vectors have to be the same size.
+  // The repeat value determines the index of the duration_millis (or
+  // amplitudes) vector at which the pattern to repeat begins. If repeat is
+  // enabled, the vibration pattern will repeat indefinitely until the vibration
+  // event is canceled. A repeat value of -1 disables repeat.
+  // The user does not have to explicitly call CancelVibration() at the end of
+  // every vibration call. However, if Vibrate() is called when there is an
+  // ongoing vibration, the existing vibration is automatically interrupted and
+  // canceled. The gamepad has to be focused in order for the gamepad to
+  // vibrate. If focus is lost when there is an ongoing vibration, the vibration
+  // is canceled automatically.
+  void Vibrate(const std::vector<int64_t>& duration_millis,
+               const std::vector<uint8_t>& amplitudes,
+               int32_t repeat);
+  void CancelVibration();
+
+  // The GamepadDelegate is not owned by Gamepad. The delegate must stay alive
+  // until OnRemoved is called.
+  void SetDelegate(std::unique_ptr<GamepadDelegate> delegate);
+
+  // Manages the GamepadObserver list. GamepadObservers are notified when the
+  // gamepad is being destroyed.
+  void AddObserver(GamepadObserver* observer);
+  bool HasObserver(GamepadObserver* observer) const;
+  void RemoveObserver(GamepadObserver* observer);
+
+  // Informs the gamepad when window focus changes; focus changes determine
+  // whether a gamepad is allowed to vibrate at any given time.
+  void OnGamepadFocused();
+  void OnGamepadFocusLost();
+
+  // Forwards gamepad events to the corresponding GamepadDelegate calls.
+  void OnGamepadEvent(const ui::GamepadEvent& event);
+
+  const ui::GamepadDevice device;
 
  private:
-  class ThreadSafeGamepadChangeFetcher;
+  // Private method for handling vibration patterns. Handles repeat and
+  // breaking down of vibration events by iterating through duration/amplitude
+  // vectors. Also provides handling for a vibration event that exceeds the
+  // maximum force feedback duration supported by Linux.
+  void HandleVibrate(const std::vector<int64_t>& duration_millis,
+                     const std::vector<uint8_t>& amplitudes,
+                     int32_t repeat,
+                     size_t start_index,
+                     int64_t duration_already_vibrated);
 
-  // Processes updates of gamepad data and passes changes on to delegate.
-  void ProcessGamepadChanges(const blink::WebGamepad new_pad);
+  // These methods forward vibration calls to |input_controller_|.
+  // They are virtual for testing purposes.
+  virtual void SendVibrate(uint8_t amplitude, int64_t duration_millis);
+  virtual void SendCancelVibration();
 
-  // Private implementation of methods and resources that are used on the
-  // polling thread.
-  scoped_refptr<ThreadSafeGamepadChangeFetcher> gamepad_change_fetcher_;
+  // Keeps track of whether the gamepad is allowed to vibrate at any given
+  // time.
+  bool can_vibrate_ = false;
 
-  // The delegate instance that all events are dispatched to.
-  GamepadDelegate* const delegate_;
+  std::unique_ptr<GamepadDelegate> delegate_;
 
-  // The current state of the gamepad represented by this instance.
-  blink::WebGamepad pad_state_;
+  base::ObserverList<GamepadObserver>::Unchecked observer_list_;
 
-  // ThreadChecker for the origin thread.
-  base::ThreadChecker thread_checker_;
+  // Methods to control gamepad vibration are routed through InputController.
+  ui::InputController* input_controller_;
 
-  base::WeakPtrFactory<Gamepad> weak_factory_;
-
-  DISALLOW_COPY_AND_ASSIGN(Gamepad);
+  // A timer to keep track of vibration requests.
+  base::OneShotTimer vibration_timer_;
 };
 
 }  // namespace exo
