@@ -1,39 +1,17 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2020 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #include "third_party/blink/renderer/modules/mediasource/media_source.h"
 
 #include <memory>
 
 #include "base/memory/ptr_util.h"
+#include "base/metrics/histogram_functions.h"
 #include "media/base/logging_override_if_enabled.h"
+#include "third_party/blink/public/common/privacy_budget/identifiability_metric_builder.h"
+#include "third_party/blink/public/common/privacy_budget/identifiability_study_settings.h"
+#include "third_party/blink/public/common/privacy_budget/identifiable_surface.h"
 #include "third_party/blink/public/platform/web_media_source.h"
 #include "third_party/blink/public/platform/web_source_buffer.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
@@ -42,16 +20,16 @@
 #include "third_party/blink/renderer/core/html/media/html_media_element.h"
 #include "third_party/blink/renderer/core/html/track/audio_track_list.h"
 #include "third_party/blink/renderer/core/html/track/video_track_list.h"
-#include "third_party/blink/renderer/modules/mediasource/media_source_registry.h"
+#include "third_party/blink/renderer/modules/mediasource/same_thread_media_source_tracer.h"
 #include "third_party/blink/renderer/modules/mediasource/source_buffer_track_base_supplement.h"
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/heap/heap.h"
-#include "third_party/blink/renderer/platform/instrumentation/histogram.h"
 #include "third_party/blink/renderer/platform/instrumentation/tracing/trace_event.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/network/mime/content_type.h"
 #include "third_party/blink/renderer/platform/network/mime/mime_type_registry.h"
+#include "third_party/blink/renderer/platform/privacy_budget/identifiability_digest_helpers.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 using blink::WebMediaSource;
@@ -64,11 +42,32 @@ namespace {
 // ones must never be renumbered or deleted and reused.
 enum class MseExecutionContext {
   kWindow = 0,
+
   kDedicatedWorker = 1,
+
+  // TODO(https://crbug.com/1054566): Consider supporting MSE usage in
+  // SharedWorkers.
   kSharedWorker = 2,
-  kMax = kSharedWorker
+  kMaxValue = kSharedWorker
 };
 }  // namespace
+
+static AtomicString ReadyStateToString(MediaSource::ReadyState state) {
+  AtomicString result;
+  switch (state) {
+    case MediaSource::ReadyState::kOpen:
+      result = "open";
+      break;
+    case MediaSource::ReadyState::kClosed:
+      result = "closed";
+      break;
+    case MediaSource::ReadyState::kEnded:
+      result = "ended";
+      break;
+  }
+
+  return result;
+}
 
 static bool ThrowExceptionIfClosed(bool is_open,
                                    ExceptionState& exception_state) {
@@ -89,30 +88,14 @@ static bool ThrowExceptionIfClosedOrUpdating(bool is_open,
     return true;
 
   if (is_updating) {
-    MediaSource::LogAndThrowDOMException(exception_state,
-                                         DOMExceptionCode::kInvalidStateError,
-                                         "The 'updating' attribute is true on "
-                                         "one or more of this MediaSource's "
-                                         "SourceBuffers.");
+    MediaSource::LogAndThrowDOMException(
+        exception_state, DOMExceptionCode::kInvalidStateError,
+        "The 'updating' attribute is true on one or more of this MediaSource's "
+        "SourceBuffers.");
     return true;
   }
 
   return false;
-}
-
-const AtomicString& MediaSource::OpenKeyword() {
-  DEFINE_STATIC_LOCAL(const AtomicString, open, ("open"));
-  return open;
-}
-
-const AtomicString& MediaSource::ClosedKeyword() {
-  DEFINE_STATIC_LOCAL(const AtomicString, closed, ("closed"));
-  return closed;
-}
-
-const AtomicString& MediaSource::EndedKeyword() {
-  DEFINE_STATIC_LOCAL(const AtomicString, ended, ("ended"));
-  return ended;
 }
 
 MediaSource* MediaSource::Create(ExecutionContext* context) {
@@ -120,8 +103,8 @@ MediaSource* MediaSource::Create(ExecutionContext* context) {
 }
 
 MediaSource::MediaSource(ExecutionContext* context)
-    : ContextLifecycleObserver(context),
-      ready_state_(ClosedKeyword()),
+    : ExecutionContextLifecycleObserver(context),
+      ready_state_(ReadyState::kClosed),
       async_event_queue_(
           MakeGarbageCollected<EventQueue>(context,
                                            TaskType::kMediaElementEvent)),
@@ -132,8 +115,7 @@ MediaSource::MediaSource(ExecutionContext* context)
       active_source_buffers_(
           MakeGarbageCollected<SourceBufferList>(GetExecutionContext(),
                                                  async_event_queue_.Get())),
-      live_seekable_range_(MakeGarbageCollected<TimeRanges>()),
-      added_to_registry_counter_(0) {
+      live_seekable_range_(MakeGarbageCollected<TimeRanges>()) {
   DVLOG(1) << __func__ << " this=" << this;
 
   DCHECK(RuntimeEnabledFeatures::MediaSourceInWorkersEnabled() ||
@@ -148,16 +130,13 @@ MediaSource::MediaSource(ExecutionContext* context)
     else
       CHECK(false) << "Invalid execution context for MSE usage";
   }
-  DEFINE_THREAD_SAFE_STATIC_LOCAL(
-      EnumerationHistogram, mse_execution_context_histogram,
-      ("Media.MSE.ExecutionContext",
-       static_cast<int>(MseExecutionContext::kMax) + 1));
-  mse_execution_context_histogram.Count(static_cast<int>(type));
+  base::UmaHistogramEnumeration("Media.MSE.ExecutionContext", type);
 
-  // TODO(wolenetz): Actually enable experimental usage of MediaSource from
-  // dedicated and shared worker contexts. See https://crbug.com/878133.
-  CHECK(type == MseExecutionContext::kWindow)
-      << "MSE is not yet supported from workers";
+  // TODO(https://crbug.com/1054566): Also consider supporting experimental
+  // usage of MediaSource API from shared worker contexts. Meanwhile, IDL limits
+  // constructor exposure to not include shared worker.
+  CHECK_NE(type, MseExecutionContext::kSharedWorker)
+      << "MSE is not supported from SharedWorkers";
 }
 
 MediaSource::~MediaSource() {
@@ -199,7 +178,7 @@ SourceBuffer* MediaSource::addSourceBuffer(const String& type,
   // relaxation of impl's StreamParserFactory (since it returns false if a
   // stream parser can't be constructed with |type|). See
   // https://crbug.com/535738.
-  if (!isTypeSupported(type)) {
+  if (!isTypeSupported(GetExecutionContext(), type)) {
     LogAndThrowDOMException(
         exception_state, DOMExceptionCode::kNotSupportedError,
         "The type provided ('" + type + "') is unsupported.");
@@ -236,8 +215,8 @@ SourceBuffer* MediaSource::addSourceBuffer(const String& type,
   bool generate_timestamps_flag =
       web_source_buffer->GetGenerateTimestampsFlag();
 
-  SourceBuffer* buffer = SourceBuffer::Create(std::move(web_source_buffer),
-                                              this, async_event_queue_.Get());
+  auto* buffer = MakeGarbageCollected<SourceBuffer>(
+      std::move(web_source_buffer), this, async_event_queue_.Get());
   // 8. Add the new object to sourceBuffers and queue a simple task to fire a
   //    simple event named addsourcebuffer at sourceBuffers.
   source_buffers_->Add(buffer);
@@ -291,14 +270,14 @@ void MediaSource::removeSourceBuffer(SourceBuffer* buffer,
   //     SourceBuffer::removedFromMediaSource (steps 2-8) above.
 }
 
-void MediaSource::OnReadyStateChange(const AtomicString& old_state,
-                                     const AtomicString& new_state) {
+void MediaSource::OnReadyStateChange(const ReadyState old_state,
+                                     const ReadyState new_state) {
   if (IsOpen()) {
     ScheduleEvent(event_type_names::kSourceopen);
     return;
   }
 
-  if (old_state == OpenKeyword() && new_state == EndedKeyword()) {
+  if (old_state == ReadyState::kOpen && new_state == ReadyState::kEnded) {
     ScheduleEvent(event_type_names::kSourceended);
     return;
   }
@@ -313,6 +292,8 @@ void MediaSource::OnReadyStateChange(const AtomicString& old_state,
   source_buffers_->Clear();
 
   attached_element_.Clear();
+  media_source_attachment_.reset();
+  attachment_tracer_ = nullptr;
 
   ScheduleEvent(event_type_names::kSourceclose);
 }
@@ -327,7 +308,9 @@ bool MediaSource::IsUpdating() const {
   return false;
 }
 
-bool MediaSource::isTypeSupported(const String& type) {
+// static
+bool MediaSource::isTypeSupported(ExecutionContext* context,
+                                  const String& type) {
   // Section 2.2 isTypeSupported() method steps.
   // https://dvcs.w3.org/hg/html-media/raw-file/tip/media-source/media-source.html#widl-MediaSource-isTypeSupported-boolean-DOMString-type
   // 1. If type is an empty string, then return false.
@@ -356,6 +339,7 @@ bool MediaSource::isTypeSupported(const String& type) {
       MIMETypeRegistry::kIsNotSupported) {
     DVLOG(1) << __func__ << "(" << type
              << ") -> false (not supported by HTMLMediaElement)";
+    RecordIdentifiabilityMetric(context, type, false);
     return false;
   }
 #endif
@@ -379,7 +363,23 @@ bool MediaSource::isTypeSupported(const String& type) {
                 MIMETypeRegistry::SupportsMediaSourceMIMEType(
                     content_type.GetType(), codecs);
   DVLOG(2) << __func__ << "(" << type << ") -> " << (result ? "true" : "false");
+  RecordIdentifiabilityMetric(context, type, result);
   return result;
+}
+
+void MediaSource::RecordIdentifiabilityMetric(ExecutionContext* context,
+                                              const String& type,
+                                              bool result) {
+  if (!IdentifiabilityStudySettings::Get()->ShouldSample(
+          blink::IdentifiableSurface::Type::kMediaSource_IsTypeSupported)) {
+    return;
+  }
+  blink::IdentifiabilityMetricBuilder(context->UkmSourceID())
+      .Set(blink::IdentifiableSurface::FromTypeAndToken(
+               blink::IdentifiableSurface::Type::kMediaSource_IsTypeSupported,
+               IdentifiabilityBenignStringToken(type)),
+           result)
+      .Record(context->UkmRecorder());
 }
 
 const AtomicString& MediaSource::InterfaceName() const {
@@ -387,38 +387,33 @@ const AtomicString& MediaSource::InterfaceName() const {
 }
 
 ExecutionContext* MediaSource::GetExecutionContext() const {
-  return ContextLifecycleObserver::GetExecutionContext();
+  return ExecutionContextLifecycleObserver::GetExecutionContext();
 }
 
-void MediaSource::Trace(blink::Visitor* visitor) {
+void MediaSource::Trace(Visitor* visitor) const {
   visitor->Trace(async_event_queue_);
+  visitor->Trace(attachment_tracer_);
   visitor->Trace(attached_element_);
   visitor->Trace(source_buffers_);
   visitor->Trace(active_source_buffers_);
   visitor->Trace(live_seekable_range_);
   EventTargetWithInlineData::Trace(visitor);
-  ContextLifecycleObserver::Trace(visitor);
+  ExecutionContextLifecycleObserver::Trace(visitor);
 }
 
-void MediaSource::SetWebMediaSourceAndOpen(
+void MediaSource::CompleteAttachingToMediaElement(
     std::unique_ptr<WebMediaSource> web_media_source) {
-  TRACE_EVENT_ASYNC_END0("media", "MediaSource::attachToElement", this);
+  TRACE_EVENT_NESTABLE_ASYNC_END0("media",
+                                  "MediaSource::StartAttachingToMediaElement",
+                                  TRACE_ID_LOCAL(this));
   DCHECK(web_media_source);
   DCHECK(!web_media_source_);
   DCHECK(attached_element_);
+  DCHECK(media_source_attachment_);
+  DCHECK(attachment_tracer_);
+
   web_media_source_ = std::move(web_media_source);
-  SetReadyState(OpenKeyword());
-}
-
-void MediaSource::AddedToRegistry() {
-  ++added_to_registry_counter_;
-  // Ensure there's no counter overflow.
-  CHECK_GT(added_to_registry_counter_, 0);
-}
-
-void MediaSource::RemovedFromRegistry() {
-  DCHECK_GT(added_to_registry_counter_, 0);
-  --added_to_registry_counter_;
+  SetReadyState(ReadyState::kOpen);
 }
 
 double MediaSource::duration() const {
@@ -459,7 +454,7 @@ WebTimeRanges MediaSource::BufferedInternal() const {
 
   // 5. For each SourceBuffer object in activeSourceBuffers run the following
   //    steps:
-  bool ended = readyState() == EndedKeyword();
+  bool ended = ready_state_ == ReadyState::kEnded;
   // 5.1 Let source ranges equal the ranges returned by the buffered attribute
   //     on the current SourceBuffer.
   for (WebTimeRanges& source_ranges : ranges) {
@@ -483,7 +478,7 @@ TimeRanges* MediaSource::Buffered() const {
 }
 
 WebTimeRanges MediaSource::SeekableInternal() const {
-  DCHECK(attached_element_)
+  DCHECK(attached_element_ && media_source_attachment_ && attachment_tracer_)
       << "Seekable should only be used when attached to HTMLMediaElement";
 
   // Implements MediaSource algorithm for HTMLMediaElement.seekable.
@@ -622,7 +617,7 @@ void MediaSource::DurationChangeAlgorithm(double new_duration,
     }
 
     Deprecation::CountDeprecation(
-        attached_element_->GetDocument(),
+        GetExecutionContext(),
         WebFeature::kMediaSourceDurationTruncatingBuffered);
     // See also deprecated remove(new duration, old duration) behavior below.
   }
@@ -633,7 +628,6 @@ void MediaSource::DurationChangeAlgorithm(double new_duration,
             std::isnan(old_duration) ? 0 : old_duration);
 
   // 4. Update duration to new duration.
-  bool request_seek = attached_element_->currentTime() > new_duration;
   web_media_source_->SetDuration(new_duration);
 
   if (!RuntimeEnabledFeatures::MediaSourceNewAbortAndDurationEnabled() &&
@@ -641,9 +635,10 @@ void MediaSource::DurationChangeAlgorithm(double new_duration,
     // Deprecated behavior: if the new duration is less than old duration,
     // then call remove(new duration, old duration) on all all objects in
     // sourceBuffers.
-    for (unsigned i = 0; i < source_buffers_->length(); ++i)
+    for (unsigned i = 0; i < source_buffers_->length(); ++i) {
       source_buffers_->item(i)->remove(new_duration, old_duration,
                                        ASSERT_NO_EXCEPTION);
+    }
   }
 
   // 5. If a user agent is unable to partially render audio frames or text cues
@@ -655,18 +650,20 @@ void MediaSource::DurationChangeAlgorithm(double new_duration,
 
   // 6. Update the media controller duration to new duration and run the
   //    HTMLMediaElement duration change algorithm.
-  attached_element_->DurationChanged(new_duration, request_seek);
+  media_source_attachment_->NotifyDurationChanged(attachment_tracer_,
+                                                  new_duration);
 }
 
-void MediaSource::SetReadyState(const AtomicString& state) {
-  DCHECK(state == OpenKeyword() || state == ClosedKeyword() ||
-         state == EndedKeyword());
+void MediaSource::SetReadyState(const ReadyState state) {
+  DCHECK(state == ReadyState::kOpen || state == ReadyState::kClosed ||
+         state == ReadyState::kEnded);
 
-  AtomicString old_state = readyState();
-  DVLOG(3) << __func__ << " this=" << this << " : " << old_state << " -> "
-           << state;
+  ReadyState old_state = ready_state_;
+  DVLOG(3) << __func__ << " this=" << this << " : "
+           << ReadyStateToString(old_state) << " -> "
+           << ReadyStateToString(state);
 
-  if (state == ClosedKeyword()) {
+  if (state == ReadyState::kClosed) {
     web_media_source_.reset();
   }
 
@@ -678,11 +675,12 @@ void MediaSource::SetReadyState(const AtomicString& state) {
   OnReadyStateChange(old_state, state);
 }
 
+AtomicString MediaSource::readyState() const {
+  return ReadyStateToString(ready_state_);
+}
+
 void MediaSource::endOfStream(const AtomicString& error,
                               ExceptionState& exception_state) {
-  DEFINE_STATIC_LOCAL(const AtomicString, network, ("network"));
-  DEFINE_STATIC_LOCAL(const AtomicString, decode, ("decode"));
-
   DVLOG(3) << __func__ << " this=" << this << " : error=" << error;
 
   // https://www.w3.org/TR/media-source/#dom-mediasource-endofstream
@@ -695,9 +693,9 @@ void MediaSource::endOfStream(const AtomicString& error,
     return;
 
   // 3. Run the end of stream algorithm with the error parameter set to error.
-  if (error == network)
+  if (error == "network")
     EndOfStreamAlgorithm(WebMediaSource::kEndOfStreamStatusNetworkError);
-  else if (error == decode)
+  else if (error == "decode")
     EndOfStreamAlgorithm(WebMediaSource::kEndOfStreamStatusDecodeError);
   else  // "" is allowed internally but not by IDL bindings.
     EndOfStreamAlgorithm(WebMediaSource::kEndOfStreamStatusNoError);
@@ -762,7 +760,7 @@ void MediaSource::clearLiveSeekableRange(ExceptionState& exception_state) {
 }
 
 bool MediaSource::IsOpen() const {
-  return readyState() == OpenKeyword();
+  return ready_state_ == ReadyState::kOpen;
 }
 
 void MediaSource::SetSourceBufferActive(SourceBuffer* source_buffer,
@@ -795,8 +793,15 @@ void MediaSource::SetSourceBufferActive(SourceBuffer* source_buffer,
   active_source_buffers_->insert(insert_position, source_buffer);
 }
 
+// TODO(https://crbug.com/878133): Remove this getter and instead rely on
+// Attachment() to communicate about the media element.
 HTMLMediaElement* MediaSource::MediaElement() const {
   return attached_element_.Get();
+}
+
+std::pair<scoped_refptr<MediaSourceAttachmentSupplement>, MediaSourceTracer*>
+MediaSource::AttachmentAndTracer() const {
+  return std::make_pair(media_source_attachment_, attachment_tracer_);
 }
 
 void MediaSource::EndOfStreamAlgorithm(
@@ -805,16 +810,17 @@ void MediaSource::EndOfStreamAlgorithm(
   // 1. Change the readyState attribute value to "ended".
   // 2. Queue a task to fire a simple event named sourceended at the
   //    MediaSource.
-  SetReadyState(EndedKeyword());
+  SetReadyState(ReadyState::kEnded);
 
   // 3. Do various steps based on |eos_status|.
   web_media_source_->MarkEndOfStream(eos_status);
 
   if (eos_status == WebMediaSource::kEndOfStreamStatusNoError) {
     // The implementation may not have immediately informed the
-    // |attached_element_| of the potentially reduced duration. Prevent
-    // app-visible duration race by synchronously running the duration change
-    // algorithm. The MSE spec supports this:
+    // |attached_element_| (or the element known by the |attachment_tracer_|
+    // for the current |media_source_attachment_|) of the potentially reduced
+    // duration. Prevent app-visible duration race by synchronously running the
+    // duration change algorithm. The MSE spec supports this:
     // https://www.w3.org/TR/media-source/#end-of-stream-algorithm
     // 2.4.7.3 (If error is not set)
     // Run the duration change algorithm with new duration set to the largest
@@ -828,35 +834,47 @@ void MediaSource::EndOfStreamAlgorithm(
     // to just mark end of stream, and move the duration reduction logic to here
     // so we can just run DurationChangeAlgorithm(...) here.
     double new_duration = duration();
-    bool request_seek = attached_element_->currentTime() > new_duration;
-    attached_element_->DurationChanged(new_duration, request_seek);
+    media_source_attachment_->NotifyDurationChanged(attachment_tracer_,
+                                                    new_duration);
   }
 }
 
 bool MediaSource::IsClosed() const {
-  return readyState() == ClosedKeyword();
+  return ready_state_ == ReadyState::kClosed;
 }
 
 void MediaSource::Close() {
-  SetReadyState(ClosedKeyword());
+  SetReadyState(ReadyState::kClosed);
 }
 
-bool MediaSource::AttachToElement(HTMLMediaElement* element) {
-  if (attached_element_)
-    return false;
+MediaSourceTracer* MediaSource::StartAttachingToMediaElement(
+    scoped_refptr<MediaSourceAttachmentSupplement> attachment,
+    HTMLMediaElement* element) {
+  if (attached_element_) {
+    DCHECK(media_source_attachment_);
+    DCHECK(attachment_tracer_);
+    return nullptr;
+  }
 
+  DCHECK(!media_source_attachment_);
+  DCHECK(!attachment_tracer_);
   DCHECK(IsClosed());
 
-  TRACE_EVENT_ASYNC_BEGIN0("media", "MediaSource::attachToElement", this);
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("media",
+                                    "MediaSource::StartAttachingToMediaElement",
+                                    TRACE_ID_LOCAL(this));
   attached_element_ = element;
-  return true;
+  media_source_attachment_ = attachment;
+  attachment_tracer_ =
+      MakeGarbageCollected<SameThreadMediaSourceTracer>(element, this);
+  return attachment_tracer_;
 }
 
 void MediaSource::OpenIfInEndedState() {
-  if (ready_state_ != EndedKeyword())
+  if (ready_state_ != ReadyState::kEnded)
     return;
 
-  SetReadyState(OpenKeyword());
+  SetReadyState(ReadyState::kOpen);
   web_media_source_->UnmarkEndOfStream();
 }
 
@@ -869,13 +887,15 @@ bool MediaSource::HasPendingActivity() const {
   // further motivation for apps to properly revokeObjectUrl and for the MSE
   // spec, implementations and API users to transition to using HTMLME srcObject
   // for MSE attachment instead of objectUrl.
-  return async_event_queue_->HasPendingEvents() ||
-         added_to_registry_counter_ > 0;
+  return async_event_queue_->HasPendingEvents();
 }
 
-void MediaSource::ContextDestroyed(ExecutionContext*) {
+void MediaSource::ContextDestroyed() {
+  DVLOG(1) << __func__ << " this=" << this;
+  if (media_source_attachment_)
+    media_source_attachment_->OnMediaSourceContextDestroyed();
   if (!IsClosed())
-    SetReadyState(ClosedKeyword());
+    SetReadyState(ReadyState::kClosed);
   web_media_source_.reset();
 }
 
@@ -925,10 +945,6 @@ void MediaSource::ScheduleEvent(const AtomicString& event_name) {
   event->SetTarget(this);
 
   async_event_queue_->EnqueueEvent(FROM_HERE, *event);
-}
-
-URLRegistry& MediaSource::Registry() const {
-  return MediaSourceRegistry::Registry();
 }
 
 }  // namespace blink

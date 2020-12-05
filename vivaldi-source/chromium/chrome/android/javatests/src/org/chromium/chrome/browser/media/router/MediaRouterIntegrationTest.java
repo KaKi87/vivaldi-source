@@ -7,11 +7,12 @@ package org.chromium.chrome.browser.media.router;
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
 
 import android.app.Dialog;
-import android.os.StrictMode;
 import android.support.test.InstrumentationRegistry;
-import android.support.test.filters.LargeTest;
 import android.view.View;
 
+import androidx.test.filters.LargeTest;
+
+import org.hamcrest.Matchers;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Assert;
@@ -20,27 +21,26 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Restriction;
-import org.chromium.base.test.util.RetryOnFailure;
-import org.chromium.chrome.browser.ChromeActivity;
-import org.chromium.chrome.browser.ChromeSwitches;
-import org.chromium.chrome.browser.media.RouterTestUtils;
-import org.chromium.chrome.test.ChromeActivityTestRule;
+import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.components.media_router.BrowserMediaRouter;
+import org.chromium.components.media_router.MockMediaRouteProvider;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.ClickUtils;
 import org.chromium.content_public.browser.test.util.Criteria;
 import org.chromium.content_public.browser.test.util.CriteriaHelper;
+import org.chromium.content_public.browser.test.util.CriteriaNotSatisfiedException;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
+import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.test.util.UiRestriction;
 
 import java.io.StringWriter;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Integration tests for MediaRouter.
@@ -52,8 +52,7 @@ import java.util.concurrent.TimeoutException;
         ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class MediaRouterIntegrationTest {
     @Rule
-    public ChromeActivityTestRule<ChromeActivity> mActivityTestRule =
-            new ChromeActivityTestRule<>(ChromeActivity.class);
+    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
     private static final String TEST_PAGE =
             "/chrome/test/media_router/resources/basic_test.html?__is_android__=true";
@@ -80,33 +79,17 @@ public class MediaRouterIntegrationTest {
     private static final int SCRIPT_TIMEOUT_MS = 10000;
     private static final int SCRIPT_RETRY_MS = 50;
 
-    private StrictMode.ThreadPolicy mOldPolicy;
-
     private EmbeddedTestServer mTestServer;
 
     @Before
     public void setUp() throws Exception {
-        ChromeMediaRouter.setRouteProviderFactoryForTest(new MockMediaRouteProvider.Factory());
+        BrowserMediaRouter.setRouteProviderFactoryForTest(new MockMediaRouteProvider.Factory());
         mActivityTestRule.startMainActivityOnBlankPage();
-        // Temporary until support library is updated, see http://crbug.com/576393.
-        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
-            @Override
-            public void run() {
-                mOldPolicy = StrictMode.allowThreadDiskWrites();
-            }
-        });
         mTestServer = EmbeddedTestServer.createAndStartServer(InstrumentationRegistry.getContext());
     }
 
     @After
-    public void tearDown() throws Exception {
-        // Temporary until support library is updated, see http://crbug.com/576393.
-        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
-            @Override
-            public void run() {
-                StrictMode.setThreadPolicy(mOldPolicy);
-            }
-        });
+    public void tearDown() {
         mTestServer.stopAndDestroyServer();
     }
 
@@ -164,20 +147,18 @@ public class MediaRouterIntegrationTest {
         try {
             JavaScriptUtils.executeJavaScriptAndWaitForResult(webContents, UNSET_RESULT_SCRIPT);
             JavaScriptUtils.executeJavaScriptAndWaitForResult(webContents, script);
-            CriteriaHelper.pollInstrumentationThread(new Criteria() {
-                    @Override
-                    public boolean isSatisfied() {
-                        try {
-                            String result = JavaScriptUtils.executeJavaScriptAndWaitForResult(
-                                    webContents, GET_RESULT_SCRIPT);
-                            return !result.equals("null");
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    }
-                }, maxTimeoutMs, intervalMs);
-            String unescapedResult = unescapeString(JavaScriptUtils
-                    .executeJavaScriptAndWaitForResult(webContents, GET_RESULT_SCRIPT));
+            CriteriaHelper.pollInstrumentationThread(() -> {
+                try {
+                    String result = JavaScriptUtils.executeJavaScriptAndWaitForResult(
+                            webContents, GET_RESULT_SCRIPT);
+                    Criteria.checkThat(result, Matchers.not("null"));
+                } catch (Exception e) {
+                    throw new CriteriaNotSatisfiedException(e);
+                }
+            }, maxTimeoutMs, intervalMs);
+            String unescapedResult =
+                    unescapeString(JavaScriptUtils.executeJavaScriptAndWaitForResult(
+                            webContents, GET_RESULT_SCRIPT));
             JSONObject jsonResult = new JSONObject(unescapedResult);
             Assert.assertTrue(
                     jsonResult.getString("errorMessage"), jsonResult.getBoolean("passed"));
@@ -189,8 +170,7 @@ public class MediaRouterIntegrationTest {
 
     String getJavaScriptVariable(WebContents webContents, String script) {
         try {
-            String result = JavaScriptUtils.executeJavaScriptAndWaitForResult(
-                    webContents, script);
+            String result = JavaScriptUtils.executeJavaScriptAndWaitForResult(webContents, script);
             if (result.charAt(0) == '\"' && result.charAt(result.length() - 1) == '\"') {
                 result = result.substring(1, result.length() - 1);
             }
@@ -211,8 +191,7 @@ public class MediaRouterIntegrationTest {
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testBasic() throws InterruptedException, TimeoutException {
+    public void testBasic() {
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
         executeJavaScriptApi(webContents, WAIT_DEVICE_SCRIPT);
@@ -224,8 +203,8 @@ public class MediaRouterIntegrationTest {
         executeJavaScriptApi(webContents, CHECK_SESSION_SCRIPT);
         String sessionId = getJavaScriptVariable(webContents, "startedConnection.id");
         Assert.assertFalse(sessionId.length() == 0);
-        String defaultRequestSessionId = getJavaScriptVariable(
-                webContents, "defaultRequestSessionId");
+        String defaultRequestSessionId =
+                getJavaScriptVariable(webContents, "defaultRequestSessionId");
         Assert.assertEquals(sessionId, defaultRequestSessionId);
         executeJavaScriptApi(webContents, TERMINATE_SESSION_SCRIPT);
     }
@@ -234,7 +213,7 @@ public class MediaRouterIntegrationTest {
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    public void testSendAndOnMessage() throws InterruptedException, TimeoutException {
+    public void testSendAndOnMessage() {
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
         executeJavaScriptApi(webContents, WAIT_DEVICE_SCRIPT);
@@ -246,16 +225,15 @@ public class MediaRouterIntegrationTest {
         executeJavaScriptApi(webContents, CHECK_SESSION_SCRIPT);
         String sessionId = getJavaScriptVariable(webContents, "startedConnection.id");
         Assert.assertFalse(sessionId.length() == 0);
-        executeJavaScriptApi(webContents,
-                String.format(SEND_MESSAGE_AND_EXPECT_RESPONSE_SCRIPT, "foo"));
+        executeJavaScriptApi(
+                webContents, String.format(SEND_MESSAGE_AND_EXPECT_RESPONSE_SCRIPT, "foo"));
     }
 
     @Test
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testOnClose() throws InterruptedException, TimeoutException {
+    public void testOnClose() {
         MockMediaRouteProvider.Factory.sProvider.setCloseRouteWithErrorOnSend(true);
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
@@ -268,16 +246,14 @@ public class MediaRouterIntegrationTest {
         executeJavaScriptApi(webContents, CHECK_SESSION_SCRIPT);
         String sessionId = getJavaScriptVariable(webContents, "startedConnection.id");
         Assert.assertFalse(sessionId.length() == 0);
-        executeJavaScriptApi(webContents,
-                SEND_MESSAGE_AND_EXPECT_CONNECTION_CLOSE_ON_ERROR_SCRIPT);
+        executeJavaScriptApi(webContents, SEND_MESSAGE_AND_EXPECT_CONNECTION_CLOSE_ON_ERROR_SCRIPT);
     }
 
     @Test
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testFailNoProvider() throws InterruptedException, TimeoutException {
+    public void testFailNoProvider() {
         MockMediaRouteProvider.Factory.sProvider.setIsSupportsSource(false);
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
@@ -295,8 +271,7 @@ public class MediaRouterIntegrationTest {
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testFailCreateRoute() throws InterruptedException, TimeoutException {
+    public void testFailCreateRoute() {
         MockMediaRouteProvider.Factory.sProvider.setCreateRouteErrorMessage("Unknown sink");
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
@@ -306,16 +281,14 @@ public class MediaRouterIntegrationTest {
                 mActivityTestRule.getActivity(), TEST_SINK_NAME, VIEW_TIMEOUT_MS, VIEW_RETRY_MS);
         ClickUtils.mouseSingleClickView(
                 InstrumentationRegistry.getInstrumentation(), testRouteButton);
-        checkStartFailed(
-                webContents, "UnknownError", "Unknown sink");
+        checkStartFailed(webContents, "UnknownError", "Unknown sink");
     }
 
     @Test
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testReconnectSession() throws InterruptedException, TimeoutException {
+    public void testReconnectSession() {
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
         executeJavaScriptApi(webContents, WAIT_DEVICE_SCRIPT);
@@ -341,8 +314,7 @@ public class MediaRouterIntegrationTest {
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testFailReconnectSession() throws InterruptedException, TimeoutException {
+    public void testFailReconnectSession() {
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
         executeJavaScriptApi(webContents, WAIT_DEVICE_SCRIPT);
@@ -358,16 +330,15 @@ public class MediaRouterIntegrationTest {
         mActivityTestRule.loadUrlInNewTab(mTestServer.getURL(TEST_PAGE_RECONNECT_FAIL));
         WebContents newWebContents = mActivityTestRule.getWebContents();
         Assert.assertTrue(webContents != newWebContents);
-        executeJavaScriptApi(newWebContents,
-                String.format("checkReconnectSessionFails('%s');", sessionId));
+        executeJavaScriptApi(
+                newWebContents, String.format("checkReconnectSessionFails('%s');", sessionId));
     }
 
     @Test
     @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE, RESTRICTION_TYPE_NON_LOW_END_DEVICE})
     @Feature({"MediaRouter"})
     @LargeTest
-    @RetryOnFailure
-    public void testFailStartCancelled() throws InterruptedException, TimeoutException {
+    public void testFailStartCancelled() {
         mActivityTestRule.loadUrl(mTestServer.getURL(TEST_PAGE));
         WebContents webContents = mActivityTestRule.getWebContents();
         executeJavaScriptApi(webContents, WAIT_DEVICE_SCRIPT);
@@ -375,12 +346,7 @@ public class MediaRouterIntegrationTest {
         final Dialog routeSelectionDialog = RouterTestUtils.waitForDialog(
                 mActivityTestRule.getActivity(), VIEW_TIMEOUT_MS, VIEW_RETRY_MS);
         Assert.assertNotNull(routeSelectionDialog);
-        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
-                @Override
-                public void run() {
-                    routeSelectionDialog.cancel();
-                }
-            });
+        TestThreadUtils.runOnUiThreadBlocking(() -> { routeSelectionDialog.cancel(); });
         checkStartFailed(webContents, "NotAllowedError", "Dialog closed.");
     }
 }

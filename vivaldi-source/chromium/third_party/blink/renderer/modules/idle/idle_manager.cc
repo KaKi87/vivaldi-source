@@ -1,98 +1,110 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <utility>
-
 #include "third_party/blink/renderer/modules/idle/idle_manager.h"
 
-#include "services/service_manager/public/cpp/interface_provider.h"
+#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
-#include "third_party/blink/renderer/core/dom/dom_exception.h"
-#include "third_party/blink/renderer/modules/idle/idle_status.h"
-#include "third_party/blink/renderer/platform/bindings/name_client.h"
-#include "third_party/blink/renderer/platform/bindings/script_state.h"
-#include "third_party/blink/renderer/platform/bindings/trace_wrapper_member.h"
-#include "third_party/blink/renderer/platform/heap/persistent.h"
+#include "third_party/blink/renderer/core/frame/local_dom_window.h"
+#include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/modules/permissions/permission_utils.h"
+#include "third_party/blink/renderer/platform/bindings/exception_state.h"
+#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
-const uint32_t kDefaultThresholdSeconds = 60;
+// static
+const char IdleManager::kSupplementName[] = "IdleManager";
 
-IdleManager::IdleManager(ExecutionContext* context) {}
-
-ScriptPromise IdleManager::query(ScriptState* script_state,
-                                 const IdleOptions* options,
-                                 ExceptionState& exception_state) {
-  ExecutionContext* context = ExecutionContext::From(script_state);
+// static
+IdleManager* IdleManager::From(ExecutionContext* context) {
+  DCHECK(context);
   DCHECK(context->IsContextThread());
 
-  // Validate options.
-  int32_t threshold_seconds =
-      options->hasThreshold() ? options->threshold() : kDefaultThresholdSeconds;
+  IdleManager* manager =
+      Supplement<ExecutionContext>::From<IdleManager>(context);
+  if (!manager) {
+    manager = MakeGarbageCollected<IdleManager>(context);
+    Supplement<ExecutionContext>::ProvideTo(*context, manager);
+  }
 
-  if (threshold_seconds <= 0) {
-    exception_state.ThrowTypeError("Invalid threshold");
+  return manager;
+}
+
+IdleManager::IdleManager(ExecutionContext* context)
+    : Supplement<ExecutionContext>(*context),
+      idle_service_(context),
+      permission_service_(context) {}
+
+IdleManager::~IdleManager() = default;
+
+ScriptPromise IdleManager::RequestPermission(ScriptState* script_state,
+                                             ExceptionState& exception_state) {
+  ExecutionContext* context = GetSupplementable();
+  DCHECK_EQ(context, ExecutionContext::From(script_state));
+
+  // This function is annotated with [Exposed=Window].
+  DCHECK(context->IsWindow());
+  auto* window = To<LocalDOMWindow>(context);
+
+  if (!LocalFrame::HasTransientUserActivation(window->GetFrame())) {
+    exception_state.ThrowDOMException(
+        DOMExceptionCode::kNotAllowedError,
+        "Must be handling a user gesture to show a permission request.");
     return ScriptPromise();
   }
 
-  base::TimeDelta threshold = base::TimeDelta::FromSeconds(threshold_seconds);
+  // This interface is annotated with [SecureContext].
+  DCHECK(context->IsSecureContext());
 
-  // TODO: Permission check.
-
-  if (!service_) {
-    // NOTE(goto): what are the benefits of initializing this here
-    // as opposed to the constructor? lazy loading?
-    context->GetInterfaceProvider()->GetInterface(mojo::MakeRequest(&service_));
-    service_.set_connection_error_handler(WTF::Bind(
-        &IdleManager::OnIdleManagerConnectionError, WrapWeakPersistent(this)));
+  if (!permission_service_.is_bound()) {
+    // See https://bit.ly/2S0zRAS for task types.
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner =
+        context->GetTaskRunner(TaskType::kMiscPlatformAPI);
+    ConnectToPermissionService(
+        context,
+        permission_service_.BindNewPipeAndPassReceiver(std::move(task_runner)));
   }
 
-  ScriptPromiseResolver* resolver = ScriptPromiseResolver::Create(script_state);
+  auto* resolver = MakeGarbageCollected<ScriptPromiseResolver>(script_state);
   ScriptPromise promise = resolver->Promise();
 
-  mojom::blink::IdleMonitorPtr monitor_ptr;
-  IdleStatus* status =
-      IdleStatus::Create(ExecutionContext::From(script_state), threshold,
-                         mojo::MakeRequest(&monitor_ptr));
-
-  requests_.insert(resolver);
-  service_->AddMonitor(
-      threshold, std::move(monitor_ptr),
-      WTF::Bind(&IdleManager::OnAddMonitor, WrapPersistent(this),
-                WrapPersistent(resolver), WrapPersistent(status)));
-
+  permission_service_->RequestPermission(
+      CreatePermissionDescriptor(mojom::blink::PermissionName::IDLE_DETECTION),
+      LocalFrame::HasTransientUserActivation(window->GetFrame()),
+      WTF::Bind(&IdleManager::OnPermissionRequestComplete, WrapPersistent(this),
+                WrapPersistent(resolver)));
   return promise;
 }
 
-IdleManager* IdleManager::Create(ExecutionContext* context) {
-  IdleManager* idle_manager = MakeGarbageCollected<IdleManager>(context);
-  return idle_manager;
-}
-
-void IdleManager::OnAddMonitor(ScriptPromiseResolver* resolver,
-                               IdleStatus* status,
-                               mojom::blink::IdleStatePtr state) {
-  DCHECK(requests_.Contains(resolver));
-  requests_.erase(resolver);
-
-  status->Init(std::move(state));
-  resolver->Resolve(status);
-}
-
-void IdleManager::Trace(blink::Visitor* visitor) {
-  ScriptWrappable::Trace(visitor);
-  visitor->Trace(requests_);
-}
-
-void IdleManager::OnIdleManagerConnectionError() {
-  // TODO(goto): write a unittest to cover this.
-  for (const auto& request : requests_) {
-    request->Reject(DOMException::Create(DOMExceptionCode::kNotSupportedError,
-                                         "Idle detection not available"));
+void IdleManager::AddMonitor(
+    base::TimeDelta threshold,
+    mojo::PendingRemote<mojom::blink::IdleMonitor> monitor,
+    mojom::blink::IdleManager::AddMonitorCallback callback) {
+  if (!idle_service_.is_bound()) {
+    ExecutionContext* context = GetSupplementable();
+    // See https://bit.ly/2S0zRAS for task types.
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner =
+        context->GetTaskRunner(TaskType::kMiscPlatformAPI);
+    context->GetBrowserInterfaceBroker().GetInterface(
+        idle_service_.BindNewPipeAndPassReceiver(task_runner));
   }
-  requests_.clear();
-  service_.reset();
+
+  idle_service_->AddMonitor(threshold, std::move(monitor), std::move(callback));
+}
+
+void IdleManager::Trace(Visitor* visitor) const {
+  visitor->Trace(idle_service_);
+  visitor->Trace(permission_service_);
+  Supplement<ExecutionContext>::Trace(visitor);
+}
+
+void IdleManager::OnPermissionRequestComplete(
+    ScriptPromiseResolver* resolver,
+    mojom::blink::PermissionStatus status) {
+  resolver->Resolve(PermissionStatusToString(status));
 }
 
 }  // namespace blink

@@ -2,13 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Define _GNU_SOURCE to ensure that <errno.h> defines
+// program_invocation_short_name. Keep this at the top of the file since some
+// system headers might include <errno.h> and the header could be skipped on
+// subsequent includes.
+#if (defined(OS_LINUX) || defined(OS_CHROMEOS)) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include "content/common/set_process_title.h"
 
 #include <stddef.h>
 
 #include "build/build_config.h"
 
-#if defined(OS_POSIX) && !defined(OS_MACOSX) && !defined(OS_SOLARIS)
+#if defined(OS_POSIX) && !defined(OS_MAC) && !defined(OS_SOLARIS)
 #include <limits.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -16,25 +24,27 @@
 #include <string>
 
 #include "base/command_line.h"
-#endif  // defined(OS_POSIX) && !defined(OS_MACOSX) && !defined(OS_SOLARIS)
+#endif  // defined(OS_POSIX) && !defined(OS_MAC) && !defined(OS_SOLARIS)
 
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
+#include <errno.h>  // Get program_invocation_short_name declaration.
 #include <sys/prctl.h>
 
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/no_destructor.h"
 #include "base/process/process_metrics.h"
 #include "base/strings/string_util.h"
 #include "base/threading/platform_thread.h"
 // Linux/glibc doesn't natively have setproctitle().
 #include "content/common/set_process_title_linux.h"
-#endif  // defined(OS_LINUX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 namespace content {
 
 // TODO(jrg): Find out if setproctitle or equivalent is available on Android.
-#if defined(OS_POSIX) && !defined(OS_MACOSX) && !defined(OS_SOLARIS) && \
-  !defined(OS_ANDROID)
+#if defined(OS_POSIX) && !defined(OS_MAC) && !defined(OS_SOLARIS) && \
+    !defined(OS_ANDROID) && !defined(OS_FUCHSIA)
 
 void SetProcessTitleFromCommandLine(const char** main_argv) {
   // Build a single string which consists of all the arguments separated
@@ -43,7 +53,7 @@ void SetProcessTitleFromCommandLine(const char** main_argv) {
   std::string title;
   bool have_argv0 = false;
 
-#if defined(OS_LINUX)
+#if defined(OS_LINUX) || defined(OS_CHROMEOS)
   DCHECK_EQ(base::PlatformThread::CurrentId(), getpid());
 
   if (main_argv)
@@ -64,13 +74,21 @@ void SetProcessTitleFromCommandLine(const char** main_argv) {
     if (base::EndsWith(title, kDeletedSuffix, base::CompareCase::SENSITIVE))
       title.resize(title.size() - kDeletedSuffix.size());
 
+    base::FilePath::StringType base_name =
+        base::FilePath(title).BaseName().value();
     // PR_SET_NAME is available in Linux 2.6.9 and newer.
     // When available at run time, this sets the short process name that shows
     // when the full command line is not being displayed in most process
     // listings.
-    prctl(PR_SET_NAME, base::FilePath(title).BaseName().value().c_str());
+    prctl(PR_SET_NAME, base_name.c_str());
+
+    // This prevents program_invocation_short_name from being broken by
+    // setproctitle().
+    static base::NoDestructor<base::FilePath::StringType> base_name_storage;
+    *base_name_storage = std::move(base_name);
+    program_invocation_short_name = &(*base_name_storage)[0];
   }
-#endif  // defined(OS_LINUX)
+#endif  // defined(OS_LINUX) || defined(OS_CHROMEOS)
 
   const base::CommandLine* command_line =
       base::CommandLine::ForCurrentProcess();
@@ -87,9 +105,8 @@ void SetProcessTitleFromCommandLine(const char** main_argv) {
 
 // All other systems (basically Windows & Mac) have no need or way to implement
 // this function.
-void SetProcessTitleFromCommandLine(const char** /* main_argv */) {
-}
+void SetProcessTitleFromCommandLine(const char** /* main_argv */) {}
 
 #endif
 
-} // namespace content
+}  // namespace content

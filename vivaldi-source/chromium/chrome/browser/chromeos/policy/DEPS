@@ -1,14 +1,10 @@
 include_rules = [
-  "+components/feedback",
-  "+components/invalidation",
-  "+components/user_manager",
+  # Run
+  #
+  #   buildtools/checkdeps/checkdeps.py chrome/browser/chromeos/policy
+  #
+  # to test.
+  # Allow includes for shell-encryption and private_membership third_party libs.
+  "+third_party/private_membership",
+  "+third_party/shell-encryption",
 ]
-
-specific_include_rules = {
-  # TODO(mash): http://crbug.com/705713.
-  "display_rotation_default_handler\.*": [
-    "+ash/display/window_tree_host_manager.h",
-    "+ash/shell.h",
-    "+ash/shell_observer.h",
-  ],
-}

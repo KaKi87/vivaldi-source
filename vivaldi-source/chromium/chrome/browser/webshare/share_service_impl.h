@@ -1,81 +1,61 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_WEBSHARE_SHARE_SERVICE_IMPL_H_
 #define CHROME_BROWSER_WEBSHARE_SHARE_SERVICE_IMPL_H_
 
-#include <memory>
 #include <string>
 #include <vector>
 
-#include "base/gtest_prod_util.h"
-#include "base/memory/weak_ptr.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_dialogs.h"
-#include "mojo/public/cpp/bindings/interface_request.h"
-#include "third_party/blink/public/platform/modules/webshare/webshare.mojom.h"
-#include "third_party/blink/public/platform/site_engagement.mojom.h"
+#include "base/strings/string_piece.h"
+#include "build/build_config.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "third_party/blink/public/mojom/webshare/webshare.mojom.h"
 
-namespace base {
-class DictionaryValue;
-}  // namespace base
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/webshare/chromeos/sharesheet_client.h"
+#endif
 
 class GURL;
-class WebShareTarget;
 
-// Desktop implementation of the ShareService Mojo service.
-class ShareServiceImpl : public blink::mojom::ShareService {
+namespace content {
+class RenderFrameHost;
+}
+
+constexpr size_t kMaxSharedFileCount = 10;
+constexpr uint64_t kMaxSharedFileBytes = 50 * 1024 * 1024;
+
+class ShareServiceImpl : public blink::mojom::ShareService,
+                         public content::WebContentsObserver {
  public:
-  ShareServiceImpl();
+  explicit ShareServiceImpl(content::RenderFrameHost& render_frame_host);
+  ShareServiceImpl(const ShareServiceImpl&) = delete;
+  ShareServiceImpl& operator=(const ShareServiceImpl&) = delete;
   ~ShareServiceImpl() override;
 
-  static void Create(mojo::InterfaceRequest<ShareService> request);
+  static void Create(
+      content::RenderFrameHost* render_frame_host,
+      mojo::PendingReceiver<blink::mojom::ShareService> receiver);
 
-  // blink::mojom::ShareService overrides:
+  static bool IsDangerousFilename(base::StringPiece);
+  static bool IsDangerousMimeType(base::StringPiece);
+
+  // blink::mojom::ShareService:
   void Share(const std::string& title,
              const std::string& text,
              const GURL& share_url,
+             std::vector<blink::mojom::SharedFilePtr> files,
              ShareCallback callback) override;
 
+  // content::WebContentsObserver:
+  void RenderFrameDeleted(content::RenderFrameHost* render_frame_host) override;
+
  private:
-  Browser* GetBrowser();
-
-  // Returns the URL template of the target identified by |target_url|
-  std::string GetTargetTemplate(const std::string& target_url,
-                                const base::DictionaryValue& share_targets);
-
-  // Virtual for testing purposes.
-  virtual PrefService* GetPrefService();
-
-  // Returns the site engagement level of the site, |url|, with the user.
-  // Virtual for testing purposes.
-  virtual blink::mojom::EngagementLevel GetEngagementLevel(const GURL& url);
-
-  // Shows the share picker dialog with |targets| as the list of applications
-  // presented to the user. Passes the result to |callback|. If the user picks a
-  // target, the result passed to |callback| is the manifest URL of the chosen
-  // target, or is null if the user cancelled the share. Virtual for testing.
-  virtual void ShowPickerDialog(std::vector<WebShareTarget> targets,
-                                chrome::WebShareTargetPickerCallback callback);
-
-  // Opens a new tab and navigates to |target_url|.
-  // Virtual for testing purposes.
-  virtual void OpenTargetURL(const GURL& target_url);
-
-  // Returns all stored Share Targets that have a high enough engagement score
-  // with the user.
-  std::vector<WebShareTarget> GetTargetsWithSufficientEngagement();
-
-  void OnPickerClosed(const std::string& title,
-                      const std::string& text,
-                      const GURL& share_url,
-                      ShareCallback callback,
-                      const WebShareTarget* result);
-
-  base::WeakPtrFactory<ShareServiceImpl> weak_factory_;
-
-  DISALLOW_COPY_AND_ASSIGN(ShareServiceImpl);
+#if defined(OS_CHROMEOS)
+  webshare::SharesheetClient sharesheet_client_;
+#endif
+  content::RenderFrameHost* render_frame_host_;
 };
 
 #endif  // CHROME_BROWSER_WEBSHARE_SHARE_SERVICE_IMPL_H_

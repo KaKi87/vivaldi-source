@@ -1,66 +1,52 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2020 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_MEDIA_SOURCE_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_MEDIASOURCE_MEDIA_SOURCE_H_
 
 #include <memory>
+#include <tuple>
+#include <utility>
 
+#include "base/memory/scoped_refptr.h"
 #include "third_party/blink/public/platform/web_media_source.h"
 #include "third_party/blink/renderer/bindings/core/v8/active_script_wrappable.h"
-#include "third_party/blink/renderer/core/execution_context/context_lifecycle_observer.h"
-#include "third_party/blink/renderer/core/fileapi/url_registry.h"
-#include "third_party/blink/renderer/core/html/media/html_media_source.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
+#include "third_party/blink/renderer/core/html/media/media_source_tracer.h"
 #include "third_party/blink/renderer/core/html/time_ranges.h"
 #include "third_party/blink/renderer/modules/event_target_modules.h"
+#include "third_party/blink/renderer/modules/mediasource/media_source_attachment_supplement.h"
 #include "third_party/blink/renderer/modules/mediasource/source_buffer.h"
 #include "third_party/blink/renderer/modules/mediasource/source_buffer_list.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
+#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/wtf/forward.h"
 
 namespace blink {
 
 class EventQueue;
 class ExceptionState;
+class HTMLMediaElement;
+class MediaSourceAttachmentSupplement;
+class TrackBase;
 class WebSourceBuffer;
 
+// Media Source Extensions (MSE) API's MediaSource object implementation (see
+// also https://w3.org/TR/media-source/). Web apps can extend an
+// HTMLMediaElement's instance to use the MSE API (also known as "attaching MSE
+// to a media element") by using a Media Source object URL as the media
+// element's src attribute or the src attribute of a <source> inside the media
+// element. A MediaSourceAttachmentSupplement encapsulates the linkage of that
+// object URL to a MediaSource instance, and allows communication between the
+// media element and the MSE API.
 class MediaSource final : public EventTargetWithInlineData,
-                          public HTMLMediaSource,
                           public ActiveScriptWrappable<MediaSource>,
-                          public ContextLifecycleObserver {
+                          public ExecutionContextLifecycleObserver {
   DEFINE_WRAPPERTYPEINFO();
-  USING_GARBAGE_COLLECTED_MIXIN(MediaSource);
 
  public:
-  static const AtomicString& OpenKeyword();
-  static const AtomicString& ClosedKeyword();
-  static const AtomicString& EndedKeyword();
+  enum class ReadyState { kOpen, kClosed, kEnded };
 
   static MediaSource* Create(ExecutionContext*);
 
@@ -72,7 +58,7 @@ class MediaSource final : public EventTargetWithInlineData,
                                       const String& message);
   static void LogAndThrowTypeError(ExceptionState&, const String&);
 
-  // MediaSource.idl methods
+  // Web-exposed methods from media_source.idl
   SourceBufferList* sourceBuffers() { return source_buffers_.Get(); }
   SourceBufferList* activeSourceBuffers() {
     return active_source_buffers_.Get();
@@ -85,24 +71,27 @@ class MediaSource final : public EventTargetWithInlineData,
   DEFINE_ATTRIBUTE_EVENT_LISTENER(sourceended, kSourceended)
   DEFINE_ATTRIBUTE_EVENT_LISTENER(sourceclose, kSourceclose)
 
-  const AtomicString& readyState() const { return ready_state_; }
+  AtomicString readyState() const;
   void endOfStream(const AtomicString& error, ExceptionState&);
   void endOfStream(ExceptionState&);
   void setLiveSeekableRange(double start, double end, ExceptionState&);
   void clearLiveSeekableRange(ExceptionState&);
 
-  static bool isTypeSupported(const String& type);
+  static bool isTypeSupported(ExecutionContext* context, const String& type);
 
-  // HTMLMediaSource
-  bool AttachToElement(HTMLMediaElement*) override;
-  void SetWebMediaSourceAndOpen(std::unique_ptr<WebMediaSource>) override;
-  void Close() override;
-  bool IsClosed() const override;
-  double duration() const override;
-  WebTimeRanges BufferedInternal() const override;
-  WebTimeRanges SeekableInternal() const override;
-  TimeRanges* Buffered() const override;
-  void OnTrackChanged(TrackBase*) override;
+  // Methods needed by a MediaSourceAttachmentSupplement to service operations
+  // proxied from an HTMLMediaElement.
+  MediaSourceTracer* StartAttachingToMediaElement(
+      scoped_refptr<MediaSourceAttachmentSupplement> attachment,
+      HTMLMediaElement* element);
+  void CompleteAttachingToMediaElement(std::unique_ptr<WebMediaSource>);
+  void Close();
+  bool IsClosed() const;
+  double duration() const;
+  WebTimeRanges BufferedInternal() const;
+  WebTimeRanges SeekableInternal() const;
+  TimeRanges* Buffered() const;
+  void OnTrackChanged(TrackBase*);
 
   // EventTarget interface
   const AtomicString& InterfaceName() const override;
@@ -111,28 +100,24 @@ class MediaSource final : public EventTargetWithInlineData,
   // ScriptWrappable
   bool HasPendingActivity() const final;
 
-  // ContextLifecycleObserver interface
-  void ContextDestroyed(ExecutionContext*) override;
-
-  // URLRegistrable interface
-  URLRegistry& Registry() const override;
+  // ExecutionContextLifecycleObserver interface
+  void ContextDestroyed() override;
 
   // Used by SourceBuffer.
   void OpenIfInEndedState();
   bool IsOpen() const;
   void SetSourceBufferActive(SourceBuffer*, bool);
   HTMLMediaElement* MediaElement() const;
+  std::pair<scoped_refptr<MediaSourceAttachmentSupplement>, MediaSourceTracer*>
+  AttachmentAndTracer() const;
   void EndOfStreamAlgorithm(const WebMediaSource::EndOfStreamStatus);
 
-  // Used by MediaSourceRegistry.
-  void AddedToRegistry();
-  void RemovedFromRegistry();
-
-  void Trace(blink::Visitor*) override;
+  void Trace(Visitor*) const override;
 
  private:
-  void SetReadyState(const AtomicString&);
-  void OnReadyStateChange(const AtomicString&, const AtomicString&);
+  void SetReadyState(const ReadyState state);
+  void OnReadyStateChange(const ReadyState old_state,
+                          const ReadyState new_state);
 
   bool IsUpdating() const;
 
@@ -140,29 +125,38 @@ class MediaSource final : public EventTargetWithInlineData,
                                                          const String& codecs,
                                                          ExceptionState&);
   void ScheduleEvent(const AtomicString& event_name);
+  static void RecordIdentifiabilityMetric(ExecutionContext* context,
+                                          const String& type,
+                                          bool result);
 
   // Implements the duration change algorithm.
   // http://w3c.github.io/media-source/#duration-change-algorithm
   void DurationChangeAlgorithm(double new_duration, ExceptionState&);
 
   std::unique_ptr<WebMediaSource> web_media_source_;
-  AtomicString ready_state_;
+  ReadyState ready_state_;
   Member<EventQueue> async_event_queue_;
 
-  // Here, using Member, instead of Member, to keep
-  // |attached_element_|, |source_buffers_|, |active_source_buffers_|, and their
-  // wrappers from being collected if we are alive or traceable from a GC root.
-  // Activity by this MediaSource or on references to objects returned by
-  // exercising this MediaSource (such as an app manipulating a SourceBuffer
-  // retrieved via activeSourceBuffers()) may cause events to be dispatched by
-  // these other objects.
+  // Keep the attached element (via attachment_tracer_), |source_buffers_|,
+  // |active_source_buffers_|, and their wrappers from being collected if we are
+  // alive or traceable from a GC root. Activity by this MediaSource or on
+  // references to objects returned by exercising this MediaSource (such as an
+  // app manipulating a SourceBuffer retrieved via activeSourceBuffers()) may
+  // cause events to be dispatched by these other objects.
+  // |media_source_attachment_| and |attachment_tracer_| must be carefully set
+  // and reset: the actual derived type of the attachment (same-thread vs
+  // cross-thread, for instance) must be the same semantic as the actual derived
+  // type of the tracer. Further, if there is no attachment, then there must be
+  // no tracer that's tracking an active attachment.
+  // TODO(https://crbug.com/878133): Remove |attached_element_| once it is fully
+  // replaced by usage of |media_source_attachment_| and |attachment_tracer_|.
+  scoped_refptr<MediaSourceAttachmentSupplement> media_source_attachment_;
+  Member<MediaSourceTracer> attachment_tracer_;
   Member<HTMLMediaElement> attached_element_;
   Member<SourceBufferList> source_buffers_;
   Member<SourceBufferList> active_source_buffers_;
 
   Member<TimeRanges> live_seekable_range_;
-
-  int added_to_registry_counter_;
 };
 
 }  // namespace blink

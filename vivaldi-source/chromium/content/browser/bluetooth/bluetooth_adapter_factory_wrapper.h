@@ -7,14 +7,9 @@
 
 #include <unordered_set>
 
-#include "base/macros.h"
-#include "base/time/time.h"
+#include "base/threading/thread_checker.h"
 #include "content/common/content_export.h"
 #include "device/bluetooth/bluetooth_adapter.h"
-
-namespace content {
-
-class WebBluetoothServiceImpl;
 
 // Wrapper around BluetoothAdapterFactory that allows us to change
 // the underlying BluetoothAdapter object and have the observers
@@ -22,24 +17,30 @@ class WebBluetoothServiceImpl;
 // TODO(ortuno): Once there is no need to swap the adapter to change its
 // behavior observers should add/remove themselves to/from the adapter.
 // http://crbug.com/603291
-class CONTENT_EXPORT BluetoothAdapterFactoryWrapper final {
+class CONTENT_EXPORT BluetoothAdapterFactoryWrapper {
  public:
-  typedef base::Callback<void(device::BluetoothAdapter*)>
-      AcquireAdapterCallback;
+  using AcquireAdapterCallback =
+      base::OnceCallback<void(scoped_refptr<device::BluetoothAdapter>)>;
 
   BluetoothAdapterFactoryWrapper();
+  BluetoothAdapterFactoryWrapper(const BluetoothAdapterFactoryWrapper& other) =
+      delete;
+  BluetoothAdapterFactoryWrapper& operator=(
+      const BluetoothAdapterFactoryWrapper& other) = delete;
   ~BluetoothAdapterFactoryWrapper();
 
-  // Returns true if the platform supports Bluetooth or if
+  static BluetoothAdapterFactoryWrapper& Get();
+
+  // Returns true if the platform supports Bluetooth Low Energy or if
   // SetBluetoothAdapterForTesting has been called.
-  bool IsBluetoothAdapterAvailable();
+  bool IsLowEnergySupported();
 
   // Adds |observer| to the set of adapter observers. If another observer has
   // acquired the adapter in the past it adds |observer| as an observer to that
   // adapter, otherwise it gets a new adapter and adds |observer| to it. Runs
   // |callback| with the adapter |observer| has been added to.
   void AcquireAdapter(device::BluetoothAdapter::Observer* observer,
-                      const AcquireAdapterCallback& callback);
+                      AcquireAdapterCallback callback);
   // Removes |observer| from the list of adapter observers if |observer|
   // has acquired the adapter in the past. If there are no more observers
   // it deletes the reference to the adapter.
@@ -50,10 +51,6 @@ class CONTENT_EXPORT BluetoothAdapterFactoryWrapper final {
   device::BluetoothAdapter* GetAdapter(
       device::BluetoothAdapter::Observer* observer);
 
-  // The period of time a device discovery session should be active for.
-  // Returns 0 if SetBluetoothAdapterForTesting has been called.
-  base::TimeDelta GetScanDuration() { return scan_duration_; }
-
   // Sets a new BluetoothAdapter to be returned by GetAdapter. When setting
   // a new adapter all observers from the old adapter are removed and added
   // to |mock_adapter|.
@@ -61,7 +58,7 @@ class CONTENT_EXPORT BluetoothAdapterFactoryWrapper final {
       scoped_refptr<device::BluetoothAdapter> mock_adapter);
 
  private:
-  void OnGetAdapter(const AcquireAdapterCallback& continuation,
+  void OnGetAdapter(AcquireAdapterCallback continuation,
                     scoped_refptr<device::BluetoothAdapter> adapter);
 
   bool HasAdapter(device::BluetoothAdapter::Observer* observer);
@@ -80,20 +77,14 @@ class CONTENT_EXPORT BluetoothAdapterFactoryWrapper final {
   // new adapter.
   std::unordered_set<device::BluetoothAdapter::Observer*> adapter_observers_;
 
-  // This is 0 if SetBluetoothAdapterForTesting has been called.
-  base::TimeDelta scan_duration_;
-
-  bool testing_;
+  // Should only be called on the UI thread.
+  THREAD_CHECKER(thread_checker_);
 
   // Weak pointer factory for generating 'this' pointers that might live longer
   // than we do.
   // Note: This should remain the last member so it'll be destroyed and
   // invalidate its weak pointers before any other members are destroyed.
-  base::WeakPtrFactory<BluetoothAdapterFactoryWrapper> weak_ptr_factory_;
-
-  DISALLOW_COPY_AND_ASSIGN(BluetoothAdapterFactoryWrapper);
+  base::WeakPtrFactory<BluetoothAdapterFactoryWrapper> weak_ptr_factory_{this};
 };
-
-}  // namespace content
 
 #endif  // CONTENT_BROWSER_BLUETOOTH_BLUETOOTH_ADAPTER_FACTORY_WRAPPER_H_
