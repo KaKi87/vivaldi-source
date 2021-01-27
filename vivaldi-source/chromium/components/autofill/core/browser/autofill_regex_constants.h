@@ -11,6 +11,8 @@ extern const char kAttentionIgnoredRe[];
 extern const char kRegionIgnoredRe[];
 extern const char kAddressNameIgnoredRe[];
 extern const char kCompanyRe[];
+extern const char kHouseNumberRe[];
+extern const char kStreetNameRe[];
 extern const char kAddressLine1Re[];
 extern const char kAddressLine1LabelRe[];
 extern const char kAddressLine2Re[];
@@ -37,6 +39,7 @@ extern const char kCardIgnoredRe[];
 extern const char kGiftCardRe[];
 extern const char kDebitGiftCardRe[];
 extern const char kDebitCardRe[];
+extern const char kDayRe[];
 extern const char kEmailRe[];
 extern const char kNameIgnoredRe[];
 extern const char kNameRe[];
@@ -45,7 +48,11 @@ extern const char kFirstNameRe[];
 extern const char kMiddleInitialRe[];
 extern const char kMiddleNameRe[];
 extern const char kLastNameRe[];
+extern const char kHonorificPrefixRe[];
+extern const char kNameLastFirstRe[];
+extern const char kNameLastSecondRe[];
 extern const char kPhoneRe[];
+extern const char kAugmentedPhoneCountryCodeRe[];
 extern const char kCountryCodeRe[];
 extern const char kAreaCodeNotextRe[];
 extern const char kAreaCodeRe[];
@@ -55,12 +62,37 @@ extern const char kPhoneSuffixSeparatorRe[];
 extern const char kPhonePrefixRe[];
 extern const char kPhoneSuffixRe[];
 extern const char kPhoneExtensionRe[];
+extern const char kSearchTermRe[];
+extern const char kPassportRe[];
+extern const char kTravelOriginRe[];
+extern const char kTravelDestinationRe[];
+extern const char kFlightRe[];
+extern const char kPriceRe[];
+extern const char kCreditCardCVCPattern[];
+extern const char kCreditCard4DigitExpYearPattern[];
+extern const char kSocialSecurityRe[];
+extern const char kOneTimePwdRe[];
 
 // Used to match field data that might be a UPI Virtual Payment Address.
 // See:
 //   - http://crbug.com/702220
 //   - https://upipayments.co.in/virtual-payment-address-vpa/
 extern const char kUPIVirtualPaymentAddressRe[];
+
+// Used to match field data that might be an International Bank Account Number.
+// TODO(crbug.com/977377): The regex doesn't match IBANs for Saint Lucia (LC),
+// Kazakhstan (KZ) and Romania (RO). Consider replace the regex with something
+// like "(?:IT|SM)\d{2}[A-Z]\d{22}|CY\d{2}[A-Z]\d{23}...". For reference:
+//    - https://www.swift.com/resource/iban-registry-pdf
+extern const char kInternationalBankAccountNumberRe[];
+
+// Match the path values for form actions that look like generic search:
+//  e.g. /search
+//       /search/
+//       /search/products...
+//       /products/search/
+//       /blah/search_all.jsp
+extern const char kUrlSearchActionRe[];
 
 }  // namespace autofill
 

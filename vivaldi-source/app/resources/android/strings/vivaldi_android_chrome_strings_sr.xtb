@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Коришћењем ове апликације прихватате Vivaldi <ph name="BEGIN_LINK1" />Уговор о лиценцирању са крајњим корисником<ph name="END_LINK1" /> и <ph name="BEGIN_LINK2" />Политику приватности<ph name="END_LINK2" />.</translation>
 <translation id="4243710787042215766">Отвори у приватној картици</translation>
 <translation id="4526803704855831732">Приватне картице</translation>
+<translation id="4759238208242260848">Преузимања</translation>
 <translation id="4883379392681899581">Напусти приватни режим</translation>
 <translation id="4943872375798546930">Нема резултата</translation>
 <translation id="49576331685473090">Блокатор садржаја</translation>
-<translation id="4960569554487356883">Укључите дозволу за Vivaldi у <ph name="BEGIN_LINK" />Android подешавањима<ph name="END_LINK" />.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> складиште</translation>
+<translation id="5186185447130319458">Приватно</translation>
 <translation id="5233638681132016545">Нова картица</translation>
-<translation id="5495228542153126976">Прешли сте у приватни режим</translation>
-<translation id="5553467336321715093">Укључите дозволе за Vivaldi у <ph name="BEGIN_LINK" />Android подешавањима<ph name="END_LINK" />.</translation>
 <translation id="572328651809341494">Недавне картице</translation>
 <translation id="5840488417521835756">Сазнајте више о темама на веб сајтовима без напуштања странице. Функција „Додирните за претрагу“ је доступна само када је Google постављен као подразумевани претраживач у Vivaldi прегледачу. Она шаље реч и њен околни контекст у Google претрагу враћајући дефиниције, слике, резултате претраге и друге детаље.
 
@@ -38,7 +37,6 @@
 <translation id="7427132068601343474">О Vivaldi прегледачу</translation>
 <translation id="7465104139234185284">Затвори све приватне картице</translation>
 <translation id="7519434535192513364">Функција „Додирните за претрагу“ је доступна само када је Google постављен као подразумевани претраживач у Vivaldi прегледачу. Она шаље изабрану реч и актуелну страницу као контекст у Google претрагу. Можете је искључити у <ph name="BEGIN_LINK" />Подешавањима<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Помоћ</translation>
 <translation id="804786196054284061">Уговор о лиценцирању са крајњим корисником</translation>
 <translation id="85991616550051997">Иди на почетну страницу</translation>
 <translation id="8820817407110198400">Обележивачи</translation>

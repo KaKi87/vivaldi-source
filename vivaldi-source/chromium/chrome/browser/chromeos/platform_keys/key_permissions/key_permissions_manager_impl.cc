@@ -4,529 +4,492 @@
 
 #include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_manager_impl.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include "base/base64.h"
 #include "base/bind.h"
-#include "base/callback.h"
+#include "base/containers/queue.h"
 #include "base/logging.h"
-#include "base/stl_util.h"
-#include "base/values.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/observer_list_types.h"
+#include "base/optional.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/extension_key_permissions_service.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions.pb.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_manager.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_pref_util.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/user_private_token_kpm_service_factory.h"
 #include "chrome/browser/chromeos/platform_keys/platform_keys.h"
-#include "chrome/browser/policy/profile_policy_connector.h"
+#include "chrome/browser/chromeos/platform_keys/platform_keys_service.h"
+#include "chrome/browser/chromeos/platform_keys/platform_keys_service_factory.h"
+#include "chrome/browser/chromeos/profiles/profile_helper.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
-#include "components/policy/core/common/policy_map.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/policy/core/common/policy_namespace.h"
 #include "components/policy/core/common/policy_service.h"
 #include "components/policy/policy_constants.h"
+#include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
-#include "components/prefs/scoped_user_pref_update.h"
-#include "extensions/browser/state_store.h"
-
-namespace chromeos {
-namespace platform_keys {
 
 namespace {
-// The key at which platform key specific data is stored in each extension's
-// state store.
-//
-// From older versions of ChromeOS, this key can hold a list of base64 and
-// DER-encoded SPKIs. A key can be used for signing at most once if it is part
-// of that list.
-//
-// The current format of data that is written to the PlatformKeys field is a
-// list of serialized KeyEntry objects:
-//   { 'SPKI': string,
-//     'signOnce': bool,  // if not present, defaults to false
-//     'signUnlimited': bool  // if not present, defaults to false
-//   }
-//
-// Do not change this constant as clients will lose their existing state.
-const char kStateStorePlatformKeys[] = "PlatformKeys";
-const char kStateStoreSPKI[] = "SPKI";
-const char kStateStoreSignOnce[] = "signOnce";
-const char kStateStoreSignUnlimited[] = "signUnlimited";
 
-// The profile pref prefs::kPlatformKeys stores a dictionary mapping from
-// public key (base64 encoding of an DER-encoded SPKI) to key properties. The
-// currently only key property is the key usage, which can either be undefined
-// or "corporate". If a key is not present in the pref, the default for the key
-// usage is undefined, which in particular means "not for corporate usage".
-// E.g. the entry in the profile pref might look like:
-// "platform_keys" : {
-//   "ABCDEF123" : {
-//     "keyUsage" : "corporate"
-//   },
-//   "abcdef567" : {
-//     "keyUsage" : "corporate"
-//   }
-// }
-const char kPrefKeyUsage[] = "keyUsage";
-const char kPrefKeyUsageCorporate[] = "corporate";
+bool g_one_time_migration_enabled_for_testing = true;
 
-const char kPolicyAllowCorporateKeyUsage[] = "allowCorporateKeyUsage";
+// Owned by ChromeBrowserMainPartsChromeos.
+chromeos::platform_keys::KeyPermissionsManager*
+    g_system_token_key_permissions_manager = nullptr;
 
-const base::DictionaryValue* GetPrefsEntry(
-    const std::string& public_key_spki_der_b64,
-    const PrefService* const profile_prefs) {
-  if (!profile_prefs)
-    return nullptr;
+chromeos::platform_keys::KeyPermissionsManager* g_system_token_kpm_for_testing =
+    nullptr;
 
-  const base::DictionaryValue* platform_keys =
-      profile_prefs->GetDictionary(prefs::kPlatformKeys);
-  if (!platform_keys)
-    return nullptr;
+const char kMigrationStatusHistogramName[] =
+    "ChromeOS.KeyPermissionsManager.Migration";
 
-  const base::Value* key_entry_value =
-      platform_keys->FindKey(public_key_spki_der_b64);
-  if (!key_entry_value)
-    return nullptr;
+// These values are logged to UMA. Entries should not be renumbered and
+// numeric values should never be reused. Please keep in sync with
+// MigrationStatus in src/tools/metrics/histograms/enums.xml.
+enum class MigrationStatus {
+  kStarted = 0,
+  kSucceeded = 1,
+  kFailed = 2,
+  kMaxValue = kFailed,
+};
 
-  const base::DictionaryValue* key_entry = nullptr;
-  key_entry_value->GetAsDictionary(&key_entry);
-  return key_entry;
-}
-
-const base::DictionaryValue* GetKeyPermissionsMap(
-    policy::PolicyService* const profile_policies) {
-  if (!profile_policies)
-    return nullptr;
-
-  const policy::PolicyMap& policies = profile_policies->GetPolicies(
-      policy::PolicyNamespace(policy::POLICY_DOMAIN_CHROME, std::string()));
-  const base::Value* policy_value =
-      policies.GetValue(policy::key::kKeyPermissions);
-  if (!policy_value) {
-    DVLOG(1) << "KeyPermissions policy is not set";
-    return nullptr;
-  }
-  const base::DictionaryValue* key_permissions_map = nullptr;
-  policy_value->GetAsDictionary(&key_permissions_map);
-  return key_permissions_map;
-}
-
-bool GetCorporateKeyUsageFromPref(
-    const base::DictionaryValue* key_permissions_for_ext) {
-  if (!key_permissions_for_ext)
-    return false;
-
-  const base::Value* allow_corporate_key_usage =
-      key_permissions_for_ext->FindKey(kPolicyAllowCorporateKeyUsage);
-  if (!allow_corporate_key_usage || !allow_corporate_key_usage->is_bool())
-    return false;
-  return allow_corporate_key_usage->GetBool();
-}
-
-// Returns true if the extension with id |extension_id| is allowed to use
-// corporate usage keys by policy in |profile_policies|.
-bool PolicyAllowsCorporateKeyUsageForExtension(
-    const std::string& extension_id,
-    policy::PolicyService* const profile_policies) {
-  if (!profile_policies)
-    return false;
-
-  const base::DictionaryValue* key_permissions_map =
-      GetKeyPermissionsMap(profile_policies);
-  if (!key_permissions_map)
-    return false;
-
-  const base::Value* key_permissions_for_ext_value =
-      key_permissions_map->FindKey(extension_id);
-  const base::DictionaryValue* key_permissions_for_ext = nullptr;
-  if (!key_permissions_for_ext_value ||
-      !key_permissions_for_ext_value->GetAsDictionary(
-          &key_permissions_for_ext) ||
-      !key_permissions_for_ext)
-    return false;
-
-  bool allow_corporate_key_usage =
-      GetCorporateKeyUsageFromPref(key_permissions_for_ext);
-
-  VLOG_IF(allow_corporate_key_usage, 2)
-      << "Policy allows usage of corporate keys by extension " << extension_id;
-  return allow_corporate_key_usage;
-}
-
-bool IsKeyOnUserSlot(const std::vector<TokenId>& key_locations) {
-  return base::Contains(key_locations, TokenId::kUser);
+chaps::KeyPermissions CreateKeyPermissions(bool corporate_usage_allowed,
+                                           bool arc_usage_allowed) {
+  chaps::KeyPermissions key_permissions;
+  key_permissions.mutable_key_usages()->set_corporate(corporate_usage_allowed);
+  key_permissions.mutable_key_usages()->set_arc(arc_usage_allowed);
+  return key_permissions;
 }
 
 }  // namespace
 
-struct KeyPermissionsManagerImpl::PermissionsForExtensionImpl::KeyEntry {
-  explicit KeyEntry(const std::string& public_key_spki_der_b64)
-      : spki_b64(public_key_spki_der_b64) {}
+namespace chromeos {
+namespace platform_keys {
 
-  // The base64-encoded DER of a X.509 Subject Public Key Info.
-  std::string spki_b64;
-
-  // True if the key can be used once for singing.
-  // This permission is granted if an extension generated a key using the
-  // enterprise.platformKeys API, so that it can build a certification request.
-  // After the first signing operation this permission will be revoked.
-  bool sign_once = false;
-
-  // True if the key can be used for signing an unlimited number of times.
-  // This permission is granted by the user to allow the extension to use the
-  // key for signing through the enterprise.platformKeys or platformKeys API.
-  // This permission is granted until revoked by the user or the policy.
-  bool sign_unlimited = false;
-};
-
-KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    PermissionsForExtensionImpl(const std::string& extension_id,
-                                std::unique_ptr<base::Value> state_store_value,
-                                PrefService* profile_prefs,
-                                policy::PolicyService* profile_policies,
-                                KeyPermissionsManagerImpl* key_permissions)
-    : extension_id_(extension_id),
-      profile_prefs_(profile_prefs),
-      profile_policies_(profile_policies),
-      key_permissions_(key_permissions) {
-  DCHECK(profile_prefs_);
-  DCHECK(profile_policies_);
-  DCHECK(key_permissions_);
-  if (state_store_value)
-    KeyEntriesFromState(*state_store_value);
+KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::
+    KeyPermissionsInChapsUpdater(
+        Mode mode,
+        KeyPermissionsManagerImpl* key_permissions_manager)
+    : mode_(mode), key_permissions_manager_(key_permissions_manager) {
+  DCHECK(key_permissions_manager_);
 }
 
-KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    ~PermissionsForExtensionImpl() {}
+KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::
+    ~KeyPermissionsInChapsUpdater() = default;
 
-bool KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    CanUseKeyForSigning(const std::string& public_key_spki_der,
-                        const std::vector<TokenId>& key_locations) {
-  if (key_locations.empty())
-    return false;
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::Update(
+    UpdateCallback callback) {
+  DCHECK(!update_started_) << "Update called more than once for the same "
+                              "updater instance.";
 
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
+  update_started_ = true;
+  callback_ = std::move(callback);
 
-  KeyEntry* matching_entry = GetStateStoreEntry(public_key_spki_der_b64);
-
-  // In any case, we allow the generating extension to use the generated key a
-  // single time for signing arbitrary data. The reason is, that the extension
-  // usually has to sign a certification request containing the public key in
-  // order to obtain a certificate for the key.
-  // That means, once a certificate authority generated a certificate for the
-  // key, the generating extension doesn't have access to the key anymore,
-  // except if explicitly permitted by the administrator.
-  if (matching_entry->sign_once)
-    return true;
-
-  // Usage of corporate keys is solely determined by policy. The user must not
-  // circumvent this decision.
-  if (key_permissions_->IsCorporateKey(public_key_spki_der, key_locations))
-    return PolicyAllowsCorporateKeyUsage();
-
-  // Only permissions for keys that are not designated for corporate usage are
-  // determined by user decisions.
-  return matching_entry->sign_unlimited;
+  key_permissions_manager_->platform_keys_service_->GetAllKeys(
+      key_permissions_manager_->token_id_,
+      base::BindOnce(&KeyPermissionsInChapsUpdater::UpdateWithAllKeys,
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
-void KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    SetKeyUsedForSigning(const std::string& public_key_spki_der,
-                         const std::vector<TokenId>& key_locations) {
-  if (key_locations.empty())
-    return;
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::UpdateWithAllKeys(
+    std::vector<std::string> public_key_spki_der_list,
+    Status keys_retrieval_status) {
+  DCHECK(public_key_spki_der_queue_.empty());
 
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
+  for (auto& public_key : public_key_spki_der_list) {
+    public_key_spki_der_queue_.push(std::move(public_key));
+  }
 
-  KeyEntry* matching_entry = GetStateStoreEntry(public_key_spki_der_b64);
+  UpdateNextKey();
+}
 
-  if (!matching_entry->sign_once) {
-    if (!CanUseKeyForSigning(public_key_spki_der, key_locations))
-      LOG(ERROR) << "Key was not allowed for signing.";
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::UpdateNextKey() {
+  if (public_key_spki_der_queue_.empty()) {
+    std::move(callback_).Run(Status::kSuccess);
     return;
   }
 
-  matching_entry->sign_once = false;
-  WriteToStateStore();
+  auto public_key = std::move(public_key_spki_der_queue_.front());
+  public_key_spki_der_queue_.pop();
+
+  UpdatePermissionsForKey(public_key);
 }
 
-void KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    RegisterKeyForCorporateUsage(const std::string& public_key_spki_der,
-                                 const std::vector<TokenId>& key_locations) {
-  if (key_locations.empty()) {
-    NOTREACHED();
-    return;
-  }
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::
+    UpdatePermissionsForKey(const std::string& public_key_spki_der) {
+  switch (mode_) {
+    case Mode::kMigratePermissionsFromPrefs: {
+      bool corporate_usage_allowed =
+          key_permissions_manager_->token_id_ == TokenId::kSystem ||
+          internal::IsUserKeyMarkedCorporateInPref(
+              public_key_spki_der, key_permissions_manager_->pref_service_);
 
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
+      UpdatePermissionsForKeyWithCorporateFlag(
+          std::move(public_key_spki_der), corporate_usage_allowed,
+          /*corporate_usage_retrieval_status=*/Status::kSuccess);
+      break;
+    }
+    case Mode::kUpdateArcUsageFlag: {
+      key_permissions_manager_->IsKeyAllowedForUsage(
+          base::BindOnce(&KeyPermissionsInChapsUpdater::
+                             UpdatePermissionsForKeyWithCorporateFlag,
+                         weak_ptr_factory_.GetWeakPtr(), public_key_spki_der),
+          KeyUsage::kCorporate, public_key_spki_der);
 
-  KeyEntry* matching_entry = GetStateStoreEntry(public_key_spki_der_b64);
-
-  if (matching_entry->sign_once) {
-    VLOG(1) << "Key is already allowed for signing, skipping.";
-    return;
-  }
-
-  matching_entry->sign_once = true;
-  WriteToStateStore();
-
-  // Only register the key as corporate in the profile prefs if it is on the
-  // user slot. Keys on the system slot are implicitly corporate. We have still
-  // stored the sign_once permission, so the enrolling extension in the same
-  // profile can use the key for signing once in order to build a CSR even if it
-  // doesn't have permission to use corporate keys.
-  if (!IsKeyOnUserSlot(key_locations))
-    return;
-
-  key_permissions_->SetCorporateKey(public_key_spki_der, TokenId::kUser);
-}
-
-void KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    SetUserGrantedPermission(const std::string& public_key_spki_der,
-                             const std::vector<TokenId>& key_locations) {
-  if (!key_permissions_->CanUserGrantPermissionFor(public_key_spki_der,
-                                                   key_locations)) {
-    LOG(WARNING) << "Tried to grant permission for a key although prohibited "
-                    "(either key is a corporate key or this account is "
-                    "managed).";
-    return;
-  }
-
-  // It only makes sense to store the sign_unlimited flag for a key if it is on
-  // a user slot. Currently, system-slot keys are implicitly corporate, so
-  // CanUserGrantPermissionForKey should return false for them.
-  DCHECK(IsKeyOnUserSlot(key_locations));
-
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
-  KeyEntry* matching_entry = GetStateStoreEntry(public_key_spki_der_b64);
-
-  if (matching_entry->sign_unlimited) {
-    VLOG(1) << "Key is already allowed for signing, skipping.";
-    return;
-  }
-
-  matching_entry->sign_unlimited = true;
-  WriteToStateStore();
-}
-
-bool KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    PolicyAllowsCorporateKeyUsage() const {
-  return PolicyAllowsCorporateKeyUsageForExtension(extension_id_,
-                                                   profile_policies_);
-}
-
-void KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    WriteToStateStore() {
-  key_permissions_->SetPlatformKeysOfExtension(extension_id_,
-                                               KeyEntriesToState());
-}
-
-void KeyPermissionsManagerImpl::PermissionsForExtensionImpl::
-    KeyEntriesFromState(const base::Value& state) {
-  state_store_entries_.clear();
-
-  const base::ListValue* entries = nullptr;
-  if (!state.GetAsList(&entries)) {
-    LOG(ERROR) << "Found a state store of wrong type.";
-    return;
-  }
-  for (const auto& entry : *entries) {
-    std::string spki_b64;
-    const base::DictionaryValue* dict_entry = nullptr;
-    if (entry.GetAsString(&spki_b64)) {
-      // This handles the case that the store contained a plain list of base64
-      // and DER-encoded SPKIs from an older version of ChromeOS.
-      KeyEntry new_entry(spki_b64);
-      new_entry.sign_once = true;
-      state_store_entries_.push_back(new_entry);
-    } else if (entry.GetAsDictionary(&dict_entry)) {
-      dict_entry->GetStringWithoutPathExpansion(kStateStoreSPKI, &spki_b64);
-      KeyEntry new_entry(spki_b64);
-      dict_entry->GetBooleanWithoutPathExpansion(kStateStoreSignOnce,
-                                                 &new_entry.sign_once);
-      dict_entry->GetBooleanWithoutPathExpansion(kStateStoreSignUnlimited,
-                                                 &new_entry.sign_unlimited);
-      state_store_entries_.push_back(new_entry);
-    } else {
-      LOG(ERROR) << "Found invalid entry of type " << entry.type()
-                 << " in PlatformKeys state store.";
-      continue;
+      break;
     }
   }
 }
 
-std::unique_ptr<base::Value>
-KeyPermissionsManagerImpl::PermissionsForExtensionImpl::KeyEntriesToState() {
-  std::unique_ptr<base::ListValue> new_state(new base::ListValue);
-  for (const KeyEntry& entry : state_store_entries_) {
-    // Drop entries that the extension doesn't have any permissions for anymore.
-    if (!entry.sign_once && !entry.sign_unlimited)
-      continue;
-
-    std::unique_ptr<base::DictionaryValue> new_entry(new base::DictionaryValue);
-    new_entry->SetKey(kStateStoreSPKI, base::Value(entry.spki_b64));
-    // Omit writing default values, namely |false|.
-    if (entry.sign_once) {
-      new_entry->SetKey(kStateStoreSignOnce, base::Value(entry.sign_once));
-    }
-    if (entry.sign_unlimited) {
-      new_entry->SetKey(kStateStoreSignUnlimited,
-                        base::Value(entry.sign_unlimited));
-    }
-    new_state->Append(std::move(new_entry));
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::
+    UpdatePermissionsForKeyWithCorporateFlag(
+        const std::string& public_key_spki_der,
+        base::Optional<bool> corporate_usage_allowed,
+        Status corporate_usage_retrieval_status) {
+  if (corporate_usage_retrieval_status != Status::kSuccess) {
+    LOG(ERROR) << "Couldn't retrieve corporate usage flag for a key.";
+    std::move(callback_).Run(corporate_usage_retrieval_status);
+    return;
   }
-  return std::move(new_state);
+
+  DCHECK(corporate_usage_allowed.has_value());
+
+  bool arc_usage_allowed =
+      corporate_usage_allowed.value() &&
+      key_permissions_manager_->AreCorporateKeysAllowedForArcUsage();
+
+  chaps::KeyPermissions key_permissions =
+      CreateKeyPermissions(corporate_usage_allowed.value(), arc_usage_allowed);
+
+  key_permissions_manager_->platform_keys_service_->SetAttributeForKey(
+      key_permissions_manager_->token_id_, public_key_spki_der,
+      KeyAttributeType::kKeyPermissions, key_permissions.SerializeAsString(),
+      base::BindOnce(&KeyPermissionsInChapsUpdater::OnKeyPermissionsUpdated,
+                     weak_ptr_factory_.GetWeakPtr()));
 }
 
-KeyPermissionsManagerImpl::PermissionsForExtensionImpl::KeyEntry*
-KeyPermissionsManagerImpl::PermissionsForExtensionImpl::GetStateStoreEntry(
-    const std::string& public_key_spki_der_b64) {
-  for (KeyEntry& entry : state_store_entries_) {
-    // For every ASN.1 value there is exactly one DER encoding, so it is fine to
-    // compare the DER (or its base64 encoding).
-    if (entry.spki_b64 == public_key_spki_der_b64)
-      return &entry;
+void KeyPermissionsManagerImpl::KeyPermissionsInChapsUpdater::
+    OnKeyPermissionsUpdated(Status permissions_update_status) {
+  if (permissions_update_status != Status::kSuccess) {
+    LOG(ERROR) << "Couldn't update permissions for a key: "
+               << StatusToString(permissions_update_status);
+    std::move(callback_).Run(permissions_update_status);
+    return;
   }
 
-  state_store_entries_.push_back(KeyEntry(public_key_spki_der_b64));
-  return &state_store_entries_.back();
+  UpdateNextKey();
+}
+
+// static
+KeyPermissionsManager*
+KeyPermissionsManagerImpl::GetSystemTokenKeyPermissionsManager() {
+  if (g_system_token_kpm_for_testing) {
+    return g_system_token_kpm_for_testing;
+  }
+
+  return g_system_token_key_permissions_manager;
+}
+
+// static
+KeyPermissionsManager*
+KeyPermissionsManagerImpl::GetUserPrivateTokenKeyPermissionsManager(
+    Profile* profile) {
+  auto* const user_private_token_kpm_service =
+      UserPrivateTokenKeyPermissionsManagerServiceFactory::GetInstance()
+          ->GetForBrowserContext(profile);
+
+  if (!user_private_token_kpm_service) {
+    DCHECK(!ProfileHelper::IsRegularProfile(profile));
+    return nullptr;
+  }
+
+  return user_private_token_kpm_service->key_permissions_manager();
+}
+
+// static
+void KeyPermissionsManagerImpl::SetSystemTokenKeyPermissionsManagerForTesting(
+    KeyPermissionsManager* system_token_kpm_for_testing) {
+  g_system_token_kpm_for_testing = system_token_kpm_for_testing;
+}
+
+std::unique_ptr<KeyPermissionsManager>
+KeyPermissionsManagerImpl::CreateSystemTokenKeyPermissionsManager() {
+  DCHECK(!g_system_token_key_permissions_manager);
+
+  auto system_token_key_permissions_manager =
+      std::make_unique<KeyPermissionsManagerImpl>(
+          TokenId::kSystem, std::make_unique<SystemTokenArcKpmDelegate>(),
+          PlatformKeysServiceFactory::GetInstance()->GetDeviceWideService(),
+          g_browser_process->local_state());
+  g_system_token_key_permissions_manager =
+      system_token_key_permissions_manager.get();
+  return std::move(system_token_key_permissions_manager);
+}
+
+// static
+void KeyPermissionsManagerImpl::RegisterLocalStatePrefs(
+    PrefRegistrySimple* registry) {
+  registry->RegisterBooleanPref(prefs::kKeyPermissionsOneTimeMigrationDone,
+                                /*default_value=*/false);
+}
+
+// static
+void KeyPermissionsManagerImpl::SetOneTimeMigrationEnabledForTesting(
+    bool enabled) {
+  g_one_time_migration_enabled_for_testing = enabled;
 }
 
 KeyPermissionsManagerImpl::KeyPermissionsManagerImpl(
-    bool profile_is_managed,
-    PrefService* profile_prefs,
-    policy::PolicyService* profile_policies,
-    extensions::StateStore* extensions_state_store)
-    : profile_is_managed_(profile_is_managed),
-      profile_prefs_(profile_prefs),
-      profile_policies_(profile_policies),
-      extensions_state_store_(extensions_state_store) {
-  DCHECK(profile_prefs_);
-  DCHECK(extensions_state_store_);
-  DCHECK(!profile_is_managed_ || profile_policies_);
+    TokenId token_id,
+    std::unique_ptr<ArcKpmDelegate> arc_usage_manager_delegate,
+    PlatformKeysService* platform_keys_service,
+    PrefService* pref_service)
+    : token_id_(token_id),
+      arc_usage_manager_delegate_(std::move(arc_usage_manager_delegate)),
+      platform_keys_service_(platform_keys_service),
+      pref_service_(pref_service) {
+  DCHECK(arc_usage_manager_delegate_);
+  DCHECK(platform_keys_service_);
+  DCHECK(pref_service_);
+
+  arc_usage_manager_delegate_observer_.Add(arc_usage_manager_delegate_.get());
+
+  // This waits until the token this KPM is responsible for is available.
+  platform_keys_service_->GetTokens(base::BindOnce(
+      &KeyPermissionsManagerImpl::OnGotTokens, weak_ptr_factory_.GetWeakPtr()));
 }
 
-KeyPermissionsManagerImpl::~KeyPermissionsManagerImpl() {}
+KeyPermissionsManagerImpl::~KeyPermissionsManagerImpl() = default;
 
-void KeyPermissionsManagerImpl::GetPermissionsForExtension(
-    const std::string& extension_id,
-    const PermissionsCallback& callback) {
-  extensions_state_store_->GetExtensionValue(
-      extension_id, kStateStorePlatformKeys,
-      base::BindOnce(
-          &KeyPermissionsManagerImpl::CreatePermissionObjectAndPassToCallback,
-          weak_factory_.GetWeakPtr(), extension_id, callback));
-}
-
-bool KeyPermissionsManagerImpl::CanUserGrantPermissionFor(
-    const std::string& public_key_spki_der,
-    const std::vector<TokenId>& key_locations) const {
-  if (key_locations.empty())
-    return false;
-
-  // As keys cannot be tagged for non-corporate usage, the user can currently
-  // not grant any permissions if the profile is managed.
-  if (profile_is_managed_)
-    return false;
-
-  // If this profile is not managed but we find a corporate key, don't allow
-  // the user to grant permissions.
-  return !IsCorporateKey(public_key_spki_der, key_locations);
-}
-
-bool KeyPermissionsManagerImpl::IsCorporateKey(
-    const std::string& public_key_spki_der,
-    const std::vector<TokenId>& key_locations) const {
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
-
-  for (const auto key_location : key_locations) {
-    switch (key_location) {
-      case TokenId::kUser:
-        if (IsCorporateKeyForProfile(public_key_spki_der_b64, profile_prefs_))
-          return true;
-        break;
-      case TokenId::kSystem:
-        return true;
-    }
-  }
-  return false;
-}
-
-void KeyPermissionsManagerImpl::SetCorporateKey(
-    const std::string& public_key_spki_der,
-    TokenId key_location) const {
-  if (key_location == TokenId::kSystem) {
-    // Nothing to do - all system-token keys are currently implicitly corporate.
+void KeyPermissionsManagerImpl::OnGotTokens(
+    std::unique_ptr<std::vector<TokenId>> token_ids,
+    Status status) {
+  if (status != Status::kSuccess) {
+    LOG(ERROR) << "Error while waiting for token to be ready: "
+               << StatusToString(status);
     return;
   }
 
-  std::string public_key_spki_der_b64;
-  base::Base64Encode(public_key_spki_der, &public_key_spki_der_b64);
-
-  DictionaryPrefUpdate update(profile_prefs_, prefs::kPlatformKeys);
-
-  std::unique_ptr<base::DictionaryValue> new_pref_entry(
-      new base::DictionaryValue);
-  new_pref_entry->SetKey(kPrefKeyUsage, base::Value(kPrefKeyUsageCorporate));
-
-  update->SetWithoutPathExpansion(public_key_spki_der_b64,
-                                  std::move(new_pref_entry));
-}
-
-// static
-bool KeyPermissionsManagerImpl::IsCorporateKeyForProfile(
-    const std::string& public_key_spki_der_b64,
-    const PrefService* const profile_prefs) {
-  const base::DictionaryValue* prefs_entry =
-      GetPrefsEntry(public_key_spki_der_b64, profile_prefs);
-  if (prefs_entry) {
-    const base::Value* key_usage = prefs_entry->FindKey(kPrefKeyUsage);
-    if (!key_usage || !key_usage->is_string())
-      return false;
-    return key_usage->GetString() == kPrefKeyUsageCorporate;
+  if (std::find(token_ids->begin(), token_ids->end(), token_id_) ==
+      token_ids->end()) {
+    LOG(ERROR) << "KeyPermissionsManager doesn't have access to token: "
+               << static_cast<int>(token_id_);
+    return;
   }
-  return false;
+
+  if (!IsOneTimeMigrationDone()) {
+    StartOneTimeMigration();
+  } else {
+    OnReadyForQueries();
+    // On initialization, ARC usage allowance for corporate keys may be
+    // different than after the one-time migration ends, so we trigger an update
+    // in chaps.
+    UpdateKeyPermissionsInChaps();
+  }
 }
 
-// static
-std::vector<std::string>
-KeyPermissionsManagerImpl::GetCorporateKeyUsageAllowedAppIds(
-    policy::PolicyService* const profile_policies) {
-  std::vector<std::string> permissions;
+void KeyPermissionsManagerImpl::AllowKeyForUsage(
+    AllowKeyForUsageCallback callback,
+    KeyUsage usage,
+    const std::string& public_key_spki_der) {
+  if (!ready_for_queries_) {
+    queries_waiting_list_.push_back(
+        base::BindOnce(&KeyPermissionsManagerImpl::AllowKeyForUsage,
+                       weak_ptr_factory_.GetWeakPtr(), std::move(callback),
+                       usage, std::move(public_key_spki_der)));
+    return;
+  }
 
-  const base::DictionaryValue* key_permissions_map =
-      GetKeyPermissionsMap(profile_policies);
-  if (!key_permissions_map)
-    return permissions;
-
-  for (const auto& item : key_permissions_map->DictItems()) {
-    const auto& app_id = item.first;
-    const auto& key_permission = item.second;
-    const base::DictionaryValue* key_permissions_for_app = nullptr;
-    if (!key_permission.GetAsDictionary(&key_permissions_for_app) ||
-        !key_permissions_for_app) {
-      continue;
+  switch (usage) {
+    case KeyUsage::kArc:
+      LOG(ERROR) << "ARC usage of corporate keys is managed internally by "
+                    "ArcKpmDelegate.";
+      std::move(callback).Run(Status::kErrorInternal);
+      break;
+    case KeyUsage::kCorporate: {
+      AllowKeyForCorporateUsage(std::move(callback), public_key_spki_der);
+      break;
     }
-    if (GetCorporateKeyUsageFromPref(key_permissions_for_app))
-      permissions.push_back(app_id);
   }
-  return permissions;
 }
 
-void KeyPermissionsManagerImpl::CreatePermissionObjectAndPassToCallback(
-    const std::string& extension_id,
-    const PermissionsCallback& callback,
-    std::unique_ptr<base::Value> value) {
-  callback.Run(std::make_unique<PermissionsForExtensionImpl>(
-      extension_id, std::move(value), profile_prefs_, profile_policies_, this));
+void KeyPermissionsManagerImpl::IsKeyAllowedForUsage(
+    IsKeyAllowedForUsageCallback callback,
+    KeyUsage usage,
+    const std::string& public_key_spki_der) {
+  if (!ready_for_queries_) {
+    queries_waiting_list_.push_back(
+        base::BindOnce(&KeyPermissionsManagerImpl::IsKeyAllowedForUsage,
+                       weak_ptr_factory_.GetWeakPtr(), std::move(callback),
+                       usage, std::move(public_key_spki_der)));
+    return;
+  }
+
+  platform_keys_service_->GetAttributeForKey(
+      token_id_, public_key_spki_der, KeyAttributeType::kKeyPermissions,
+      base::BindOnce(
+          &KeyPermissionsManagerImpl::IsKeyAllowedForUsageWithPermissions,
+          weak_ptr_factory_.GetWeakPtr(), std::move(callback), usage));
 }
 
-void KeyPermissionsManagerImpl::SetPlatformKeysOfExtension(
-    const std::string& extension_id,
-    std::unique_ptr<base::Value> value) {
-  extensions_state_store_->SetExtensionValue(
-      extension_id, kStateStorePlatformKeys, std::move(value));
+void KeyPermissionsManagerImpl::AllowKeyForCorporateUsage(
+    AllowKeyForUsageCallback callback,
+    const std::string& public_key_spki_der) {
+  chaps::KeyPermissions key_permissions = CreateKeyPermissions(
+      /*corporate_usage_allowed=*/true, AreCorporateKeysAllowedForArcUsage());
+
+  platform_keys_service_->SetAttributeForKey(
+      token_id_, public_key_spki_der, KeyAttributeType::kKeyPermissions,
+      key_permissions.SerializeAsString(), std::move(callback));
+}
+
+void KeyPermissionsManagerImpl::IsKeyAllowedForUsageWithPermissions(
+    IsKeyAllowedForUsageCallback callback,
+    KeyUsage usage,
+    const base::Optional<std::string>& serialized_key_permissions,
+    Status key_attribute_retrieval_status) {
+  if (key_attribute_retrieval_status != Status::kSuccess) {
+    LOG(ERROR) << "Error while retrieving key permissions: "
+               << StatusToString(key_attribute_retrieval_status);
+    std::move(callback).Run(/*allowed=*/false, key_attribute_retrieval_status);
+    return;
+  }
+
+  if (!serialized_key_permissions.has_value()) {
+    std::move(callback).Run(/*allowed=*/false, Status::kSuccess);
+    return;
+  }
+
+  chaps::KeyPermissions key_permissions;
+  if (!key_permissions.ParseFromString(serialized_key_permissions.value())) {
+    LOG(ERROR) << "Couldn't deserialize key permissions proto message.";
+    std::move(callback).Run(/*allowed=*/false, Status::kErrorInternal);
+    return;
+  }
+
+  bool allowed = false;
+  switch (usage) {
+    case KeyUsage::kArc:
+      allowed = key_permissions.key_usages().arc();
+      break;
+    case KeyUsage::kCorporate:
+      allowed = key_permissions.key_usages().corporate();
+      break;
+  }
+  std::move(callback).Run(allowed, Status::kSuccess);
+}
+
+bool KeyPermissionsManagerImpl::AreCorporateKeysAllowedForArcUsage() const {
+  return arc_usage_manager_delegate_->AreCorporateKeysAllowedForArcUsage();
+}
+
+void KeyPermissionsManagerImpl::Shutdown() {
+  arc_usage_manager_delegate_->Shutdown();
+  platform_keys_service_ = nullptr;
+  pref_service_ = nullptr;
+}
+
+void KeyPermissionsManagerImpl::UpdateKeyPermissionsInChaps() {
+  if (!IsOneTimeMigrationDone()) {
+    // This function will always be called after the one-time migration is done.
+    return;
+  }
+
+  key_permissions_in_chaps_updater_ =
+      std::make_unique<KeyPermissionsInChapsUpdater>(
+          KeyPermissionsInChapsUpdater::Mode::kUpdateArcUsageFlag, this);
+  key_permissions_in_chaps_updater_->Update(
+      base::BindOnce(&KeyPermissionsManagerImpl::OnKeyPermissionsInChapsUpdated,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void KeyPermissionsManagerImpl::OnKeyPermissionsInChapsUpdated(
+    Status update_status) {
+  if (update_status != Status::kSuccess) {
+    // TODO(crbug.com/1140105): Record the number of times
+    // KeyPermissionsInChapsUpdater fails in UMA.
+    LOG(ERROR) << "Updating key permissions in chaps failed.";
+  }
+}
+
+void KeyPermissionsManagerImpl::StartOneTimeMigration() {
+  DCHECK(!IsOneTimeMigrationDone());
+
+  if (!g_one_time_migration_enabled_for_testing) {
+    return;
+  }
+
+  VLOG(0) << "One-time key permissions migration started for token: "
+          << static_cast<int>(token_id_) << ".";
+  base::UmaHistogramEnumeration(kMigrationStatusHistogramName,
+                                MigrationStatus::kStarted);
+
+  DCHECK(!key_permissions_in_chaps_updater_);
+  key_permissions_in_chaps_updater_ =
+      std::make_unique<KeyPermissionsInChapsUpdater>(
+          KeyPermissionsInChapsUpdater::Mode::kMigratePermissionsFromPrefs,
+          this);
+  key_permissions_in_chaps_updater_->Update(
+      base::BindOnce(&KeyPermissionsManagerImpl::OnOneTimeMigrationDone,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void KeyPermissionsManagerImpl::OnOneTimeMigrationDone(
+    Status migration_status) {
+  if (migration_status != Status::kSuccess) {
+    VLOG(0) << "One-time key permissions migration failed for token: "
+            << static_cast<int>(token_id_) << ".";
+    base::UmaHistogramEnumeration(kMigrationStatusHistogramName,
+                                  MigrationStatus::kFailed);
+    return;
+  }
+
+  VLOG(0) << "One-time key permissions migration succeeded for token: "
+          << static_cast<int>(token_id_) << ".";
+  base::UmaHistogramEnumeration(kMigrationStatusHistogramName,
+                                MigrationStatus::kSucceeded);
+
+  pref_service_->SetBoolean(prefs::kKeyPermissionsOneTimeMigrationDone, true);
+
+  OnReadyForQueries();
+
+  // Double-check keys permissions after the migration is done just in case any
+  // ARC updates happened during the migration.
+  UpdateKeyPermissionsInChaps();
+}
+
+bool KeyPermissionsManagerImpl::IsOneTimeMigrationDone() const {
+  return pref_service_->GetBoolean(prefs::kKeyPermissionsOneTimeMigrationDone);
+}
+
+void KeyPermissionsManagerImpl::OnArcUsageAllowanceForCorporateKeysChanged(
+    bool allowed) {
+  if (allowed == arc_usage_allowed_for_corporate_keys_) {
+    return;
+  }
+
+  if (allowed) {
+    VLOG(0) << "ARC usage is allowed for corporate keys on token: "
+            << static_cast<int>(token_id_) << ".";
+  } else {
+    VLOG(0) << "ARC usage is not allowed for corporate keys on token: "
+            << static_cast<int>(token_id_) << ".";
+  }
+
+  arc_usage_allowed_for_corporate_keys_ = allowed;
+  UpdateKeyPermissionsInChaps();
+}
+
+void KeyPermissionsManagerImpl::OnReadyForQueries() {
+  ready_for_queries_ = true;
+  for (auto& callback : queries_waiting_list_) {
+    std::move(callback).Run();
+  }
 }
 
 }  // namespace platform_keys

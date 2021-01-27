@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Ao utilizar esta aplicação, concorda com o <ph name="BEGIN_LINK1" />Acordo de Utilização<ph name="END_LINK1" /> e a <ph name="BEGIN_LINK2" />Política de Privacidade<ph name="END_LINK2" /> do Vivaldi.</translation>
 <translation id="4243710787042215766">Abrir num separador privado</translation>
 <translation id="4526803704855831732">Separadores privados</translation>
+<translation id="4759238208242260848">Transferências</translation>
 <translation id="4883379392681899581">Deixar o modo privado</translation>
 <translation id="4943872375798546930">Sem resultados</translation>
 <translation id="49576331685473090">Bloqueador de conteúdos</translation>
-<translation id="4960569554487356883">Dê permissão ao Vivaldi nas <ph name="BEGIN_LINK" />Definições Android<ph name="END_LINK" />.</translation>
 <translation id="5118676864324397542">Armazenamento do <ph name="APP_NAME" /></translation>
+<translation id="5186185447130319458">Privado</translation>
 <translation id="5233638681132016545">Novo separador</translation>
-<translation id="5495228542153126976">Passou para modo privado</translation>
-<translation id="5553467336321715093">Dê permissões ao Vivaldi nas <ph name="BEGIN_LINK" />Definições Android<ph name="END_LINK" />.</translation>
 <translation id="572328651809341494">Separadores recentes</translation>
 <translation id="5840488417521835756">Saiba mais acerca dos tópicos nos websites sem sair da página. A funcionalidade Tocar para pesquisar só está disponível quando o Google está configurado como motor de pesquisa padrão no Vivaldi. Esta funcionalidade envia uma palavra e o seu contexto para a Pesquisa Google, que devolve definições, imagens, resultados de pesquisa e outros detalhes.
 
@@ -38,7 +37,6 @@ Para ajustar o termo de pesquisa, mantenha-o premido para selecionar. Para refin
 <translation id="7427132068601343474">Sobre o Vivaldi</translation>
 <translation id="7465104139234185284">Fechar todos os separadores privados</translation>
 <translation id="7519434535192513364">A funcionalidade Tocar para pesquisar só está disponível quando o Google é o motor de pesquisa padrão definido no Vivaldi. Envia a palavra selecionada e a página atual como contexto para a Pesquisa Google. Pode desativá-la nas <ph name="BEGIN_LINK" />Definições<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Ajuda</translation>
 <translation id="804786196054284061">Termos de Utilização do Vivaldi</translation>
 <translation id="85991616550051997">Ir para a página inicial</translation>
 <translation id="8820817407110198400">Favoritos</translation>

@@ -6,11 +6,9 @@
 #define CHROME_BROWSER_CHROMEOS_PLATFORM_KEYS_KEY_PERMISSIONS_MOCK_KEY_PERMISSIONS_MANAGER_H_
 
 #include <string>
-#include <vector>
 
-#include "base/callback_forward.h"
+#include "base/callback.h"
 #include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_manager.h"
-#include "chrome/browser/chromeos/platform_keys/platform_keys.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace chromeos {
@@ -25,28 +23,22 @@ class MockKeyPermissionsManager : public KeyPermissionsManager {
   ~MockKeyPermissionsManager() override;
 
   MOCK_METHOD(void,
-              GetPermissionsForExtension,
-              (const std::string& extension_id,
-               const PermissionsCallback& callback),
+              AllowKeyForUsage,
+              (AllowKeyForUsageCallback callback,
+               KeyUsage usage,
+               const std::string& public_key_spki_der),
               (override));
 
-  MOCK_METHOD(bool,
-              CanUserGrantPermissionFor,
-              (const std::string& public_key_spki_der,
-               const std::vector<platform_keys::TokenId>& key_locations),
-              (const override));
-
-  MOCK_METHOD(bool,
-              IsCorporateKey,
-              (const std::string& public_key_spki_der_b64,
-               const std::vector<platform_keys::TokenId>& key_locations),
-              (const override));
-
   MOCK_METHOD(void,
-              SetCorporateKey,
-              (const std::string& public_key_spki_der_b64,
-               platform_keys::TokenId key_location),
-              (const override));
+              IsKeyAllowedForUsage,
+              (IsKeyAllowedForUsageCallback callback,
+               KeyUsage key_usage,
+               const std::string& public_key_spki_der),
+              (override));
+
+  MOCK_METHOD(bool, AreCorporateKeysAllowedForArcUsage, (), (const, override));
+
+  MOCK_METHOD(void, Shutdown, (), (override));
 };
 
 }  // namespace platform_keys

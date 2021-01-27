@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Se utilizzi questa applicazione, accetti il <ph name="BEGIN_LINK1" />Contratto di licenza con l'utente finale<ph name="END_LINK1" /> e l'<ph name="BEGIN_LINK2" />Informativa sulla privacy<ph name="END_LINK2" /> di Vivaldi.</translation>
 <translation id="4243710787042215766">Apri in scheda privata</translation>
 <translation id="4526803704855831732">Schede private</translation>
+<translation id="4759238208242260848">Trasferimenti</translation>
 <translation id="4883379392681899581">Esci dalla modalità privata</translation>
 <translation id="4943872375798546930">Nessun risultato</translation>
 <translation id="49576331685473090">Blocco dei contenuti</translation>
-<translation id="4960569554487356883">Abilita il permesso per Vivaldi nelle <ph name="BEGIN_LINK" />impostazioni di Android<ph name="END_LINK" />.</translation>
 <translation id="5118676864324397542">Spazio di archiviazione di <ph name="APP_NAME" /></translation>
+<translation id="5186185447130319458">Privato</translation>
 <translation id="5233638681132016545">Nuova scheda</translation>
-<translation id="5495228542153126976">Sei entrato in modalità privata</translation>
-<translation id="5553467336321715093">Abilita i permessi per Vivaldi nelle <ph name="BEGIN_LINK" />impostazioni di Android<ph name="END_LINK" />.</translation>
 <translation id="572328651809341494">Schede recenti</translation>
 <translation id="5840488417521835756">Scopri gli argomenti dei siti web senza lasciare la pagina. Toccare per cercare è una funzione disponibile solo quando Google è impostato come motore di ricerca predefinito in Vivaldi. Invia una parola e il suo contesto circostante alla ricerca di Google, riportando definizioni, immagini, risultati di ricerca e altri dettagli.
 
@@ -38,7 +37,6 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per affin
 <translation id="7427132068601343474">Informazioni su Vivaldi</translation>
 <translation id="7465104139234185284">Chiudi tutte le schede private</translation>
 <translation id="7519434535192513364">Tocca per cercare è una funzione disponibile solo quando Google è impostato come motore di ricerca predefinito in Vivaldi. Invia la parola selezionata e la pagina corrente come contesto alla ricerca di Google. Puoi disattivarlo in <ph name="BEGIN_LINK" />Impostazioni<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Aiuto</translation>
 <translation id="804786196054284061">Contratto di licenza con l'utente finale</translation>
 <translation id="85991616550051997">Vai alla pagina iniziale</translation>
 <translation id="8820817407110198400">Segnalibri</translation>

@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Používaním tejto aplikácie vyjadrujete súhlas so <ph name="BEGIN_LINK1" />zmluvnými podmienkami<ph name="END_LINK1" /> a <ph name="BEGIN_LINK2" />oznámením o ochrane súkromia<ph name="END_LINK2" /> prehliadača Vivaldi.</translation>
 <translation id="4243710787042215766">Otvoriť v súkromnom liste</translation>
 <translation id="4526803704855831732">Súkromné listy</translation>
+<translation id="4759238208242260848">Sťahovania</translation>
 <translation id="4883379392681899581">Opustiť súkromný režim</translation>
 <translation id="4943872375798546930">Žiadne výsledky</translation>
 <translation id="49576331685473090">Blokovanie obsahu</translation>
-<translation id="4960569554487356883">Udeľte prehliadaču Vivaldi oprávnenia pomocou <ph name="BEGIN_LINK" />Android nastavení<ph name="END_LINK" />.</translation>
 <translation id="5118676864324397542">Úložisko aplikácie <ph name="APP_NAME" /></translation>
+<translation id="5186185447130319458">Súkromné</translation>
 <translation id="5233638681132016545">Nový list</translation>
-<translation id="5495228542153126976">Vchádzate do súkromného režimu</translation>
-<translation id="5553467336321715093">Udeľte prehliadaču Vivaldi oprávnenia pomocou <ph name="BEGIN_LINK" />Android nastavení<ph name="END_LINK" />.</translation>
 <translation id="572328651809341494">Nedávne listy</translation>
 <translation id="5840488417521835756">Získajte informácie o témach na weboch bez toho, aby ste museli opustiť stránku. Vyhľadávanie klepnutím odošle slovo a súvisiaci kontext do Vyhľadávania Vivaldi, ktoré vráti definície, obrázky, výsledky vyhľadávania a ďalšie podrobnosti.
 
@@ -38,7 +37,6 @@ Ak chcete upraviť hľadaný výraz, vyberte ho dlhým stlačením. Ak chcete vy
 <translation id="7427132068601343474">O aplikácií Vivaldi</translation>
 <translation id="7465104139234185284">Zatvoriť všetky súkromné listy</translation>
 <translation id="7519434535192513364">Vyhľadávanie klepnutím odošle vybraté slovo a súčasnú stránku ako kontext do Vyhľadávania Vivaldi. Môžete ho vypnúť v <ph name="BEGIN_LINK" />Nastaveniach<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Pomoc</translation>
 <translation id="804786196054284061">Zmluvné podmienky prehliadača Vivaldi</translation>
 <translation id="85991616550051997">Prejsť na domovskú stránku</translation>
 <translation id="8820817407110198400">Záložky</translation>

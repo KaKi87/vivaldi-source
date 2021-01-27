@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Als je deze app gebruikt, ga je akkoord met de <ph name="BEGIN_LINK1" />Licentieovereenkomst voor eindgebruikers<ph name="END_LINK1" /> en het <ph name="BEGIN_LINK2" />Privacybeleid<ph name="END_LINK2" /> van Vivaldi.</translation>
 <translation id="4243710787042215766">Openen in privétab</translation>
 <translation id="4526803704855831732">Privétabs</translation>
+<translation id="4759238208242260848">Downloads</translation>
 <translation id="4883379392681899581">Privémodus verlaten</translation>
 <translation id="4943872375798546930">Geen resultaten</translation>
 <translation id="49576331685473090">Inhoudsblokkering</translation>
-<translation id="4960569554487356883">Toestemming verlenen aan Vivaldi in <ph name="BEGIN_LINK" />Android Instellingen<ph name="END_LINK" />.</translation>
 <translation id="5118676864324397542">Opslag van <ph name="APP_NAME" /></translation>
+<translation id="5186185447130319458">Privé</translation>
 <translation id="5233638681132016545">Nieuwe tab</translation>
-<translation id="5495228542153126976">Je bent nu in de privémodus</translation>
-<translation id="5553467336321715093">Toestemming verlenen aan Vivaldi in <ph name="BEGIN_LINK" />Android Instellingen<ph name="END_LINK" />.</translation>
 <translation id="572328651809341494">Recente tabs</translation>
 <translation id="5840488417521835756">Zoek meer informatie over onderwerpen op websites zonder dat je de pagina hoeft te verlaten. De functie 'Tikken om te zoeken' is alleen beschikbaar wanneer Google is ingesteld als standaardzoekmachine in Vivaldi. Het stuurt een woord en zijn context naar Google Zoeken, waarna er definities, afbeeldingen, zoekresultaten en andere gegevens worden weergegeven.
 
@@ -38,7 +37,6 @@ Druk de zoekterm lang om deze te selecteren en aan te passen. Om de zoekopdracht
 <translation id="7427132068601343474">Over Vivaldi</translation>
 <translation id="7465104139234185284">Alle privétabs sluiten</translation>
 <translation id="7519434535192513364">"Tikken om te zoeken" is een functie die alleen beschikbaar is wanneer Google is ingesteld als standaardzoekmachine in Vivaldi. Het stuurt het geselecteerde woord en de huidige pagina als context naar Google Zoeken. Je kunt deze functie uitschakelen bij <ph name="BEGIN_LINK" />Instellingen<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Help</translation>
 <translation id="804786196054284061">Licentieovereenkomst voor eindgebruikers</translation>
 <translation id="85991616550051997">Ga naar de startpagina</translation>
 <translation id="8820817407110198400">Bladwijzers</translation>

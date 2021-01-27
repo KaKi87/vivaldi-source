@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">Օգտագործելով այս հավելվածը՝ Դուք ընդունում եք Vivaldi-ի <ph name="BEGIN_LINK1" />Օգտագործման պայմաններն<ph name="END_LINK1" /> ու <ph name="BEGIN_LINK2" />Գաղտնիության դրույթները<ph name="END_LINK2" />։</translation>
 <translation id="4243710787042215766">Բացել գաղտնի ներդիրում</translation>
 <translation id="4526803704855831732">Գաղտնի ներդիրներ</translation>
+<translation id="4759238208242260848">Ներբեռնումներ</translation>
 <translation id="4883379392681899581">Լքել գաղտնի ռեժիմը</translation>
 <translation id="4943872375798546930">Արդյունք չկա</translation>
 <translation id="49576331685473090">Բովանդակության արգելափակիչ</translation>
-<translation id="4960569554487356883">Միացրեք թույլտվությունը Vivaldi-ի համար <ph name="BEGIN_LINK" />Android-ի կարգավորումներում<ph name="END_LINK" />։</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" />-ի պահոց</translation>
+<translation id="5186185447130319458">Գաղտնի ռեժիմ</translation>
 <translation id="5233638681132016545">Նոր ներդիր</translation>
-<translation id="5495228542153126976">Դուք գաղտնի ռեժիմում եք</translation>
-<translation id="5553467336321715093">Միացրեք թույլտվությունները Vivaldi-ի համար <ph name="BEGIN_LINK" />Android-ի կարգավորումներում<ph name="END_LINK" />։</translation>
 <translation id="572328651809341494">Վերջին ներդիրներ</translation>
 <translation id="5840488417521835756">Որոնեք՝ առանց էջը լքելու։ Արագ որոնումը հասանելի է, երբ Vivaldi-ում որպես ստանդարտ որոնիչ ընտրված է Google-ը։ Այն ուղարկում է բառն ու կոնտեքստը Google որոնմանը, որը վերադարձնում է նկարագրություններ, նկարներ, որոնման արդյունքներ և այլ մանրամասներ։
 
@@ -38,7 +37,6 @@
 <translation id="7427132068601343474">Vivaldi-ի մասին</translation>
 <translation id="7465104139234185284">Փակել բոլոր գաղտնի ներդիրները</translation>
 <translation id="7519434535192513364">Արագ որոնումը հասանելի է, երբ Vivaldi-ում որպես ստանդարտ որոնիչ ընտրված է Google-ը։ Նշված բառն ու տվյալ էջը, որպես կոնտեքստ, ուղարկվում են Google որոնմանը։ Դուք կարող եք այն անջատել <ph name="BEGIN_LINK" />կարգավորումներից<ph name="END_LINK" />։</translation>
-<translation id="7649070708921625228">Օգնություն</translation>
 <translation id="804786196054284061">Օգտագործման պայմաններ</translation>
 <translation id="85991616550051997">Գնալ սկզբնական էջ</translation>
 <translation id="8820817407110198400">Էջանիշեր</translation>

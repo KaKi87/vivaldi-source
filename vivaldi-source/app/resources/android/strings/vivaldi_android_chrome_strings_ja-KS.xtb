@@ -19,14 +19,13 @@
 <translation id="4121750346708795461">このアプリケーション使うってことは、Vivaldiの<ph name="BEGIN_LINK1" />エンドユーザー用使用許諾契約<ph name="END_LINK1" />と<ph name="BEGIN_LINK2" />プライバシーポリシー<ph name="END_LINK2" />に同意したってことになるで。</translation>
 <translation id="4243710787042215766">プライベートタブで開く</translation>
 <translation id="4526803704855831732">プライベートタブ</translation>
+<translation id="4759238208242260848">ダウンロード</translation>
 <translation id="4883379392681899581">プライベートモードを離れるで</translation>
 <translation id="4943872375798546930">見つからへんわ</translation>
 <translation id="49576331685473090">コンテンツブロッカー</translation>
-<translation id="4960569554487356883"><ph name="BEGIN_LINK" />Androidの設定<ph name="END_LINK" />からVivaldiへの許可を有効にしてちょうだい。</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> 容れもん</translation>
+<translation id="5186185447130319458">プライベート</translation>
 <translation id="5233638681132016545">さらのタブ</translation>
-<translation id="5495228542153126976">プライベートモードに来たで</translation>
-<translation id="5553467336321715093"><ph name="BEGIN_LINK" />Androidの設定<ph name="END_LINK" />からVivaldiへの許可を有効にしてちょうだい。</translation>
 <translation id="572328651809341494">最近つこたタブ</translation>
 <translation id="5840488417521835756">ページ移らんと内容について見てみる。ポチッとサーチはGoogleがVivaldiで既定の検索エンジンに設定されとる時だけ使えて、その単語のその周りの情報をGoogle検索に送って、定義とか写真、検索結果、他の情報を表示できるんやで。
 
@@ -38,7 +37,6 @@
 <translation id="7427132068601343474">Vivaldiって何や</translation>
 <translation id="7465104139234185284">プライベートタブを全てほかす</translation>
 <translation id="7519434535192513364">ポチッとサーチはGoogleがVivaldiで既定の検索エンジンに設定されとる時だけ使えて、その単語のその周りの情報をGoogle検索に送って、定義とか写真、検索結果、他の情報を表示できるんやで。無効にしたかったら、<ph name="BEGIN_LINK" />設定<ph name="END_LINK" />へ。</translation>
-<translation id="7649070708921625228">助けて</translation>
 <translation id="804786196054284061">読まなあかんやつ</translation>
 <translation id="85991616550051997">ホーム行く</translation>
 <translation id="8820817407110198400">また来れるようにするやつ</translation>

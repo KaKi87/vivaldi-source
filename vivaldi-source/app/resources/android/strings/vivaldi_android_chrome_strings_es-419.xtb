@@ -14,11 +14,12 @@
 <translation id="3700829948786686853">Bienvenido a Vivaldi</translation>
 <translation id="4243710787042215766">Abrir en pestaña privada</translation>
 <translation id="4526803704855831732">Pestañas privadas</translation>
+<translation id="4759238208242260848">Descargas</translation>
 <translation id="4883379392681899581">Abandonar el modo privado</translation>
 <translation id="4943872375798546930">Sin resultados</translation>
 <translation id="5118676864324397542">Almacenamiento de <ph name="APP_NAME" /></translation>
+<translation id="5186185447130319458">Privado</translation>
 <translation id="5233638681132016545">Nueva pestaña</translation>
-<translation id="5495228542153126976">Ahora estás en modo privado</translation>
 <translation id="572328651809341494">Pestañas recientes</translation>
 <translation id="5840488417521835756">Obtén información sobre los temas que aparecen en los sitios web sin salir de la página. La función "Tocar para buscar" sólo está disponible cuando Google  está establecido como el buscador por defecto de Vivaldi. Envía una palabra y el contexto que la rodea al Buscador de Google  para devolverte definiciones, imágenes, resultados de búsqueda y más información.
 
@@ -30,7 +31,6 @@ Para ajustar el término de búsqueda, mantén pulsado el texto para seleccionar
 <translation id="7427132068601343474">Acerca de Vivaldi</translation>
 <translation id="7465104139234185284">Cerrar todas las pestañas privadas</translation>
 <translation id="7519434535192513364">La función "Tocar para buscar" sólo está disponible cuando Google es el buscador por defecto de Vivaldi. Envía la palabra seleccionada y la página actual como contexto a Google Search. Puedes desactivarla en <ph name="BEGIN_LINK" />Configuración<ph name="END_LINK" />.</translation>
-<translation id="7649070708921625228">Ayuda</translation>
 <translation id="804786196054284061">Acuerdo de Licencia de Usuario Final</translation>
 <translation id="8820817407110198400">Favoritos</translation>
 <translation id="9063523880881406963">No solicitar versión de escritorio</translation>

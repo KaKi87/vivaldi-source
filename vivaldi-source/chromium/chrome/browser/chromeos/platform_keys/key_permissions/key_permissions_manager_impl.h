@@ -10,157 +10,199 @@
 #include <vector>
 
 #include "base/callback_forward.h"
-#include "base/macros.h"
+#include "base/containers/queue.h"
 #include "base/memory/weak_ptr.h"
+#include "base/observer_list_types.h"
+#include "base/optional.h"
+#include "base/scoped_observer.h"
+#include "chrome/browser/chromeos/platform_keys/key_permissions/arc_key_permissions_manager_delegate.h"
 #include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_manager.h"
 #include "chrome/browser/chromeos/platform_keys/platform_keys.h"
 
+class PrefRegistrySimple;
 class PrefService;
-
-namespace base {
-class Value;
-}
-
-namespace extensions {
-class StateStore;
-}
-
-namespace policy {
-class PolicyService;
-}
+class Profile;
 
 namespace chromeos {
 namespace platform_keys {
 
-class KeyPermissionsManagerImpl : public KeyPermissionsManager {
+class PlatformKeysService;
+
+class KeyPermissionsManagerImpl : public KeyPermissionsManager,
+                                  public ArcKpmDelegate::Observer {
  public:
-  // Implementation of PermissionsForExtension.
-  class PermissionsForExtensionImpl : public PermissionsForExtension {
+  // Updates chaps with the current "arc" and "corporate" flags for keys on a
+  // certain token.
+  class KeyPermissionsInChapsUpdater {
    public:
-    // |key_permissions| must not be null and outlive this object.
-    // Methods of this object refer implicitly to the extension with the id
-    // |extension_id|. Don't use this constructor directly. Call
-    // |KeyPermissionsManager::GetPermissionsForExtension| instead.
-    PermissionsForExtensionImpl(const std::string& extension_id,
-                                std::unique_ptr<base::Value> state_store_value,
-                                PrefService* profile_prefs,
-                                policy::PolicyService* profile_policies,
-                                KeyPermissionsManagerImpl* key_permissions);
+    // The updater possible modes.
+    enum class Mode {
+      // Used for the one-time key permissions migration step. For more
+      // information regarding the one-time migration step, please refer to
+      // KeyPermissionsManager documentation.
+      kMigratePermissionsFromPrefs,
+      // Used for updating ARC usage flag in chaps after the one-time key
+      // permissions migration step is done and when ARC usage allowance
+      // changes for keys on a token.
+      kUpdateArcUsageFlag
+    };
 
-    PermissionsForExtensionImpl(const PermissionsForExtensionImpl& other) =
-        delete;
-    PermissionsForExtensionImpl& operator=(
-        const PermissionsForExtensionImpl& other) = delete;
-    ~PermissionsForExtensionImpl() override;
+    // |key_permissions_manager| must not be null and must outlive the updater
+    // instance.
+    explicit KeyPermissionsInChapsUpdater(
+        Mode mode,
+        KeyPermissionsManagerImpl* key_permissions_manager);
+    KeyPermissionsInChapsUpdater(const KeyPermissionsInChapsUpdater&) = delete;
+    KeyPermissionsInChapsUpdater& operator=(
+        const KeyPermissionsInChapsUpdater&) = delete;
+    ~KeyPermissionsInChapsUpdater();
 
-    bool CanUseKeyForSigning(
-        const std::string& public_key_spki_der,
-        const std::vector<platform_keys::TokenId>& key_locations) override;
-
-    void RegisterKeyForCorporateUsage(
-        const std::string& public_key_spki_der,
-        const std::vector<platform_keys::TokenId>& key_locations) override;
-
-    void SetUserGrantedPermission(
-        const std::string& public_key_spki_der,
-        const std::vector<platform_keys::TokenId>& key_locations) override;
-
-    void SetKeyUsedForSigning(
-        const std::string& public_key_spki_der,
-        const std::vector<platform_keys::TokenId>& key_locations) override;
+    // If the update operation has been done successfully, a success
+    // |update_status| will be returned. An error |update_status| will be
+    // returned otherwise.
+    using UpdateCallback = base::OnceCallback<void(Status update_status)>;
+    // Updates the key permissions in chaps according to |mode_|.
+    void Update(UpdateCallback callback);
 
    private:
-    struct KeyEntry;
+    void UpdateWithAllKeys(std::vector<std::string> public_key_spki_der_list,
+                           Status keys_retrieval_status);
+    void UpdateNextKey();
+    void UpdatePermissionsForKey(const std::string& public_key_spki_der);
+    void UpdatePermissionsForKeyWithCorporateFlag(
+        const std::string& public_key_spki_der,
+        base::Optional<bool> corporate_usage_allowed,
+        Status corporate_usage_retrieval_status);
+    void OnKeyPermissionsUpdated(Status permissions_update_status);
 
-    // Writes the current |state_store_entries_| to the state store of
-    // |extension_id_|.
-    void WriteToStateStore();
-
-    // Reads a KeyEntry list from |state| and stores them in
-    // |state_store_entries_|.
-    void KeyEntriesFromState(const base::Value& state);
-
-    // Converts |state_store_entries_| to a base::Value for storing in the state
-    // store.
-    std::unique_ptr<base::Value> KeyEntriesToState();
-
-    // Returns an existing entry for |public_key_spki_der_b64| from
-    // |state_store_entries_|. If there is no existing entry, creates, adds and
-    // returns a new entry.
-    // |public_key_spki_der| must be the base64 encoding of the DER of a Subject
-    // Public Key Info.
-    KeyPermissionsManagerImpl::PermissionsForExtensionImpl::KeyEntry*
-    GetStateStoreEntry(const std::string& public_key_spki_der_b64);
-
-    bool PolicyAllowsCorporateKeyUsage() const;
-
-    const std::string extension_id_;
-    std::vector<KeyEntry> state_store_entries_;
-    PrefService* const profile_prefs_;
-    policy::PolicyService* const profile_policies_;
-    KeyPermissionsManagerImpl* const key_permissions_;
+    const Mode mode_;
+    KeyPermissionsManagerImpl* const key_permissions_manager_;
+    base::queue<std::string> public_key_spki_der_queue_;
+    bool update_started_ = false;
+    UpdateCallback callback_;
+    base::WeakPtrFactory<KeyPermissionsInChapsUpdater> weak_ptr_factory_{this};
   };
 
-  // |profile_prefs| and |extensions_state_store| must not be null and must
-  // outlive this object.
-  // If |profile_is_managed| is false, |profile_policies| is ignored. Otherwise,
-  // |profile_policies| must not be null and must outlive this object.
-  // |profile_is_managed| determines the default usage and permissions for
-  // keys without explicitly assigned usage.
-  KeyPermissionsManagerImpl(bool profile_is_managed,
-                            PrefService* profile_prefs,
-                            policy::PolicyService* profile_policies,
-                            extensions::StateStore* extensions_state_store);
+  // Returns a key permissions manager that manages keys residing on the system
+  // token.
+  static KeyPermissionsManager* GetSystemTokenKeyPermissionsManager();
+  // Returns a key permissions manager that manages keys residing on the user
+  // token corresponding to |profile|.
+  // Note: A nullptr will be returned for non-regular user profiles.
+  static KeyPermissionsManager* GetUserPrivateTokenKeyPermissionsManager(
+      Profile* profile);
 
+  // When called with a non-nullptr |system_token_kpm_for_testing|, subsequent
+  // calls to GetSystemTokenKeyPermissionsManager() will return the passed
+  // pointer. When called with nullptr, subsequent calls to
+  // GetSystemTokenKeyPermissionsManager() will return the default system token
+  // key permissions manager again. The caller is responsible that this is
+  // called with nullptr before an object previously passed in is destroyed.
+  static void SetSystemTokenKeyPermissionsManagerForTesting(
+      KeyPermissionsManager* system_token_kpm_for_testing);
+
+  // Used by ChromeBrowserMainPartsChromeos to create a system-wide key
+  // permissions manager instance.
+  static std::unique_ptr<KeyPermissionsManager>
+  CreateSystemTokenKeyPermissionsManager();
+
+  // Registers system-wide prefs.
+  static void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
+
+  // This is mainly used for testing the one-time migration with keys on the
+  // slot. Disabling one-time migration will give the test a chance to generate
+  // keys for testing before re-enabling one-time migration. Note: re-enabling
+  // one-time migration through this method won't trigger the migration process,
+  // it will only allow it to run the next time the KPM instance is created.
+  static void SetOneTimeMigrationEnabledForTesting(bool enabled);
+
+  // Don't use this constructor directly. Use
+  // GetSystemTokenKeyPermissionsManager or
+  // GetUserPrivateTokenKeyPermissionsManager instead.
+  KeyPermissionsManagerImpl(
+      TokenId token_id,
+      std::unique_ptr<ArcKpmDelegate> arc_usage_manager_delegate,
+      PlatformKeysService* platform_keys_service,
+      PrefService* pref_service);
+  KeyPermissionsManagerImpl(const KeyPermissionsManagerImpl&) = delete;
+  KeyPermissionsManagerImpl& operator=(const KeyPermissionsManagerImpl&) =
+      delete;
   ~KeyPermissionsManagerImpl() override;
 
-  KeyPermissionsManagerImpl(const KeyPermissionsManagerImpl& other) = delete;
-  KeyPermissionsManagerImpl& operator=(const KeyPermissionsManagerImpl& other) =
-      delete;
+  void AllowKeyForUsage(AllowKeyForUsageCallback callback,
+                        KeyUsage usage,
+                        const std::string& public_key_spki_der) override;
+  void IsKeyAllowedForUsage(IsKeyAllowedForUsageCallback callback,
+                            KeyUsage usage,
+                            const std::string& public_key_spki_der) override;
+  bool AreCorporateKeysAllowedForArcUsage() const override;
 
-  void GetPermissionsForExtension(const std::string& extension_id,
-                                  const PermissionsCallback& callback) override;
-
-  bool CanUserGrantPermissionFor(
-      const std::string& public_key_spki_der,
-      const std::vector<platform_keys::TokenId>& key_locations) const override;
-
-  bool IsCorporateKey(
-      const std::string& public_key_spki_der,
-      const std::vector<platform_keys::TokenId>& key_locations) const override;
-
-  void SetCorporateKey(const std::string& public_key_spki_der,
-                       platform_keys::TokenId key_location) const override;
-
-  // Returns true if |public_key_spki_der_b64| is a corporate usage key.
-  // TOOD(http://crbug.com/1127284): Remove this and migrate callers to
-  // IsCorporateKey().
-  static bool IsCorporateKeyForProfile(
-      const std::string& public_key_spki_der_b64,
-      const PrefService* const profile_prefs);
-
-  // Returns the list of apps and extensions ids allowed to use corporate usage
-  // keys by policy in |profile_policies|.
-  static std::vector<std::string> GetCorporateKeyUsageAllowedAppIds(
-      policy::PolicyService* const profile_policies);
+  void Shutdown() override;
 
  private:
-  // Creates a PermissionsForExtension object from |extension_id| and |value|
-  // and passes the object to |callback|.
-  void CreatePermissionObjectAndPassToCallback(
-      const std::string& extension_id,
-      const PermissionsCallback& callback,
-      std::unique_ptr<base::Value> value);
+  // ArcKpmDelegate::Observer
+  void OnArcUsageAllowanceForCorporateKeysChanged(bool allowed) override;
 
-  // Writes |value| to the state store of the extension with id |extension_id|.
-  void SetPlatformKeysOfExtension(const std::string& extension_id,
-                                  std::unique_ptr<base::Value> value);
+  void OnGotTokens(std::unique_ptr<std::vector<TokenId>> token_ids,
+                   Status status);
 
-  const bool profile_is_managed_;
-  PrefService* const profile_prefs_;
-  policy::PolicyService* const profile_policies_;
-  extensions::StateStore* const extensions_state_store_;
-  base::WeakPtrFactory<KeyPermissionsManagerImpl> weak_factory_{this};
+  // Updates the permissions of the keys residing on |token_id| in chaps. If
+  // this method is called while an update is already running, it will cancel
+  // the running update and start a new one.
+  void UpdateKeyPermissionsInChaps();
+  void OnKeyPermissionsInChapsUpdated(Status update_status);
+
+  void StartOneTimeMigration();
+  void OnOneTimeMigrationDone(Status migration_status);
+
+  bool IsOneTimeMigrationDone() const;
+
+  void MigrateFlagsWithAllKeys(
+      std::vector<std::string> public_key_spki_der_list,
+      Status all_keys_retrieval_status);
+  void MigrateFlagsWithQueueOfKeys(base::queue<std::string> queue);
+  void OnFlagsMigratedForKey(base::queue<std::string> queue,
+                             Status last_key_flags_migration_status);
+
+  void AllowKeyForCorporateUsage(AllowKeyForUsageCallback callback,
+                                 const std::string& public_key_spki_der);
+
+  void OnKeyPermissionsRetrieved(
+      IsKeyAllowedForUsageCallback callback,
+      const base::Optional<std::string>& attribute_value,
+      Status status);
+
+  void IsKeyAllowedForUsageWithPermissions(
+      IsKeyAllowedForUsageCallback callback,
+      KeyUsage usage,
+      const base::Optional<std::string>& serialized_key_permissions,
+      Status key_attribute_retrieval_status);
+
+  // Called when the token is ready and the one-time migration is done.
+  void OnReadyForQueries();
+
+  // The token for which the key permissions manager instance is responsible.
+  const TokenId token_id_;
+  // True if ARC usage is allowed for corporate keys according to
+  // |arc_usage_manager_delegate_|.
+  bool arc_usage_allowed_for_corporate_keys_ = false;
+  // True if the token is ready and the one-time migration is done.
+  // List of queries waiting for the token to be ready and the one-time
+  // migration to be done.
+  bool ready_for_queries_ = false;
+  // A list of queries that will be performed after the token is ready and the
+  // one-time migration is done.
+  std::vector<base::OnceClosure> queries_waiting_list_;
+  // If not nullptr, then this is the only updater running.
+  std::unique_ptr<KeyPermissionsInChapsUpdater>
+      key_permissions_in_chaps_updater_;
+  // The ARC usage manager delegate for |token_id_|.
+  std::unique_ptr<ArcKpmDelegate> arc_usage_manager_delegate_;
+  PlatformKeysService* platform_keys_service_ = nullptr;
+  PrefService* pref_service_ = nullptr;
+  ScopedObserver<ArcKpmDelegate, ArcKpmDelegate::Observer>
+      arc_usage_manager_delegate_observer_{this};
+  base::WeakPtrFactory<KeyPermissionsManagerImpl> weak_ptr_factory_{this};
 };
 
 }  // namespace platform_keys
