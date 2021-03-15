@@ -1,363 +1,175 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.childaccounts;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.accounts.Account;
-import android.content.Context;
-import android.content.pm.PackageManager;
+import android.app.Activity;
 
-import com.google.android.collect.Sets;
-
-import org.chromium.base.CommandLine;
-import org.chromium.chrome.browser.childaccounts.ChildAccountService.HasChildAccountCallback;
-import org.chromium.sync.signin.AccountManagerHelper;
-import org.chromium.sync.test.util.AccountHolder;
-import org.chromium.sync.test.util.MockAccountManager;
-import org.chromium.testing.local.LocalRobolectricTestRunner;
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Matchers;
-import org.mockito.MockitoAnnotations;
-import org.robolectric.Robolectric;
-import org.robolectric.annotation.Config;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
-import java.util.Collections;
-import java.util.HashSet;
+import org.chromium.base.Callback;
+import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.JniMocker;
+import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
+import org.chromium.components.signin.AccountManagerFacade.ChildAccountStatusListener;
+import org.chromium.components.signin.AccountUtils;
+import org.chromium.components.signin.ChildAccountStatus;
+import org.chromium.components.signin.test.util.FakeAccountManagerFacade;
+import org.chromium.ui.base.WindowAndroid;
+
+import java.lang.ref.WeakReference;
 
 /**
- * Robolectric-based unit test for ChildAccountService.
+ * Unit tests for {@link ChildAccountService}.
  */
-@RunWith(LocalRobolectricTestRunner.class)
-@Config(manifest = Config.NONE)
+@RunWith(BaseRobolectricTestRunner.class)
 public class ChildAccountServiceTest {
-    private static final Account USER_ACCOUNT =
-            new Account("user@gmail.com", AccountManagerHelper.GOOGLE_ACCOUNT_TYPE);
-
     private static final Account CHILD_ACCOUNT =
-            new Account("child@gmail.com", AccountManagerHelper.GOOGLE_ACCOUNT_TYPE);
+            AccountUtils.createAccountFromName("child.account@gmail.com");
+    private static final long FAKE_NATIVE_CALLBACK = 1000L;
 
-    private ChildAccountService mService;
-
-    private MockAccountManager mAccountManager;
-
-    private Context mContext = spy(Robolectric.application);
-
-    private class TestingChildAccountService extends ChildAccountService {
-        private Boolean mLastStatus;
-
-        public TestingChildAccountService(Context context) {
-            super(context);
-        }
-
+    private final FakeAccountManagerFacade mFakeFacade = spy(new FakeAccountManagerFacade(null) {
         @Override
-        protected void onChildAccountStatusUpdated(Boolean oldValue) {
-            assertEquals(mLastStatus, oldValue);
-            mLastStatus = hasChildAccount();
+        public void checkChildAccountStatus(Account account, ChildAccountStatusListener listener) {
+            listener.onStatusReady(account.name.startsWith("child")
+                            ? ChildAccountStatus.REGULAR_CHILD
+                            : ChildAccountStatus.NOT_CHILD);
         }
-    }
+    });
 
-    private class MockChildAccountCallback implements HasChildAccountCallback {
-        @Override
-        public void onChildAccountChecked(boolean hasChildAccount) {
-            assertEquals(hasChildAccount, mService.hasChildAccount());
-        }
-    }
+    @Rule
+    public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Rule
+    public final JniMocker mocker = new JniMocker();
+
+    @Rule
+    public final AccountManagerTestRule mAccountManagerTestRule =
+            new AccountManagerTestRule(mFakeFacade);
+
+    @Mock
+    private ChildAccountStatusListener mListenerMock;
+
+    @Mock
+    private ChildAccountService.Natives mNativeMock;
+
+    @Mock
+    private WindowAndroid mWindowAndroidMock;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
-        mService = spy(new TestingChildAccountService(mContext));
-        when(mContext.getApplicationContext()).thenReturn(mContext);
-        when(mContext.checkPermission(
-                Matchers.anyString(), Matchers.anyInt(), Matchers.anyInt()))
-                .thenReturn(PackageManager.PERMISSION_GRANTED);
-        doReturn(true).when(mService).nativeIsChildAccountDetectionEnabled();
-        doThrow(new AssertionError()).when(mService).nativeGetIsChildAccount();
-        mAccountManager = new MockAccountManager(mContext, mContext);
-        AccountManagerHelper.overrideAccountManagerHelperForTests(mContext, mAccountManager);
-
-        CommandLine.init(new String[] {});
-
-        // Run the main looper manually.
-        Robolectric.pauseMainLooper();
+        mocker.mock(ChildAccountServiceJni.TEST_HOOKS, mNativeMock);
     }
 
     @Test
-    public void testNoAccounts() {
-        // Add no accounts.
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-
-        // The child account status is immediately updated to false.
-        verify(mService).onChildAccountStatusUpdated(null);
-
-        // The callback is only run on the next turn of the event loop, however.
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        Robolectric.idleMainLooper(0);
-
-        verify(callback).onChildAccountChecked(false);
+    public void testChildAccountStatusWhenNoAccountsOnDevice() {
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.NOT_CHILD);
     }
 
     @Test
-    public void testMultipleAccounts() {
-        // Add multiple accounts.
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create().account(CHILD_ACCOUNT).build());
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create().account(USER_ACCOUNT).build());
-
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-
-        // The child account status is immediately updated to false.
-        verify(mService).onChildAccountStatusUpdated(null);
-
-        // The callback is only run on the next turn of the event loop, however.
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        Robolectric.idleMainLooper(0);
-
-        verify(callback).onChildAccountChecked(false);
+    public void testChildAccountStatusWhenTwoChildAccountsOnDevice() {
+        // For product reason, child account cannot share device, so as long
+        // as more than one account detected on device, the child account status
+        // on device should be NOT_CHILD.
+        mAccountManagerTestRule.addAccount(CHILD_ACCOUNT);
+        mAccountManagerTestRule.addAccount("child.account2@gmail.com");
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.NOT_CHILD);
     }
 
     @Test
-    public void testSingleRegularAccount() {
-        // Add one regular account.
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create().account(USER_ACCOUNT).featureSet(null).build());
-
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        // The account features have not been fetched yet, so the child account status is
-        // indeterminate.
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // When the account features have been fetched, the child account status is set to false and
-        // the callback is run.
-        mAccountManager.notifyFeaturesFetched(USER_ACCOUNT, Collections.<String>emptySet());
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(false);
+    public void testChildAccountStatusWhenOneChildAndOneAdultAccountsOnDevice() {
+        mAccountManagerTestRule.addAccount(CHILD_ACCOUNT);
+        mAccountManagerTestRule.addAccount("adult.account@gmail.com");
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.NOT_CHILD);
     }
 
     @Test
-    public void testSingleChildAccount() {
-        // Add one child account.
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create().account(CHILD_ACCOUNT).featureSet(null).build());
-
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        // The account features have not been fetched yet, so the child account status is
-        // indeterminate.
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // When the account features have been fetched, the child account status is set to true and
-        // the callback is run.
-        mAccountManager.notifyFeaturesFetched(
-                CHILD_ACCOUNT, Sets.newHashSet(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY));
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(true);
+    public void testChildAccountStatusWhenTwoAdultAccountsOnDevice() {
+        mAccountManagerTestRule.addAccount("adult.account1@gmail.com");
+        mAccountManagerTestRule.addAccount("adult.account2@gmail.com");
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.NOT_CHILD);
     }
 
     @Test
-    public void testCheckAfterChildAccountStatusHasBeenDetermined() {
-        // Add one child account.
-        Account account = CHILD_ACCOUNT;
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create()
-                        .account(account)
-                        .addFeature(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY)
-                        .build());
-
-        // Check the child account status with a callback and wait for it to resolve.
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(true);
-
-        // Checking the status again will call the callback, but not update the child account
-        // status.
-        HasChildAccountCallback callback2 = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback2);
-        Robolectric.idleMainLooper(0);
-
-        verify(callback2).onChildAccountChecked(true);
+    public void testChildAccountStatusWhenOnlyOneAdultAccountOnDevice() {
+        mAccountManagerTestRule.addAccount("adult.account1@gmail.com");
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.NOT_CHILD);
     }
 
     @Test
-    public void testCachedHasChildAccount() {
-        // If the child account status has not been determined, the native method will be called.
-        // Using the inverted `do...().when()...` syntax to ensure that the non-overridden method
-        // is not called.
-        doReturn(true).when(mService).nativeGetIsChildAccount();
-
-        assertTrue(mService.hasChildAccount());
+    public void testChildAccountStatusWhenOnlyOneChildAccountOnDevice() {
+        mAccountManagerTestRule.addAccount(CHILD_ACCOUNT);
+        ChildAccountService.checkChildAccountStatus(mListenerMock);
+        verify(mListenerMock).onStatusReady(ChildAccountStatus.REGULAR_CHILD);
     }
 
     @Test
-    public void testAccountRemoved() {
-        // Add one child account.
-        AccountHolder accountHolder =
-                AccountHolder.create()
-                        .account(CHILD_ACCOUNT)
-                        .addFeature(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY)
-                        .build();
-        mAccountManager.addAccountHolderExplicitly(accountHolder);
-
-        // Check the child account status with a callback and wait for it to resolve.
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(true);
-
-        // Removing the account and rechecking changes the child account status to false.
-        mAccountManager.removeAccountHolderExplicitly(accountHolder);
-        mService.recheckChildAccountStatus();
-
-        verify(mService).onChildAccountStatusUpdated(true);
-        assertFalse(mService.hasChildAccount());
+    public void testReauthenticateChildAccountWhenActivityIsNull() {
+        when(mWindowAndroidMock.getActivity()).thenReturn(new WeakReference<>(null));
+        ChildAccountService.reauthenticateChildAccount(
+                mWindowAndroidMock, CHILD_ACCOUNT.name, FAKE_NATIVE_CALLBACK);
+        verify(mNativeMock).onReauthenticationFailed(FAKE_NATIVE_CALLBACK);
     }
 
     @Test
-    public void testAccountGraduated() {
-        // Add one child account.
-        AccountHolder accountHolder =
-                AccountHolder.create()
-                        .account(CHILD_ACCOUNT)
-                        .addFeature(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY)
-                        .build();
-        mAccountManager.addAccountHolderExplicitly(accountHolder);
+    public void testReauthenticateChildAccountWhenReauthenticationSucceeded() {
+        final Activity activity = mock(Activity.class);
+        when(mWindowAndroidMock.getActivity()).thenReturn(new WeakReference<>(activity));
+        doAnswer(invocation -> {
+            Account account = invocation.getArgument(0);
+            Assert.assertEquals(CHILD_ACCOUNT.name, account.name);
+            Callback<Boolean> callback = invocation.getArgument(2);
+            callback.onResult(true);
+            return null;
+        })
+                .when(mFakeFacade)
+                .updateCredentials(any(Account.class), eq(activity), any());
 
-        // Check the child account status with a callback and wait for it to resolve.
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(true);
-
-        // Replace the account holder with one where the account features are not fetched yet.
-        mAccountManager.removeAccountHolderExplicitly(accountHolder);
-        mAccountManager.addAccountHolderExplicitly(
-                AccountHolder.create().account(CHILD_ACCOUNT).featureSet(null).build());
-        mService.recheckChildAccountStatus();
-
-        // While the check is still in progress, the child account status has its old value, and no
-        // additional calls to onChildAccountStatusUpdated() were made.
-        verify(mService).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        assertTrue(mService.hasChildAccount());
-
-        // When the features are fetched, the child account status changes to false.
-        mAccountManager.notifyFeaturesFetched(CHILD_ACCOUNT, new HashSet<String>());
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(true);
-        assertFalse(mService.hasChildAccount());
+        ChildAccountService.reauthenticateChildAccount(
+                mWindowAndroidMock, CHILD_ACCOUNT.name, FAKE_NATIVE_CALLBACK);
+        verify(mNativeMock, never()).onReauthenticationFailed(anyLong());
     }
 
     @Test
-    public void testAccountRemovedDuringInitialCheck() {
-        // Add one child account.
-        AccountHolder accountHolder =
-                AccountHolder.create().account(CHILD_ACCOUNT).featureSet(null).build();
-        mAccountManager.addAccountHolderExplicitly(accountHolder);
+    public void testReauthenticateChildAccountWhenReauthenticationFailed() {
+        final Activity activity = mock(Activity.class);
+        when(mWindowAndroidMock.getActivity()).thenReturn(new WeakReference<>(activity));
+        doAnswer(invocation -> {
+            Account account = invocation.getArgument(0);
+            Assert.assertEquals(CHILD_ACCOUNT.name, account.name);
+            Callback<Boolean> callback = invocation.getArgument(2);
+            callback.onResult(false);
+            return null;
+        })
+                .when(mFakeFacade)
+                .updateCredentials(any(Account.class), eq(activity), any());
 
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        // The account features have not been fetched yet, so the child account status is
-        // indeterminate.
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        mAccountManager.removeAccountHolderExplicitly(accountHolder);
-        mService.recheckChildAccountStatus();
-
-        // When the account is removed, the child account status is set to false.
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // Fetching the features for the removed account should not trigger a status update,
-        // but the original callback will run.
-        accountHolder.didFetchFeatures(
-                Sets.newHashSet(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY));
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback).onChildAccountChecked(false);
-    }
-
-    @Test
-    public void testAccountGraduatedDuringInitialCheck() {
-        // Add one child account.
-        AccountHolder.Builder builder =
-                AccountHolder.create().account(CHILD_ACCOUNT).featureSet(null);
-        AccountHolder accountHolder = builder.build();
-        mAccountManager.addAccountHolderExplicitly(accountHolder);
-
-        HasChildAccountCallback callback = spy(new MockChildAccountCallback());
-        mService.checkHasChildAccount(callback);
-        Robolectric.idleMainLooper(0);
-
-        // The account features have not been fetched yet, so the child account status is
-        // undetermined.
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // Replace the account holder with a copy.
-        mAccountManager.removeAccountHolderExplicitly(accountHolder);
-        AccountHolder accountHolder2 = builder.build();
-        mAccountManager.addAccountHolderExplicitly(accountHolder2);
-        mService.recheckChildAccountStatus();
-
-        // The child account status is still undetermined.
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // The first request for the account features returns, but the child account status stays
-        // undetermined.
-        accountHolder.didFetchFeatures(
-                Sets.newHashSet(AccountManagerHelper.FEATURE_IS_CHILD_ACCOUNT_KEY));
-        Robolectric.idleMainLooper(0);
-        verify(mService, never()).onChildAccountStatusUpdated(Matchers.any(Boolean.class));
-        verify(callback, never()).onChildAccountChecked(Matchers.anyBoolean());
-
-        // Only when the second request for the account features returns, the child account status
-        // is set to false.
-        accountHolder2.didFetchFeatures(new HashSet<String>());
-        Robolectric.idleMainLooper(0);
-
-        verify(mService).onChildAccountStatusUpdated(null);
-        verify(callback).onChildAccountChecked(false);
+        ChildAccountService.reauthenticateChildAccount(
+                mWindowAndroidMock, CHILD_ACCOUNT.name, FAKE_NATIVE_CALLBACK);
+        verify(mNativeMock).onReauthenticationFailed(FAKE_NATIVE_CALLBACK);
     }
 }

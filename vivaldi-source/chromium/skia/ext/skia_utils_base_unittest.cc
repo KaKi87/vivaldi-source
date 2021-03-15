@@ -1,61 +1,88 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "skia/ext/skia_utils_base.h"
 
-#include "base/memory/ptr_util.h"
-#include "base/test/gtest_util.h"
-#include "base/test/test_discardable_memory_allocator.h"
-#include "build/build_config.h"
-#include "skia/ext/skia_utils_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/core/SkSerialProcs.h"
-#include "third_party/skia/include/effects/SkImageSource.h"
-#include "ui/gfx/codec/png_codec.h"
+#include "third_party/skia/include/core/SkBitmap.h"
+#include "third_party/skia/include/core/SkImageInfo.h"
 
 namespace skia {
 namespace {
 
-TEST(SkiaUtilsBaseTest, DeserializationWithEncodedImages) {
-// codecs are not available on iOS, so skip this test crbug.com/794298
-#if !defined(OS_IOS)
-  base::TestDiscardableMemoryAllocator allocator;
-  base::DiscardableMemoryAllocator::SetInstance(&allocator);
+#define EXPECT_EQ_BITMAP(a, b)                               \
+  do {                                                       \
+    EXPECT_EQ(a.pixmap().addr(), b.pixmap().addr());         \
+    EXPECT_EQ(a.pixmap().rowBytes(), b.pixmap().rowBytes()); \
+    EXPECT_EQ(a.pixmap().info(), b.pixmap().info());         \
+  } while (false)
 
-  SkPMColor pixel = 0xFFFFFFFF;  // white;
-  SkImageInfo info = SkImageInfo::MakeN32Premul(1, 1);
-  SkPixmap pm = {info, &pixel, sizeof(SkPMColor)};
-  auto image = SkImage::MakeRasterCopy(pm);
-  EXPECT_TRUE(image);
-  auto jpeg_data = image->encodeToData(SkEncodedImageFormat::kJPEG, 100);
-  EXPECT_TRUE(jpeg_data);
-  auto filter = SkImageSource::Make(SkImage::MakeFromEncoded(jpeg_data));
-  EXPECT_TRUE(filter);
+TEST(SkiaUtilsBase, ConvertNullToN32) {
+  SkBitmap bitmap;
+  SkBitmap out;
+  EXPECT_TRUE(SkBitmapToN32OpaqueOrPremul(bitmap, &out));
+  // Returned a copy of the input bitmap.
+  EXPECT_EQ_BITMAP(bitmap, out);
+}
 
-  sk_sp<SkData> data(ValidatingSerializeFlattenable(filter.get()));
+TEST(SkiaUtilsBase, ConvertValidToN32) {
+  SkBitmap bitmap;
+  bitmap.allocN32Pixels(10, 12);
+  SkBitmap out;
+  EXPECT_TRUE(SkBitmapToN32OpaqueOrPremul(bitmap, &out));
+  // Returned a copy of the input bitmap.
+  EXPECT_EQ_BITMAP(bitmap, out);
+}
 
-  // Now we install a proc to see that all embedded images have been converted
-  // to png.
-  bool was_called = false;
-  SkDeserialProcs procs;
-  procs.fImageProc = [](const void* data, size_t length,
-                        void* was_called) -> sk_sp<SkImage> {
-    *(bool*)was_called = true;
+TEST(SkiaUtilsBase, ConvertWeirdStrideToN32) {
+  int width = 10;
+  int height = 12;
+
+  SkBitmap bitmap;
+  // Stride is > 4 * width.
+  bitmap.allocPixels(SkImageInfo::MakeN32(width, height, kPremul_SkAlphaType),
+                     width * 4 + 4);
+
+  SkBitmap out;
+  EXPECT_TRUE(SkBitmapToN32OpaqueOrPremul(bitmap, &out));
+  // The stride was converted.
+  EXPECT_NE(bitmap.rowBytes(), out.rowBytes());
+  EXPECT_EQ(out.rowBytes(), width * 4u);
+}
+
+TEST(SkiaUtilsBase, ConvertWeirdFormatToN32) {
+  int width = 10;
+  int height = 12;
+
+  // A format smaller than N32.
+  {
     SkBitmap bitmap;
-    EXPECT_TRUE(gfx::PNGCodec::Decode(static_cast<const uint8_t*>(data), length,
-                                      &bitmap));
-    return nullptr;  // allow for normal deserialization
-  };
-  procs.fImageCtx = &was_called;
-  auto flat = SkFlattenable::Deserialize(SkImageFilter::GetFlattenableType(),
-                                         data->data(), data->size(), &procs);
-  EXPECT_TRUE(flat);
-  EXPECT_TRUE(was_called);
+    bitmap.allocPixels(SkImageInfo::MakeA8(width, height));
 
-  base::DiscardableMemoryAllocator::SetInstance(nullptr);
-#endif
+    SkBitmap out;
+    EXPECT_TRUE(SkBitmapToN32OpaqueOrPremul(bitmap, &out));
+    // The format was converted.
+    EXPECT_NE(bitmap.rowBytes(), out.rowBytes());
+    EXPECT_NE(bitmap.info().colorType(), out.info().colorType());
+    EXPECT_EQ(out.rowBytes(), width * 4u);
+    EXPECT_EQ(out.info().colorType(), kN32_SkColorType);
+  }
+
+  // A format larger than N32.
+  {
+    SkBitmap bitmap;
+    bitmap.allocPixels(SkImageInfo::Make(width, height, kRGBA_F16_SkColorType,
+                                         kPremul_SkAlphaType));
+
+    SkBitmap out;
+    EXPECT_TRUE(SkBitmapToN32OpaqueOrPremul(bitmap, &out));
+    // The format was converted.
+    EXPECT_NE(bitmap.rowBytes(), out.rowBytes());
+    EXPECT_NE(bitmap.info().colorType(), out.info().colorType());
+    EXPECT_EQ(out.rowBytes(), width * 4u);
+    EXPECT_EQ(out.info().colorType(), kN32_SkColorType);
+  }
 }
 
 }  // namespace

@@ -1,16 +1,19 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import <UIKit/UIKit.h>
 #import <XCTest/XCTest.h>
 
+#include "components/strings/grit/components_chromium_strings.h"
 #import "ios/chrome/browser/ui/page_info/page_info_constants.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_constants.h"
+#include "ios/chrome/grit/ios_chromium_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
+#import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #import "ios/testing/earl_grey/earl_grey_test.h"
+#include "ui/base/l10n/l10n_util.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -21,54 +24,47 @@
 
 @implementation PageInfoTestCase
 
-// Tests that rotating the device will automatically dismiss the page info view.
-- (void)testShowPageInfoAndDismissOnDeviceRotation {
-  // TODO(crbug.com/652465): Enable the test for iPad when rotation bug is
-  // fixed.
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Disabled for iPad due to device rotation bug.");
-  }
-
-  if ([[UIDevice currentDevice] orientation] != UIDeviceOrientationPortrait) {
-#if defined(CHROME_EARL_GREY_1)
-    [EarlGrey rotateDeviceToOrientation:UIDeviceOrientationPortrait
-                             errorOrNil:nil];
-#elif defined(CHROME_EARL_GREY_2)
-    [EarlGrey rotateDeviceToOrientation:UIDeviceOrientationPortrait error:nil];
-#else
-#error Neither CHROME_EARL_GREY_1 nor CHROME_EARL_GREY_2 are defined
-#endif
-  }
-
+// Tests that rotating the device will don't dismiss the page info view.
+- (void)testShowPageInfoRotation {
   [ChromeEarlGrey loadURL:GURL("https://invalid")];
-  [ChromeEarlGreyUI openToolsMenu];
-  [[[EarlGrey
-      selectElementWithMatcher:grey_allOf(grey_accessibilityID(
-                                              kToolsMenuSiteInformation),
-                                          grey_sufficientlyVisible(), nil)]
-         usingSearchAction:grey_scrollInDirection(kGREYDirectionDown, 200)
-      onElementWithMatcher:grey_accessibilityID(kPopupMenuToolsMenuTableViewId)]
-      performAction:grey_tap()];
+  [ChromeEarlGreyUI openPageInfo];
 
-  // Expect that the page info view has appeared.
+  // Checks that the page info view has appeared.
   [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
                                           kPageInfoViewAccessibilityIdentifier)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-#if defined(CHROME_EARL_GREY_1)
-  [EarlGrey rotateDeviceToOrientation:UIDeviceOrientationLandscapeRight
-                           errorOrNil:nil];
-#elif defined(CHROME_EARL_GREY_2)
+  // Rotates the device and checks that the page info view is still presented.
   [EarlGrey rotateDeviceToOrientation:UIDeviceOrientationLandscapeRight
                                 error:nil];
-#else
-#error Neither CHROME_EARL_GREY_1 nor CHROME_EARL_GREY_2 are defined
-#endif
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kPageInfoViewAccessibilityIdentifier)]
+      assertWithMatcher:grey_sufficientlyVisible()];
 
-  // Expect that the page info view has disappeared.
+  // Closes the page info using the 'Done' button.
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::NavigationBarDoneButton()]
+      performAction:grey_tap()];
   [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
                                           kPageInfoViewAccessibilityIdentifier)]
       assertWithMatcher:grey_nil()];
+}
+
+// Tests that opening the page info on a Chromium page displays the correct
+// information.
+- (void)testShowPageInfoChromePage {
+  [ChromeEarlGrey loadURL:GURL("chrome://version")];
+  [ChromeEarlGreyUI openPageInfo];
+
+  // Checks that the page info view has appeared.
+  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(
+                                          kPageInfoViewAccessibilityIdentifier)]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Checks that “You’re viewing a secure Chrome page.” is displayed.
+  [[EarlGrey selectElementWithMatcher:grey_text(l10n_util::GetNSString(
+                                          IDS_PAGE_INFO_INTERNAL_PAGE))]
+      assertWithMatcher:grey_sufficientlyVisible()];
 }
 
 @end

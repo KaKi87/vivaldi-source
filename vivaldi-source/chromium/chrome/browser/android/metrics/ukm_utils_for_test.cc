@@ -52,14 +52,12 @@ static jboolean JNI_UkmUtilsForTest_IsEnabled(JNIEnv*) {
   return ukm::UkmUtilsForTest::IsEnabled();
 }
 
-static jboolean JNI_UkmUtilsForTest_HasSourceWithId(JNIEnv*,
-                                                    jlong source_id) {
+static jboolean JNI_UkmUtilsForTest_HasSourceWithId(JNIEnv*, jlong source_id) {
   ukm::SourceId source = static_cast<ukm::SourceId>(source_id);
   return ukm::UkmUtilsForTest::HasSourceWithId(source);
 }
 
-static void JNI_UkmUtilsForTest_RecordSourceWithId(JNIEnv*,
-                                                   jlong source_id) {
+static void JNI_UkmUtilsForTest_RecordSourceWithId(JNIEnv*, jlong source_id) {
   ukm::SourceId source = static_cast<ukm::SourceId>(source_id);
   ukm::UkmUtilsForTest::RecordSourceWithId(source);
 }
