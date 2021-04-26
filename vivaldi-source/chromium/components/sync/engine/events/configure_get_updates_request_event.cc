@@ -18,6 +18,11 @@ ConfigureGetUpdatesRequestEvent::ConfigureGetUpdatesRequestEvent(
 
 ConfigureGetUpdatesRequestEvent::~ConfigureGetUpdatesRequestEvent() {}
 
+std::unique_ptr<ProtocolEvent> ConfigureGetUpdatesRequestEvent::Clone() const {
+  return std::make_unique<ConfigureGetUpdatesRequestEvent>(timestamp_, origin_,
+                                                           request_);
+}
+
 base::Time ConfigureGetUpdatesRequestEvent::GetTimestamp() const {
   return timestamp_;
 }
@@ -27,18 +32,12 @@ std::string ConfigureGetUpdatesRequestEvent::GetType() const {
 }
 
 std::string ConfigureGetUpdatesRequestEvent::GetDetails() const {
-  return base::StringPrintf("Reason: %s", GetUpdatesOriginString(origin_));
+  return base::StringPrintf("Reason: %s", ProtoEnumToString(origin_));
 }
 
 std::unique_ptr<base::DictionaryValue>
-ConfigureGetUpdatesRequestEvent::GetProtoMessage() const {
-  return std::unique_ptr<base::DictionaryValue>(
-      ClientToServerMessageToValue(request_, false));
-}
-
-std::unique_ptr<ProtocolEvent> ConfigureGetUpdatesRequestEvent::Clone() const {
-  return std::unique_ptr<ProtocolEvent>(
-      new ConfigureGetUpdatesRequestEvent(timestamp_, origin_, request_));
+ConfigureGetUpdatesRequestEvent::GetProtoMessage(bool include_specifics) const {
+  return ClientToServerMessageToValue(request_, include_specifics);
 }
 
 }  // namespace syncer

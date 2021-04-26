@@ -17,22 +17,21 @@
 
 namespace syncer {
 
-class NudgeTracker;
-
 // An event representing a poll request sent to the server.
 class PollGetUpdatesRequestEvent : public ProtocolEvent {
  public:
   PollGetUpdatesRequestEvent(base::Time timestamp,
                              const sync_pb::ClientToServerMessage& request);
   ~PollGetUpdatesRequestEvent() override;
-
-  base::Time GetTimestamp() const override;
-  std::string GetType() const override;
-  std::string GetDetails() const override;
-  std::unique_ptr<base::DictionaryValue> GetProtoMessage() const override;
   std::unique_ptr<ProtocolEvent> Clone() const override;
 
  private:
+  base::Time GetTimestamp() const override;
+  std::string GetType() const override;
+  std::string GetDetails() const override;
+  std::unique_ptr<base::DictionaryValue> GetProtoMessage(
+      bool include_specifics) const override;
+
   const base::Time timestamp_;
   const sync_pb::ClientToServerMessage request_;
 

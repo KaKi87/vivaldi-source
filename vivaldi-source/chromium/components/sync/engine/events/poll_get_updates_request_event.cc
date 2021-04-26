@@ -15,6 +15,10 @@ PollGetUpdatesRequestEvent::PollGetUpdatesRequestEvent(
 
 PollGetUpdatesRequestEvent::~PollGetUpdatesRequestEvent() {}
 
+std::unique_ptr<ProtocolEvent> PollGetUpdatesRequestEvent::Clone() const {
+  return std::make_unique<PollGetUpdatesRequestEvent>(timestamp_, request_);
+}
+
 base::Time PollGetUpdatesRequestEvent::GetTimestamp() const {
   return timestamp_;
 }
@@ -28,14 +32,8 @@ std::string PollGetUpdatesRequestEvent::GetDetails() const {
 }
 
 std::unique_ptr<base::DictionaryValue>
-PollGetUpdatesRequestEvent::GetProtoMessage() const {
-  return std::unique_ptr<base::DictionaryValue>(
-      ClientToServerMessageToValue(request_, false));
-}
-
-std::unique_ptr<ProtocolEvent> PollGetUpdatesRequestEvent::Clone() const {
-  return std::unique_ptr<ProtocolEvent>(
-      new PollGetUpdatesRequestEvent(timestamp_, request_));
+PollGetUpdatesRequestEvent::GetProtoMessage(bool include_specifics) const {
+  return ClientToServerMessageToValue(request_, include_specifics);
 }
 
 }  // namespace syncer
