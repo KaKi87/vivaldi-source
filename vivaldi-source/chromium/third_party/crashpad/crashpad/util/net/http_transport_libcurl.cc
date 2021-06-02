@@ -15,12 +15,14 @@
 #include "util/net/http_transport.h"
 
 #include <curl/curl.h>
+#include <dlfcn.h>
 #include <string.h>
 #include <sys/utsname.h>
 
 #include <algorithm>
 #include <limits>
 
+#include "base/check.h"
 #include "base/logging.h"
 #include "base/numerics/safe_math.h"
 #include "base/scoped_generic.h"
@@ -28,6 +30,7 @@
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
 #include "package.h"
+#include "util/misc/no_cfi_icall.h"
 #include "util/net/http_body.h"
 #include "util/numeric/safe_assignment.h"
 
@@ -35,9 +38,130 @@ namespace crashpad {
 
 namespace {
 
+// Crashpad depends on libcurl via dlopen() in order to maximize its tolerance
+// of various libcurl flavors and installation configurations. This class serves
+// as a linkage table for libcurl procedures.
+class Libcurl {
+ public:
+  static bool Initialized() {
+    static bool initialized = Get()->Initialize();
+    return initialized;
+  }
+
+  static void CurlEasyCleanup(CURL* curl) {
+    return Get()->curl_easy_cleanup_(curl);
+  }
+
+  static CURL* CurlEasyInit() { return Get()->curl_easy_init_(); }
+
+  static CURLcode CurlEasyPerform(CURL* curl) {
+    return Get()->curl_easy_perform_(curl);
+  }
+
+  static const char* CurlEasyStrError(CURLcode code) {
+    return Get()->curl_easy_strerror_(code);
+  }
+
+  template <typename Pointer>
+  static CURLcode CurlEasyGetInfo(CURL* curl, CURLINFO info, Pointer out) {
+    return Get()->curl_easy_getinfo_(curl, info, out);
+  }
+
+  template <typename Pointer>
+  static CURLcode CurlEasySetOpt(CURL* curl, CURLoption option, Pointer param) {
+    return Get()->curl_easy_setopt_(curl, option, param);
+  }
+
+  static CURLcode CurlGlobalInit(long flags) {
+    return Get()->curl_global_init_(flags);
+  }
+
+  static void CurlSlistFreeAll(struct curl_slist* slist) {
+    return Get()->curl_slist_free_all_(slist);
+  }
+
+  static struct curl_slist* CurlSlistAppend(struct curl_slist* slist,
+                                            const char* data) {
+    return Get()->curl_slist_append_(slist, data);
+  }
+
+  static char* CurlVersion() { return Get()->curl_version_(); }
+
+ private:
+  Libcurl() = default;
+  ~Libcurl() = delete;
+
+  static Libcurl* Get() {
+    static Libcurl* instance = new Libcurl();
+    return instance;
+  }
+
+  bool Initialize() {
+    void* libcurl = []() {
+      std::vector<std::string> errors;
+      for (const auto& lib : {
+               "libcurl.so",
+               "libcurl-gnutls.so.4",
+               "libcurl-nss.so.4",
+               "libcurl.so.4",
+           }) {
+        void* libcurl = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
+        if (libcurl) {
+          return libcurl;
+        }
+        errors.emplace_back(dlerror());
+      }
+      for (const auto& message : errors) {
+        LOG(ERROR) << "dlopen:" << message;
+      }
+      return static_cast<void*>(nullptr);
+    }();
+    if (!libcurl) {
+      return false;
+    }
+
+#define LINK_OR_RETURN_FALSE(symbol)               \
+  do {                                             \
+    symbol##_.SetPointer(dlsym(libcurl, #symbol)); \
+    if (!symbol##_) {                              \
+      LOG(ERROR) << "dlsym:" << dlerror();         \
+      return false;                                \
+    }                                              \
+  } while (0);
+
+    LINK_OR_RETURN_FALSE(curl_easy_cleanup);
+    LINK_OR_RETURN_FALSE(curl_easy_init);
+    LINK_OR_RETURN_FALSE(curl_easy_perform);
+    LINK_OR_RETURN_FALSE(curl_easy_strerror);
+    LINK_OR_RETURN_FALSE(curl_easy_getinfo);
+    LINK_OR_RETURN_FALSE(curl_easy_setopt);
+    LINK_OR_RETURN_FALSE(curl_global_init);
+    LINK_OR_RETURN_FALSE(curl_slist_free_all);
+    LINK_OR_RETURN_FALSE(curl_slist_append);
+    LINK_OR_RETURN_FALSE(curl_version);
+
+#undef LINK_OR_RETURN_FALSE
+
+    return true;
+  }
+
+  NoCfiIcall<decltype(curl_easy_cleanup)*> curl_easy_cleanup_;
+  NoCfiIcall<decltype(curl_easy_init)*> curl_easy_init_;
+  NoCfiIcall<decltype(curl_easy_perform)*> curl_easy_perform_;
+  NoCfiIcall<decltype(curl_easy_strerror)*> curl_easy_strerror_;
+  NoCfiIcall<decltype(curl_easy_getinfo)*> curl_easy_getinfo_;
+  NoCfiIcall<decltype(curl_easy_setopt)*> curl_easy_setopt_;
+  NoCfiIcall<decltype(curl_global_init)*> curl_global_init_;
+  NoCfiIcall<decltype(curl_slist_free_all)*> curl_slist_free_all_;
+  NoCfiIcall<decltype(curl_slist_append)*> curl_slist_append_;
+  NoCfiIcall<decltype(curl_version)*> curl_version_;
+
+  DISALLOW_COPY_AND_ASSIGN(Libcurl);
+};
+
 std::string UserAgent() {
   std::string user_agent = base::StringPrintf(
-      "%s/%s %s", PACKAGE_NAME, PACKAGE_VERSION, curl_version());
+      "%s/%s %s", PACKAGE_NAME, PACKAGE_VERSION, Libcurl::CurlVersion());
 
   utsname os;
   if (uname(&os) != 0) {
@@ -73,15 +197,20 @@ std::string UserAgent() {
     // big-endian. The processor name comes from a definition in
     // arch/arm/mm/proc-*.S.
 #if defined(__ARM_ARCH_4T__)
-    static constexpr char arch[] = "armv4t"
+    static constexpr char arch[] =
+        "armv4t"
 #elif defined(__ARM_ARCH_5TEJ__)
-    static constexpr char arch[] = "armv5tej"
+    static constexpr char arch[] =
+        "armv5tej"
 #elif defined(__ARM_ARCH_5TE__)
-    static constexpr char arch[] = "armv5te"
+    static constexpr char arch[] =
+        "armv5te"
 #elif defined(__ARM_ARCH_5T__)
-    static constexpr char arch[] = "armv5t"
+    static constexpr char arch[] =
+        "armv5t"
 #elif defined(__ARM_ARCH_7M__)
-    static constexpr char arch[] = "armv7m"
+    static constexpr char arch[] =
+        "armv7m"
 #else
     // Most ARM architectures fall into here, including all profile variants of
     // armv6, armv7, armv8, with one exception, armv7m, handled above.
@@ -89,7 +218,8 @@ std::string UserAgent() {
     // or 8.
 #define xstr(s) str(s)
 #define str(s) #s
-    static constexpr char arch[] = "armv" xstr(__ARM_ARCH)
+    static constexpr char arch[] =
+        "armv" xstr(__ARM_ARCH)
 #undef str
 #undef xstr
 #endif
@@ -106,10 +236,6 @@ std::string UserAgent() {
 #elif defined(ARCH_CPU_BIG_ENDIAN)
     static constexpr char arch[] = "aarch64_be";
 #endif
-#elif defined(ARCH_CPU_MIPSEL)
-    static constexpr char arch[] = "mips";
-#elif defined(ARCH_CPU_MIPS64EL)
-    static constexpr char arch[] = "mips64";
 #else
 #error Port
 #endif
@@ -126,15 +252,17 @@ std::string UserAgent() {
 }
 
 std::string CurlErrorMessage(CURLcode curl_err, const std::string& base) {
-  return base::StringPrintf(
-      "%s: %s (%d)", base.c_str(), curl_easy_strerror(curl_err), curl_err);
+  return base::StringPrintf("%s: %s (%d)",
+                            base.c_str(),
+                            Libcurl::CurlEasyStrError(curl_err),
+                            curl_err);
 }
 
 struct ScopedCURLTraits {
   static CURL* InvalidValue() { return nullptr; }
   static void Free(CURL* curl) {
     if (curl) {
-      curl_easy_cleanup(curl);
+      Libcurl::CurlEasyCleanup(curl);
     }
   }
 };
@@ -145,14 +273,14 @@ class CurlSList {
   CurlSList() : list_(nullptr) {}
   ~CurlSList() {
     if (list_) {
-      curl_slist_free_all(list_);
+      Libcurl::CurlSlistFreeAll(list_);
     }
   }
 
   curl_slist* get() const { return list_; }
 
   bool Append(const char* data) {
-    curl_slist* list = curl_slist_append(list_, data);
+    curl_slist* list = Libcurl::CurlSlistAppend(list_, data);
     if (!list_) {
       list_ = list;
     }
@@ -216,7 +344,7 @@ bool HTTPTransportLibcurl::ExecuteSynchronously(std::string* response_body) {
   // curl_easy_init() will do this on the first call if it hasn’t been done yet,
   // but not in a thread-safe way as is done here.
   static CURLcode curl_global_init_err = []() {
-    return curl_global_init(CURL_GLOBAL_DEFAULT);
+    return Libcurl::CurlGlobalInit(CURL_GLOBAL_DEFAULT);
   }();
   if (curl_global_init_err != CURLE_OK) {
     LOG(ERROR) << CurlErrorMessage(curl_global_init_err, "curl_global_init");
@@ -224,7 +352,7 @@ bool HTTPTransportLibcurl::ExecuteSynchronously(std::string* response_body) {
   }
 
   CurlSList curl_headers;
-  ScopedCURL curl(curl_easy_init());
+  ScopedCURL curl(Libcurl::CurlEasyInit());
   if (!curl.get()) {
     LOG(ERROR) << "curl_easy_init";
     return false;
@@ -234,13 +362,14 @@ bool HTTPTransportLibcurl::ExecuteSynchronously(std::string* response_body) {
 // false on failure” pattern. Macros are convenient because the log messages
 // will point to the correct line number, which can help pinpoint a problem when
 // there are as many calls to these functions as there are here.
-#define TRY_CURL_EASY_SETOPT(curl, option, parameter)                    \
-  do {                                                                   \
-    CURLcode curl_err = curl_easy_setopt((curl), (option), (parameter)); \
-    if (curl_err != CURLE_OK) {                                          \
-      LOG(ERROR) << CurlErrorMessage(curl_err, "curl_easy_setopt");      \
-      return false;                                                      \
-    }                                                                    \
+#define TRY_CURL_EASY_SETOPT(curl, option, parameter)               \
+  do {                                                              \
+    CURLcode curl_err =                                             \
+        Libcurl::CurlEasySetOpt((curl), (option), (parameter));     \
+    if (curl_err != CURLE_OK) {                                     \
+      LOG(ERROR) << CurlErrorMessage(curl_err, "curl_easy_setopt"); \
+      return false;                                                 \
+    }                                                               \
   } while (false)
 #define TRY_CURL_SLIST_APPEND(slist, data) \
   do {                                     \
@@ -256,6 +385,11 @@ bool HTTPTransportLibcurl::ExecuteSynchronously(std::string* response_body) {
   TRY_CURL_EASY_SETOPT(curl.get(), CURLOPT_ACCEPT_ENCODING, "");
 
   TRY_CURL_EASY_SETOPT(curl.get(), CURLOPT_URL, url().c_str());
+
+  if (!root_ca_certificate_path().empty()) {
+    TRY_CURL_EASY_SETOPT(
+        curl.get(), CURLOPT_CAINFO, root_ca_certificate_path().value().c_str());
+  }
 
   constexpr int kMillisecondsPerSecond = 1E3;
   TRY_CURL_EASY_SETOPT(curl.get(),
@@ -325,14 +459,15 @@ bool HTTPTransportLibcurl::ExecuteSynchronously(std::string* response_body) {
   ScopedClearString clear_response_body(response_body);
 
   // Do it.
-  CURLcode curl_err = curl_easy_perform(curl.get());
+  CURLcode curl_err = Libcurl::CurlEasyPerform(curl.get());
   if (curl_err != CURLE_OK) {
     LOG(ERROR) << CurlErrorMessage(curl_err, "curl_easy_perform");
     return false;
   }
 
   long status;
-  curl_err = curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
+  curl_err =
+      Libcurl::CurlEasyGetInfo(curl.get(), CURLINFO_RESPONSE_CODE, &status);
   if (curl_err != CURLE_OK) {
     LOG(ERROR) << CurlErrorMessage(curl_err, "curl_easy_getinfo");
     return false;
@@ -396,7 +531,8 @@ size_t HTTPTransportLibcurl::WriteResponseBody(char* buffer,
 
 // static
 std::unique_ptr<HTTPTransport> HTTPTransport::Create() {
-  return std::unique_ptr<HTTPTransport>(new HTTPTransportLibcurl());
+  return std::unique_ptr<HTTPTransport>(
+      Libcurl::Initialized() ? new HTTPTransportLibcurl() : nullptr);
 }
 
 }  // namespace crashpad
