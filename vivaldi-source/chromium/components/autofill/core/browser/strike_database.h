@@ -11,17 +11,16 @@
 #include <vector>
 
 #include "base/callback_forward.h"
+#include "base/files/file_path.h"
 #include "base/memory/weak_ptr.h"
+#include "components/autofill/core/browser/strike_database_base.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/leveldb_proto/public/proto_database.h"
+#include "components/leveldb_proto/public/proto_database_provider.h"
 
 namespace autofill {
 
-namespace {
-const char kKeyDeliminator[] = "__";
-}  // namespace
-
-class StrikeData;
+extern const base::FilePath::StringPieceType kStrikeDatabaseFileName;
 
 // Manages data on whether different Autofill opportunities should be offered to
 // the user. Projects can earn strikes in a number of ways; for instance, if a
@@ -31,7 +30,7 @@ class StrikeData;
 // projects. It should not be used directly, but rather by implementing the
 // StrikeDatabaseIntegratorBase (which contains a pointer to StrikeDatabase)
 // for specific projects.
-class StrikeDatabase : public KeyedService {
+class StrikeDatabase : public StrikeDatabaseBase {
  public:
   using ClearStrikesCallback = base::RepeatingCallback<void(bool success)>;
 
@@ -49,31 +48,23 @@ class StrikeDatabase : public KeyedService {
 
   using StrikeDataProto = leveldb_proto::ProtoDatabase<StrikeData>;
 
-  explicit StrikeDatabase(const base::FilePath& database_dir);
+  StrikeDatabase(leveldb_proto::ProtoDatabaseProvider* db_provider,
+                 base::FilePath profile_path);
   ~StrikeDatabase() override;
 
-  // Increases in-memory cache by |strikes_increase| and updates underlying
-  // ProtoDatabase.
-  int AddStrikes(int strikes_increase, const std::string& key);
-
-  // Removes |strikes_decrease| in-memory cache strikes, updates
-  // last_update_timestamp, and updates underlying ProtoDatabase.
-  int RemoveStrikes(int strikes_decrease, const std::string& key);
-
-  // Returns strike count from in-memory cache.
-  int GetStrikes(const std::string& key);
-
-  // Removes database entry for |key| from in-memory cache and underlying
-  // ProtoDatabase.
-  void ClearStrikes(const std::string& key);
-
-  // Removes all database entries from in-memory cache and underlying
-  // ProtoDatabase for the whole project.
-  void ClearAllStrikesForProject(const std::string& project_prefix);
-
-  // Removes all database entries from in-memory cache and underlying
-  // ProtoDatabase.
-  void ClearAllStrikes();
+  // StrikeDatabaseBase:
+  int AddStrikes(int strikes_increase, const std::string& key) override;
+  int RemoveStrikes(int strikes_decrease, const std::string& key) override;
+  int GetStrikes(const std::string& key) override;
+  void ClearStrikes(const std::string& key) override;
+  std::vector<std::string> GetAllStrikeKeysForProject(
+      const std::string& project_prefix) override;
+  void ClearStrikesForKeys(
+      const std::vector<std::string>& keys_to_remove) override;
+  void ClearAllStrikesForProject(const std::string& project_prefix) override;
+  void ClearAllStrikes() override;
+  std::string GetPrefixFromKey(const std::string& key) const override;
+  void SetStrikeData(const std::string& key, int num_strikes) override;
 
  protected:
   friend class StrikeDatabaseIntegratorBase;
@@ -86,15 +77,15 @@ class StrikeDatabase : public KeyedService {
   // Cached StrikeDatabase entries.
   std::map<std::string, StrikeData> strike_map_cache_;
 
-  // Directory where the ProtoDatabase is intialized at.
-  const base::FilePath database_dir_;
-
   // Whether or not the ProtoDatabase database has been initialized and entries
   // have been loaded.
   bool database_initialized_ = false;
 
   // Number of attempts at initializing the ProtoDatabase.
   int num_init_attempts_ = 0;
+
+  // StrikeDatabaseBase:
+  std::map<std::string, StrikeData>& GetStrikeCache() override;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(ChromeBrowsingDataRemoverDelegateTest,
@@ -109,15 +100,11 @@ class StrikeDatabase : public KeyedService {
   friend class StrikeDatabaseTest;
   friend class StrikeDatabaseTester;
 
-  void OnDatabaseInit(bool success);
+  void OnDatabaseInit(leveldb_proto::Enums::InitStatus status);
 
   void OnDatabaseLoadKeysAndEntries(
       bool success,
       std::unique_ptr<std::map<std::string, StrikeData>> entries);
-
-  // Updates the StrikeData for |key| in the cache and ProtoDatabase to have
-  // |num_strikes|, and the current time as timestamp.
-  void SetStrikeData(const std::string& key, int num_strikes);
 
   // Passes the number of strikes for |key| to |outer_callback|. In the case
   // that the database fails to retrieve the strike update or if no entry is
@@ -134,6 +121,11 @@ class StrikeDatabase : public KeyedService {
   // ProtoDatabase.
   virtual void ClearAllProtoStrikesForKey(
       const std::string& key,
+      const ClearStrikesCallback& outer_callback);
+
+  // Same as |ClearAllProtoStrikesForKey()| but for a vector of |keys|.
+  virtual void ClearAllProtoStrikesForKeys(
+      const std::vector<std::string>& keys,
       const ClearStrikesCallback& outer_callback);
 
   // Passes success status and StrikeData entry for |key| to |inner_callback|.
@@ -157,10 +149,7 @@ class StrikeDatabase : public KeyedService {
   // Sets the entry for |key| in |strike_map_cache_| to |data|.
   void UpdateCache(const std::string& key, const StrikeData& data);
 
-  // Extracts per-project prefix from |key|.
-  std::string GetPrefixFromKey(const std::string& key);
-
-  base::WeakPtrFactory<StrikeDatabase> weak_ptr_factory_;
+  base::WeakPtrFactory<StrikeDatabase> weak_ptr_factory_{this};
 };
 
 }  // namespace autofill

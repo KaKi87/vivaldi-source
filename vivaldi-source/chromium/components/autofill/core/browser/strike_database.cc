@@ -10,9 +10,10 @@
 #include <vector>
 
 #include "base/bind.h"
-#include "base/bind_helpers.h"
+#include "base/callback_helpers.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/post_task.h"
+#include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "components/autofill/core/browser/proto/strike_data.pb.h"
 #include "components/autofill/core/common/autofill_clock.h"
@@ -21,27 +22,34 @@
 namespace autofill {
 
 namespace {
-const char kDatabaseClientName[] = "StrikeService";
 const int kMaxInitAttempts = 3;
 }  // namespace
 
-StrikeDatabase::StrikeDatabase(const base::FilePath& database_dir)
-    : db_(leveldb_proto::ProtoDatabaseProvider::CreateUniqueDB<StrikeData>(
-          base::CreateSequencedTaskRunnerWithTraits(
-              {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
-               base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}))),
-      database_dir_(database_dir),
-      weak_ptr_factory_(this) {
-  db_->Init(kDatabaseClientName, database_dir,
-            leveldb_proto::CreateSimpleOptions(),
-            base::BindRepeating(&StrikeDatabase::OnDatabaseInit,
+const base::FilePath::StringPieceType kStrikeDatabaseFileName =
+    FILE_PATH_LITERAL("AutofillStrikeDatabase");
+
+StrikeDatabase::StrikeDatabase(
+    leveldb_proto::ProtoDatabaseProvider* db_provider,
+    base::FilePath profile_path) {
+  const auto strike_database_path =
+      profile_path.Append(kStrikeDatabaseFileName);
+
+  const auto database_task_runner = base::ThreadPool::CreateSequencedTaskRunner(
+      {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN});
+
+  db_ = db_provider->GetDB<StrikeData>(
+      leveldb_proto::ProtoDbType::STRIKE_DATABASE, strike_database_path,
+      database_task_runner);
+
+  db_->Init(base::BindRepeating(&StrikeDatabase::OnDatabaseInit,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
 
-StrikeDatabase::~StrikeDatabase() {}
+StrikeDatabase::~StrikeDatabase() = default;
 
 int StrikeDatabase::AddStrikes(int strikes_increase, const std::string& key) {
-  DCHECK(strikes_increase > 0);
+  DCHECK_GT(strikes_increase, 0);
   int num_strikes =
       strike_map_cache_.count(key)  // Cache has entry for |key|.
           ? strike_map_cache_[key].num_strikes() + strikes_increase
@@ -68,16 +76,45 @@ void StrikeDatabase::ClearStrikes(const std::string& key) {
   ClearAllProtoStrikesForKey(key, base::DoNothing());
 }
 
-void StrikeDatabase::ClearAllStrikesForProject(
+std::map<std::string, StrikeData>& StrikeDatabase::GetStrikeCache() {
+  return strike_map_cache_;
+}
+
+void StrikeDatabase::SetStrikeData(const std::string& key, int num_strikes) {
+  if (num_strikes == 0) {
+    ClearStrikes(key);
+    return;
+  }
+  StrikeData data;
+  data.set_num_strikes(num_strikes);
+  data.set_last_update_timestamp(
+      AutofillClock::Now().ToDeltaSinceWindowsEpoch().InMicroseconds());
+  UpdateCache(key, data);
+  SetProtoStrikeData(key, data, base::DoNothing());
+}
+
+std::vector<std::string> StrikeDatabase::GetAllStrikeKeysForProject(
     const std::string& project_prefix) {
-  std::vector<std::string> keys_to_delete;
+  std::vector<std::string> project_keys;
   for (std::pair<std::string, StrikeData> entry : strike_map_cache_) {
     if (entry.first.find(project_prefix) == 0) {
-      keys_to_delete.push_back(entry.first);
+      project_keys.push_back(entry.first);
     }
   }
-  for (std::string key : keys_to_delete)
-    ClearStrikes(key);
+  return project_keys;
+}
+
+void StrikeDatabase::ClearAllStrikesForProject(
+    const std::string& project_prefix) {
+  ClearStrikesForKeys(GetAllStrikeKeysForProject(project_prefix));
+}
+
+void StrikeDatabase::ClearStrikesForKeys(
+    const std::vector<std::string>& keys_to_remove) {
+  for (const auto& key : keys_to_remove) {
+    strike_map_cache_.erase(key);
+  }
+  ClearAllProtoStrikesForKeys(keys_to_remove, base::DoNothing());
 }
 
 void StrikeDatabase::ClearAllStrikes() {
@@ -85,21 +122,21 @@ void StrikeDatabase::ClearAllStrikes() {
   ClearAllProtoStrikes(base::DoNothing());
 }
 
-StrikeDatabase::StrikeDatabase()
-    : db_(nullptr),
-      database_dir_(base::FilePath(nullptr)),
-      weak_ptr_factory_(this) {}
+std::string StrikeDatabase::GetPrefixFromKey(const std::string& key) const {
+  return key.substr(0, key.find(KeyDeliminator()));
+}
 
-void StrikeDatabase::OnDatabaseInit(bool success) {
+StrikeDatabase::StrikeDatabase() : db_(nullptr) {}
+
+void StrikeDatabase::OnDatabaseInit(leveldb_proto::Enums::InitStatus status) {
+  bool success = status == leveldb_proto::Enums::InitStatus::kOK;
   database_initialized_ = success;
   if (!success) {
     base::UmaHistogramCounts100(
         "Autofill.StrikeDatabase.StrikeDatabaseInitFailed", num_init_attempts_);
     if (num_init_attempts_ < kMaxInitAttempts) {
       num_init_attempts_++;
-      db_->Init(kDatabaseClientName, database_dir_,
-                leveldb_proto::CreateSimpleOptions(),
-                base::BindRepeating(&StrikeDatabase::OnDatabaseInit,
+      db_->Init(base::BindRepeating(&StrikeDatabase::OnDatabaseInit,
                                     weak_ptr_factory_.GetWeakPtr()));
     }
     return;
@@ -117,19 +154,6 @@ void StrikeDatabase::OnDatabaseLoadKeysAndEntries(
     return;
   }
   strike_map_cache_.insert(entries->begin(), entries->end());
-}
-
-void StrikeDatabase::SetStrikeData(const std::string& key, int num_strikes) {
-  if (num_strikes == 0) {
-    ClearStrikes(key);
-    return;
-  }
-  StrikeData data;
-  data.set_num_strikes(num_strikes);
-  data.set_last_update_timestamp(
-      AutofillClock::Now().ToDeltaSinceWindowsEpoch().InMicroseconds());
-  UpdateCache(key, data);
-  SetProtoStrikeData(key, data, base::DoNothing());
 }
 
 void StrikeDatabase::GetProtoStrikes(const std::string& key,
@@ -157,8 +181,8 @@ void StrikeDatabase::ClearAllProtoStrikes(
       outer_callback);
 }
 
-void StrikeDatabase::ClearAllProtoStrikesForKey(
-    const std::string& key,
+void StrikeDatabase::ClearAllProtoStrikesForKeys(
+    const std::vector<std::string>& keys,
     const ClearStrikesCallback& outer_callback) {
   if (!database_initialized_) {
     outer_callback.Run(false);
@@ -166,11 +190,18 @@ void StrikeDatabase::ClearAllProtoStrikesForKey(
   }
   std::unique_ptr<std::vector<std::string>> keys_to_remove(
       new std::vector<std::string>());
-  keys_to_remove->push_back(key);
+  *keys_to_remove = keys;
   db_->UpdateEntries(
       /*entries_to_save=*/std::make_unique<
           leveldb_proto::ProtoDatabase<StrikeData>::KeyEntryVector>(),
       /*keys_to_remove=*/std::move(keys_to_remove), outer_callback);
+}
+
+void StrikeDatabase::ClearAllProtoStrikesForKey(
+    const std::string& key,
+    const ClearStrikesCallback& outer_callback) {
+  std::vector<std::string> keys_to_delete({key});
+  ClearAllProtoStrikesForKeys(keys_to_delete, outer_callback);
 }
 
 void StrikeDatabase::GetProtoStrikeData(const std::string& key,
@@ -215,10 +246,6 @@ void StrikeDatabase::LoadKeys(const LoadKeysCallback& callback) {
 void StrikeDatabase::UpdateCache(const std::string& key,
                                  const StrikeData& data) {
   strike_map_cache_[key] = data;
-}
-
-std::string StrikeDatabase::GetPrefixFromKey(const std::string& key) {
-  return key.substr(0, key.find(kKeyDeliminator));
 }
 
 }  // namespace autofill

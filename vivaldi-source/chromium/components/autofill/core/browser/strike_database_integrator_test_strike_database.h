@@ -5,6 +5,7 @@
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_STRIKE_DATABASE_INTEGRATOR_TEST_STRIKE_DATABASE_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_STRIKE_DATABASE_INTEGRATOR_TEST_STRIKE_DATABASE_H_
 
+#include <stdint.h>
 #include <string>
 
 #include "components/autofill/core/browser/strike_database.h"
@@ -17,18 +18,37 @@ namespace autofill {
 class StrikeDatabaseIntegratorTestStrikeDatabase
     : public StrikeDatabaseIntegratorBase {
  public:
-  StrikeDatabaseIntegratorTestStrikeDatabase(StrikeDatabase* strike_database);
+  StrikeDatabaseIntegratorTestStrikeDatabase(
+      StrikeDatabase* strike_database,
+      absl::optional<base::TimeDelta> expiry_time_delta);
+  explicit StrikeDatabaseIntegratorTestStrikeDatabase(
+      StrikeDatabase* strike_database);
+  // This constructor initializes the TestStrikeDatabase with a non-default
+  // project prefix.
+  StrikeDatabaseIntegratorTestStrikeDatabase(
+      StrikeDatabase* strike_database,
+      absl::optional<base::TimeDelta> expiry_time_delta,
+      std::string& project_prefix);
   ~StrikeDatabaseIntegratorTestStrikeDatabase() override;
 
-  std::string GetProjectPrefix() override;
-  int GetMaxStrikesLimit() override;
-  long long GetExpiryTimeMicros() override;
-  bool UniqueIdsRequired() override;
+  absl::optional<size_t> GetMaximumEntries() const override;
+  absl::optional<size_t> GetMaximumEntriesAfterCleanup() const override;
+
+  std::string GetProjectPrefix() const override;
+  int GetMaxStrikesLimit() const override;
+  absl::optional<base::TimeDelta> GetExpiryTimeDelta() const override;
+  bool UniqueIdsRequired() const override;
 
   void SetUniqueIdsRequired(bool unique_ids_required);
 
  private:
   bool unique_ids_required_ = false;
+  absl::optional<base::TimeDelta> expiry_time_delta_ =
+      base::TimeDelta::FromDays(365);
+
+  absl::optional<size_t> maximum_entries_ = 10;
+  absl::optional<size_t> maximum_entries_after_cleanup_ = 5;
+  std::string project_prefix_ = "StrikeDatabaseIntegratorTest";
 };
 
 }  // namespace autofill

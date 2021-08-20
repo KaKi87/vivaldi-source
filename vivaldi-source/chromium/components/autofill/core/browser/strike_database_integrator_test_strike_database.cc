@@ -8,10 +8,15 @@
 
 namespace autofill {
 
-const char kProjectPrefix[] = "StrikeDatabaseIntegratorTest";
 const int kMaxStrikesLimit = 6;
-// Expiry time is 1 year.
-const long long kExpiryTimeMicros = (long long)1000000 * 60 * 60 * 24 * 365;
+
+StrikeDatabaseIntegratorTestStrikeDatabase::
+    StrikeDatabaseIntegratorTestStrikeDatabase(
+        StrikeDatabase* strike_database,
+        absl::optional<base::TimeDelta> expiry_time_delta)
+    : StrikeDatabaseIntegratorTestStrikeDatabase(strike_database) {
+  expiry_time_delta_ = expiry_time_delta;
+}
 
 StrikeDatabaseIntegratorTestStrikeDatabase::
     StrikeDatabaseIntegratorTestStrikeDatabase(StrikeDatabase* strike_database)
@@ -20,21 +25,33 @@ StrikeDatabaseIntegratorTestStrikeDatabase::
 }
 
 StrikeDatabaseIntegratorTestStrikeDatabase::
-    ~StrikeDatabaseIntegratorTestStrikeDatabase() {}
-
-std::string StrikeDatabaseIntegratorTestStrikeDatabase::GetProjectPrefix() {
-  return kProjectPrefix;
+    StrikeDatabaseIntegratorTestStrikeDatabase(
+        StrikeDatabase* strike_database,
+        absl::optional<base::TimeDelta> expiry_time_delta,
+        std::string& project_prefix)
+    : StrikeDatabaseIntegratorTestStrikeDatabase(strike_database,
+                                                 expiry_time_delta) {
+  project_prefix_ = project_prefix;
 }
 
-int StrikeDatabaseIntegratorTestStrikeDatabase::GetMaxStrikesLimit() {
+StrikeDatabaseIntegratorTestStrikeDatabase::
+    ~StrikeDatabaseIntegratorTestStrikeDatabase() = default;
+
+std::string StrikeDatabaseIntegratorTestStrikeDatabase::GetProjectPrefix()
+    const {
+  return project_prefix_;
+}
+
+int StrikeDatabaseIntegratorTestStrikeDatabase::GetMaxStrikesLimit() const {
   return kMaxStrikesLimit;
 }
 
-long long StrikeDatabaseIntegratorTestStrikeDatabase::GetExpiryTimeMicros() {
-  return kExpiryTimeMicros;
+absl::optional<base::TimeDelta>
+StrikeDatabaseIntegratorTestStrikeDatabase::GetExpiryTimeDelta() const {
+  return expiry_time_delta_;
 }
 
-bool StrikeDatabaseIntegratorTestStrikeDatabase::UniqueIdsRequired() {
+bool StrikeDatabaseIntegratorTestStrikeDatabase::UniqueIdsRequired() const {
   return unique_ids_required_;
 }
 
@@ -43,4 +60,14 @@ void StrikeDatabaseIntegratorTestStrikeDatabase::SetUniqueIdsRequired(
   unique_ids_required_ = unique_ids_required;
 }
 
+absl::optional<size_t>
+StrikeDatabaseIntegratorTestStrikeDatabase::GetMaximumEntries() const {
+  return maximum_entries_;
+}
+
+absl::optional<size_t>
+StrikeDatabaseIntegratorTestStrikeDatabase::GetMaximumEntriesAfterCleanup()
+    const {
+  return maximum_entries_after_cleanup_;
+}
 }  // namespace autofill

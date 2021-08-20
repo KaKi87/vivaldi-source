@@ -11,9 +11,11 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_task_environment.h"
+#include "base/test/task_environment.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "components/autofill/core/browser/proto/strike_data.pb.h"
+#include "components/leveldb_proto/public/proto_database.h"
+#include "components/leveldb_proto/public/proto_database_provider.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
@@ -25,8 +27,9 @@ namespace {
 // one in test_strike_database.h.  This one is purely for this unit test class.
 class TestStrikeDatabase : public StrikeDatabase {
  public:
-  TestStrikeDatabase(const base::FilePath& database_dir)
-      : StrikeDatabase(database_dir) {
+  TestStrikeDatabase(leveldb_proto::ProtoDatabaseProvider* db_provider,
+                     base::FilePath profile_path)
+      : StrikeDatabase(db_provider, profile_path) {
     database_initialized_ = true;
   }
 
@@ -54,12 +57,22 @@ class TestStrikeDatabase : public StrikeDatabase {
 // ProtoDatabase.
 class StrikeDatabaseTest : public ::testing::Test {
  public:
-  StrikeDatabaseTest() : strike_database_(InitFilePath()) {}
+  StrikeDatabaseTest() = default;
+
+  void SetUp() override {
+    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
+
+    db_provider_ = std::make_unique<leveldb_proto::ProtoDatabaseProvider>(
+        temp_dir_.GetPath());
+
+    strike_database_ = std::make_unique<TestStrikeDatabase>(
+        db_provider_.get(), temp_dir_.GetPath());
+  }
 
   void AddProtoEntries(
       std::vector<std::pair<std::string, StrikeData>> entries_to_add) {
     base::RunLoop run_loop;
-    strike_database_.AddProtoEntries(
+    strike_database_->AddProtoEntries(
         entries_to_add,
         base::BindRepeating(&StrikeDatabaseTest::OnAddProtoEntries,
                             base::Unretained(this), run_loop.QuitClosure()));
@@ -79,7 +92,7 @@ class StrikeDatabaseTest : public ::testing::Test {
 
   int GetProtoStrikes(std::string key) {
     base::RunLoop run_loop;
-    strike_database_.GetProtoStrikes(
+    strike_database_->GetProtoStrikes(
         key,
         base::BindRepeating(&StrikeDatabaseTest::OnGetProtoStrikes,
                             base::Unretained(this), run_loop.QuitClosure()));
@@ -94,9 +107,23 @@ class StrikeDatabaseTest : public ::testing::Test {
 
   void ClearAllProtoStrikesForKey(const std::string key) {
     base::RunLoop run_loop;
-    strike_database_.ClearAllProtoStrikesForKey(
+    strike_database_->ClearAllProtoStrikesForKey(
         key,
         base::BindRepeating(&StrikeDatabaseTest::OnClearAllProtoStrikesForKey,
+                            base::Unretained(this), run_loop.QuitClosure()));
+    run_loop.Run();
+  }
+
+  void OnClearAllProtoStrikesForKeys(base::RepeatingClosure run_loop_closure,
+                                     bool success) {
+    run_loop_closure.Run();
+  }
+
+  void ClearAllProtoStrikesForKeys(const std::vector<std::string>& keys) {
+    base::RunLoop run_loop;
+    strike_database_->ClearAllProtoStrikesForKeys(
+        keys,
+        base::BindRepeating(&StrikeDatabaseTest::OnClearAllProtoStrikesForKeys,
                             base::Unretained(this), run_loop.QuitClosure()));
     run_loop.Run();
   }
@@ -108,7 +135,7 @@ class StrikeDatabaseTest : public ::testing::Test {
 
   void ClearAllProtoStrikes() {
     base::RunLoop run_loop;
-    strike_database_.ClearAllProtoStrikes(
+    strike_database_->ClearAllProtoStrikes(
         base::BindRepeating(&StrikeDatabaseTest::OnClearAllProtoStrikesForKey,
                             base::Unretained(this), run_loop.QuitClosure()));
     run_loop.Run();
@@ -116,18 +143,12 @@ class StrikeDatabaseTest : public ::testing::Test {
 
  protected:
   base::HistogramTester* GetHistogramTester() { return &histogram_tester_; }
-  base::test::ScopedTaskEnvironment scoped_task_environment_;
-  TestStrikeDatabase strike_database_;
+  base::ScopedTempDir temp_dir_;
+  base::test::TaskEnvironment task_environment_;
+  std::unique_ptr<leveldb_proto::ProtoDatabaseProvider> db_provider_;
+  std::unique_ptr<TestStrikeDatabase> strike_database_;
 
  private:
-  static const base::FilePath InitFilePath() {
-    base::ScopedTempDir temp_dir_;
-    EXPECT_TRUE(temp_dir_.CreateUniqueTempDir());
-    const base::FilePath file_path =
-        temp_dir_.GetPath().AppendASCII("StrikeDatabaseTest");
-    return file_path;
-  }
-
   base::HistogramTester histogram_tester_;
   int num_strikes_;
   std::unique_ptr<StrikeData> strike_data_;
@@ -145,7 +166,7 @@ TEST_F(StrikeDatabaseTest, GetStrikeForNonZeroStrikesTest) {
   std::vector<std::pair<std::string, StrikeData>> entries;
   StrikeData data;
   data.set_num_strikes(3);
-  entries.push_back(std::make_pair(key, data));
+  entries.emplace_back(key, data);
   AddProtoEntries(entries);
 
   int strikes = GetProtoStrikes(key);
@@ -165,7 +186,7 @@ TEST_F(StrikeDatabaseTest, ClearStrikesForNonZeroStrikesTest) {
   std::vector<std::pair<std::string, StrikeData>> entries;
   StrikeData data;
   data.set_num_strikes(3);
-  entries.push_back(std::make_pair(key, data));
+  entries.emplace_back(key, data);
   AddProtoEntries(entries);
 
   int strikes = GetProtoStrikes(key);
@@ -173,6 +194,30 @@ TEST_F(StrikeDatabaseTest, ClearStrikesForNonZeroStrikesTest) {
   ClearAllProtoStrikesForKey(key);
   strikes = GetProtoStrikes(key);
   EXPECT_EQ(0, strikes);
+}
+
+TEST_F(StrikeDatabaseTest, ClearStrikesForMultipleNonZeroStrikesTest) {
+  // Set up database with 3 pre-existing strikes for three different keys.
+  const std::string key1 = "12345";
+  const std::string key2 = "67890";
+  const std::string key3 = "99000";
+  std::vector<std::pair<std::string, StrikeData>> entries;
+  StrikeData data;
+  data.set_num_strikes(3);
+  entries.emplace_back(key1, data);
+  entries.emplace_back(key2, data);
+  entries.emplace_back(key3, data);
+  AddProtoEntries(entries);
+
+  EXPECT_EQ(3, GetProtoStrikes(key1));
+  EXPECT_EQ(3, GetProtoStrikes(key2));
+  EXPECT_EQ(3, GetProtoStrikes(key3));
+  std::vector<std::string> keys_to_clear({key1, key2});
+  ClearAllProtoStrikesForKeys(keys_to_clear);
+  EXPECT_EQ(0, GetProtoStrikes(key1));
+  EXPECT_EQ(0, GetProtoStrikes(key2));
+  // The strikes for the third key should not have been reset.
+  EXPECT_EQ(3, GetProtoStrikes(key3));
 }
 
 TEST_F(StrikeDatabaseTest, ClearStrikesForMultipleNonZeroStrikesEntriesTest) {
@@ -183,10 +228,10 @@ TEST_F(StrikeDatabaseTest, ClearStrikesForMultipleNonZeroStrikesEntriesTest) {
   std::vector<std::pair<std::string, StrikeData>> entries;
   StrikeData data1;
   data1.set_num_strikes(3);
-  entries.push_back(std::make_pair(key1, data1));
+  entries.emplace_back(key1, data1);
   StrikeData data2;
   data2.set_num_strikes(5);
-  entries.push_back(std::make_pair(key2, data2));
+  entries.emplace_back(key2, data2);
   AddProtoEntries(entries);
 
   int strikes = GetProtoStrikes(key1);
@@ -219,6 +264,39 @@ TEST_F(StrikeDatabaseTest, ClearAllProtoStrikesTest) {
   ClearAllProtoStrikes();
   EXPECT_EQ(0, GetProtoStrikes(key1));
   EXPECT_EQ(0, GetProtoStrikes(key2));
+}
+
+TEST_F(StrikeDatabaseTest, GetAllStrikeKeysForProject) {
+  const std::string key1 = "project_12345";
+  const std::string key2 = "project_13579";
+  const std::string key3 = "otherproject_13579";
+  strike_database_->AddStrikes(1, key1);
+  strike_database_->AddStrikes(2, key2);
+  strike_database_->AddStrikes(2, key3);
+  std::vector<std::string> expected_keys({key1, key2});
+  EXPECT_EQ(strike_database_->GetAllStrikeKeysForProject("project"),
+            expected_keys);
+  expected_keys = {key3};
+  EXPECT_EQ(strike_database_->GetAllStrikeKeysForProject("otherproject"),
+            expected_keys);
+  ClearAllProtoStrikes();
+}
+
+TEST_F(StrikeDatabaseTest, ClearStrikesForKeys) {
+  const std::string key1 = "project_12345";
+  const std::string key2 = "project_13579";
+  const std::string key3 = "otherproject_13579";
+  strike_database_->AddStrikes(1, key1);
+  strike_database_->AddStrikes(2, key2);
+  strike_database_->AddStrikes(2, key3);
+  strike_database_->ClearStrikesForKeys(std::vector<std::string>({key1, key2}));
+  std::vector<std::string> expected_keys({});
+  EXPECT_EQ(strike_database_->GetAllStrikeKeysForProject("project"),
+            expected_keys);
+  expected_keys.emplace_back(key3);
+  EXPECT_EQ(strike_database_->GetAllStrikeKeysForProject("otherproject"),
+            expected_keys);
+  ClearAllProtoStrikes();
 }
 
 }  // namespace autofill

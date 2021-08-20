@@ -2,33 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/** @fileoverview Tests for settings-idle-load. */
-
+GEN('#include "content/public/test/browser_test.h"');
 
 /**
  * @constructor
  * @extends testing.Test
  */
-function SettingsIdleLoadBrowserTest() {}
+function SettingsIdleLoadV3BrowserTest() {}
 
-SettingsIdleLoadBrowserTest.prototype = {
+SettingsIdleLoadV3BrowserTest.prototype = {
   __proto__: testing.Test.prototype,
 
   /** @override */
-  browsePreload: 'chrome://settings/controls/setting_idle_load.html',
-
-  /** @override */
-  extraLibraries: [
-    '//third_party/mocha/mocha.js',
-    '../mocha_adapter.js',
-    'idle_load_tests.js',
-  ],
+  browsePreload:
+      'chrome://settings/test_loader.html?module=settings/idle_load_tests.js',
 
   /** @override */
   isAsync: true,
 };
 
-TEST_F('SettingsIdleLoadBrowserTest', 'All', function() {
+TEST_F('SettingsIdleLoadV3BrowserTest', 'All', function() {
   // Run all registered tests.
   mocha.run();
 });

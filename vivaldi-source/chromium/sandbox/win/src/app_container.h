@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,63 +7,71 @@
 
 #include <windows.h>
 
-#include <vector>
+#include <accctrl.h>
 
-#include "base/macros.h"
-#include "base/memory/scoped_ptr.h"
-#include "base/strings/string16.h"
-#include "sandbox/win/src/sandbox_types.h"
-
-namespace base {
-namespace win {
-class StartupInformation;
-}
-}
+#include "base/files/file_path.h"
+#include "base/win/scoped_handle.h"
+#include "sandbox/win/src/sid.h"
 
 namespace sandbox {
 
-// Maintains an attribute list to be used during creation of a new sandboxed
-// process.
-class AppContainerAttributes {
+enum AppContainerType { kNone, kDerived, kProfile, kLowbox };
+
+class AppContainer {
  public:
-  AppContainerAttributes();
-  ~AppContainerAttributes();
+  // Increments the reference count of this object. The reference count must
+  // be incremented if this interface is given to another component.
+  virtual void AddRef() = 0;
 
-  // Sets the AppContainer and capabilities to be used with the new process.
-  ResultCode SetAppContainer(const base::string16& app_container_sid,
-                             const std::vector<base::string16>& capabilities);
+  // Decrements the reference count of this object. When the reference count
+  // is zero the object is automatically destroyed.
+  // Indicates that the caller is done with this interface. After calling
+  // release no other method should be called.
+  virtual void Release() = 0;
 
-  // Updates the proc_thred attribute list of the provided startup_information
-  // with the app container related data.
-  // WARNING: startup_information just points back to our internal memory, so
-  // the lifetime of this object has to be greater than the lifetime of the
-  // provided startup_information.
-  ResultCode ShareForStartup(
-      base::win::StartupInformation* startup_information) const;
+  // Get a handle to a registry key for this package.
+  virtual bool GetRegistryLocation(REGSAM desired_access,
+                                   base::win::ScopedHandle* key) = 0;
 
-  bool HasAppContainer() const;
+  // Get a folder path to a location for this package.
+  virtual bool GetFolderPath(base::FilePath* file_path) = 0;
 
- private:
-  SECURITY_CAPABILITIES capabilities_;
-  std::vector<SID_AND_ATTRIBUTES> attributes_;
+  // Get a pipe name usable by this AC.
+  virtual bool GetPipePath(const wchar_t* pipe_name,
+                           base::FilePath* pipe_path) = 0;
 
-  DISALLOW_COPY_AND_ASSIGN(AppContainerAttributes);
+  // Do an access check based on this profile for a named object. If method
+  // returns true then access_status reflects whether access was granted and
+  // granted_access gives the final access rights. The object_type can be one of
+  // SE_FILE_OBJECT, SE_REGISTRY_KEY, SE_REGISTRY_WOW64_32KEY. See
+  // ::GetNamedSecurityInfo for more information about how the enumeration is
+  // used and what format object_name needs to be.
+  virtual bool AccessCheck(const wchar_t* object_name,
+                           SE_OBJECT_TYPE object_type,
+                           DWORD desired_access,
+                           DWORD* granted_access,
+                           BOOL* access_status) = 0;
+
+  // Adds a capability by name to this profile.
+  virtual bool AddCapability(const wchar_t* capability_name) = 0;
+  // Adds a capability from a known list.
+  virtual bool AddCapability(WellKnownCapabilities capability) = 0;
+  // Adds a capability from a SID
+  virtual bool AddCapabilitySddl(const wchar_t* sddl_sid) = 0;
+
+  // Adds an impersonation capability by name to this profile.
+  virtual bool AddImpersonationCapability(const wchar_t* capability_name) = 0;
+  // Adds an impersonation capability from a known list.
+  virtual bool AddImpersonationCapability(WellKnownCapabilities capability) = 0;
+  // Adds an impersonation capability from a SID
+  virtual bool AddImpersonationCapabilitySddl(const wchar_t* sddl_sid) = 0;
+
+  // Enable Low Privilege AC.
+  virtual void SetEnableLowPrivilegeAppContainer(bool enable) = 0;
+  virtual bool GetEnableLowPrivilegeAppContainer() = 0;
+
+  virtual AppContainerType GetAppContainerType() = 0;
 };
-
-// Creates a new AppContainer on the system. |sid| is the identifier of the new
-// AppContainer, and |name| will be used as both the display name and moniker.
-// This function fails if the OS doesn't support AppContainers, or if there is
-// an AppContainer registered with the same id.
-ResultCode CreateAppContainer(const base::string16& sid,
-                              const base::string16& name);
-
-// Deletes an AppContainer previously created with a successful call to
-// CreateAppContainer.
-ResultCode DeleteAppContainer(const base::string16& sid);
-
-// Retrieves the name associated with the provided AppContainer sid. Returns an
-// empty string if the AppContainer is not registered with the system.
-base::string16 LookupAppContainer(const base::string16& sid);
 
 }  // namespace sandbox
 

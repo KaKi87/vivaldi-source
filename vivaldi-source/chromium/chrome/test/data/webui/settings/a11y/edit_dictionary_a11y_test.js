@@ -1,100 +1,36 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/** @fileoverview Define accessibility tests for the EDIT_DICTIONARY route.  */
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {LanguagesBrowserProxyImpl} from 'chrome://settings/lazy_load.js';
+import {Router, routes} from 'chrome://settings/settings.js';
+import {FakeLanguageSettingsPrivate} from 'chrome://test/settings/fake_language_settings_private.js';
+import {TestLanguagesBrowserProxy} from 'chrome://test/settings/test_languages_browser_proxy.js';
+import {flushTasks} from 'chrome://test/test_util.m.js';
 
-// Disable since the EDIT_DICTIONARY route does not exist on Mac.
-// TODO(crbug.com/1012370) flaky on Linux b/c assertTrue(!!languagesPage);
-// TODO(crbug.com/1012370) flaky on Win the same way
-GEN('#if !defined(OS_MACOSX) && !defined(OS_LINUX) && !defined(OS_WIN)');
+const fakeLanguageSettingsPrivate = new FakeLanguageSettingsPrivate();
+const fakeLanugagesProxy = new TestLanguagesBrowserProxy();
+fakeProxy.setLanguageSettingsPrivate(fakeLangugageSettingsPrivate);
 
-// SettingsAccessibilityTest fixture.
-GEN_INCLUDE([
-  'settings_accessibility_test.js',
-]);
+Router.getInstance().navigateTo(settings.routes.EDIT_DICTIONARY);
+const settingsUi = document.createElement('settings-ui');
+document.body.appendChild(settingsUi);
 
-// eslint-disable-next-line no-var
-var EditDictionaryA11yTest = class extends SettingsAccessibilityTest {
-  /** @override */
-  get extraLibraries() {
-    return super.extraLibraries.concat([
-      '../../fake_chrome_event.js',
-      '../../test_browser_proxy.js',
-      '../../test_util.js',
-      '../fake_language_settings_private.js',
-      '../fake_settings_private.js',
-    ]);
-  }
-};
+const settingsMain = settingsUI.$.main;
+assertTrue(!!settingsMain);
+const settingsBasicPage = settingsMain.$$('settings-basic-page');
+assertTrue(!!settingsBasicPage);
+const languagesPage = settingsBasicPage.$$('settings-languages-page');
+assertTrue(!!languagesPage);
+const dictionaryPage = languagesPage.$$('settings-edit-dictionary-page');
+assertTrue(!!dictionaryPage);
 
-function getDictionaryPage() {
-  const settingsUI = document.querySelector('settings-ui');
-  assertTrue(!!settingsUI);
-  const settingsMain = settingsUI.$.main;
-  assertTrue(!!settingsMain);
-  const settingsBasicPage = settingsMain.$$('settings-basic-page');
-  assertTrue(!!settingsBasicPage);
-  const languagesPage = settingsBasicPage.$$('settings-languages-page');
-  assertTrue(!!languagesPage);
-  const dictionaryPage = languagesPage.$$('settings-edit-dictionary-page');
-  assertTrue(!!dictionaryPage);
-  return dictionaryPage;
-}
+fakeLanguageSettingsPrivate.addSpellcheckWord('one');
+assertTrue(!!dictionaryPage.$$('#list'));
+assertEquals(1, dictionaryPage.$$('#list').items.length);
 
-AccessibilityTest.define('EditDictionaryA11yTest', {
-  /** @override */
-  name: 'EDIT_DICTIONARY',
-
-  /** @type {settings.FakeLanguageSettingsPrivate} */
-  languageSettingsPrivate_: null,
-
-  /** @override */
-  violationFilter:
-      Object.assign({}, SettingsAccessibilityTest.violationFilter, {
-        // Excuse custom input elements.
-        'aria-valid-attr-value': function(nodeResult) {
-          const describerId =
-              nodeResult.element.getAttribute('aria-describedby');
-          return describerId === '' && nodeResult.element.tagName == 'INPUT';
-        },
-        'tabindex': function(nodeResult) {
-          // TODO(crbug.com/808276): remove this exception when bug is fixed.
-          return nodeResult.element.getAttribute('tabindex') == '0';
-        },
-      }),
-
-  /** @override */
-  setup: async function() {
-    // Don't replace b/c each test case needs to use the same fake.
-    if (!this.languageSettingsPrivate_) {
-      this.languageSettingsPrivate_ =
-          new settings.FakeLanguageSettingsPrivate(),
-      settings.languageSettingsPrivateApiForTest =
-          this.languageSettingsPrivate_;
-    }
-
-    settings.Router.getInstance().navigateTo(settings.routes.EDIT_DICTIONARY);
-    Polymer.dom.flush();
-    await test_util.flushTasks();
-  },
-
-  /** @override */
-  tests: {
-    'Accessible with No Changes': function() {
-      const dictionaryPage = getDictionaryPage();
-      assertFalse(!!dictionaryPage.$$('#list'));
-    },
-
-    'Load data to list': function() {
-      const dictionaryPage = getDictionaryPage();
-
-      this.languageSettingsPrivate_.addSpellcheckWord('one');
-
-      assertTrue(!!dictionaryPage.$$('#list'));
-      assertEquals(1, dictionaryPage.$$('#list').items.length);
-    },
-  },
+flush();
+flushTasks().then(() => {
+  document.dispatchEvent(new CustomEvent('a11y-setup-complete'));
 });
-
-GEN('#endif  // !defined(OS_MACOSX) && !defined(OS_LINUX)');
