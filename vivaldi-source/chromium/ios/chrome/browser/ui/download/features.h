@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@
 
 #include "base/feature_list.h"
 
-// Feature to open Downloaded files in Files.app.
-extern const base::Feature kOpenDownloadsInFilesApp;
+// Feature to download .mobileconfig files in SFSafariViewController.
+extern const base::Feature kDownloadMobileConfigFile;
 
-#endif  // IOS_CHROME_BROWSER_UI_DOWNLOAD_FEATURES_H_
+#endif  // u'IOS_CHROME_BROWSER_UI_DOWNLOAD_FEATURES_H_

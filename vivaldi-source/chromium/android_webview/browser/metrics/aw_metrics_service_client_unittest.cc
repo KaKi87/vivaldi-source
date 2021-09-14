@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,143 +6,244 @@
 
 #include <memory>
 
-#include "base/command_line.h"
-#include "base/macros.h"
-#include "base/memory/scoped_refptr.h"
-#include "base/run_loop.h"
+#include "android_webview/common/aw_features.h"
+#include "android_webview/common/metrics/app_package_name_logging_rule.h"
+#include "base/metrics/user_metrics.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_simple_task_runner.h"
-#include "components/metrics/metrics_pref_names.h"
-#include "components/metrics/metrics_service.h"
-#include "components/metrics/metrics_switches.h"
+#include "base/time/time.h"
+#include "base/version.h"
 #include "components/prefs/testing_pref_service.h"
-#include "content/public/test/browser_task_environment.h"
-#include "content/public/test/test_content_client_initializer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace android_webview {
+
+using AppPackageNameLoggingRuleStatus =
+    AwMetricsServiceClient::AppPackageNameLoggingRuleStatus;
+
 namespace {
 
-// For client ID format, see:
-// https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_(random)
-const char kTestClientId[] = "01234567-89ab-40cd-80ef-0123456789ab";
+constexpr char kTestAllowlistVersion[] = "123.456.789.10";
 
-class TestClient : public AwMetricsServiceClient {
- public:
-  TestClient() {}
-  ~TestClient() override {}
-
-  bool IsRecordingActive() {
-    auto* service = GetMetricsService();
-    if (service)
-      return service->recording_active();
-    return false;
-  }
-
-  // Expose the super class implementation for testing.
-  using AwMetricsServiceClient::GetAppPackageNameInternal;
-
- protected:
-  int GetSampleRatePerMille() override { return 1000; }
-  int GetPackageNameLimitRatePerMille() override { return 1000; }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(TestClient);
+class AwMetricsServiceClientTestDelegate
+    : public AwMetricsServiceClient::Delegate {
+  void RegisterAdditionalMetricsProviders(
+      metrics::MetricsService* service) override {}
+  void AddWebViewAppStateObserver(WebViewAppStateObserver* observer) override {}
+  bool HasAwContentsEverCreated() const override { return false; }
 };
 
-std::unique_ptr<TestingPrefServiceSimple> CreateTestPrefs() {
-  auto prefs = std::make_unique<TestingPrefServiceSimple>();
-  AwMetricsServiceClient::RegisterPrefs(prefs->registry());
-  return prefs;
-}
-
-std::unique_ptr<TestClient> CreateAndInitTestClient(PrefService* prefs) {
-  auto client = std::make_unique<TestClient>();
-  client->Initialize(prefs);
-  return client;
-}
-
-}  // namespace
-
 class AwMetricsServiceClientTest : public testing::Test {
- public:
-  AwMetricsServiceClientTest() : task_runner_(new base::TestSimpleTaskRunner) {
-    // Required by MetricsService.
-    base::SetRecordActionTaskRunner(task_runner_);
-  }
+  AwMetricsServiceClientTest& operator=(const AwMetricsServiceClientTest&) =
+      delete;
+  AwMetricsServiceClientTest(AwMetricsServiceClientTest&&) = delete;
+  AwMetricsServiceClientTest& operator=(AwMetricsServiceClientTest&&) = delete;
 
  protected:
-  ~AwMetricsServiceClientTest() override {}
-
-  void SetUp() override {
-    test_content_client_initializer_ =
-        std::make_unique<content::TestContentClientInitializer>();
+  AwMetricsServiceClientTest()
+      : task_runner_(new base::TestSimpleTaskRunner),
+        prefs_(std::make_unique<TestingPrefServiceSimple>()),
+        client_(std::make_unique<AwMetricsServiceClient>(
+            std::make_unique<AwMetricsServiceClientTestDelegate>())) {
+    // Required by MetricsService.
+    base::SetRecordActionTaskRunner(task_runner_);
+    AwMetricsServiceClient::RegisterMetricsPrefs(prefs_->registry());
+    client_->Initialize(prefs_.get());
   }
 
-  void TearDown() override {
-    base::RunLoop().RunUntilIdle();
-    test_content_client_initializer_.reset();
-  }
-
-  content::BrowserTaskEnvironment task_environment_;
-  std::unique_ptr<content::TestContentClientInitializer>
-      test_content_client_initializer_;
+  AwMetricsServiceClient* GetClient() { return client_.get(); }
+  TestingPrefServiceSimple* GetPrefs() { return prefs_.get(); }
 
  private:
   scoped_refptr<base::TestSimpleTaskRunner> task_runner_;
-
-  DISALLOW_COPY_AND_ASSIGN(AwMetricsServiceClientTest);
+  std::unique_ptr<TestingPrefServiceSimple> prefs_;
+  std::unique_ptr<AwMetricsServiceClient> client_;
 };
 
-// TODO(https://crbug.com/995544): remove this when the
-// kMetricsReportingEnabledTimestamp pref has been persisted for one or two
-// milestones.
-TEST_F(AwMetricsServiceClientTest, TestBackfillEnabledDateIfMissing) {
-  auto prefs = CreateTestPrefs();
-  prefs->SetString(metrics::prefs::kMetricsClientID, kTestClientId);
-  auto client = CreateAndInitTestClient(prefs.get());
-  client->SetHaveMetricsConsent(true, true);
-  EXPECT_TRUE(client->IsRecordingActive());
-  EXPECT_TRUE(prefs->HasPrefPath(metrics::prefs::kMetricsClientID));
-  EXPECT_TRUE(
-      prefs->HasPrefPath(metrics::prefs::kMetricsReportingEnabledTimestamp));
+}  // namespace
+
+TEST_F(AwMetricsServiceClientTest, TestShouldRecordPackageName_CacheNotSet) {
+  base::HistogramTester histogram_tester;
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
+
+  AwMetricsServiceClient* client = GetClient();
+  EXPECT_FALSE(client->ShouldRecordPackageName());
+  EXPECT_FALSE(client->GetCachedAppPackageNameLoggingRule().has_value());
+
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 0);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNotLoadedNoCache, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
 }
 
-// TODO(https://crbug.com/1012025): remove this when the kInstallDate pref has
-// been persisted for one or two milestones.
-TEST_F(AwMetricsServiceClientTest, TestPreferPersistedInstallDate) {
+TEST_F(AwMetricsServiceClientTest, TestShouldRecordPackageName_WithCache) {
   base::HistogramTester histogram_tester;
-  auto prefs = CreateTestPrefs();
-  int64_t install_date = 12345;
-  prefs->SetInt64(metrics::prefs::kInstallDate, install_date);
-  auto client = CreateAndInitTestClient(prefs.get());
-  EXPECT_EQ(install_date, prefs->GetInt64(metrics::prefs::kInstallDate));
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
 
-  // Verify the histogram.
-  histogram_tester.ExpectBucketCount(
-      "Android.WebView.Metrics.BackfillInstallDate",
-      BackfillInstallDate::kValidInstallDatePref, 1);
+  AwMetricsServiceClient* client = GetClient();
+  TestingPrefServiceSimple* prefs = GetPrefs();
+
+  auto one_day_from_now = base::Time::Now() + base::TimeDelta::FromDays(1);
+  AppPackageNameLoggingRule expected_record(
+      base::Version(kTestAllowlistVersion), one_day_from_now);
+  prefs->Set(prefs::kMetricsAppPackageNameLoggingRule,
+             expected_record.ToDictionary());
+
+  absl::optional<AppPackageNameLoggingRule> cached_record =
+      client->GetCachedAppPackageNameLoggingRule();
+  EXPECT_TRUE(client->ShouldRecordPackageName());
+  ASSERT_TRUE(cached_record.has_value());
+  EXPECT_TRUE(expected_record.IsSameAs(cached_record.value()));
+
   histogram_tester.ExpectTotalCount(
-      "Android.WebView.Metrics.BackfillInstallDate", 1);
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 0);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNotLoadedUseCache, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
 }
 
-// TODO(https://crbug.com/1012025): remove this when the kInstallDate pref has
-// been persisted for one or two milestones.
-TEST_F(AwMetricsServiceClientTest, TestGetInstallDateFromJavaIfMissing) {
+TEST_F(AwMetricsServiceClientTest,
+       TestShouldRecordPackageName_TestShouldNotRecordPackageName) {
   base::HistogramTester histogram_tester;
-  auto prefs = CreateTestPrefs();
-  auto client = CreateAndInitTestClient(prefs.get());
-  // All we can safely assert is the install time is set, since checking the
-  // actual time is racy (ex. in the unlikely scenario if this test executes in
-  // the same millisecond as when the package was installed).
-  EXPECT_TRUE(prefs->HasPrefPath(metrics::prefs::kInstallDate));
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
 
-  // Verify the histogram.
-  histogram_tester.ExpectBucketCount(
-      "Android.WebView.Metrics.BackfillInstallDate",
-      BackfillInstallDate::kPersistedPackageManagerInstallDate, 1);
+  AwMetricsServiceClient* client = GetClient();
+  AppPackageNameLoggingRule expected_record(
+      base::Version(kTestAllowlistVersion), base::Time::Min());
+  client->SetAppPackageNameLoggingRule(expected_record);
+  absl::optional<AppPackageNameLoggingRule> cached_record =
+      client->GetCachedAppPackageNameLoggingRule();
+
+  EXPECT_FALSE(client->ShouldRecordPackageName());
+  ASSERT_TRUE(cached_record.has_value());
+  EXPECT_TRUE(expected_record.IsSameAs(cached_record.value()));
+
   histogram_tester.ExpectTotalCount(
-      "Android.WebView.Metrics.BackfillInstallDate", 1);
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 1);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNewVersionLoaded, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
+}
+
+TEST_F(AwMetricsServiceClientTest,
+       TestShouldRecordPackageName_TestShouldRecordPackageName) {
+  base::HistogramTester histogram_tester;
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
+
+  auto one_day_from_now = base::Time::Now() + base::TimeDelta::FromDays(1);
+
+  AwMetricsServiceClient* client = GetClient();
+  AppPackageNameLoggingRule expected_record(
+      base::Version(kTestAllowlistVersion), one_day_from_now);
+  client->SetAppPackageNameLoggingRule(expected_record);
+  absl::optional<AppPackageNameLoggingRule> cached_record =
+      client->GetCachedAppPackageNameLoggingRule();
+
+  EXPECT_TRUE(client->ShouldRecordPackageName());
+  ASSERT_TRUE(cached_record.has_value());
+  EXPECT_TRUE(expected_record.IsSameAs(cached_record.value()));
+
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 1);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNewVersionLoaded, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
+}
+
+TEST_F(AwMetricsServiceClientTest,
+       TestShouldRecordPackageName_TestFailureAfterValidResult) {
+  base::HistogramTester histogram_tester;
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
+
+  auto one_day_from_now = base::Time::Now() + base::TimeDelta::FromDays(1);
+
+  AwMetricsServiceClient* client = GetClient();
+  AppPackageNameLoggingRule expected_record(
+      base::Version(kTestAllowlistVersion), one_day_from_now);
+  client->SetAppPackageNameLoggingRule(expected_record);
+  client->SetAppPackageNameLoggingRule(
+      absl::optional<AppPackageNameLoggingRule>());
+  absl::optional<AppPackageNameLoggingRule> cached_record =
+      client->GetCachedAppPackageNameLoggingRule();
+
+  EXPECT_TRUE(client->ShouldRecordPackageName());
+  ASSERT_TRUE(cached_record.has_value());
+  EXPECT_TRUE(expected_record.IsSameAs(cached_record.value()));
+
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 1);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNewVersionFailedUseCache, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
+}
+
+TEST_F(AwMetricsServiceClientTest, TestShouldRecordPackageName_FailedResult) {
+  base::HistogramTester histogram_tester;
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
+
+  AwMetricsServiceClient* client = GetClient();
+  client->SetAppPackageNameLoggingRule(
+      absl::optional<AppPackageNameLoggingRule>());
+
+  EXPECT_FALSE(client->ShouldRecordPackageName());
+
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 0);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kNewVersionFailedNoCache, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
+}
+
+TEST_F(AwMetricsServiceClientTest, TestShouldRecordPackageName_SameAsCache) {
+  base::HistogramTester histogram_tester;
+  base::test::ScopedFeatureList scoped_list;
+  scoped_list.InitAndEnableFeature(
+      android_webview::features::kWebViewAppsPackageNamesAllowlist);
+
+  AwMetricsServiceClient* client = GetClient();
+  TestingPrefServiceSimple* prefs = GetPrefs();
+
+  AppPackageNameLoggingRule record(
+      base::Version(kTestAllowlistVersion),
+      base::Time::Now() + base::TimeDelta::FromDays(1));
+  prefs->Set(prefs::kMetricsAppPackageNameLoggingRule, record.ToDictionary());
+  client->SetAppPackageNameLoggingRule(record);
+
+  EXPECT_TRUE(client->ShouldRecordPackageName());
+
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.ResultReceivingDelay", 0);
+  histogram_tester.ExpectBucketCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus",
+      AppPackageNameLoggingRuleStatus::kSameVersionAsCache, 1);
+  histogram_tester.ExpectTotalCount(
+      "Android.WebView.Metrics.PackagesAllowList.RecordStatus", 1);
 }
 
 }  // namespace android_webview

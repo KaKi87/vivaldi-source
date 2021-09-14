@@ -1,1 +1,1 @@
-#<skip -- need to generate>
+AXTitleChanged on AXHeading AXDescription="After"
