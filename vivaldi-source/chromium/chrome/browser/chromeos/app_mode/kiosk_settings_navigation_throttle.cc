@@ -13,8 +13,7 @@
 namespace chromeos {
 
 namespace {
-// List of pages, which along with their subpages are considered whitelisted in
-// kiosk mode.
+// List of pages, which along with their subpages are allowed in kiosk mode.
 KioskSettingsNavigationThrottle::SettingsPage kSettingsPages[] = {
     {"chrome://os-settings/manageAccessibility", true},
     {"chrome-extension://mndnfokpggljbaajbnioimlmbfngpief/chromevox/options/"

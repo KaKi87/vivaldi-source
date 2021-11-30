@@ -31,6 +31,9 @@ class KioskSessionPluginHandler;
 class AppSession : public KioskSessionPluginHandlerDelegate {
  public:
   AppSession();
+  explicit AppSession(base::OnceClosure attempt_user_exit);
+  AppSession(const AppSession&) = delete;
+  AppSession& operator=(const AppSession&) = delete;
   ~AppSession() override;
 
   // Initializes an app session.
@@ -82,8 +85,6 @@ class AppSession : public KioskSessionPluginHandlerDelegate {
   // Is called whenever a new browser creation was handled by the
   // BrowserWindowHandler.
   base::RepeatingClosure on_handle_browser_callback_;
-
-  DISALLOW_COPY_AND_ASSIGN(AppSession);
 };
 
 }  // namespace chromeos

@@ -5,115 +5,53 @@
 #ifndef UI_MESSAGE_CENTER_VIEWS_NOTIFICATION_VIEW_H_
 #define UI_MESSAGE_CENTER_VIEWS_NOTIFICATION_VIEW_H_
 
-#include <vector>
-
-#include "base/gtest_prod_util.h"
-#include "base/macros.h"
 #include "ui/message_center/message_center_export.h"
-#include "ui/message_center/views/message_view.h"
-#include "ui/views/controls/button/button.h"
-#include "ui/views/controls/button/image_button.h"
+#include "ui/message_center/views/notification_view_base.h"
 
 namespace views {
-class ImageView;
-class ProgressBar;
-}
+class LabelButton;
+}  // namespace views
 
 namespace message_center {
 
-class BoundedLabel;
-class NotificationButton;
-class NotificationControlButtonsView;
-class ProportionalImageView;
-
-// View that displays all current types of notification (web, basic, image, and
-// list) except the custom notification. Future notification types may be
-// handled by other classes, in which case instances of those classes would be
-// returned by the Create() factory method below.
-class MESSAGE_CENTER_EXPORT NotificationView : public MessageView,
-                                               public views::ButtonListener {
+// Customized NotificationViewBase for notification on all platforms other
+// than ChromeOS. This view is used to displays all current types of
+// notification (web, basic, image, and list) except custom notification.
+class MESSAGE_CENTER_EXPORT NotificationView : public NotificationViewBase {
  public:
-  explicit NotificationView(const Notification& notification);
+  // TODO(crbug/1241983): Add metadata and builder support to this view.
+  explicit NotificationView(const message_center::Notification& notification);
+  NotificationView(const NotificationView&) = delete;
+  NotificationView& operator=(const NotificationView&) = delete;
   ~NotificationView() override;
 
-  // Overridden from views::View:
-  gfx::Size CalculatePreferredSize() const override;
-  int GetHeightForWidth(int width) const override;
-  void Layout() override;
-  void OnFocus() override;
-  void ScrollRectToVisible(const gfx::Rect& rect) override;
-  void OnMouseEntered(const ui::MouseEvent& event) override;
-  void OnMouseExited(const ui::MouseEvent& event) override;
-
-  // Overridden from MessageView:
-  void UpdateWithNotification(const Notification& notification) override;
-  void ButtonPressed(views::Button* sender, const ui::Event& event) override;
-  NotificationControlButtonsView* GetControlButtonsView() const override;
-
  private:
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, CreateOrUpdateTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest,
-                           CreateOrUpdateTestSettingsButton);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, FormatContextMessageTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, SettingsButtonTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, TestLineLimits);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, TestIconSizing);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, TestImageSizing);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, TitleWrappingTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, UpdateButtonsStateTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, UpdateButtonCountTest);
-  FRIEND_TEST_ALL_PREFIXES(NotificationViewTest, UpdateViewsOrderingTest);
-
   friend class NotificationViewTest;
 
-  void CreateOrUpdateViews(const Notification& notification);
+  // NotificationViewBase:
+  void CreateOrUpdateTitleView(const Notification& notification) override;
+  void CreateOrUpdateSmallIconView(const Notification& notification) override;
+  std::unique_ptr<views::LabelButton> GenerateNotificationLabelButton(
+      views::Button::PressedCallback callback,
+      const std::u16string& label) override;
+  void UpdateViewForExpandedState(bool expanded) override;
+  gfx::Size GetIconViewSize() const override;
+  void OnThemeChanged() override;
+  void UpdateCornerRadius(int top_radius, int bottom_radius) override;
+  void ToggleInlineSettings(const ui::Event& event) override;
 
-  void CreateOrUpdateTitleView(const Notification& notification);
-  void CreateOrUpdateMessageView(const Notification& notification);
-  void CreateOrUpdateContextMessageView(const Notification& notification);
-  void CreateOrUpdateProgressBarView(const Notification& notification);
-  void CreateOrUpdateListItemViews(const Notification& notification);
-  void CreateOrUpdateIconView(const Notification& notification);
-  void CreateOrUpdateSmallIconView(const Notification& notification);
-  void CreateOrUpdateImageView(const Notification& notification);
-  void CreateOrUpdateActionButtonViews(const Notification& notification);
-  // TODO(yoshiki): Move this to MessageView
-  void UpdateControlButtonsVisibilityWithNotification(
-      const Notification& notification);
+  void UpdateHeaderViewBackgroundColor();
+  SkColor GetNotificationHeaderViewBackgroundColor() const;
 
-  int GetMessageLineLimit(int title_lines, int width) const;
-  int GetMessageHeight(int width, int limit) const;
+  // Update the background that shows behind the `actions_row_`.
+  void UpdateActionButtonsRowBackground();
 
-  // Formats the context message to be displayed based on |context|
-  // so it shows as much information as possible
-  // given the space available in the ContextMessage section of the
-  // notification.
-  base::string16 FormatContextMessage(const Notification& notification) const;
+  // Background animations for toggling inline settings.
+  void AddBackgroundAnimation(const ui::Event& event);
+  void RemoveBackgroundAnimation();
 
-  // Shrink the topmost label not to be covered by the control button.
-  void ShrinkTopmostLabel();
-
-  // Weak references to NotificationView descendants owned by their parents.
-  views::View* top_view_ = nullptr;
-  BoundedLabel* title_view_ = nullptr;
-  BoundedLabel* message_view_ = nullptr;
-  BoundedLabel* context_message_view_ = nullptr;
-  std::vector<views::View*> item_views_;
-  ProportionalImageView* icon_view_ = nullptr;
-  views::View* bottom_view_ = nullptr;
-  views::View* image_container_ = nullptr;
-  ProportionalImageView* image_view_ = nullptr;
-  views::ProgressBar* progress_bar_view_ = nullptr;
-  std::vector<NotificationButton*> action_buttons_;
-  std::vector<views::View*> separators_;
-  std::unique_ptr<views::ImageView> small_image_view_;
-  NotificationControlButtonsView* control_buttons_view_;
-
-  // Counter for view layouting, which is used during the CreateOrUpdate*
-  // phases to keep track of the view ordering. See crbug.com/901045
-  int top_view_count_;
-
-  DISALLOW_COPY_AND_ASSIGN(NotificationView);
+  // Notification title, which is dynamically created inside view hierarchy.
+  views::Label* title_view_ = nullptr;
 };
 
 }  // namespace message_center

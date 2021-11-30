@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "base/timer/timer.h"
 #include "content/public/browser/web_contents_observer.h"
 
 namespace base {
@@ -55,6 +56,9 @@ class KioskSessionPluginHandler {
 
   explicit KioskSessionPluginHandler(
       KioskSessionPluginHandlerDelegate* delegate);
+  KioskSessionPluginHandler(const KioskSessionPluginHandler&) = delete;
+  KioskSessionPluginHandler& operator=(const KioskSessionPluginHandler&) =
+      delete;
   ~KioskSessionPluginHandler();
 
   void Observe(content::WebContents* contents);
@@ -68,8 +72,6 @@ class KioskSessionPluginHandler {
 
   KioskSessionPluginHandlerDelegate* const delegate_;
   std::vector<std::unique_ptr<Observer>> watchers_;
-
-  DISALLOW_COPY_AND_ASSIGN(KioskSessionPluginHandler);
 };
 
 }  // namespace chromeos
