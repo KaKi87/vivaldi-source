@@ -1,4 +1,3 @@
-Content-Type: text/plain
 This is a testharness.js-based test.
 PASS Selecting texts across <input type=button> should not cancel selection
 PASS Selecting texts across <input type=checkbox> should not cancel selection
@@ -23,5 +22,3 @@ PASS Selecting texts across <input type=url> should not cancel selection
 PASS Selecting texts across <input type=week> should not cancel selection
 Harness: the test ran to completion.
 
-#EOF
-#EOF

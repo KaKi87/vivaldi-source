@@ -6,17 +6,15 @@
 
 #include <utility>
 
-#include "ash/constants/ash_features.h"
-#include "base/containers/contains.h"
+#include "chromeos/components/quick_answers/public/cpp/quick_answers_state.h"
 #include "chromeos/components/quick_answers/quick_answers_model.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_metrics.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_utils.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 
-namespace chromeos {
+namespace ash {
 namespace quick_answers {
 namespace {
-
-using network::mojom::URLLoaderFactory;
 
 QuickAnswersClient::ResultLoaderFactoryCallback*
     g_testing_result_factory_callback = nullptr;
@@ -37,11 +35,10 @@ void QuickAnswersClient::SetIntentGeneratorFactoryForTesting(
   g_testing_intent_generator_factory_callback = factory;
 }
 
-QuickAnswersClient::QuickAnswersClient(URLLoaderFactory* url_loader_factory,
-                                       QuickAnswersDelegate* delegate)
-    : url_loader_factory_(url_loader_factory),
-      delegate_(delegate) {
-}
+QuickAnswersClient::QuickAnswersClient(
+    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+    QuickAnswersDelegate* delegate)
+    : url_loader_factory_(url_loader_factory), delegate_(delegate) {}
 
 QuickAnswersClient::~QuickAnswersClient() = default;
 
@@ -97,6 +94,11 @@ void QuickAnswersClient::OnNetworkError() {
   delegate_->OnNetworkError();
 }
 
+void QuickAnswersClient::RequestAccessToken(AccessTokenCallback callback) {
+  DCHECK(delegate_);
+  delegate_->RequestAccessToken(std::move(callback));
+}
+
 void QuickAnswersClient::OnQuickAnswerReceived(
     std::unique_ptr<QuickAnswer> quick_answer) {
   DCHECK(delegate_);
@@ -126,7 +128,7 @@ void QuickAnswersClient::IntentGeneratorCallback(
 
   delegate_->OnRequestPreprocessFinished(processed_request);
 
-  if (features::ShouldUseQuickAnswersTextAnnotator()) {
+  if (ash::QuickAnswersState::Get()->ShouldUseQuickAnswersTextAnnotator()) {
     RecordIntentType(intent_info.intent_type);
     if (intent_info.intent_type == IntentType::kUnknown) {
       // Don't fetch answer if no intent is generated.
@@ -152,4 +154,4 @@ base::TimeDelta QuickAnswersClient::GetImpressionDuration() const {
 }
 
 }  // namespace quick_answers
-}  // namespace chromeos
+}  // namespace ash

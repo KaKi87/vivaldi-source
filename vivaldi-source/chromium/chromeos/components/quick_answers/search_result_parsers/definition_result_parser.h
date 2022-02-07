@@ -12,7 +12,7 @@ class GURL;
 class Value;
 }  // namespace base
 
-namespace chromeos {
+namespace ash {
 namespace quick_answers {
 
 class DefinitionResultParser : public ResultParser {
@@ -30,6 +30,6 @@ class DefinitionResultParser : public ResultParser {
 };
 
 }  // namespace quick_answers
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_SEARCH_RESULT_PARSERS_DEFINITION_RESULT_PARSER_H_

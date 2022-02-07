@@ -13,7 +13,7 @@
 #include "ui/gfx/image/image.h"
 #include "url/gurl.h"
 
-namespace chromeos {
+namespace ash {
 namespace quick_answers {
 
 // Interaction with the consent-view (used for logging).
@@ -94,7 +94,8 @@ struct QuickAnswerUiElement {
 
 // class to describe an answer text.
 struct QuickAnswerText : public QuickAnswerUiElement {
-  QuickAnswerText(const std::string& text, SkColor color = gfx::kGoogleGrey900)
+  explicit QuickAnswerText(const std::string& text,
+                           SkColor color = gfx::kGoogleGrey900)
       : QuickAnswerUiElement(QuickAnswerUiElementType::kText),
         text(base::UTF8ToUTF16(text)),
         color(color) {}
@@ -210,6 +211,6 @@ struct QuickAnswersRequest {
 };
 
 }  // namespace quick_answers
-}  // namespace chromeos
+}  // namespace ash
 
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_QUICK_ANSWERS_MODEL_H_

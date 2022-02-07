@@ -8,16 +8,16 @@
 #include <memory>
 #include <string>
 
+#include "base/gtest_prod_util.h"
+#include "base/memory/scoped_refptr.h"
 #include "chromeos/components/quick_answers/result_loader.h"
 #include "chromeos/components/quick_answers/understanding/intent_generator.h"
 
 namespace network {
-namespace mojom {
-class URLLoaderFactory;
-}  // namespace mojom
+class SharedURLLoaderFactory;
 }  // namespace network
 
-namespace chromeos {
+namespace ash {
 namespace quick_answers {
 
 struct QuickAnswer;
@@ -29,6 +29,9 @@ enum class ResultType;
 // A delegate interface for the QuickAnswersClient.
 class QuickAnswersDelegate {
  public:
+  using AccessTokenCallback =
+      base::OnceCallback<void(const std::string& access_token)>;
+
   QuickAnswersDelegate(const QuickAnswersDelegate&) = delete;
   QuickAnswersDelegate& operator=(const QuickAnswersDelegate&) = delete;
 
@@ -43,6 +46,13 @@ class QuickAnswersDelegate {
 
   // Invoked when there is a network error.
   virtual void OnNetworkError() {}
+
+  // Request for the access token associated with the active user's profile.
+  // Request is handled asynchronously if the token is not available.
+  // AccessTokenCallbacks are invoked as soon as the token if fetched.
+  // If the token is available, AccessTokenCallbacks are invoked
+  // synchronously before RequestAccessToken() returns.
+  virtual void RequestAccessToken(AccessTokenCallback callback) {}
 
  protected:
   QuickAnswersDelegate() = default;
@@ -62,8 +72,9 @@ class QuickAnswersClient : public ResultLoader::ResultLoaderDelegate {
   using IntentGeneratorFactoryCallback =
       base::RepeatingCallback<std::unique_ptr<IntentGenerator>()>;
 
-  QuickAnswersClient(network::mojom::URLLoaderFactory* url_loader_factory,
-                     QuickAnswersDelegate* delegate);
+  QuickAnswersClient(
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      QuickAnswersDelegate* delegate);
 
   QuickAnswersClient(const QuickAnswersClient&) = delete;
   QuickAnswersClient& operator=(const QuickAnswersClient&) = delete;
@@ -74,6 +85,7 @@ class QuickAnswersClient : public ResultLoader::ResultLoaderDelegate {
   void OnNetworkError() override;
   void OnQuickAnswerReceived(
       std::unique_ptr<QuickAnswer> quick_answer) override;
+  void RequestAccessToken(AccessTokenCallback callback) override;
 
   // Send a quick answer request for preprocessing only.
   void SendRequestForPreprocessing(
@@ -122,7 +134,7 @@ class QuickAnswersClient : public ResultLoader::ResultLoaderDelegate {
                                const IntentInfo& intent_info);
   base::TimeDelta GetImpressionDuration() const;
 
-  network::mojom::URLLoaderFactory* url_loader_factory_ = nullptr;
+  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   QuickAnswersDelegate* delegate_ = nullptr;
   std::unique_ptr<ResultLoader> result_loader_;
   std::unique_ptr<IntentGenerator> intent_generator_;
@@ -133,5 +145,6 @@ class QuickAnswersClient : public ResultLoader::ResultLoaderDelegate {
 };
 
 }  // namespace quick_answers
-}  // namespace chromeos
+}  // namespace ash
+
 #endif  // CHROMEOS_COMPONENTS_QUICK_ANSWERS_QUICK_ANSWERS_CLIENT_H_

@@ -6,13 +6,12 @@
 
 #include <string>
 
-#include "ash/constants/ash_features.h"
 #include "base/logging.h"
 #include "base/values.h"
 #include "chromeos/components/quick_answers/utils/quick_answers_utils.h"
 #include "url/gurl.h"
 
-namespace chromeos {
+namespace ash {
 namespace quick_answers {
 namespace {
 
@@ -63,9 +62,7 @@ bool DefinitionResultParser::Parse(const Value* result,
       std::make_unique<QuickAnswerText>(secondary_answer));
   quick_answer->first_answer_row.push_back(
       std::make_unique<QuickAnswerResultText>(*definition));
-  if (features::IsQuickAnswersV2Enabled()) {
-    quick_answer->phonetics_audio = ExtractPhoneticsAudio(first_entry);
-  }
+  quick_answer->phonetics_audio = ExtractPhoneticsAudio(first_entry);
   return true;
 }
 
@@ -137,4 +134,4 @@ GURL DefinitionResultParser::ExtractPhoneticsAudio(
 }
 
 }  // namespace quick_answers
-}  // namespace chromeos
+}  // namespace ash

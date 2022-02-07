@@ -7,14 +7,20 @@
 
 #include <memory>
 
-#include "base/macros.h"
-#include "ui/gfx/skia_vector_animation.h"
+#include "base/memory/raw_ptr.h"
+#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/compositor/compositor_animation_observer.h"
 #include "ui/views/controls/image_view_base.h"
+#include "ui/views/metadata/view_factory.h"
+#include "ui/views/views_export.h"
 
 namespace gfx {
-class SkiaVectorAnimation;
 class Canvas;
-}  // namespace gfx
+}
+
+namespace lottie {
+class Animation;
+}
 
 namespace ui {
 class Compositor;
@@ -43,12 +49,13 @@ class VIEWS_EXPORT AnimatedImageView : public ImageViewBase,
   };
 
   AnimatedImageView();
+  AnimatedImageView(const AnimatedImageView&) = delete;
+  AnimatedImageView& operator=(const AnimatedImageView&) = delete;
   ~AnimatedImageView() override;
 
   // Set the animated image that should be displayed. Setting an animated image
   // will result in stopping the current animation.
-  void SetAnimatedImage(
-      std::unique_ptr<gfx::SkiaVectorAnimation> animated_image);
+  void SetAnimatedImage(std::unique_ptr<lottie::Animation> animated_image);
 
   // Plays the animation in loop and must only be called when this view has
   // access to a widget.
@@ -58,8 +65,6 @@ class VIEWS_EXPORT AnimatedImageView : public ImageViewBase,
   void Stop();
 
  private:
-  friend class AnimatedImageViewTest;
-
   // Overridden from View:
   void OnPaint(gfx::Canvas* canvas) override;
   void NativeViewHierarchyChanged() override;
@@ -69,27 +74,31 @@ class VIEWS_EXPORT AnimatedImageView : public ImageViewBase,
   void OnAnimationStep(base::TimeTicks timestamp) override;
   void OnCompositingShuttingDown(ui::Compositor* compositor) override;
 
-  void SetCompositorFromWidget();
-  void ClearCurrentCompositor();
-
   // Overridden from ImageViewBase:
   gfx::Size GetImageSize() const override;
+
+  void SetCompositorFromWidget();
+  void ClearCurrentCompositor();
 
   // The current state of the animation.
   State state_ = State::kStopped;
 
   // The compositor associated with the widget of this view.
-  ui::Compositor* compositor_ = nullptr;
+  raw_ptr<ui::Compositor> compositor_ = nullptr;
 
   // The most recent timestamp at which a paint was scheduled for this view.
   base::TimeTicks previous_timestamp_;
 
-  // The underlying skia vector animation.
-  std::unique_ptr<gfx::SkiaVectorAnimation> animated_image_;
-
-  DISALLOW_COPY_AND_ASSIGN(AnimatedImageView);
+  // The underlying lottie animation.
+  std::unique_ptr<lottie::Animation> animated_image_;
 };
 
+BEGIN_VIEW_BUILDER(VIEWS_EXPORT, AnimatedImageView, ImageViewBase)
+VIEW_BUILDER_PROPERTY(std::unique_ptr<lottie::Animation>, AnimatedImage)
+END_VIEW_BUILDER
+
 }  // namespace views
+
+DEFINE_VIEW_BUILDER(VIEWS_EXPORT, AnimatedImageView)
 
 #endif  // UI_VIEWS_CONTROLS_ANIMATED_IMAGE_VIEW_H_

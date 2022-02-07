@@ -1,1 +1,3 @@
-kylechar@chromium.org
+# frame sink video capturer
+per-file client_frame_sink_video_capturer*=file://components/viz/service/frame_sinks/video_capture/OWNERS
+

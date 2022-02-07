@@ -6,16 +6,19 @@
 
 #include <utility>
 
-#include "base/logging.h"
+#include "base/check.h"
 #include "cc/paint/skottie_wrapper.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/compositor/compositor.h"
 #include "ui/gfx/canvas.h"
+#include "ui/lottie/animation.h"
 #include "ui/views/widget/widget.h"
 
 namespace views {
 namespace {
 
-bool AreAnimatedImagesEqual(const gfx::SkiaVectorAnimation& animation_1,
-                            const gfx::SkiaVectorAnimation& animation_2) {
+bool AreAnimatedImagesEqual(const lottie::Animation& animation_1,
+                            const lottie::Animation& animation_2) {
   // In rare cases this may return false, even if the animated images are backed
   // by the same resource file.
   return animation_1.skottie() == animation_2.skottie();
@@ -28,7 +31,7 @@ AnimatedImageView::AnimatedImageView() = default;
 AnimatedImageView::~AnimatedImageView() = default;
 
 void AnimatedImageView::SetAnimatedImage(
-    std::unique_ptr<gfx::SkiaVectorAnimation> animated_image) {
+    std::unique_ptr<lottie::Animation> animated_image) {
   if (animated_image_ &&
       AreAnimatedImagesEqual(*animated_image, *animated_image_)) {
     Stop();
@@ -80,16 +83,16 @@ void AnimatedImageView::OnPaint(gfx::Canvas* canvas) {
   canvas->Save();
   canvas->Translate(GetImageBounds().origin().OffsetFromOrigin());
 
-  // OnPaint may be called before clock tick was received; in that case just
-  // paint the first frame.
-  if (!previous_timestamp_.is_null() && state_ != State::kStopped)
+  if (!previous_timestamp_.is_null() && state_ != State::kStopped) {
     animated_image_->Paint(canvas, previous_timestamp_, GetImageSize());
-  else
+  } else {
+    // OnPaint may be called before clock tick was received; in that case just
+    // paint the first frame.
     animated_image_->PaintFrame(canvas, 0, GetImageSize());
+  }
 
   canvas->Restore();
 }
-
 
 void AnimatedImageView::NativeViewHierarchyChanged() {
   ui::Compositor* compositor = GetWidget()->GetCompositor();
@@ -139,8 +142,7 @@ void AnimatedImageView::ClearCurrentCompositor() {
   }
 }
 
-BEGIN_METADATA(AnimatedImageView)
-METADATA_PARENT_CLASS(ImageViewBase)
-END_METADATA()
+BEGIN_METADATA(AnimatedImageView, ImageViewBase)
+END_METADATA
 
 }  // namespace views

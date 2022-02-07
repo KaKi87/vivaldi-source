@@ -8,11 +8,13 @@
 #include <utility>
 #include <vector>
 
+#include "base/no_destructor.h"
 #include "chrome/browser/ui/app_list/md_icon_normalizer.h"
 #include "chrome/grit/component_extension_resources.h"
 #include "content/public/browser/browser_thread.h"
+#include "services/data_decoder/public/cpp/data_decoder.h"
 #include "ui/base/resource/resource_bundle.h"
-#include "ui/base/resource/scale_factor.h"
+#include "ui/base/resource/resource_scale_factor.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
@@ -30,6 +32,10 @@ bool disable_safe_decoding_for_testing = false;
 class IconSource : public gfx::ImageSkiaSource {
  public:
   IconSource(const SkBitmap& bitmap, int dimension_dip, bool normalize);
+
+  IconSource(const IconSource&) = delete;
+  IconSource& operator=(const IconSource&) = delete;
+
   ~IconSource() override = default;
 
  private:
@@ -38,8 +44,6 @@ class IconSource : public gfx::ImageSkiaSource {
   const SkBitmap bitmap_;
   const int dimension_dip_;
   const bool normalize_;
-
-  DISALLOW_COPY_AND_ASSIGN(IconSource);
 };
 
 IconSource::IconSource(const SkBitmap& bitmap,
@@ -78,6 +82,11 @@ gfx::ImageSkiaRep IconSource::GetImageForScale(float scale) {
   return gfx::ImageSkiaRep(resized_bitmap, scale);
 }
 
+data_decoder::DataDecoder& GetDataDecoder() {
+  static base::NoDestructor<data_decoder::DataDecoder> data_decoder;
+  return *data_decoder;
+}
+
 }  // namespace
 
 // static
@@ -87,7 +96,8 @@ void IconDecodeRequest::DisableSafeDecodingForTesting() {
 
 IconDecodeRequest::IconDecodeRequest(SetIconCallback set_icon_callback,
                                      int dimension_dip)
-    : set_icon_callback_(std::move(set_icon_callback)),
+    : ImageRequest(&GetDataDecoder()),
+      set_icon_callback_(std::move(set_icon_callback)),
       dimension_dip_(dimension_dip) {}
 
 IconDecodeRequest::~IconDecodeRequest() = default;

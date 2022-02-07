@@ -5,30 +5,58 @@
 {
   "layers": [
     {
-      "name": "Scrolling Contents Layer",
-      "bounds": [800, 600],
+      "name": "Scrolling background of LayoutView #document",
+      "bounds": [1600, 1200],
       "contentsOpaque": true,
       "backgroundColor": "#FFFFFF"
     },
     {
       "name": "LayoutImage IMG id='grayscale-box'",
-      "bounds": [160, 90],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true,
       "transform": 1
     },
     {
+      "name": "LayoutImage IMG id='sepia-box'",
+      "position": [404, 36],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true
+    },
+    {
       "name": "LayoutImage IMG id='saturate-box'",
-      "bounds": [160, 90],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true,
       "transform": 2
     },
     {
+      "name": "LayoutImage IMG id='huerotate-box'",
+      "position": [404, 264],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true
+    },
+    {
       "name": "LayoutImage IMG id='invert-box'",
-      "bounds": [160, 90],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true,
       "transform": 3
     },
     {
+      "name": "LayoutImage IMG id='opacity-box'",
+      "position": [404, 492],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true
+    },
+    {
       "name": "LayoutImage IMG id='brightness-box'",
-      "bounds": [160, 90],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true,
       "transform": 4
+    },
+    {
+      "name": "LayoutImage IMG id='contrast-box'",
+      "position": [404, 720],
+      "bounds": [320, 180],
+      "contentsOpaqueForText": true
     }
   ],
   "transforms": [
@@ -38,7 +66,7 @@
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
-        [18, 18, 0, 1]
+        [36, 36, 0, 1]
       ]
     },
     {
@@ -47,7 +75,7 @@
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
-        [18, 132, 0, 1]
+        [36, 264, 0, 1]
       ]
     },
     {
@@ -56,7 +84,7 @@
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
-        [18, 246, 0, 1]
+        [36, 492, 0, 1]
       ]
     },
     {
@@ -65,7 +93,7 @@
         [1, 0, 0, 0],
         [0, 1, 0, 0],
         [0, 0, 1, 0],
-        [18, 360, 0, 1]
+        [36, 720, 0, 1]
       ]
     }
   ]

@@ -1,4 +1,5 @@
-include_rules = [
-  "+components/data_use_measurement/core",
-  "+components/user_manager",
-]
+specific_include_rules = {
+    "supervised_user_navigation_throttle_browsertest\.cc": [
+        "+ash/shell.h",
+    ]
+}

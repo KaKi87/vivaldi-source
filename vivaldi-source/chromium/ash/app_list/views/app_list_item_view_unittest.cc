@@ -1,84 +1,67 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ash/app_list/views/app_list_item_view.h"
 
-#include "ash/app_list/model/app_list_item.h"
-#include "ash/app_list/test/app_list_test_view_delegate.h"
-#include "ash/app_list/views/app_list_main_view.h"
-#include "ash/app_list/views/app_list_view.h"
-#include "ash/app_list/views/apps_container_view.h"
-#include "ash/app_list/views/contents_view.h"
+#include "ash/app_list/app_list_controller_impl.h"
+#include "ash/app_list/model/app_list_test_model.h"
+#include "ash/app_list/test/app_list_test_helper.h"
+#include "ash/app_list/views/scrollable_apps_grid_view.h"
+#include "ash/constants/ash_features.h"
+#include "ash/shell.h"
+#include "ash/test/ash_test_base.h"
 #include "base/test/scoped_feature_list.h"
-#include "ui/base/ui_base_features.h"
-#include "ui/gfx/color_palette.h"
-#include "ui/views/test/views_test_base.h"
 
 namespace ash {
 
-class AppListItemViewTest : public views::ViewsTestBase {
+class AppListItemViewProductivityLauncherTest : public AshTestBase {
  public:
-  AppListItemViewTest() {
-    scoped_feature_list_.InitWithFeatures({features::kNotificationIndicator},
-                                          {});
-  }
-  ~AppListItemViewTest() override = default;
+  AppListItemViewProductivityLauncherTest() = default;
+  ~AppListItemViewProductivityLauncherTest() override = default;
 
-  // views::ViewsTestBase:
+  // testing::Test:
   void SetUp() override {
-    views::ViewsTestBase::SetUp();
+    AshTestBase::SetUp();
 
-    delegate_ = std::make_unique<test::AppListTestViewDelegate>();
-    app_list_view_ = new AppListView(delegate_.get());
-    app_list_view_->InitView(GetContext());
+    app_list_test_model_ = std::make_unique<test::AppListTestModel>();
+    search_model_ = std::make_unique<SearchModel>();
+    Shell::Get()->app_list_controller()->SetActiveModel(
+        /*profile_id=*/1, app_list_test_model_.get(), search_model_.get());
   }
 
-  AppListItemView* CreateAppListItemView() {
-    AppsGridView* apps_grid_view = app_list_view_->app_list_main_view()
-                                       ->contents_view()
-                                       ->apps_container_view()
-                                       ->apps_grid_view();
-    return new AppListItemView(apps_grid_view, new AppListItem("Item 0"),
-                               delegate_.get(), false);
+  static views::View* GetNewInstallDot(AppListItemView* view) {
+    return view->new_install_dot_;
   }
 
- private:
-  AppListView* app_list_view_ = nullptr;
-  std::unique_ptr<test::AppListTestViewDelegate> delegate_;
+  static void SetName(AppListItem* item, const std::string& name) {
+    item->SetName(name);
+  }
 
-  base::test::ScopedFeatureList scoped_feature_list_;
+  base::test::ScopedFeatureList feature_list_{features::kProductivityLauncher};
+  std::unique_ptr<test::AppListTestModel> app_list_test_model_;
+  std::unique_ptr<SearchModel> search_model_;
 };
 
-// Test that the notification indicator has a color which is calculated
-// correctly when an icon is set for the AppListItemView.
-TEST_F(AppListItemViewTest, NotificatonBadgeColor) {
-  AppListItemView* view = CreateAppListItemView();
+TEST_F(AppListItemViewProductivityLauncherTest, NewInstallDot) {
+  auto* item = app_list_test_model_->CreateAndAddItem("id");
+  SetName(item, "Google Buzz");
+  ASSERT_FALSE(item->is_new_install());
 
-  const int width = 64;
-  const int height = 64;
+  auto* helper = GetAppListTestHelper();
+  helper->ShowAppList();
 
-  SkBitmap all_black_icon;
-  all_black_icon.allocN32Pixels(width, height);
-  all_black_icon.eraseColor(SK_ColorBLACK);
+  // By default, the new install dot is not visible.
+  auto* apps_grid_view = helper->GetScrollableAppsGridView();
+  AppListItemView* item_view = apps_grid_view->GetItemViewAt(0);
+  views::View* new_install_dot = GetNewInstallDot(item_view);
+  EXPECT_FALSE(new_install_dot->GetVisible());
+  EXPECT_EQ(item_view->GetTooltipText({}), u"Google Buzz");
 
-  view->SetIcon(gfx::ImageSkia::CreateFrom1xBitmap(all_black_icon));
-
-  // For an all black icon, a white notification badge is expected, since there
-  // is no other light vibrant color to get from the icon.
-  EXPECT_EQ(SK_ColorWHITE, view->GetNotificationIndicatorColorForTest());
-
-  // Create an icon that is half kGoogleRed300 and half kGoogleRed600.
-  SkBitmap red_icon;
-  red_icon.allocN32Pixels(width, height);
-  red_icon.eraseColor(gfx::kGoogleRed300);
-  red_icon.erase(gfx::kGoogleRed600, {0, 0, width, height / 2});
-
-  view->SetIcon(gfx::ImageSkia::CreateFrom1xBitmap(red_icon));
-
-  // For the red icon, the notification badge should calculate and use the
-  // kGoogleRed300 color as the light vibrant color taken from the icon.
-  EXPECT_EQ(gfx::kGoogleRed300, view->GetNotificationIndicatorColorForTest());
+  // When the app is a new install the dot is visible and the tooltip changes.
+  item->SetIsNewInstall(true);
+  EXPECT_TRUE(new_install_dot->GetVisible());
+  EXPECT_EQ(item_view->GetTooltipText({}), u"Google Buzz\nNew install");
 }
 
-}  //  namespace ash
+}  // namespace ash
