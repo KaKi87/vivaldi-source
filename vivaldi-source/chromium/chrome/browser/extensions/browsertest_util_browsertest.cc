@@ -1,60 +1,53 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/extensions/browsertest_util.h"
-
-#include "base/strings/string_number_conversions.h"
+#include "base/test/bind.h"
+#include "base/test/values_test_util.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
-#include "chrome/browser/extensions/test_extension_dir.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/test/base/in_process_browser_test.h"
-#include "testing/gtest/include/gtest/gtest-spi.h"
-#include "testing/gtest/include/gtest/gtest.h"
+#include "content/public/test/browser_test.h"
+#include "extensions/browser/browsertest_util.h"
+#include "extensions/test/extension_test_message_listener.h"
+#include "extensions/test/test_extension_dir.h"
 
 namespace extensions {
-namespace {
 
-// TODO(jyasskin): It should be possible to test extensions without
-// inheriting from the monolithic ExtensionBrowserTest.
-class ExtensionBrowsertestUtilTest : public ExtensionBrowserTest {
-};
+using BrowserTestUtilBrowserTest = ExtensionBrowserTest;
 
-IN_PROC_BROWSER_TEST_F(ExtensionBrowsertestUtilTest,
-                       ExecuteScriptInBackground) {
-  TestExtensionDir ext_dir;
-  ext_dir.WriteManifest(
-      "{\n"
-      "  \"name\": \"ExecuteScript extension\",\n"
-      "  \"version\": \"0.1\",\n"
-      "  \"manifest_version\": 2,\n"
-      "  \"background\": {\"scripts\": [\"background.js\"]}\n"
-      "}\n");
-  ext_dir.WriteFile(FILE_PATH_LITERAL("background.js"), "");
-  const Extension* extension = LoadExtension(ext_dir.UnpackedPath());
+// Tests the ability to run JS in an extension-registered service worker.
+IN_PROC_BROWSER_TEST_F(BrowserTestUtilBrowserTest,
+                       ExecuteScriptInServiceWorker) {
+  constexpr char kManifest[] =
+      R"({
+          "name": "Test",
+          "manifest_version": 3,
+          "background": {"service_worker": "background.js"},
+          "version": "0.1"
+        })";
+  constexpr char kBackgroundScript[] =
+      R"(self.myTestFlag = 'HELLO!';
+         chrome.test.sendMessage('ready');)";
+
+  TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("background.js"), kBackgroundScript);
+  ExtensionTestMessageListener listener("ready", /*will_reply=*/false);
+  const Extension* extension = LoadExtension(test_dir.UnpackedPath());
   ASSERT_TRUE(extension);
-  EXPECT_EQ(extension->id(),
-            browsertest_util::ExecuteScriptInBackgroundPage(
-                profile(),
-                extension->id(),
-                "window.domAutomationController.send(chrome.runtime.id);"));
+  ASSERT_TRUE(listener.WaitUntilSatisfied());
 
-  // This test checks that executing a script doesn't block the browser process.
-  EXPECT_EQ(base::IntToString(browser()->tab_strip_model()->count()),
-            browsertest_util::ExecuteScriptInBackgroundPage(
-                profile(),
-                extension->id(),
-                "chrome.tabs.query({}, function(result) {\n"
-                "  window.domAutomationController.send('' + result.length);\n"
-                "});"));
+  base::RunLoop run_loop;
+  base::Value value_out;
+  auto callback = [&run_loop, &value_out](base::Value value) {
+    value_out = std::move(value);
+    run_loop.Quit();
+  };
 
-  // An argument that isn't a string should cause a failure, not a hang.
-  EXPECT_NONFATAL_FAILURE(browsertest_util::ExecuteScriptInBackgroundPage(
-                              profile(),
-                              extension->id(),
-                              "window.domAutomationController.send(3);"),
-                          "send(3)");
+  browsertest_util::ExecuteScriptInServiceWorker(
+      profile(), extension->id(), "console.warn('script ran'); myTestFlag;",
+      base::BindLambdaForTesting(callback));
+  run_loop.Run();
+  EXPECT_THAT(value_out, base::test::IsJson(R"("HELLO!")"));
 }
 
-}  // namespace
 }  // namespace extensions

@@ -1,12 +1,11 @@
 specific_include_rules = {
-  # TODO(crbug.com/619992): Remove this exception.
-  "^session_service\.mm$": [
-    "+ios/web/navigation/crw_session_certificate_policy_manager.h",
+  # TODO(crbug.com/1294160): Remove these dependencies.
+  "^session_saving_scene_agent.h": [
+    "+ios/chrome/browser/ui/main/observing_scene_state_agent.h",
+  ],
+  "^session_saving_scene_agent.mm": [
+    "+ios/chrome/browser/ui/main/browser_interface_provider.h",
   ],
 
-  # TODO(crbug.com/620083): Remove this exception.
-  "^tab_restore_service_delegate_impl_ios\.mm$": [
-    "+ios/web/navigation/navigation_manager_impl.h",
-    "+ios/web/web_state/web_state_impl.h",
-  ],
 }
+

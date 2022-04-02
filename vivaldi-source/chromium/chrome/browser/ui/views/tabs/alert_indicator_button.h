@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,21 +7,18 @@
 
 #include <memory>
 
-#include "base/macros.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
+#include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/view_targeter_delegate.h"
 
 class Tab;
 
-namespace base {
-class OneShotTimer;
-}
-
 namespace gfx {
 class Animation;
 class AnimationDelegate;
-}
+}  // namespace gfx
 
 // This is an ImageButton subclass that serves as both the alert indicator icon
 // (audio, tab capture, etc.), and as a mute button.  It is meant to only be
@@ -34,19 +31,21 @@ class AnimationDelegate;
 class AlertIndicatorButton : public views::ImageButton,
                              public views::ViewTargeterDelegate {
  public:
-  // The AlertIndicatorButton's class name.
-  static const char kViewClassName[];
-
+  METADATA_HEADER(AlertIndicatorButton);
   explicit AlertIndicatorButton(Tab* parent_tab);
+  AlertIndicatorButton(const AlertIndicatorButton&) = delete;
+  AlertIndicatorButton& operator=(const AlertIndicatorButton&) = delete;
   ~AlertIndicatorButton() override;
 
   // Returns the current TabAlertState except, while the indicator image is
   // fading out, returns the prior TabAlertState.
-  TabAlertState showing_alert_state() const { return showing_alert_state_; }
+  absl::optional<TabAlertState> showing_alert_state() const {
+    return showing_alert_state_;
+  }
 
   // Calls ResetImages(), starts fade animations, and activates/deactivates
   // button functionality as appropriate.
-  void TransitionToAlertState(TabAlertState next_state);
+  void TransitionToAlertState(absl::optional<TabAlertState> next_state);
 
   // Determines whether the AlertIndicatorButton will be clickable for toggling
   // muting.  This should be called whenever the active/inactive state of a tab
@@ -60,13 +59,8 @@ class AlertIndicatorButton : public views::ImageButton,
 
  protected:
   // views::View:
-  const char* GetClassName() const override;
   View* GetTooltipHandlerForPoint(const gfx::Point& point) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
-  bool OnMouseDragged(const ui::MouseEvent& event) override;
-  void OnMouseEntered(const ui::MouseEvent& event) override;
-  void OnMouseExited(const ui::MouseEvent& event) override;
-  void OnMouseMoved(const ui::MouseEvent& event) override;
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
   // views::ViewTargeterDelegate
@@ -89,37 +83,21 @@ class AlertIndicatorButton : public views::ImageButton,
   class FadeAnimationDelegate;
 
   // Returns the tab (parent view) of this AlertIndicatorButton.
-  Tab* GetTab() const;
+  Tab* GetTab();
 
   // Resets the images to display on the button to reflect |state| and the
   // parent tab's button color.  Should be called when either of these changes.
   void ResetImages(TabAlertState state);
 
-  // Enters a temporary "dormant period" where this AlertIndicatorButton will
-  // not trigger on clicks.  The user is provided a visual affordance during
-  // this period.  Sets a timer to call ExitDormantPeriod().
-  void EnterDormantPeriod();
-
-  // Leaves the "dormant period," allowing clicks to once again trigger an
-  // enabled AlertIndicatorButton.
-  void ExitDormantPeriod();
-
-  bool is_dormant() const { return !!wake_up_timer_; }
-
   Tab* const parent_tab_;
 
-  TabAlertState alert_state_;
+  absl::optional<TabAlertState> alert_state_;
 
   // Alert indicator fade-in/out animation (i.e., only on show/hide, not a
   // continuous animation).
   std::unique_ptr<gfx::AnimationDelegate> fade_animation_delegate_;
   std::unique_ptr<gfx::Animation> fade_animation_;
-  TabAlertState showing_alert_state_;
-
-  // Created on-demand, this fires to exit the "dormant period."
-  std::unique_ptr<base::OneShotTimer> wake_up_timer_;
-
-  DISALLOW_COPY_AND_ASSIGN(AlertIndicatorButton);
+  absl::optional<TabAlertState> showing_alert_state_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_ALERT_INDICATOR_BUTTON_H_

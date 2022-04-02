@@ -15,11 +15,11 @@
 
 namespace {
 // The currently active color chooser.
-ColorChooserMac* g_current_color_chooser = nullptr;
+raw_ptr<ColorChooserMac> g_current_color_chooser = nullptr;
 }  // namespace
 
 // static
-std::unique_ptr<ColorChooserMac> ColorChooserMac::Open(
+std::unique_ptr<ColorChooserMac> ColorChooserMac::Create(
     content::WebContents* web_contents,
     SkColor initial_color) {
   if (g_current_color_chooser)
@@ -28,12 +28,13 @@ std::unique_ptr<ColorChooserMac> ColorChooserMac::Open(
   // Note that WebContentsImpl::ColorChooser ultimately takes ownership (and
   // deletes) the returned pointer.
   g_current_color_chooser = new ColorChooserMac(web_contents, initial_color);
-  return base::WrapUnique(g_current_color_chooser);
+  return base::WrapUnique(g_current_color_chooser.get());
 }
 
 ColorChooserMac::ColorChooserMac(content::WebContents* web_contents,
                                  SkColor initial_color)
     : web_contents_(web_contents) {
+  // The application_host branch is used when running as a PWA.
   auto* application_host = remote_cocoa::ApplicationHost::GetForNativeView(
       web_contents ? web_contents->GetNativeView() : gfx::NativeView());
   if (application_host) {
@@ -81,6 +82,6 @@ namespace chrome {
 std::unique_ptr<content::ColorChooser> ShowColorChooser(
     content::WebContents* web_contents,
     SkColor initial_color) {
-  return ColorChooserMac::Open(web_contents, initial_color);
+  return ColorChooserMac::Create(web_contents, initial_color);
 }
 }  // namepace chrome
