@@ -5,41 +5,13 @@
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_
 
-#include "base/allocator/partition_allocator/checked_ptr_support.h"
+#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/page_allocator_constants.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 
-namespace base {
+namespace partition_alloc::internal {
 
-namespace internal {
-
-#if ENABLE_TAG_FOR_MTE_CHECKED_PTR
-
-// Normal bucket layout
-// +----------------+ super_page_base
-// | PartitionPage  |
-// | (Meta+Guard)   |
-// +----------------+ super_page_base + PartitionPageSize() (=bitmap_base)
-// |  TagBitmap     |
-// ....
-// +- - - - - - - - + bitmap_base + kActualTagBitmapSize
-// | guard pages(*) | (kActualTagBitmapSize is SystemPageSize()-aligned.)
-// +----------------+ bitmap_base + kReservedTagBitmapSize
-// |   Slot Span    | (kReservedTagBitmapSize is PartitionPageSize()-aligned.)
-// ....
-// ....
-// +----------------+
-// |   Slot Span    |
-// ....
-// ....
-// +----------------+
-// | PartitionPage  |
-// |  (GuardPage)   |
-// +----------------+ super_page_base + kSuperPageSize
-// (*) If kActualTagBitmapSize < kReservedTagBitmapSize, the
-// unused pages are guard pages. This depends on sizeof(PartitionTag).
-// TODO(tasak): Consider guaranteeing guard pages after the tag bitmap, if
-// needed.
+#if defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
 
 namespace tag_bitmap {
 // kPartitionTagSize should be equal to sizeof(PartitionTag).
@@ -150,9 +122,9 @@ static_assert((ActualTagBitmapSize() - PartitionPageSize()) *
                       tag_bitmap::kBytesPerPartitionTagRatio <
                   SlotSpansSize(),
               "any smaller bitmap wouldn't suffice to cover slots spans");
-#endif
+#endif  // PAGE_ALLOCATOR_CONSTANTS_ARE_CONSTEXPR
 
-#else  // !ENABLE_TAG_FOR_MTE_CHECKED_PTR
+#else
 
 constexpr ALWAYS_INLINE size_t NumPartitionPagesPerTagBitmap() {
   return 0;
@@ -166,9 +138,8 @@ constexpr ALWAYS_INLINE size_t ReservedTagBitmapSize() {
   return 0;
 }
 
-#endif
+#endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
 
-}  // namespace internal
-}  // namespace base
+}  // namespace partition_alloc::internal
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_BITMAP_H_

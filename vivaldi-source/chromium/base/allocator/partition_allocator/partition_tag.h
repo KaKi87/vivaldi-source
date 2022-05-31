@@ -5,137 +5,76 @@
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_H_
 
+// This file defines types and functions for `MTECheckedPtr<T>` (cf.
+// `tagging.h`, which deals with real ARM MTE).
+
 #include <string.h>
 
-#include "base/allocator/partition_allocator/checked_ptr_support.h"
+#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
+#include "base/allocator/partition_allocator/partition_alloc_notreached.h"
 #include "base/allocator/partition_allocator/partition_cookie.h"
+#include "base/allocator/partition_allocator/partition_page.h"
 #include "base/allocator/partition_allocator/partition_tag_bitmap.h"
-#include "base/base_export.h"
-#include "base/notreached.h"
+#include "base/allocator/partition_allocator/reservation_offset_table.h"
+#include "base/allocator/partition_allocator/tagging.h"
 #include "build/build_config.h"
 
-namespace base {
+namespace partition_alloc {
 
-namespace internal {
-
-#if ENABLE_TAG_FOR_CHECKED_PTR2
-
-// Use 16 bits for the partition tag.
-// TODO(tasak): add a description about the partition tag.
-using PartitionTag = uint8_t;
-
-// Allocate extra space for the partition tag to satisfy the alignment
-// requirement.
-static constexpr size_t kInSlotTagBufferSize = base::kAlignment;
-static_assert(sizeof(PartitionTag) <= kInSlotTagBufferSize,
-              "PartitionTag should fit into the in-slot buffer.");
-
-#if DCHECK_IS_ON()
-// The layout inside the slot is |tag|cookie|object|(empty)|cookie|.
-static constexpr size_t kPartitionTagOffset =
-    kInSlotTagBufferSize + kCookieSize;
-#else
-// The layout inside the slot is |tag|object|(empty)|.
-static constexpr size_t kPartitionTagOffset = kInSlotTagBufferSize;
-#endif
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustAdd(size_t size) {
-  PA_DCHECK(size + kInSlotTagBufferSize > size);
-  return size + kInSlotTagBufferSize;
-}
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustSubtract(size_t size) {
-  PA_DCHECK(size >= kInSlotTagBufferSize);
-  return size - kInSlotTagBufferSize;
-}
-
-ALWAYS_INLINE PartitionTag* PartitionTagPointer(void* ptr) {
-  return reinterpret_cast<PartitionTag*>(reinterpret_cast<char*>(ptr) -
-                                         kPartitionTagOffset);
-}
-
-ALWAYS_INLINE void* PartitionTagPointerAdjustSubtract(void* ptr) {
-  return reinterpret_cast<void*>(reinterpret_cast<char*>(ptr) -
-                                 kInSlotTagBufferSize);
-}
-
-ALWAYS_INLINE void* PartitionTagPointerAdjustAdd(void* ptr) {
-  return reinterpret_cast<void*>(reinterpret_cast<char*>(ptr) +
-                                 kInSlotTagBufferSize);
-}
-
-ALWAYS_INLINE void PartitionTagSetValue(void* ptr, size_t, PartitionTag value) {
-  *PartitionTagPointer(ptr) = value;
-}
-
-ALWAYS_INLINE PartitionTag PartitionTagGetValue(void* ptr) {
-  return *PartitionTagPointer(ptr);
-}
-
-ALWAYS_INLINE void PartitionTagClearValue(void* ptr, size_t) {
-  PA_DCHECK(PartitionTagGetValue(ptr));
-  *PartitionTagPointer(ptr) = 0;
-}
-
-#elif ENABLE_TAG_FOR_MTE_CHECKED_PTR
+#if defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
 
 // Use 8 bits for the partition tag.
 // TODO(tasak): add a description about the partition tag.
 using PartitionTag = uint8_t;
 
 static_assert(
-    sizeof(PartitionTag) == tag_bitmap::kPartitionTagSize,
+    sizeof(PartitionTag) == internal::tag_bitmap::kPartitionTagSize,
     "sizeof(PartitionTag) must be equal to bitmap::kPartitionTagSize.");
 
-static constexpr size_t kInSlotTagBufferSize = 0;
+ALWAYS_INLINE PartitionTag* PartitionTagPointer(uintptr_t addr) {
+  // TODO(crbug.com/1307514): Add direct map support. For now, just assume
+  // that direct maps don't have tags.
+  PA_DCHECK(internal::IsManagedByNormalBuckets(addr));
 
-ALWAYS_INLINE size_t PartitionTagSizeAdjustAdd(size_t size) {
-  return size;
-}
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustSubtract(size_t size) {
-  return size;
-}
-
-ALWAYS_INLINE PartitionTag* PartitionTagPointer(void* ptr) {
-  // See the comment explaining the layout in partition_tag_bitmap.h.
-  uintptr_t pointer_as_uintptr = reinterpret_cast<uintptr_t>(ptr);
   uintptr_t bitmap_base =
-      (pointer_as_uintptr & kSuperPageBaseMask) + PartitionPageSize();
-  uintptr_t offset =
-      (pointer_as_uintptr & kSuperPageOffsetMask) - PartitionPageSize();
-  // Not to depend on partition_address_space.h and PartitionAllocGigaCage
-  // feature, use "offset" to see whether the given ptr is_direct_mapped or not.
-  // DirectMap object should cause this PA_DCHECK's failure, as tags aren't
-  // currently supported there.
-  PA_DCHECK(offset >= ReservedTagBitmapSize());
-  size_t bitmap_offset = (offset - ReservedTagBitmapSize()) >>
-                         tag_bitmap::kBytesPerPartitionTagShift
-                             << tag_bitmap::kPartitionTagSizeShift;
-  return reinterpret_cast<PartitionTag* const>(bitmap_base + bitmap_offset);
+      internal::SuperPageTagBitmapAddr(addr & internal::kSuperPageBaseMask);
+  const size_t bitmap_end_offset =
+      internal::PartitionPageSize() + internal::ReservedTagBitmapSize();
+  PA_DCHECK((addr & internal::kSuperPageOffsetMask) >= bitmap_end_offset);
+  uintptr_t offset_in_super_page =
+      (addr & internal::kSuperPageOffsetMask) - bitmap_end_offset;
+  size_t offset_in_bitmap = offset_in_super_page >>
+                            internal::tag_bitmap::kBytesPerPartitionTagShift
+                                << internal::tag_bitmap::kPartitionTagSizeShift;
+  return reinterpret_cast<PartitionTag*>(bitmap_base + offset_in_bitmap);
 }
 
-ALWAYS_INLINE void* PartitionTagPointerAdjustSubtract(void* ptr) {
-  return ptr;
+ALWAYS_INLINE PartitionTag* PartitionTagPointer(const void* ptr) {
+  return PartitionTagPointer(
+      internal::UnmaskPtr(reinterpret_cast<uintptr_t>(ptr)));
 }
 
-ALWAYS_INLINE void* PartitionTagPointerAdjustAdd(void* ptr) {
-  return ptr;
-}
+namespace internal {
 
-ALWAYS_INLINE void PartitionTagSetValue(void* ptr,
+ALWAYS_INLINE void PartitionTagSetValue(uintptr_t addr,
                                         size_t size,
                                         PartitionTag value) {
   PA_DCHECK((size % tag_bitmap::kBytesPerPartitionTag) == 0);
   size_t tag_count = size >> tag_bitmap::kBytesPerPartitionTagShift;
-  PartitionTag* tag_ptr = PartitionTagPointer(ptr);
+  PartitionTag* tag_ptr = PartitionTagPointer(addr);
   if (sizeof(PartitionTag) == 1) {
     memset(tag_ptr, value, tag_count);
   } else {
     while (tag_count-- > 0)
       *tag_ptr++ = value;
   }
+}
+
+ALWAYS_INLINE void PartitionTagSetValue(void* ptr,
+                                        size_t size,
+                                        PartitionTag value) {
+  PartitionTagSetValue(reinterpret_cast<uintptr_t>(ptr), size, value);
 }
 
 ALWAYS_INLINE PartitionTag PartitionTagGetValue(void* ptr) {
@@ -167,78 +106,18 @@ ALWAYS_INLINE void PartitionTagIncrementValue(void* ptr, size_t size) {
   PartitionTagSetValue(ptr, size, new_tag);
 }
 
-#elif ENABLE_TAG_FOR_SINGLE_TAG_CHECKED_PTR
+}  // namespace internal
+
+#else  // No-op versions
 
 using PartitionTag = uint8_t;
-
-static constexpr PartitionTag kFixedTagValue = 0xAD;
-
-struct PartitionTagWrapper {
-  // Add padding before and after the tag, to avoid cacheline false sharing.
-  // Assume cacheline is 64B.
-  uint8_t unused1[64];
-  PartitionTag partition_tag;
-  uint8_t unused2[64];
-};
-extern BASE_EXPORT PartitionTagWrapper g_checked_ptr_single_tag;
-
-static constexpr size_t kInSlotTagBufferSize = 0;
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustAdd(size_t size) {
-  return size;
-}
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustSubtract(size_t size) {
-  return size;
-}
-
-ALWAYS_INLINE PartitionTag* PartitionTagPointer(void*) {
-  return &g_checked_ptr_single_tag.partition_tag;
-}
-
-ALWAYS_INLINE void* PartitionTagPointerAdjustSubtract(void* ptr) {
-  return ptr;
-}
-
-ALWAYS_INLINE void* PartitionTagPointerAdjustAdd(void* ptr) {
-  return ptr;
-}
-
-ALWAYS_INLINE void PartitionTagSetValue(void*, size_t, PartitionTag) {}
-
-ALWAYS_INLINE PartitionTag PartitionTagGetValue(void* ptr) {
-  return *PartitionTagPointer(ptr);
-}
-
-ALWAYS_INLINE void PartitionTagClearValue(void* ptr, size_t) {}
-
-#else  // !ENABLE_TAG_FOR_CHECKED_PTR2 && !ENABLE_TAG_FOR_MTE_CHECKED_PTR &&
-       // !ENABLE_TAG_FOR_SINGLE_TAG_CHECKED_PTR
-
-using PartitionTag = uint8_t;
-
-static constexpr size_t kInSlotTagBufferSize = 0;
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustAdd(size_t size) {
-  return size;
-}
-
-ALWAYS_INLINE size_t PartitionTagSizeAdjustSubtract(size_t size) {
-  return size;
-}
 
 ALWAYS_INLINE PartitionTag* PartitionTagPointer(void* ptr) {
-  NOTREACHED();
+  PA_NOTREACHED();
   return nullptr;
 }
 
-ALWAYS_INLINE void* PartitionTagPointerAdjustSubtract(void* ptr) {
-  return ptr;
-}
-
-ALWAYS_INLINE void* PartitionTagPointerAdjustAdd(void* ptr) {
-  return ptr;
-}
+namespace internal {
 
 ALWAYS_INLINE void PartitionTagSetValue(void*, size_t, PartitionTag) {}
 
@@ -248,10 +127,12 @@ ALWAYS_INLINE PartitionTag PartitionTagGetValue(void*) {
 
 ALWAYS_INLINE void PartitionTagClearValue(void* ptr, size_t) {}
 
-#endif  // !ENABLE_TAG_FOR_CHECKED_PTR2 && !ENABLE_TAG_FOR_MTE_CHECKED_PTR &&
-        // !ENABLE_TAG_FOR_SINGLE_TAG_CHECKED_PTR
+ALWAYS_INLINE void PartitionTagIncrementValue(void* ptr, size_t size) {}
 
 }  // namespace internal
-}  // namespace base
+
+#endif  // defined(PA_USE_MTE_CHECKED_PTR_WITH_64_BITS_POINTERS)
+
+}  // namespace partition_alloc
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_TAG_H_

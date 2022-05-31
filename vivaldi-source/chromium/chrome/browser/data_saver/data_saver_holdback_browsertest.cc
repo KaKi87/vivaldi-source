@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_base.h"
 #include "content/public/test/browser_test_utils.h"
+#include "data_saver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 
 // Tests if the save data header holdback works as expected.
@@ -27,11 +28,6 @@ class DataSaverHoldbackBrowserTest : public InProcessBrowserTest,
     test_server_.ServeFilesFromSourceDirectory("content/test/data");
     ASSERT_TRUE(test_server_.Start());
     InProcessBrowserTest::SetUp();
-  }
-
-  void SetUpCommandLine(base::CommandLine* cmd) override {
-    cmd->AppendSwitch(
-        data_reduction_proxy::switches::kEnableDataReductionProxy);
   }
 
   void VerifySaveDataHeader(const std::string& expected_header_value) {
@@ -56,6 +52,11 @@ class DataSaverHoldbackBrowserTest : public InProcessBrowserTest,
         {{features::kDataSaverHoldback, {params}}}, {});
   }
 
+  void TearDown() override {
+    data_saver::ResetIsDataSaverEnabledForTesting();
+    InProcessBrowserTest::TearDown();
+  }
+
  private:
   bool RunScriptExtractBool(const std::string& script) {
     return content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
@@ -73,6 +74,7 @@ INSTANTIATE_TEST_SUITE_P(All, DataSaverHoldbackBrowserTest, testing::Bool());
 IN_PROC_BROWSER_TEST_P(DataSaverHoldbackBrowserTest,
                        DataSaverEnabledWithHoldbackEnabled) {
   ASSERT_TRUE(embedded_test_server()->Start());
+  data_saver::OverrideIsDataSaverEnabledForTesting(true);
 
   // If holdback is enabled, then the save-data header should not be set.
   if (GetParam()) {

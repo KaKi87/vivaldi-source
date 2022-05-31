@@ -5,25 +5,19 @@
 #ifndef MEDIA_FUCHSIA_MOJOM_FUCHSIA_MEDIA_RESOURCE_PROVIDER_MOJOM_TRAITS_H_
 #define MEDIA_FUCHSIA_MOJOM_FUCHSIA_MEDIA_RESOURCE_PROVIDER_MOJOM_TRAITS_H_
 
-#include <fuchsia/media/cpp/fidl.h>
+#include <fuchsia/media/drm/cpp/fidl.h>
 
 #include "fuchsia/mojom/fidl_interface_request_mojom_traits.h"
 
 namespace mojo {
 
 template <>
-struct StructTraits<media::mojom::AudioConsumerRequestDataView,
-                    fidl::InterfaceRequest<fuchsia::media::AudioConsumer>>
+struct StructTraits<
+    media::mojom::CdmRequestDataView,
+    fidl::InterfaceRequest<fuchsia::media::drm::ContentDecryptionModule>>
     : public FidlInterfaceRequestStructTraits<
-          media::mojom::AudioConsumerRequestDataView,
-          fuchsia::media::AudioConsumer> {};
-
-template <>
-struct StructTraits<media::mojom::AudioCapturerRequestDataView,
-                    fidl::InterfaceRequest<fuchsia::media::AudioCapturer>>
-    : public FidlInterfaceRequestStructTraits<
-          media::mojom::AudioCapturerRequestDataView,
-          fuchsia::media::AudioCapturer> {};
+          media::mojom::CdmRequestDataView,
+          fuchsia::media::drm::ContentDecryptionModule> {};
 
 }  // namespace mojo
 
