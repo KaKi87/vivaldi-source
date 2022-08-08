@@ -2,15 +2,29 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-Polymer({
-  is: 'oobe-slide',
+/* #js_imports_placeholder */
 
-  properties: {
-    /* If true title is colored red, else blue.
-     */
-    isWarning: {
-      type: Boolean,
-      value: false,
-    },
-  },
-});
+/**
+ * @polymer
+ */
+class OobeSlide extends Polymer.Element {
+
+  static get is() {
+    return 'oobe-slide';
+  }
+
+  /* #html_template_placeholder */
+
+  static get properties() {
+    return {
+      /* If true title is colored red, else blue.
+       */
+      isWarning: {
+        type: Boolean,
+        value: false,
+      },
+    };
+  }
+}
+
+customElements.define(OobeSlide.is, OobeSlide);

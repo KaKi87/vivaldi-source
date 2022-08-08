@@ -1,82 +1,131 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 
-#include <stddef.h>
-
-#include <map>
-
-#include "base/macros.h"
-#include "base/values.h"
-#include "components/password_manager/core/common/password_manager_pref_names.h"
-#include "components/prefs/pref_registry_simple.h"
-#include "components/prefs/scoped_user_pref_update.h"
-#include "components/prefs/testing_pref_service.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/task_environment.h"
+#include "components/ukm/test_ukm_recorder.h"
+#include "services/metrics/public/cpp/ukm_builders.h"
+#include "services/metrics/public/cpp/ukm_source.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace password_manager {
+namespace password_manager::metrics_util {
 
-class PasswordManagerMetricsUtilTest : public testing::Test {
- protected:
-  void SetUp() override {
-    testing::Test::SetUp();
-    prefs_.registry()->RegisterListPref(
-        prefs::kPasswordManagerGroupsForDomains);
-  }
+namespace {
 
-  bool IsMonitored(const char* url_host) {
-    size_t group_id = metrics_util::MonitoredDomainGroupId(url_host, &prefs_);
-    return group_id > 0;
-  }
+constexpr ukm::SourceId kTestSourceId = 0x1234;
 
-  TestingPrefServiceSimple prefs_;
-};
+using UkmEntry = ukm::builders::PasswordManager_LeakWarningDialog;
 
-TEST_F(PasswordManagerMetricsUtilTest, MonitoredDomainGroupAssigmentTest) {
-  const char* const kMonitoredWebsites[] = {
-      "https://www.google.com",   "https://www.yahoo.com",
-      "https://www.baidu.com",    "https://www.wikipedia.org",
-      "https://www.linkedin.com", "https://www.twitter.com",
-      "https://www.facebook.com", "https://www.amazon.com",
-      "https://www.ebay.com",     "https://www.tumblr.com",
-  };
-  const size_t kMonitoredWebsitesLength = arraysize(kMonitoredWebsites);
+// Create a LeakDialogMetricsRecorder for a test source id.
+// Tests in this unit test are somewhat perfunctory due to the limited
+// functionality of the class. On top of this, the unit tests for
+// CredentialLeakDialogControllerImpl also test metrics recording.
+LeakDialogMetricsRecorder CreateMetricsRecorder(LeakDialogType dialog_type) {
+  return LeakDialogMetricsRecorder(kTestSourceId, dialog_type);
+}
 
-  // |groups| maps the group id to the number of times the group gets assigned.
-  std::map<size_t, size_t> groups;
+}  // namespace
 
-  // Provide all possible values of the group id parameter for each monitored
-  // website.
-  for (size_t i = 0; i < kMonitoredWebsitesLength; ++i) {
-    for (size_t j = 0; j < metrics_util::kGroupsPerDomain; ++j) {
-      {  // Set the group index for domain |i| to |j|.
-        ListPrefUpdate group_indices(&prefs_,
-                                     prefs::kPasswordManagerGroupsForDomains);
-        group_indices->Set(i, new base::FundamentalValue(static_cast<int>(j)));
-      }  // At the end of the scope the prefs get updated.
+TEST(PasswordManagerMetricsUtilLeakDialogMetricsRecorder,
+     AutomaticPasswordChangeClicked) {
+  base::test::TaskEnvironment task_environment_;
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder test_ukm_recorder;
 
-      ++groups[metrics_util::MonitoredDomainGroupId(kMonitoredWebsites[i],
-                                                    &prefs_)];
-    }
-  }
-  // None of the monitored websites should have been assigned group ID 0.
-  EXPECT_EQ(0u, groups.count(0));
+  LeakDialogMetricsRecorder recorder(
+      CreateMetricsRecorder(LeakDialogType::kChangeAutomatically));
+  recorder.SetSamplingRateForTesting(1.0);
+  recorder.LogLeakDialogTypeAndDismissalReason(
+      LeakDialogDismissalReason::kClickedChangePasswordAutomatically);
 
-  // Check if all groups get assigned the same number of times.
-  size_t number_of_assigments = groups.begin()->second;
-  for (auto it = groups.begin(); it != groups.end(); ++it) {
-    EXPECT_EQ(it->second, number_of_assigments) << " group id = " << it->first;
+  // Check that UMA logging is correct.
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.LeakDetection.DialogDismissalReason",
+      LeakDialogDismissalReason::kClickedChangePasswordAutomatically, 1);
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.LeakDetection.DialogDismissalReason.ChangeAutomatically",
+      LeakDialogDismissalReason::kClickedChangePasswordAutomatically, 1);
+
+  // Check that UKM logging is correct.
+  const auto& entries =
+      test_ukm_recorder.GetEntriesByName(UkmEntry::kEntryName);
+  EXPECT_EQ(1u, entries.size());
+  for (const auto* entry : entries) {
+    EXPECT_EQ(kTestSourceId, entry->source_id);
+    test_ukm_recorder.ExpectEntryMetric(
+        entry, UkmEntry::kPasswordLeakDetectionDialogTypeName,
+        static_cast<int64_t>(LeakDialogType::kChangeAutomatically));
+    test_ukm_recorder.ExpectEntryMetric(
+        entry, UkmEntry::kPasswordLeakDetectionDialogDismissalReasonName,
+        static_cast<int64_t>(
+            LeakDialogDismissalReason::kClickedChangePasswordAutomatically));
   }
 }
 
-TEST_F(PasswordManagerMetricsUtilTest, MonitoredDomainGroupTest) {
-  EXPECT_TRUE(IsMonitored("https://www.linkedin.com"));
-  EXPECT_TRUE(IsMonitored("https://www.amazon.com"));
-  EXPECT_TRUE(IsMonitored("https://www.facebook.com"));
-  EXPECT_TRUE(IsMonitored("http://wikipedia.org"));
-  EXPECT_FALSE(IsMonitored("http://thisisnotwikipedia.org"));
+TEST(PasswordManagerMetricsUtilLeakDialogMetricsRecorder, CheckupIgnored) {
+  base::test::TaskEnvironment task_environment_;
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder test_ukm_recorder;
+
+  LeakDialogMetricsRecorder recorder(
+      CreateMetricsRecorder(LeakDialogType::kCheckup));
+  recorder.SetSamplingRateForTesting(1.0);
+  recorder.LogLeakDialogTypeAndDismissalReason(
+      LeakDialogDismissalReason::kNoDirectInteraction);
+
+  // Check that UMA logging is correct.
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.LeakDetection.DialogDismissalReason",
+      LeakDialogDismissalReason::kNoDirectInteraction, 1);
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.LeakDetection.DialogDismissalReason.Checkup",
+      LeakDialogDismissalReason::kNoDirectInteraction, 1);
+
+  // Check that UKM logging is correct.
+  const auto& entries =
+      test_ukm_recorder.GetEntriesByName(UkmEntry::kEntryName);
+  EXPECT_EQ(1u, entries.size());
+  for (const auto* entry : entries) {
+    EXPECT_EQ(kTestSourceId, entry->source_id);
+    test_ukm_recorder.ExpectEntryMetric(
+        entry, UkmEntry::kPasswordLeakDetectionDialogTypeName,
+        static_cast<int64_t>(LeakDialogType::kCheckup));
+    test_ukm_recorder.ExpectEntryMetric(
+        entry, UkmEntry::kPasswordLeakDetectionDialogDismissalReasonName,
+        static_cast<int64_t>(LeakDialogDismissalReason::kNoDirectInteraction));
+  }
 }
 
-}  // namespace password_manager
+TEST(PasswordManagerMetricsUtil, LogNewlySavedPasswordMetrics) {
+  base::HistogramTester histogram_tester;
+
+  constexpr bool kIsGeneratedPassword = true;
+  constexpr bool kIsUsernameEmpty = true;
+  LogNewlySavedPasswordMetrics(
+      /*is_generated_password=*/true, /*is_username_empty=*/true,
+      PasswordAccountStorageUsageLevel::kNotUsingAccountStorage);
+
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.NewlySavedPasswordIsGenerated", kIsGeneratedPassword, 1);
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.NewlySavedPasswordIsGenerated.NotUsingAccountStorage",
+      kIsGeneratedPassword, 1);
+  histogram_tester.ExpectTotalCount(
+      "PasswordManager.NewlySavedPasswordIsGenerated.UsingAccountStorage", 0);
+  histogram_tester.ExpectTotalCount(
+      "PasswordManager.NewlySavedPasswordIsGenerated.Syncing", 0);
+
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.NewlySavedPasswordHasEmptyUsername.Overall",
+      kIsUsernameEmpty, 1);
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.NewlySavedPasswordHasEmptyUsername.AutoGenerated",
+      kIsUsernameEmpty, 1);
+  histogram_tester.ExpectTotalCount(
+      "PasswordManager.NewlySavedPasswordHasEmptyUsername.UserCreated", 0);
+}
+
+}  // namespace password_manager::metrics_util
