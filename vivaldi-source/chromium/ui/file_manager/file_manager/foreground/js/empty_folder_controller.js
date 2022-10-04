@@ -1,27 +1,28 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// #import {FilesAlertDialog} from './ui/files_alert_dialog.m.js';
-// #import {EmptyFolder} from './ui/empty_folder.m.js';
-// #import {FileListModel} from './file_list_model.m.js';
-// #import {DirectoryModel} from './directory_model.m.js';
-// #import {str, strf, util} from '../../common/js/util.m.js';
-// #import {constants} from './constants.m.js';
-// #import {assert} from 'chrome://resources/js/assert.m.js';
+import {assert} from 'chrome://resources/js/assert.m.js';
+
+import {str, util} from '../../common/js/util.js';
+import {FakeEntry} from '../../externs/files_app_entry_interfaces.js';
+
+import {DirectoryModel} from './directory_model.js';
+import {FileListModel} from './file_list_model.js';
 
 /**
- * Empty folder controller.
+ * Empty folder controller which controls the empty folder element inside
+ * the file list container.
  */
-/* #export */ class EmptyFolderController {
+export class EmptyFolderController {
   /**
-   * @param {!EmptyFolder} emptyFolder Empty folder ui.
+   * @param {!HTMLElement} emptyFolder Empty folder element.
    * @param {!DirectoryModel} directoryModel Directory model.
-   * @param {!FilesAlertDialog} alertDialog Alert dialog.
+   * @param {!FakeEntry} recentEntry Entry represents Recent view.
    */
-  constructor(emptyFolder, directoryModel, alertDialog) {
+  constructor(emptyFolder, directoryModel, recentEntry) {
     /**
-     * @private {!EmptyFolder}
+     * @private {!HTMLElement}
      */
     this.emptyFolder_ = emptyFolder;
 
@@ -31,14 +32,15 @@
     this.directoryModel_ = directoryModel;
 
     /**
-     * @private {!FilesAlertDialog}
+     * @private {!FakeEntry}
+     * @const
      */
-    this.alertDialog_ = alertDialog;
+    this.recentEntry_ = recentEntry;
 
     /**
-     * @private {!FileListModel}
+     * @private {!HTMLElement}
      */
-    this.dataModel_ = assert(this.directoryModel_.getFileList());
+    this.label_ = util.queryRequiredElement('.label', emptyFolder);
 
     /**
      * @private {boolean}
@@ -48,23 +50,13 @@
     this.directoryModel_.addEventListener(
         'scan-started', this.onScanStarted_.bind(this));
     this.directoryModel_.addEventListener(
-        'scan-failed', this.onScanFailed_.bind(this));
+        'scan-failed', this.onScanFinished_.bind(this));
     this.directoryModel_.addEventListener(
         'scan-cancelled', this.onScanFinished_.bind(this));
     this.directoryModel_.addEventListener(
         'scan-completed', this.onScanFinished_.bind(this));
     this.directoryModel_.addEventListener(
         'rescan-completed', this.onScanFinished_.bind(this));
-
-    this.dataModel_.addEventListener('splice', this.onSplice_.bind(this));
-  }
-
-  /**
-   * Handles splice event.
-   * @private
-   */
-  onSplice_() {
-    this.update_();
   }
 
   /**
@@ -73,23 +65,7 @@
    */
   onScanStarted_() {
     this.isScanning_ = true;
-    this.update_();
-  }
-
-  /**
-   * Handles scan fail.
-   * @param {Event} event Event may contain error field containing DOMError for
-   *   alert.
-   * @private
-   */
-  onScanFailed_(event) {
-    this.isScanning_ = false;
-    // Show alert for crostini connection error.
-    if (event.error.name == constants.CROSTINI_CONNECT_ERR) {
-      this.alertDialog_.showWithTitle(
-          str('ERROR_LINUX_FILES_CONNECTION'), event.error.message);
-    }
-    this.update_();
+    this.updateUI_();
   }
 
   /**
@@ -98,27 +74,39 @@
    */
   onScanFinished_() {
     this.isScanning_ = false;
-    this.update_();
+    this.updateUI_();
   }
 
   /**
    * Updates visibility of empty folder UI.
    * @private
    */
-  update_() {
-    if (!this.isScanning_ && this.dataModel_.length === 0) {
-      const query = this.directoryModel_.getLastSearchQuery();
-      let html = '';
-      if (query) {
-        html = strf('SEARCH_NO_MATCHING_FILES_HTML', util.htmlEscape(query));
-      } else {
-        html = str('EMPTY_FOLDER');
-      }
+  updateUI_() {
+    const isRecent =
+        util.isRecentRootType(this.directoryModel_.getCurrentRootType());
+    const fileListModel = assert(this.directoryModel_.getFileList());
+    if (!isRecent || this.isScanning_ || fileListModel.length > 0) {
+      this.emptyFolder_.hidden = true;
+      this.label_.innerText = '';
+      return;
+    }
 
-      this.emptyFolder_.setMessage(html);
-      this.emptyFolder_.show();
-    } else {
-      this.emptyFolder_.hide();
+    this.emptyFolder_.hidden = false;
+    switch (this.recentEntry_.recentFileType) {
+      case chrome.fileManagerPrivate.RecentFileType.AUDIO:
+        this.label_.innerText = str('RECENT_EMPTY_AUDIO_FOLDER');
+        break;
+      case chrome.fileManagerPrivate.RecentFileType.DOCUMENT:
+        this.label_.innerText = str('RECENT_EMPTY_DOCUMENTS_FOLDER');
+        break;
+      case chrome.fileManagerPrivate.RecentFileType.IMAGE:
+        this.label_.innerText = str('RECENT_EMPTY_IMAGES_FOLDER');
+        break;
+      case chrome.fileManagerPrivate.RecentFileType.VIDEO:
+        this.label_.innerText = str('RECENT_EMPTY_VIDEOS_FOLDER');
+        break;
+      default:
+        this.label_.innerText = str('RECENT_EMPTY_FOLDER');
     }
   }
 }

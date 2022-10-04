@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,7 +16,7 @@ import org.chromium.base.annotations.NativeMethods;
 @JNINamespace("browser_ui")
 @MainDex
 public class SiteSettingsFeatureList {
-    public static final String ACTIONABLE_CONTENT_SETTINGS = "ActionableContentSettings";
+    public static final String SITE_DATA_IMPROVEMENTS = "SiteDataImprovements";
 
     private SiteSettingsFeatureList() {}
 

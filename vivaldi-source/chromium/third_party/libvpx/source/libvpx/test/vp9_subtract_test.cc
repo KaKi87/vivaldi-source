@@ -133,6 +133,10 @@ INSTANTIATE_TEST_SUITE_P(C, VP9SubtractBlockTest,
 INSTANTIATE_TEST_SUITE_P(SSE2, VP9SubtractBlockTest,
                          ::testing::Values(vpx_subtract_block_sse2));
 #endif
+#if HAVE_AVX2
+INSTANTIATE_TEST_SUITE_P(AVX2, VP9SubtractBlockTest,
+                         ::testing::Values(vpx_subtract_block_avx2));
+#endif
 #if HAVE_NEON
 INSTANTIATE_TEST_SUITE_P(NEON, VP9SubtractBlockTest,
                          ::testing::Values(vpx_subtract_block_neon));
@@ -150,6 +154,11 @@ INSTANTIATE_TEST_SUITE_P(MMI, VP9SubtractBlockTest,
 #if HAVE_VSX
 INSTANTIATE_TEST_SUITE_P(VSX, VP9SubtractBlockTest,
                          ::testing::Values(vpx_subtract_block_vsx));
+#endif
+
+#if HAVE_LSX
+INSTANTIATE_TEST_SUITE_P(LSX, VP9SubtractBlockTest,
+                         ::testing::Values(vpx_subtract_block_lsx));
 #endif
 
 }  // namespace vp9

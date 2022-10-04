@@ -2,15 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-'use strict';
+import {reportPromise} from 'chrome-extension://hhaomjibdihmijegdhdafkllkbggdgoj/common/js/test_error_reporting.js';
+import {assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {ImageLoaderClient} from './image_loader_client.js';
+import {LoadImageRequest, LoadImageResponse, LoadImageResponseStatus} from './load_image_request.js';
 
 /** @suppress {const|checkTypes} */
-function setUp() {
+export function setUp() {
   chrome.metricsPrivate = {
     MetricTypeType:
         {HISTOGRAM_LOG: 'histogram-log', HISTOGRAM_LINEAR: 'histogram-linear'},
     recordPercentage: function() {},
-    recordValue: function() {}
+    recordValue: function() {},
   };
 
   chrome.i18n = {
@@ -50,7 +54,7 @@ function loadAndCheckCacheUsed(client, url, cache) {
   });
 }
 
-function testCache(callback) {
+export function testCache(callback) {
   const client = new ImageLoaderClient();
   reportPromise(
       loadAndCheckCacheUsed(client, 'http://example.com/image.jpg', true)
@@ -65,7 +69,7 @@ function testCache(callback) {
       callback);
 }
 
-function testNoCache(callback) {
+export function testNoCache(callback) {
   const client = new ImageLoaderClient();
   reportPromise(
       loadAndCheckCacheUsed(client, 'http://example.com/image.jpg', false)
@@ -80,7 +84,7 @@ function testNoCache(callback) {
       callback);
 }
 
-function testDataURLCache(callback) {
+export function testDataURLCache(callback) {
   const client = new ImageLoaderClient();
   reportPromise(
       loadAndCheckCacheUsed(client, 'data:URI', true)

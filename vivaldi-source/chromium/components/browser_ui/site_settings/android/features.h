@@ -1,18 +1,16 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_BROWSER_UI_SITE_SETTINGS_ANDROID_FEATURES_H_
 #define COMPONENTS_BROWSER_UI_SITE_SETTINGS_ANDROID_FEATURES_H_
 
-namespace base {
-struct Feature;
-}  // namespace base
+#include "base/feature_list.h"
 
 namespace browser_ui {
 
-// Enables toggles and slash through diabled icons for content settings.
-extern const base::Feature kActionableContentSettings;
+// Improved 'All sites' and 'Site settings' pages on Android.
+extern const base::Feature kSiteDataImprovements;
 
 }  // namespace browser_ui
 

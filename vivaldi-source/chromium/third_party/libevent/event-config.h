@@ -5,9 +5,7 @@
 // This file is Chromium-specific, and brings in the appropriate
 // event-config.h depending on your platform.
 
-#if defined(__native_client_nonsfi__)
-#include "third_party/libevent/nacl_nonsfi/event-config.h"
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 #include "third_party/libevent/mac/event-config.h"
 #elif defined(ANDROID)
 #include "third_party/libevent/android/event-config.h"
@@ -17,6 +15,8 @@
 #include "third_party/libevent/freebsd/event-config.h"
 #elif defined(__sun)
 #include "third_party/libevent/solaris/event-config.h"
+#elif defined(_AIX)
+#include "third_party/libevent/aix/event-config.h"
 #else
 #error generate event-config.h for your platform
 #endif

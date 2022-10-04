@@ -1,73 +1,49 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "content/browser/buckets/bucket_context.h"
 
-#include "base/location.h"
-#include "base/memory/scoped_refptr.h"
-#include "content/browser/buckets/bucket_manager.h"
-#include "content/browser/buckets/bucket_manager_host.h"
-#include "content/public/browser/browser_task_traits.h"
-#include "content/public/browser/browser_thread.h"
+#include "content/browser/storage_partition_impl.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/permission_controller.h"
+#include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/render_process_host.h"
 
 namespace content {
 
-BucketContext::BucketContext()
-    : base::RefCountedDeleteOnSequence<BucketContext>(
-          GetIOThreadTaskRunner({})) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-}
+BucketContext::BucketContext(
+    const GlobalRenderFrameHostId& render_frame_host_id)
+    : id_(render_frame_host_id) {}
 
-BucketContext::~BucketContext() {
-  // The destructor must be called on IO thread, because it runs
-  // BucketManagerHost's destructor which can only be access by the IO thread.
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-}
+BucketContext::BucketContext(int render_process_id) : id_(render_process_id) {}
 
-void BucketContext::Initialize(
-    scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-#if DCHECK_IS_ON()
-  DCHECK(!initialize_called_) << __func__ << " called twice";
-  initialize_called_ = true;
-#endif  // DCHECK_IS_ON()
-  content::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(&BucketContext::InitializeOnIOThread, this,
-                                std::move(quota_manager_proxy)));
-}
+BucketContext::BucketContext(const BucketContext& other) = default;
 
-void BucketContext::BindBucketManagerHost(
-    const url::Origin& origin,
-    mojo::PendingReceiver<blink::mojom::BucketManagerHost> receiver) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-#if DCHECK_IS_ON()
-  DCHECK(initialize_called_) << __func__ << " called before Initialize()";
-#endif  // DCHECK_IS_ON()
+BucketContext::~BucketContext() = default;
 
-  content::GetIOThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(&BucketContext::BindBucketManagerHostOnIOThread,
-                     scoped_refptr<BucketContext>(this), origin,
-                     std::move(receiver), mojo::GetBadMessageCallback()));
-}
+blink::mojom::PermissionStatus BucketContext::GetPermissionStatus(
+    blink::PermissionType permission_type,
+    const url::Origin& origin) const {
+  if (permission_status_for_test_)
+    return *permission_status_for_test_;
 
-void BucketContext::InitializeOnIOThread(
-    scoped_refptr<storage::QuotaManagerProxy> quota_manager_proxy) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  DCHECK(!bucket_manager_) << __func__ << "  called more than once";
+  if (absl::holds_alternative<int>(id_)) {
+    RenderProcessHost* rph = RenderProcessHost::FromID(absl::get<int>(id_));
+    if (!rph)
+      return blink::mojom::PermissionStatus::DENIED;
+    return rph->GetBrowserContext()
+        ->GetPermissionController()
+        ->GetPermissionStatusForWorker(permission_type, rph, origin);
+  }
 
-  bucket_manager_ =
-      std::make_unique<BucketManager>(std::move(quota_manager_proxy));
-}
-
-void BucketContext::BindBucketManagerHostOnIOThread(
-    const url::Origin& origin,
-    mojo::PendingReceiver<blink::mojom::BucketManagerHost> receiver,
-    mojo::ReportBadMessageCallback bad_message_callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  bucket_manager_->BindReceiver(origin, std::move(receiver),
-                                std::move(bad_message_callback));
+  RenderFrameHost* rfh =
+      RenderFrameHost::FromID(absl::get<GlobalRenderFrameHostId>(id_));
+  if (!rfh)
+    return blink::mojom::PermissionStatus::DENIED;
+  return rfh->GetBrowserContext()
+      ->GetPermissionController()
+      ->GetPermissionStatusForCurrentDocument(permission_type, rfh);
 }
 
 }  // namespace content

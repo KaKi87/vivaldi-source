@@ -2,18 +2,38 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-'use strict';
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {importer} from '../../common/js/importer_common.js';
+import {MockCommandLinePrivate} from '../../common/js/mock_chrome.js';
+import {MockDirectoryEntry, MockFileSystem} from '../../common/js/mock_entry.js';
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+import {importerTest} from '../../common/js/test_importer_common.js';
+import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
+import {xfm} from '../../common/js/xfm.js';
+import {duplicateFinderInterfaces} from '../../externs/background/duplicate_finder.js';
+import {importerHistoryInterfaces} from '../../externs/background/import_history.js';
+import {mediaImportInterfaces} from '../../externs/background/media_import_handler.js';
+import {VolumeInfo} from '../../externs/volume_info.js';
+
+import {fileOperationUtil} from './file_operation_util.js';
+import {mediaImport} from './media_import_handler.js';
+import {MockDriveSyncHandler} from './mock_drive_sync_handler.js';
+import {TestScanResult} from './mock_media_scanner.js';
+import {MockProgressCenter} from './mock_progress_center.js';
+import {MockVolumeManager} from './mock_volume_manager.js';
+import {importerTestHistory} from './test_import_history.js';
 
 /** @type {!MockProgressCenter} */
 let progressCenter;
 
-/** @type {!importer.MediaImportHandler} */
+/** @type {!mediaImportInterfaces.MediaImportHandler} */
 let mediaImporter;
 
-/** @type {!importer.TestImportHistory} */
+/** @type {!importerTestHistory.TestImportHistory} */
 let importHistory;
 
-/** @type {!importer.DispositionChecker.CheckerFunction} */
+/** @type {!duplicateFinderInterfaces.DispositionChecker.CheckerFunction} */
 let dispositionChecker;
 
 /** @type {!MockCopyTo} */
@@ -39,33 +59,24 @@ window.metrics = {
   recordBoolean: function() {},
 };
 
-/**
- * Mock Chrome APIs
- * @type {!Object}
- */
-let mockChrome;
-
 // Set up the test components.
-function setUp() {
+export function setUp() {
   // Mock loadTimeData strings.
   window.loadTimeData.getString = id => id;
 
-  // Setup mock chrome APIs.
-  mockChrome = {
-    power: {
-      requestKeepAwakeWasCalled: false,
-      requestKeepAwakeStatus: false,
-      requestKeepAwake: function() {
-        mockChrome.power.requestKeepAwakeWasCalled = true;
-        mockChrome.power.requestKeepAwakeStatus = true;
-      },
-      releaseKeepAwake: function() {
-        mockChrome.power.requestKeepAwakeStatus = false;
-      }
-    },
+  // Setup mock xfm.power APIs.
+  xfm.power.requestKeepAwakeWasCalled = false;
+  xfm.power.requestKeepAwakeStatus = false;
+  xfm.power.requestKeepAwake =
+      /** @type{function(string):!Promise<boolean>} */ (function(type) {
+        xfm.power.requestKeepAwakeWasCalled = true;
+        xfm.power.requestKeepAwakeStatus = true;
+        return Promise.resolve(true);
+      });
+  xfm.power.releaseKeepAwake = function() {
+    xfm.power.requestKeepAwakeStatus = false;
   };
 
-  installMockChrome(mockChrome);
   new MockCommandLinePrivate();
 
   // Replace fileOperationUtil.copyTo with mock test function.
@@ -91,10 +102,10 @@ function setUp() {
 
   // Setup MediaImporter.
   progressCenter = new MockProgressCenter();
-  importHistory = new importer.TestImportHistory();
+  importHistory = new importerTestHistory.TestImportHistory();
   driveSyncHandler = new MockDriveSyncHandler();
-  importer.setupTestLogger();
-  mediaImporter = new importer.MediaImportHandlerImpl(
+  importerTest.setupTestLogger();
+  mediaImporter = new mediaImport.MediaImportHandlerImpl(
       progressCenter, importHistory, dispositionChecker, driveSyncHandler);
 
   // Setup the copy destination.
@@ -105,7 +116,7 @@ function setUp() {
 /**
  * Tests media imports.
  */
-function testImportMedia(callback) {
+export function testImportMedia(callback) {
   const media = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
     '/DCIM/photos0/IMG00002.jpg',
@@ -122,16 +133,16 @@ function testImportMedia(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
           switch (updateType) {
-            case importer.TaskQueue.UpdateType.COMPLETE:
+            case importer.UpdateType.COMPLETE:
               resolve();
               break;
-            case importer.TaskQueue.UpdateType.ERROR:
-              reject(new Error(importer.TaskQueue.UpdateType.ERROR));
+            case importer.UpdateType.ERROR:
+              reject(new Error(importer.UpdateType.ERROR));
               break;
           }
         });
@@ -152,7 +163,7 @@ function testImportMedia(callback) {
 /**
  * Tests media import duplicate detection.
  */
-function testImportMedia_skipAndMarkDuplicatedFiles(callback) {
+export function testImportMedia_skipAndMarkDuplicatedFiles(callback) {
   const DUPLICATED_FILE_PATH_1 = '/DCIM/photos0/duplicated_1.jpg';
   const DUPLICATED_FILE_PATH_2 = '/DCIM/photos0/duplicated_2.jpg';
   const ORIGINAL_FILE_NAME = 'new_image.jpg';
@@ -173,7 +184,7 @@ function testImportMedia_skipAndMarkDuplicatedFiles(callback) {
     }
     return Promise.resolve(importer.Disposition.ORIGINAL);
   };
-  mediaImporter = new importer.MediaImportHandlerImpl(
+  mediaImporter = new mediaImport.MediaImportHandlerImpl(
       progressCenter, importHistory, dispositionChecker, driveSyncHandler);
   const scanResult = new TestScanResult(media);
   const importTask = mediaImporter.importFromScanResult(
@@ -182,16 +193,16 @@ function testImportMedia_skipAndMarkDuplicatedFiles(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
           switch (updateType) {
-            case importer.TaskQueue.UpdateType.COMPLETE:
+            case importer.UpdateType.COMPLETE:
               resolve();
               break;
-            case importer.TaskQueue.UpdateType.ERROR:
-              reject(new Error(importer.TaskQueue.UpdateType.ERROR));
+            case importer.UpdateType.ERROR:
+              reject(new Error(importer.UpdateType.ERROR));
               break;
           }
         });
@@ -223,7 +234,7 @@ function testImportMedia_skipAndMarkDuplicatedFiles(callback) {
 /**
  * Tests media import uses encoded URLs.
  */
-function testImportMedia_EmploysEncodedUrls(callback) {
+export function testImportMedia_EmploysEncodedUrls(callback) {
   const media = setupFileSystem([
     '/DCIM/photos0/Mom and Dad.jpg',
   ]);
@@ -236,16 +247,16 @@ function testImportMedia_EmploysEncodedUrls(callback) {
       new Promise((resolve, reject) => {
         importTask.addObserver(
             /**
-             * @param {!importer.TaskQueue.UpdateType} updateType
+             * @param {!importer.UpdateType} updateType
              * @param {Object=} opt_task
              */
             (updateType, opt_task) => {
               switch (updateType) {
-                case importer.TaskQueue.UpdateType.COMPLETE:
+                case importer.UpdateType.COMPLETE:
                   resolve(/** @type {!MockDirectoryEntry} */
                           (destinationFileSystem.root).getAllChildren());
                   break;
-                case importer.TaskQueue.UpdateType.ERROR:
+                case importer.UpdateType.ERROR:
                   reject('Task failed :(');
                   break;
               }
@@ -267,7 +278,7 @@ function testImportMedia_EmploysEncodedUrls(callback) {
  * Tests that when files with duplicate names are imported, that they don't
  * overwrite one another.
  */
-function testImportMediaWithDuplicateFilenames(callback) {
+export function testImportMediaWithDuplicateFilenames(callback) {
   const media = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
     '/DCIM/photos0/IMG00002.jpg',
@@ -284,16 +295,16 @@ function testImportMediaWithDuplicateFilenames(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
           switch (updateType) {
-            case importer.TaskQueue.UpdateType.COMPLETE:
+            case importer.UpdateType.COMPLETE:
               resolve();
               break;
-            case importer.TaskQueue.UpdateType.ERROR:
-              reject(new Error(importer.TaskQueue.UpdateType.ERROR));
+            case importer.UpdateType.ERROR:
+              reject(new Error(importer.UpdateType.ERROR));
               break;
           }
         });
@@ -315,7 +326,7 @@ function testImportMediaWithDuplicateFilenames(callback) {
 /**
  * Tests that active media imports keep chrome.power awake.
  */
-function testKeepAwakeDuringImport(callback) {
+export function testKeepAwakeDuringImport(callback) {
   const media = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
     '/DCIM/photos0/IMG00002.jpg',
@@ -332,18 +343,18 @@ function testKeepAwakeDuringImport(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
           // Assert that keepAwake is set while the task is active.
-          assertTrue(mockChrome.power.requestKeepAwakeStatus);
+          assertTrue(xfm.power.requestKeepAwakeStatus);
           switch (updateType) {
-            case importer.TaskQueue.UpdateType.COMPLETE:
+            case importer.UpdateType.COMPLETE:
               resolve();
               break;
-            case importer.TaskQueue.UpdateType.ERROR:
-              reject(new Error(importer.TaskQueue.UpdateType.ERROR));
+            case importer.UpdateType.ERROR:
+              reject(new Error(importer.UpdateType.ERROR));
               break;
           }
         });
@@ -351,8 +362,8 @@ function testKeepAwakeDuringImport(callback) {
 
   reportPromise(
       whenImportDone.then(() => {
-        assertTrue(mockChrome.power.requestKeepAwakeWasCalled);
-        assertFalse(mockChrome.power.requestKeepAwakeStatus);
+        assertTrue(xfm.power.requestKeepAwakeWasCalled);
+        assertFalse(xfm.power.requestKeepAwakeStatus);
         const mockDirectoryEntry =
             /** @type {!MockDirectoryEntry} */ (destinationFileSystem.root);
         const copiedEntries = mockDirectoryEntry.getAllChildren();
@@ -366,7 +377,7 @@ function testKeepAwakeDuringImport(callback) {
 /**
  * Tests that media imports update import history.
  */
-function testUpdatesHistoryAfterImport(callback) {
+export function testUpdatesHistoryAfterImport(callback) {
   const entries = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
     '/DCIM/photos1/IMG00003.jpg',
@@ -385,16 +396,16 @@ function testUpdatesHistoryAfterImport(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
           switch (updateType) {
-            case importer.TaskQueue.UpdateType.COMPLETE:
+            case importer.UpdateType.COMPLETE:
               resolve();
               break;
-            case importer.TaskQueue.UpdateType.ERROR:
-              reject(new Error(importer.TaskQueue.UpdateType.ERROR));
+            case importer.UpdateType.ERROR:
+              reject(new Error(importer.UpdateType.ERROR));
               break;
           }
         });
@@ -422,7 +433,7 @@ function testUpdatesHistoryAfterImport(callback) {
 /**
  * Tests cancelling a media import.
  */
-function testImportCancellation(callback) {
+export function testImportCancellation(callback) {
   const media = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
     '/DCIM/photos0/IMG00002.jpg',
@@ -442,11 +453,11 @@ function testImportCancellation(callback) {
   const whenImportCancelled = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
-          if (updateType === importer.TaskQueue.UpdateType.CANCELED) {
+          if (updateType === importer.UpdateType.CANCELED) {
             resolve();
           }
         });
@@ -455,8 +466,7 @@ function testImportCancellation(callback) {
   // Simulate cancellation after the expected number of copies is done.
   let copyCount = 0;
   importTask.addObserver(updateType => {
-    if (updateType ===
-        importer.MediaImportHandler.ImportTask.UpdateType.ENTRY_CHANGED) {
+    if (updateType === mediaImport.UpdateType.ENTRY_CHANGED) {
       copyCount++;
       if (copyCount === EXPECTED_COPY_COUNT) {
         importTask.requestCancel();
@@ -479,10 +489,10 @@ function testImportCancellation(callback) {
 /**
  * Tests media imports with errors.
  */
-function testImportWithErrors(callback) {
+export function testImportWithErrors(callback) {
   // Quieten the logger just in this test, since we expect errors.
   // Elsewhere, it's better for errors to be seen by test authors.
-  importer.setupTestLogger().quiet();
+  importerTest.setupTestLogger().quiet();
 
   const media = setupFileSystem([
     '/DCIM/photos0/IMG00001.jpg',
@@ -503,11 +513,11 @@ function testImportWithErrors(callback) {
   const whenImportDone = new Promise((resolve, reject) => {
     importTask.addObserver(
         /**
-         * @param {!importer.TaskQueue.UpdateType} updateType
+         * @param {!importer.UpdateType} updateType
          * @param {Object=} opt_task
          */
         (updateType, opt_task) => {
-          if (updateType === importer.TaskQueue.UpdateType.COMPLETE) {
+          if (updateType === importer.UpdateType.COMPLETE) {
             resolve();
           }
         });
@@ -516,8 +526,7 @@ function testImportWithErrors(callback) {
   // Simulate an error after 3 imports.
   let copyCount = 0;
   importTask.addObserver(updateType => {
-    if (updateType ===
-        importer.MediaImportHandler.ImportTask.UpdateType.ENTRY_CHANGED) {
+    if (updateType === mediaImport.UpdateType.ENTRY_CHANGED) {
       copyCount++;
       if (copyCount === 3) {
         mockCopier.simulateOneError();
@@ -546,7 +555,7 @@ function testImportWithErrors(callback) {
  * @return {!Array<!Entry>}
  */
 function setupFileSystem(fileNames) {
-  let fileSystem = new MockFileSystem('fake-media-volume');
+  const fileSystem = new MockFileSystem('fake-media-volume');
   fileSystem.populate(fileNames);
   return fileNames.map((name) => fileSystem.entries[name]);
 }

@@ -2,6 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+
+import {FilesTooltip} from './files_tooltip.js';
+
 /** @type {Element} */
 let chocolateButton;
 
@@ -57,25 +63,7 @@ const bodyContent = `
 
 const windowEdgePadding = 6;
 
-function setUp() {
-  /** @const {boolean} Assume files-ng in unittest. */
-  const enableFilesNg = true;
-
-  // Mock LoadTimeData strings for files-ng case. These tests check top and
-  // left position values, which can differ in files-ng vs not-files-ng.
-  window.loadTimeData.data = {
-    FILES_NG_ENABLED: enableFilesNg,
-  };
-
-  window.loadTimeData.getString = id => {
-    return window.loadTimeData.data_[id] || id;
-  };
-
-  /** @return {boolean} */
-  window.isFilesNg = () => {
-    return enableFilesNg;
-  };
-
+export function setUp() {
   document.body.innerHTML = bodyContent;
   chocolateButton = document.querySelector('#chocolate');
   cherriesButton = document.querySelector('#cherries');
@@ -83,9 +71,8 @@ function setUp() {
   otherButton = document.querySelector('#other');
 
   tooltip = document.querySelector('files-tooltip');
-  assertNotEqual('none', window.getComputedStyle(tooltip).display);
+  assertNotEquals('none', window.getComputedStyle(tooltip).display);
   assertEquals('0', window.getComputedStyle(tooltip).opacity);
-  assertEquals(enableFilesNg, tooltip.hasAttribute('files-ng'));
 
   tooltip.addTargets([chocolateButton, cherriesButton, cheeseButton]);
 }
@@ -100,7 +87,7 @@ function waitForMutation(target) {
   });
 }
 
-function testFocus(callback) {
+export function testFocus(callback) {
   chocolateButton.focus();
 
   return reportPromise(
@@ -109,14 +96,8 @@ function testFocus(callback) {
             const label = tooltip.shadowRoot.querySelector('#label');
             assertEquals('Chocolate!', label.textContent.trim());
             assertTrue(tooltip.hasAttribute('visible'));
-
             assertEquals('6px', tooltip.style.left);
-
-            if (window.isFilesNg()) {
-              assertEquals('78px', tooltip.style.top);
-            } else {
-              assertEquals('70px', tooltip.style.top);
-            }
+            assertEquals('78px', tooltip.style.top);
 
             cherriesButton.focus();
             return waitForMutation(tooltip);
@@ -129,12 +110,7 @@ function testFocus(callback) {
             const expectedLeft = document.body.offsetWidth -
                 tooltip.offsetWidth - windowEdgePadding + 'px';
             assertEquals(expectedLeft, tooltip.style.left);
-
-            if (window.isFilesNg()) {
-              assertEquals('78px', tooltip.style.top);
-            } else {
-              assertEquals('70px', tooltip.style.top);
-            }
+            assertEquals('78px', tooltip.style.top);
 
             otherButton.focus();
             return waitForMutation(tooltip);
@@ -145,7 +121,29 @@ function testFocus(callback) {
       callback);
 }
 
-function testHover(callback) {
+export function testFocusWithLabelChange(callback) {
+  chocolateButton.focus();
+
+  return reportPromise(
+      waitForMutation(tooltip)
+          .then(() => {
+            const label = tooltip.shadowRoot.querySelector('#label');
+            assertEquals('Chocolate!', label.textContent.trim());
+            // Change the button's aria-label attribute and the tooltip should
+            // also update.
+            chocolateButton.setAttribute('aria-label', 'New chocolate!');
+
+            tooltip.updateTooltipText(chocolateButton);
+            return waitForMutation(tooltip);
+          })
+          .then(() => {
+            const label = tooltip.shadowRoot.querySelector('#label');
+            assertEquals('New chocolate!', label.textContent.trim());
+          }),
+      callback);
+}
+
+export function testHover(callback) {
   chocolateButton.dispatchEvent(new MouseEvent('mouseover'));
 
   return reportPromise(
@@ -157,11 +155,7 @@ function testHover(callback) {
             assertEquals(tooltip.getAttribute('aria-hidden'), 'false');
 
             assertEquals('6px', tooltip.style.left);
-            if (window.isFilesNg()) {
-              assertEquals('78px', tooltip.style.top);
-            } else {
-              assertEquals('70px', tooltip.style.top);
-            }
+            assertEquals('78px', tooltip.style.top);
 
             chocolateButton.dispatchEvent(new MouseEvent('mouseout'));
             cherriesButton.dispatchEvent(new MouseEvent('mouseover'));
@@ -175,12 +169,7 @@ function testHover(callback) {
             const expectedLeft = document.body.offsetWidth -
                 tooltip.offsetWidth - windowEdgePadding + 'px';
             assertEquals(expectedLeft, tooltip.style.left);
-
-            if (window.isFilesNg()) {
-              assertEquals('78px', tooltip.style.top);
-            } else {
-              assertEquals('70px', tooltip.style.top);
-            }
+            assertEquals('78px', tooltip.style.top);
 
             cherriesButton.dispatchEvent(new MouseEvent('mouseout'));
             return waitForMutation(tooltip);
@@ -191,7 +180,7 @@ function testHover(callback) {
       callback);
 }
 
-function testClickHides(callback) {
+export function testClickHides(callback) {
   chocolateButton.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}));
 
   return reportPromise(
@@ -214,7 +203,7 @@ function testClickHides(callback) {
       callback);
 }
 
-function testCardTooltipHover(callback) {
+export function testCardTooltipHover(callback) {
   cheeseButton.dispatchEvent(new MouseEvent('mouseover'));
 
   return reportPromise(
@@ -240,7 +229,7 @@ function testCardTooltipHover(callback) {
       callback);
 }
 
-function testCardtooltipRTL(callback) {
+export function testCardtooltipRTL(callback) {
   document.documentElement.setAttribute('dir', 'rtl');
   document.body.setAttribute('dir', 'rtl');
 
@@ -257,7 +246,11 @@ function testCardtooltipRTL(callback) {
             assertEquals('card-tooltip', tooltip.className);
             assertEquals('card-label', label.className);
 
-            assertEquals('962px', tooltip.style.left);
+            // A border with 1px insets (top=bottom=left=right=1px) will be
+            // applied to the window when drak/light feature is enabled. See
+            // more details at crrev.com/c/3656414.
+            assertTrue(
+                `962px` == tooltip.style.left || `960px` == tooltip.style.left);
             assertEquals('162px', tooltip.style.top);
 
             cheeseButton.dispatchEvent(new MouseEvent('mouseout'));

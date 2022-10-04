@@ -7,7 +7,7 @@
 
 #include "base/feature_list.h"
 
-// Feature flag to enable rich IPH for password autofill.
-extern const base::Feature kAutofillPasswordRichIPH;
+// Feature flag to enable using the new Card Unmask Prompt View in Autofill.
+extern const base::Feature kAutofillEnableNewCardUnmaskPromptView;
 
 #endif  // IOS_CHROME_BROWSER_UI_AUTOFILL_FEATURES_H_

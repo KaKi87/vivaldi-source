@@ -2,31 +2,37 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-function setUp() {
+import {assertInstanceof} from 'chrome://resources/js/assert.m.js';
+import {assertFalse} from 'chrome://webui-test/chai_assert.js';
+
+import {waitUntil} from '../../../common/js/test_error_reporting.js';
+
+import {FileManagerDialogBase} from './file_manager_dialog_base.js';
+
+export function setUp() {
   // Polyfill chrome.app.window.current().
   /** @suppress {duplicate,checkTypes,const} */
   chrome.app = {window: {current: () => null}};
 
-  window.loadTimeData.data = {
-    FILES_NG_ENABLED: true,
-  };
+  // Mock loadTimeData.
+  window.loadTimeData.resetForTesting({});
 }
 
-async function testShowDialogAfterHide(done) {
-  const container =
-      assertInstanceof(document.createElement('div'), HTMLElement);
+export async function testShowDialogAfterHide(done) {
+  const dialog = new FileManagerDialogBase(document.body);
 
+  /** @return {boolean} True if cr.ui.dialog container has .shown class */
   function isShown() {
-    return !!container.querySelector('.cr-dialog-container.shown');
+    const element = document.querySelector('.cr-dialog-container');
+    return element.classList.contains('shown');
   }
 
-  const dialog = new FileManagerDialogBase(container);
   // Show the dialog and wait until .shown is set on .cr-dialog-container.
-  // This happens async.
+  // The setting of .shown happens async.
   dialog.showBlankDialog();
   await waitUntil(isShown);
 
-  // Call hide, and validate .shown is removed (sync).
+  // Hide the dialog and verify .shown is removed (sync).
   dialog.hide();
   assertFalse(isShown());
 
@@ -35,5 +41,6 @@ async function testShowDialogAfterHide(done) {
   // the dialog showing again at all if it was called too soon.
   dialog.showBlankDialog();
   await waitUntil(isShown);
+
   done();
 }

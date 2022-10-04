@@ -2,6 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assert} from 'chrome://resources/js/assert.m.js';
+import {assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {TestMediaScanner} from '../../background/js/mock_media_scanner.js';
+import {MockVolumeManager} from '../../background/js/mock_volume_manager.js';
+import {MockChromeStorageAPI, MockCommandLinePrivate} from '../../common/js/mock_chrome.js';
+import {MockDirectoryEntry, MockFileEntry, MockFileSystem} from '../../common/js/mock_entry.js';
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
+import {mediaImportInterfaces} from '../../externs/background/media_import_handler.js';
+import {mediaScannerInterfaces} from '../../externs/background/media_scanner.js';
+import {VolumeInfo} from '../../externs/volume_info.js';
+import {VolumeManager} from '../../externs/volume_manager.js';
+
+import {importer} from './import_controller.js';
+
 /** @const {!Event} */
 const EMPTY_EVENT = new Event('directory-changed');
 
@@ -41,9 +57,9 @@ window.metrics = {
 };
 
 // Set up the test components.
-function setUp() {
+export function setUp() {
   window.loadTimeData.getString = id => id;
-  window.loadTimeData.data = {};
+  window.loadTimeData.resetForTesting({});
 
   new MockChromeStorageAPI();
   new MockCommandLinePrivate();
@@ -65,15 +81,15 @@ function setUp() {
   mediaImporter = new TestImportRunner();
 }
 
-function testClickMainToStartImport(callback) {
+export function testClickMainToStartImport(callback) {
   reportPromise(startImport(importer.ClickSource.MAIN), callback);
 }
 
-function testClickPanelToStartImport(callback) {
+export function testClickPanelToStartImport(callback) {
   reportPromise(startImport(importer.ClickSource.IMPORT), callback);
 }
 
-function testClickCancel(callback) {
+export function testClickCancel(callback) {
   const promise = startImport(importer.ClickSource.IMPORT).then(task => {
     widget.click(importer.ClickSource.CANCEL);
     return task.whenCanceled;
@@ -82,7 +98,7 @@ function testClickCancel(callback) {
   reportPromise(promise, callback);
 }
 
-function testVolumeUnmount_InvalidatesScans(callback) {
+export function testVolumeUnmount_InvalidatesScans(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -122,7 +138,7 @@ function testVolumeUnmount_InvalidatesScans(callback) {
   reportPromise(promise, callback);
 }
 
-function testDirectoryChange_TriggersUpdate(callback) {
+export function testDirectoryChange_TriggersUpdate(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -136,7 +152,7 @@ function testDirectoryChange_TriggersUpdate(callback) {
   reportPromise(widget.updateResolver.promise, callback);
 }
 
-function testDirectoryChange_CancelsScan(callback) {
+export function testDirectoryChange_CancelsScan(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -167,7 +183,7 @@ function testDirectoryChange_CancelsScan(callback) {
   reportPromise(promise, callback);
 }
 
-function testWindowClose_CancelsScan(callback) {
+export function testWindowClose_CancelsScan(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -197,7 +213,8 @@ function testWindowClose_CancelsScan(callback) {
   reportPromise(promise, callback);
 }
 
-function testDirectoryChange_DetailsPanelVisibility_InitialChangeDir(callback) {
+export function testDirectoryChange_DetailsPanelVisibility_InitialChangeDir(
+    callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -237,7 +254,8 @@ function testDirectoryChange_DetailsPanelVisibility_InitialChangeDir(callback) {
   reportPromise(promise, callback);
 }
 
-function testDirectoryChange_DetailsPanelVisibility_SubsequentChangeDir() {
+export function
+testDirectoryChange_DetailsPanelVisibility_SubsequentChangeDir() {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -258,7 +276,7 @@ function testDirectoryChange_DetailsPanelVisibility_SubsequentChangeDir() {
   assertFalse(widget.detailsVisible);
 }
 
-function testSelectionChange_TriggersUpdate(callback) {
+export function testSelectionChange_TriggersUpdate(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -280,7 +298,7 @@ function testSelectionChange_TriggersUpdate(callback) {
   reportPromise(widget.updateResolver.promise, callback);
 }
 
-function testFinalizeScans_TriggersUpdate(callback) {
+export function testFinalizeScans_TriggersUpdate(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -304,7 +322,7 @@ function testFinalizeScans_TriggersUpdate(callback) {
   reportPromise(widget.updateResolver.promise, callback);
 }
 
-function testClickDestination_ShowsRootPriorToImport(callback) {
+export function testClickDestination_ShowsRootPriorToImport(callback) {
   const controller = createController(
       VolumeManagerCommon.VolumeType.MTP, 'mtp-volume',
       [
@@ -319,7 +337,8 @@ function testClickDestination_ShowsRootPriorToImport(callback) {
   reportPromise(environment.showImportRootResolver.promise, callback);
 }
 
-function testClickDestination_ShowsDestinationAfterImportStarted(callback) {
+export function testClickDestination_ShowsDestinationAfterImportStarted(
+    callback) {
   const promise = startImport(importer.ClickSource.MAIN).then(() => {
     return mediaImporter.importResolver.promise.then(() => {
       widget.click(importer.ClickSource.DESTINATION);

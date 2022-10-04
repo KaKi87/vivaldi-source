@@ -2,8 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/** @type {!importer.DriveDuplicateFinder} */
-let duplicateFinder;
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {importer} from '../../common/js/importer_common.js';
+import {installMockChrome, MockCommandLinePrivate} from '../../common/js/mock_chrome.js';
+import {MockFileSystem} from '../../common/js/mock_entry.js';
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+import {VolumeManagerCommon} from '../../common/js/volume_manager_types.js';
+import {duplicateFinderInterfaces} from '../../externs/background/duplicate_finder.js';
+import {VolumeInfo} from '../../externs/volume_info.js';
+
+import {duplicateFinder} from './duplicate_finder.js';
+import {MockVolumeManager} from './mock_volume_manager.js';
+import {importerTestHistory} from './test_import_history.js';
+
+/** @type {!duplicateFinder.DriveDuplicateFinder} */
+let duplicateFinderTest;
 
 /** @type {VolumeInfo} */
 let drive;
@@ -23,19 +37,19 @@ const fileUrls = {};
 /** @type {!MockFileSystem} */
 let fileSystem;
 
-/** @type {!importer.TestImportHistory} */
+/** @type {!importerTestHistory.TestImportHistory} */
 let testHistory;
 
-/** @type {importer.DispositionChecker.CheckerFunction} */
+/** @type {duplicateFinderInterfaces.DispositionChecker.CheckerFunction} */
 let getDisposition;
 
 window.metrics = {
   recordTime: function() {},
 };
 
-function setUp() {
+export function setUp() {
   window.loadTimeData.getString = id => id;
-  let mockChrome = {
+  const mockChrome = {
     fileManagerPrivate: {
       /**
        * @param {!Entry} entry
@@ -64,7 +78,6 @@ function setUp() {
 
   installMockChrome(mockChrome);
   new MockCommandLinePrivate();
-  // importer.setupTestLogger();
   fileSystem = new MockFileSystem('fake-filesystem');
 
   const volumeManager = new MockVolumeManager();
@@ -74,26 +87,27 @@ function setUp() {
 
   MockVolumeManager.installMockSingleton(volumeManager);
 
-  testHistory = new importer.TestImportHistory();
-  duplicateFinder = new importer.DriveDuplicateFinder();
-  getDisposition = importer.DispositionCheckerImpl.createChecker(testHistory);
+  testHistory = new importerTestHistory.TestImportHistory();
+  duplicateFinderTest = new duplicateFinder.DriveDuplicateFinder();
+  getDisposition =
+      duplicateFinder.DispositionCheckerImpl.createChecker(testHistory);
 }
 
 // Verifies the correct result when a duplicate exists.
-function testCheckDuplicateTrue(callback) {
+export function testCheckDuplicateTrue(callback) {
   const filePaths = ['/foo.txt'];
   const fileHashes = ['abc123'];
   const files = setupHashes(filePaths, fileHashes);
 
   reportPromise(
-      duplicateFinder.isDuplicate(files[0]).then(isDuplicate => {
+      duplicateFinderTest.isDuplicate(files[0]).then(isDuplicate => {
         assertTrue(isDuplicate);
       }),
       callback);
 }
 
 // Verifies the correct result when a duplicate doesn't exist.
-function testCheckDuplicateFalse(callback) {
+export function testCheckDuplicateFalse(callback) {
   const filePaths = ['/foo.txt'];
   const fileHashes = ['abc123'];
   const files = setupHashes(filePaths, fileHashes);
@@ -104,13 +118,13 @@ function testCheckDuplicateFalse(callback) {
   const newFile = /** @type {!FileEntry} */ (fileSystem.entries[newFilePath]);
 
   reportPromise(
-      duplicateFinder.isDuplicate(newFile).then(isDuplicate => {
+      duplicateFinderTest.isDuplicate(newFile).then(isDuplicate => {
         assertFalse(isDuplicate);
       }),
       callback);
 }
 
-function testDispositionChecker_ContentDupe(callback) {
+export function testDispositionChecker_ContentDupe(callback) {
   const filePaths = ['/foo.txt'];
   const fileHashes = ['abc123'];
   const files = setupHashes(filePaths, fileHashes);
@@ -125,7 +139,7 @@ function testDispositionChecker_ContentDupe(callback) {
       callback);
 }
 
-function testDispositionChecker_HistoryDupe(callback) {
+export function testDispositionChecker_HistoryDupe(callback) {
   const filePaths = ['/foo.txt'];
   const fileHashes = ['abc123'];
   const files = setupHashes(filePaths, fileHashes);
@@ -142,7 +156,7 @@ function testDispositionChecker_HistoryDupe(callback) {
       callback);
 }
 
-function testDispositionChecker_Original(callback) {
+export function testDispositionChecker_Original(callback) {
   const filePaths = ['/foo.txt'];
   const fileHashes = ['abc123'];
   const files = setupHashes(filePaths, fileHashes);

@@ -4,5 +4,5 @@
 
 #include "ios/chrome/browser/ui/autofill/features.h"
 
-const base::Feature kAutofillPasswordRichIPH{"AutofillPasswordRichIPH",
-                                             base::FEATURE_DISABLED_BY_DEFAULT};
+const base::Feature kAutofillEnableNewCardUnmaskPromptView{
+    "AutofillEnableNewCardUnmaskPromptView", base::FEATURE_DISABLED_BY_DEFAULT};

@@ -2,16 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assertEquals, assertFalse, assertThrows} from 'chrome://webui-test/chai_assert.js';
+
+import {importer} from '../../common/js/importer_common.js';
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+import {assertFileEntryPathsEqual} from '../../common/js/unittest_util.js';
+import {mediaScannerInterfaces} from '../../externs/background/media_scanner.js';
+
+import {fileOperationUtil} from './file_operation_util.js';
+import {mediaScanner} from './media_scanner.js';
+import {TestDirectoryWatcher} from './mock_media_scanner.js';
+import {importerTestHistory} from './test_import_history.js';
+
 /**
  * Stub out the metrics package.
  * @type {!Object<!string, !Function>}
  */
 const metrics = {
   recordTime: function() {},
-  recordValue: function() {}
+  recordValue: function() {},
 };
 
-/** @type {!importer.DefaultMediaScanner} */
+/** @type {!mediaScanner.DefaultMediaScanner} */
 let scanner;
 
 /**
@@ -19,7 +31,7 @@ let scanner;
  */
 const scanMode = importer.ScanMode.HISTORY;
 
-/** @type {!importer.TestImportHistory} */
+/** @type {!importerTestHistory.TestImportHistory} */
 let importHistory;
 
 /** @type {!TestDirectoryWatcher} */
@@ -32,8 +44,8 @@ let watcher;
 let dispositionChecker;
 
 // Set up the test components.
-function setUp() {
-  importHistory = new importer.TestImportHistory();
+export function setUp() {
+  importHistory = new importerTestHistory.TestImportHistory();
 
   // Setup a default disposition checker. Tests can replace it at runtime
   // if they need specialized disposition check behavior.
@@ -41,7 +53,7 @@ function setUp() {
     return Promise.resolve(importer.Disposition.ORIGINAL);
   };
 
-  scanner = new importer.DefaultMediaScanner(
+  scanner = new mediaScanner.DefaultMediaScanner(
       /** @param {!FileEntry} entry */
       entry => {
         return Promise.resolve(entry.name);
@@ -58,13 +70,13 @@ function setUp() {
 /**
  * Verifies that scanning an empty filesystem produces an empty list.
  */
-function testEmptySourceList() {
+export function testEmptySourceList() {
   assertThrows(() => {
     scanner.scanFiles([], scanMode);
   });
 }
 
-function testIsScanning(callback) {
+export function testIsScanning(callback) {
   const filenames = [
     'happy',
     'thoughts',
@@ -84,7 +96,7 @@ function testIsScanning(callback) {
       callback);
 }
 
-function testObserverNotifiedOnScanFinish(callback) {
+export function testObserverNotifiedOnScanFinish(callback) {
   const filenames = [
     'happy',
     'thoughts',
@@ -116,7 +128,7 @@ function testObserverNotifiedOnScanFinish(callback) {
 /**
  * Verifies that scanFiles slurps up all specified files.
  */
-function testScanFiles(callback) {
+export function testScanFiles(callback) {
   const filenames = [
     'foo',
     'foo.jpg',
@@ -144,7 +156,7 @@ function testScanFiles(callback) {
 /**
  * Verifies that scanFiles skips duplicated files.
  */
-function testScanFilesIgnoresPreviousImports(callback) {
+export function testScanFilesIgnoresPreviousImports(callback) {
   const filenames = [
     'oldimage1234.jpg',    // a history duplicate
     'driveimage1234.jpg',  // a content duplicate
@@ -168,7 +180,7 @@ function testScanFilesIgnoresPreviousImports(callback) {
   const expectedFiles = [
     '/testScanFilesIgnoresPreviousImports/foo.jpg',
     '/testScanFilesIgnoresPreviousImports/bar.gif',
-    '/testScanFilesIgnoresPreviousImports/baz.avi'
+    '/testScanFilesIgnoresPreviousImports/baz.avi',
   ];
   reportPromise(
       makeTestFileSystemRoot('testScanFilesIgnoresPreviousImports')
@@ -186,7 +198,7 @@ function testScanFilesIgnoresPreviousImports(callback) {
 /**
  * Verifies that scanning a simple single-level directory structure works.
  */
-function testEmptyScanResults(callback) {
+export function testEmptyScanResults(callback) {
   const filenames = [
     'happy',
     'thoughts',
@@ -209,7 +221,7 @@ function testEmptyScanResults(callback) {
 /**
  * Verifies that scanning a simple single-level directory structure works.
  */
-function testSingleLevel(callback) {
+export function testSingleLevel(callback) {
   const filenames = [
     'foo',
     'foo.jpg',
@@ -242,7 +254,7 @@ function testSingleLevel(callback) {
  * Verifies that scanning a simple single-level directory produces 100%
  * progress at completion.
  */
-function testProgress(callback) {
+export function testProgress(callback) {
   const filenames = [
     'foo',
     'foo.jpg',
@@ -274,7 +286,7 @@ function testProgress(callback) {
 /**
  * Verifies that scanning ignores previously imported entries.
  */
-function testIgnoresPreviousImports(callback) {
+export function testIgnoresPreviousImports(callback) {
   importHistory.importedPaths['/testIgnoresPreviousImports/oldimage1234.jpg'] =
       [importer.Destination.GOOGLE_DRIVE];
   const filenames = [
@@ -319,7 +331,7 @@ function testIgnoresPreviousImports(callback) {
   reportPromise(promise, callback);
 }
 
-function testTracksDuplicates(callback) {
+export function testTracksDuplicates(callback) {
   importHistory.importedPaths['/testTracksDuplicates/oldimage1234.jpg'] =
       [importer.Destination.GOOGLE_DRIVE];
   const filenames = [
@@ -366,9 +378,10 @@ function testTracksDuplicates(callback) {
   reportPromise(promise, callback);
 }
 
-function testMultiLevel(callback) {
+export function testMultiLevel(callback) {
   const filenames = [
-    'foo.jpg', 'bar',
+    'foo.jpg',
+    'bar',
     [
       'dir1',
       'bar.0.jpg',
@@ -380,7 +393,7 @@ function testMultiLevel(callback) {
         'dir3',
         'bar.1.0.avi',
       ],
-    ]
+    ],
   ];
   const expectedFiles = [
     '/testMultiLevel/foo.jpg',
@@ -404,9 +417,10 @@ function testMultiLevel(callback) {
       callback);
 }
 
-function testDedupesFilesInScanResult(callback) {
+export function testDedupesFilesInScanResult(callback) {
   const filenames = [
-    'foo.jpg', 'bar.jpg',
+    'foo.jpg',
+    'bar.jpg',
     [
       'dir1',
       'foo.jpg',
@@ -421,7 +435,7 @@ function testDedupesFilesInScanResult(callback) {
         'foo.jpg',
         'bar.jpg',
       ],
-    ]
+    ],
   ];
   const expectedFiles = [
     '/testDedupesFilesInScanResult/foo.jpg',
@@ -446,11 +460,11 @@ function testDedupesFilesInScanResult(callback) {
 /**
  * Verifies that scanning a simple single-level directory structure works.
  */
-function testDefaultScanResult() {
+export function testDefaultScanResult() {
   const hashGenerator = file => {
     return file.toURL();
   };
-  const scan = new importer.DefaultScanResult(scanMode, hashGenerator);
+  const scan = new mediaScanner.DefaultScanResult(scanMode, hashGenerator);
 
   // 0 before we set candidate count
   assertProgress(0, scan);
@@ -466,7 +480,7 @@ function testDefaultScanResult() {
   assertProgress(100, scan);
 }
 
-function testInvalidation(callback) {
+export function testInvalidation(callback) {
   const invalidatePromise = new Promise(fulfill => {
     scanner.addObserver(fulfill);
   });
@@ -489,8 +503,8 @@ function testInvalidation(callback) {
 /**
  * Verifies the results of the media scan are as expected.
  * @param {number} expected, 0-100
- * @param {!importer.ScanResult} scan
- * @return {!importer.ScanResult}
+ * @param {!mediaScannerInterfaces.ScanResult} scan
+ * @return {!mediaScannerInterfaces.ScanResult}
  */
 function assertProgress(expected, scan) {
   assertEquals(expected, scan.getStatistics().progress);
@@ -500,8 +514,8 @@ function assertProgress(expected, scan) {
 /**
  * Verifies the results of the media scan are as expected.
  * @param {!Array<string>} expected
- * @param {!importer.ScanResult} scan
- * @return {!importer.ScanResult}
+ * @param {!mediaScannerInterfaces.ScanResult} scan
+ * @return {!mediaScannerInterfaces.ScanResult}
  */
 function assertFilesFound(expected, scan) {
   assertFileEntryPathsEqual(expected, scan.getFileEntries());
@@ -512,8 +526,8 @@ function assertFilesFound(expected, scan) {
 /**
  * Verifies the results of the media scan are as expected.
  * @param {!Array<string>} expected
- * @param {!importer.ScanResult} scan
- * @return {!importer.ScanResult}
+ * @param {!mediaScannerInterfaces.ScanResult} scan
+ * @return {!mediaScannerInterfaces.ScanResult}
  */
 function assertDuplicatesFound(expected, scan) {
   assertFileEntryPathsEqual(expected, scan.getDuplicateFileEntries());

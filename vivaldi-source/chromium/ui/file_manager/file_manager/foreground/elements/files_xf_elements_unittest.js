@@ -2,35 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assert} from 'chrome://resources/js/assert.m.js';
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {util} from '../../common/js/util.js';
+
+import {DisplayPanel} from './xf_display_panel.js';
+
 /** @type {!DisplayPanel|!Element} */
 let displayPanel;
 
 /**
  * Adds a xf-display-panel element to the test page.
  */
-function setUp() {
+export function setUp() {
   document.body.innerHTML +=
       '<xf-display-panel id="test-xf-display-panel"></xf-display-panel>';
   displayPanel = assert(document.querySelector('#test-xf-display-panel'));
-
-  const enableFilesTransferDetails = true;
-
-  // Mock LoadTimeData strings for transfer details feature.
-  window.loadTimeData.data = {
-    FILES_TRANSFER_DETAILS_ENABLED: enableFilesTransferDetails
-  };
-
-  window.loadTimeData.getString = id => {
-    return window.loadTimeData.data_[id] || id;
-  };
-
-  /** @return {boolean} */
-  window.isTransferDetailsEnabled = () => {
-    return enableFilesTransferDetails;
-  };
 }
 
-function tearDown() {
+export function tearDown() {
   displayPanel.removeAllPanelItems();
 }
 
@@ -38,7 +29,7 @@ function tearDown() {
  * Tests that adding and removing panels to <xf-display-panel> updates the
  * aria-hidden attribute.
  */
-function testDisplayPanelAriaHidden() {
+export function testDisplayPanelAriaHidden() {
   // Starts without any panel so should be hidden;
   assertEquals(displayPanel.getAttribute('aria-hidden'), 'true');
 
@@ -65,7 +56,7 @@ function testDisplayPanelAriaHidden() {
   assertEquals(displayPanel.getAttribute('aria-hidden'), 'true');
 }
 
-async function testDisplayPanelAttachPanel(done) {
+export async function testDisplayPanelAttachPanel(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -103,7 +94,7 @@ async function testDisplayPanelAttachPanel(done) {
   done();
 }
 
-async function testDisplayPanelChangingPanelTypes(done) {
+export async function testDisplayPanelChangingPanelTypes(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -198,7 +189,7 @@ async function testDisplayPanelChangingPanelTypes(done) {
   done();
 }
 
-function testFilesDisplayPanelErrorText() {
+export function testFilesDisplayPanelErrorText() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -226,7 +217,7 @@ function testFilesDisplayPanelErrorText() {
 
   // Check the default primary text displays a generic error message.
   // Note, the i18n message gets smooshed into 'An error occurred.' in the app.
-  assertEquals('$i18n{FILE_ERROR_GENERIC}', panelItem.primaryText);
+  assertEquals('FILE_ERROR_GENERIC', panelItem.primaryText);
 
   // Check the secondary text is empty.
   assertEquals('', panelItem.secondaryText);
@@ -237,7 +228,7 @@ util.strf = (end, option) => {
   return option + end;
 };
 
-function testFilesDisplayPanelErrorMarker() {
+export function testFilesDisplayPanelErrorMarker() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -274,7 +265,7 @@ function testFilesDisplayPanelErrorMarker() {
       'Summary panel error marker property is wrong, should be "hidden"');
 }
 
-function testFilesDisplayPanelMixedSummary() {
+export function testFilesDisplayPanelMixedSummary() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -334,7 +325,7 @@ function testFilesDisplayPanelMixedSummary() {
   assertEquals('success', summaryPanelItem.status);
 }
 
-function testFilesDisplayPanelMixedProgress() {
+export function testFilesDisplayPanelMixedProgress() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -369,7 +360,7 @@ function testFilesDisplayPanelMixedProgress() {
   assertEquals('3', summaryPanelItem.progress);
 }
 
-function testFilesDisplayPanelCircularProgress() {
+export function testFilesDisplayPanelCircularProgress() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -389,7 +380,7 @@ function testFilesDisplayPanelCircularProgress() {
   assertEquals('4', strokeWidthContainerGroup.getAttribute('stroke-width'));
 }
 
-async function testFilesDisplayPanelSummaryPanel(done) {
+export async function testFilesDisplayPanelSummaryPanel(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -450,7 +441,7 @@ async function testFilesDisplayPanelSummaryPanel(done) {
   done();
 }
 
-function testFilesDisplayPanelTransferDetails() {
+export function testFilesDisplayPanelTransferDetails() {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));
@@ -463,7 +454,7 @@ function testFilesDisplayPanelTransferDetails() {
   assertEquals('detailed-panel', progressPanel.getAttribute('detailed-panel'));
 }
 
-async function testFilesDisplayPanelTransferDetailsSummary(done) {
+export async function testFilesDisplayPanelTransferDetailsSummary(done) {
   // Get the host display panel container element.
   /** @type {!DisplayPanel|!Element} */
   const displayPanel = assert(document.querySelector('#test-xf-display-panel'));

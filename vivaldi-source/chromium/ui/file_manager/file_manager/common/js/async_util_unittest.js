@@ -1,121 +1,99 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/**
- * @type {?string} Result
- */
-let result;
+import {assertArrayEquals, assertEquals} from 'chrome://webui-test/chai_assert.js';
+
+import {AsyncUtil} from './async_util.js';
+import {waitUntil} from './test_error_reporting.js';
 
 /**
- * @type {!PromiseSlot} Test target.
+ * Checks that the order of the tasks is preserved.
  */
-let slot;
+export async function testAsyncQueueOrder(done) {
+  const queue = new AsyncUtil.Queue();
+  const taskTrace = [];
 
-function setUp() {
-  slot = new PromiseSlot(
-      value => {
-        result = 'fulfilled:' + value;
-      },
-      value => {
-        result = 'rejected:' + value;
-      });
-  result = null;
-}
-
-function testPromiseSlot(callback) {
-  const fulfilledPromise = Promise.resolve('fulfilled');
-  const rejectedPromise = Promise.reject('rejected');
-  slot.setPromise(fulfilledPromise);
-  reportPromise(
-      fulfilledPromise
-          .then(() => {
-            assertEquals('fulfilled:fulfilled', result);
-            slot.setPromise(rejectedPromise);
-            return rejectedPromise;
-          })
-          .then(
-              () => {
-                // Should not reach here.
-                assertTrue(false);
-              },
-              () => {
-                assertEquals('rejected:rejected', result);
-              }),
-      callback);
-}
-
-function testPromiseSlotReassignBeforeCompletion(callback) {
-  let fulfillComputation;
-  const computingPromise = new Promise((fulfill, reject) => {
-    fulfillComputation = fulfill;
-  });
-  const fulfilledPromise = Promise.resolve('fulfilled');
-
-  slot.setPromise(computingPromise);
-  // Reassign promise.
-  slot.setPromise(fulfilledPromise);
-  reportPromise(
-      fulfilledPromise
-          .then(() => {
-            assertEquals('fulfilled:fulfilled', result);
-            fulfillComputation('fulfilled after detached');
-            return computingPromise;
-          })
-          .then(value => {
-            assertEquals('fulfilled after detached', value);
-            // The detached promise does not affect the slot.
-            assertEquals('fulfilled:fulfilled', result);
-          }),
-      callback);
-}
-
-function testPromiseSlotReassignBeforeCompletionWithCancel(callback) {
-  let rejectComputation;
-  const computingPromise = new Promise((fulfill, reject) => {
-    rejectComputation = reject;
-  });
-  computingPromise.cancel = () => {
-    rejectComputation('cancelled');
+  const secondTask = (callback) => {
+    taskTrace.push('2');
+    callback();
   };
-  const fulfilledPromise = Promise.resolve('fulfilled');
 
-  slot.setPromise(computingPromise);
-  slot.setPromise(fulfilledPromise);
-  reportPromise(
-      fulfilledPromise
-          .then(() => {
-            assertEquals('fulfilled:fulfilled', result);
-            return computingPromise;
-          })
-          .then(
-              () => {
-                // Should not reach here.
-                assertTrue(false);
-              },
-              value => {
-                assertEquals('cancelled', value);
-                // The detached promise does not affect the slot.
-                assertEquals('fulfilled:fulfilled', result);
-              }),
-      callback);
+  const firstTask = (callback) => {
+    queue.run(secondTask);
+    setTimeout(() => {
+      taskTrace.push('1');
+      callback();
+    }, 100);
+  };
+
+  queue.run(firstTask);
+  await waitUntil(() => taskTrace.length == 2);
+  assertArrayEquals(['1', '2'], taskTrace);
+  done();
 }
 
-function testPromiseSlotReassignNullBeforeCompletion(callback) {
-  let fulfillComputation;
-  const computingPromise = new Promise((fulfill, reject) => {
-    fulfillComputation = fulfill;
-  });
+/**
+ * Checks that tasks with errors do not interrupt the queue's operations.
+ */
+export async function testAsyncQueueFailingTask(done) {
+  const queue = new AsyncUtil.Queue();
+  const taskTrace = [];
 
-  slot.setPromise(computingPromise);
-  slot.setPromise(null);
-  assertEquals(null, result);
+  const followingTask = (callback) => {
+    taskTrace.push('following');
+    callback();
+  };
 
-  fulfillComputation('fulfilled');
-  reportPromise(
-      computingPromise.then(value => {
-        assertEquals('fulfilled', value);
-        assertEquals(null, result);
-      }),
-      callback);
+  const badTask = (callback) => {
+    taskTrace.push('bad');
+    queue.run(followingTask);
+    throw new Error('Something went wrong');
+  };
+
+  queue.run(badTask);
+  await waitUntil(() => taskTrace.length === 2);
+  assertArrayEquals(['bad', 'following'], taskTrace);
+  done();
+}
+
+/**
+ * Checks the order of start and end of two mutually calling tasks. We expect
+ * that task that is run first finishes before the task ran after it.
+ */
+export async function testAsyncQueueStartEndOrder(done) {
+  const queue = new AsyncUtil.Queue();
+  let runCount = 0;
+  const task = [];
+  const taskTrace = [];
+  const maxRunCount = 4;
+
+  // Makes a task that enqueues the task specified by the |index|.
+  // Each task also records its trace right at the start and at the end.
+  const makeTask = (index) => {
+    return (callback) => {
+      const myID = runCount++;
+      taskTrace.push(myID);
+      if (runCount < maxRunCount) {
+        queue.run(task[index]);
+      }
+      callback();
+      taskTrace.push(myID);
+    };
+  };
+
+  // Task 0 enqueues task 1.
+  task.push(makeTask(1));
+  // Task 1 enqueues task 0.
+  task.push(makeTask(0));
+  // Kick off the process by running task 0.
+  queue.run(task[0]);
+
+  await waitUntil(() => runCount >= maxRunCount);
+  // TODO(1350885): This records problematic behavior in the test. Fixing
+  // concurrent queue should change this tests to expect the sequence to be
+  // [0, 0, 1, 1, 2, 2, 3, 3].
+  const expected = [0, 1, 2, 3, 3, 2, 1, 0];
+  assertArrayEquals(expected, taskTrace);
+  done();
 }

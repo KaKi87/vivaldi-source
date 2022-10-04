@@ -2,16 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {MockVolumeManager} from '../../background/js/mock_volume_manager.js';
+
+import {EntryList, FakeEntryImpl, VolumeEntry} from './files_app_entry_types.js';
+import {MockFileSystem} from './mock_entry.js';
+import {LEGACY_FILES_APP_URL, SWA_FILES_APP_URL} from './url_constants.js';
+import {util} from './util.js';
+import {VolumeManagerCommon} from './volume_manager_types.js';
+
 let fileSystem;
 
-function setUp() {
-  // Override VolumeInfo.prototype.resolveDisplayRoot to be sync.
-  VolumeInfoImpl.prototype.resolveDisplayRoot = function(successCallback) {
-    this.displayRoot_ = this.fileSystem_.root;
-    successCallback(this.displayRoot_);
-    return Promise.resolve(this.displayRoot_);
-  };
 
+export function setUp() {
   fileSystem = new MockFileSystem('fake-volume');
   const filenames = [
     '/file_a.txt',
@@ -24,21 +28,21 @@ function setUp() {
   ];
   fileSystem.populate(filenames);
 
-  window.loadTimeData.data = {
+  window.loadTimeData.resetForTesting({
     SIZE_BYTES: '$1 bytes',
     SIZE_KB: '$1 KB',
     SIZE_MB: '$1 MB',
     SIZE_GB: '$1 GB',
     SIZE_TB: '$1 TB',
     SIZE_PB: '$1 PB',
-  };
+  });
 
   window.loadTimeData.getString = id => {
     return window.loadTimeData.data_[id] || id;
   };
 }
 
-function testReadEntriesRecursively(callback) {
+export function testReadEntriesRecursively(callback) {
   let foundEntries = [];
   util.readEntriesRecursively(
       fileSystem.root,
@@ -54,7 +58,7 @@ function testReadEntriesRecursively(callback) {
       () => {}, () => false);
 }
 
-function testReadEntriesRecursivelyLevel0(callback) {
+export function testReadEntriesRecursivelyLevel0(callback) {
   let foundEntries = [];
   util.readEntriesRecursively(
       fileSystem.root,
@@ -70,7 +74,7 @@ function testReadEntriesRecursivelyLevel0(callback) {
       () => {}, () => false, 0 /* opt_maxDepth */);
 }
 
-function testReadEntriesRecursivelyLevel1(callback) {
+export function testReadEntriesRecursivelyLevel1(callback) {
   let foundEntries = [];
   util.readEntriesRecursively(
       fileSystem.root,
@@ -87,15 +91,15 @@ function testReadEntriesRecursivelyLevel1(callback) {
 }
 
 
-function testIsDescendantEntry() {
+export function testIsDescendantEntry() {
   const root = fileSystem.root;
   const folder = fileSystem.entries['/dir_a'];
   const subFolder = fileSystem.entries['/dir_a/dir_b'];
   const file = fileSystem.entries['/file_a.txt'];
   const deepFile = fileSystem.entries['/dir_a/dir_b/dir_c/file_g.txt'];
 
-  const fakeEntry =
-      new FakeEntry('fake-entry-label', VolumeManagerCommon.RootType.CROSTINI);
+  const fakeEntry = new FakeEntryImpl(
+      'fake-entry-label', VolumeManagerCommon.RootType.CROSTINI);
 
   const entryList =
       new EntryList('entry-list-label', VolumeManagerCommon.RootType.MY_FILES);
@@ -139,7 +143,7 @@ function testIsDescendantEntry() {
 /**
  * Tests that it doesn't fail with different types of entries and inputs.
  */
-function testEntryDebugString() {
+export function testEntryDebugString() {
   // Check static values.
   assertEquals('entry is null', util.entryDebugString(null));
   (/**
@@ -155,8 +159,8 @@ function testEntryDebugString() {
   const root = fileSystem.root;
   const folder = fileSystem.entries['/dir_a'];
   const file = fileSystem.entries['/file_a.txt'];
-  const fakeEntry =
-      new FakeEntry('fake-entry-label', VolumeManagerCommon.RootType.CROSTINI);
+  const fakeEntry = new FakeEntryImpl(
+      'fake-entry-label', VolumeManagerCommon.RootType.CROSTINI);
   const entryList =
       new EntryList('entry-list-label', VolumeManagerCommon.RootType.MY_FILES);
   entryList.addEntry(fakeEntry);
@@ -184,7 +188,8 @@ function testEntryDebugString() {
       util.entryDebugString(file));
   // FilesAppEntry types:
   assertEquals(
-      '(FakeEntry) / fake-entry://crostini', util.entryDebugString(fakeEntry));
+      '(FakeEntryImpl) / fake-entry://crostini',
+      util.entryDebugString(fakeEntry));
   assertEquals(
       '(EntryList) / entry-list://my_files', util.entryDebugString(entryList));
   assertEquals(
@@ -195,7 +200,7 @@ function testEntryDebugString() {
 /**
  * Tests the formatting of util.bytesToString.
  */
-function testBytesToString() {
+export function testBytesToString() {
   const KB = 2 ** 10;
   const MB = 2 ** 20;
   const GB = 2 ** 30;
@@ -253,7 +258,7 @@ function testBytesToString() {
  * bytesToString() internally uses Number.toLocaleString() which outputs at most
  * 3 precision digits in en-US.
  */
-function testBytesToStringWithAddedPrecision() {
+export function testBytesToStringWithAddedPrecision() {
   const KB = 2 ** 10;
   const MB = 2 ** 20;
   const GB = 2 ** 30;
@@ -312,4 +317,48 @@ function testBytesToStringWithAddedPrecision() {
   assertEquals(util.bytesToString(2 * PB + 647 * TB, 2), '2.632 PB');
   assertEquals(util.bytesToString(2 * PB + 647 * TB, 3), '2.632 PB');
   assertEquals(util.bytesToString(200 * PB + 647 * TB, 1), '200.63 PB');
+}
+
+/**
+ * Tests the util.getFileErrorString helper for undefined, null, or empty
+ * string error name input, which should output an i18n FILE_ERROR_GENERIC
+ * error name.
+ *
+ * Also tests pre-defined error names ('NotFoundError' and 'PathExistsError'
+ * here), which should output their associated i18n error names.
+ */
+export function testGetFileErrorString() {
+  let i18nErrorName;
+
+  i18nErrorName = util.getFileErrorString(undefined);
+  assertEquals(i18nErrorName, 'FILE_ERROR_GENERIC');
+
+  i18nErrorName = util.getFileErrorString(null);
+  assertEquals(i18nErrorName, 'FILE_ERROR_GENERIC');
+
+  i18nErrorName = util.getFileErrorString('');
+  assertEquals(i18nErrorName, 'FILE_ERROR_GENERIC');
+
+  i18nErrorName = util.getFileErrorString('NotFoundError');
+  assertEquals(i18nErrorName, 'FILE_ERROR_NOT_FOUND');
+
+  i18nErrorName = util.getFileErrorString('PathExistsError');
+  assertEquals(i18nErrorName, 'FILE_ERROR_PATH_EXISTS');
+}
+
+export function testExtractFilePath() {
+  let url = '';
+
+  assertEquals(util.extractFilePath(''), null);
+  assertEquals(util.extractFilePath(null), null);
+  assertEquals(util.extractFilePath(undefined), null);
+
+  // In the Extension:
+  const zipPath = '/Downloads-u/Downloads/f.zip';
+  url = `filesystem:${LEGACY_FILES_APP_URL}external${zipPath}`;
+  assertEquals(util.extractFilePath(url), zipPath);
+
+  // In the SWA:
+  url = `filesystem:${SWA_FILES_APP_URL}external${zipPath}`;
+  assertEquals(util.extractFilePath(url), zipPath);
 }

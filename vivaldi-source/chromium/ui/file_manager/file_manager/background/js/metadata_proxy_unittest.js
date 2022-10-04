@@ -2,7 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-function testMetadataCaching(doneCallback) {
+import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+
+import {MockFileSystem} from '../../common/js/mock_entry.js';
+import {reportPromise} from '../../common/js/test_error_reporting.js';
+
+import {metadataProxy} from './metadata_proxy.js';
+
+export function testMetadataCaching(doneCallback) {
   reportPromise(
       (async function() {
         const mockFileSystem = new MockFileSystem('volumeId');
@@ -30,7 +37,7 @@ function testMetadataCaching(doneCallback) {
       doneCallback);
 }
 
-function testMetadataCacheExpiry(doneCallback) {
+export function testMetadataCacheExpiry(doneCallback) {
   reportPromise(
       (async function() {
         const mockFileSystem = new MockFileSystem('volumeId');

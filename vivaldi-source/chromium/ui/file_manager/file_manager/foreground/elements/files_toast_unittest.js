@@ -2,11 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-function setUpPage() {
+import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
+
+import {FilesToast} from './files_toast.js';
+
+export function setUpPage() {
   document.body.innerHTML += '<files-toast></files-toast>';
 }
 
-async function testToast(done) {
+export async function testToast(done) {
   /** @type {FilesToast|Element} */
   const toast = document.querySelector('files-toast');
   const text = toast.shadowRoot.querySelector('#text');
@@ -32,7 +36,7 @@ async function testToast(done) {
     text: 'a1',
     callback: () => {
       a1Called = true;
-    }
+    },
   });
   await waitFor(() => getToastOpacity() === 1);
   assertTrue(toast.visible);
@@ -46,7 +50,7 @@ async function testToast(done) {
     text: 'a2',
     callback: () => {
       a2Called = true;
-    }
+    },
   });
   toast.show('t3');
   assertEquals('t1', text.innerText);
