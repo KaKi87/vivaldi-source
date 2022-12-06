@@ -1,14 +1,15 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_legacy_view_controller.h"
+#import "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_view_controller.h"
 
-#include "components/omnibox/browser/autocomplete_match.h"
-#import "ios/chrome/browser/ui/omnibox/popup/autocomplete_match_formatter.h"
-#import "ios/chrome/browser/ui/omnibox/popup/omnibox_popup_row.h"
-#include "testing/gtest_mac.h"
-#include "testing/platform_test.h"
+#import "ios/chrome/browser/ui/omnibox/popup/autocomplete_suggestion_group_impl.h"
+#import "ios/chrome/browser/ui/omnibox/popup/popup_match_preview_delegate.h"
+#import "testing/gtest_mac.h"
+#import "testing/platform_test.h"
+#import "third_party/ocmock/OCMock/OCMock.h"
+#import "third_party/ocmock/gtest_support.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -18,78 +19,203 @@ namespace {
 
 class OmniboxPopupViewControllerTest : public PlatformTest {
  protected:
-  void SetUp() override {
-    PlatformTest::SetUp();
-    popup_view_controller_ = [[OmniboxPopupLegacyViewController alloc] init];
+  void ExpectPreviewSuggestion(id suggestion, BOOL is_first_update) {
+    [[preview_delegate_ expect] setPreviewSuggestion:suggestion
+                                       isFirstUpdate:is_first_update];
   }
 
-  OmniboxPopupLegacyViewController* popup_view_controller_;
+  NSArray<id<AutocompleteSuggestion>>* GenerateMockSuggestions(
+      NSUInteger nb_suggestions) {
+    NSMutableArray* array =
+        [[NSMutableArray alloc] initWithCapacity:nb_suggestions];
+    for (NSUInteger i = 0; i < nb_suggestions; ++i) {
+      [array addObject:[OCMockObject
+                           mockForProtocol:@protocol(AutocompleteSuggestion)]];
+    }
+    return array;
+  }
+
+  void SetUp() override {
+    PlatformTest::SetUp();
+    delegate_ = [OCMockObject
+        mockForProtocol:@protocol(AutocompleteResultConsumerDelegate)];
+    preview_delegate_ =
+        [OCMockObject mockForProtocol:@protocol(PopupMatchPreviewDelegate)];
+    return_delegate_ =
+        [OCMockObject mockForProtocol:@protocol(OmniboxReturnDelegate)];
+    popup_view_controller_ = [[OmniboxPopupViewController alloc] init];
+    popup_view_controller_.delegate = delegate_;
+    popup_view_controller_.matchPreviewDelegate = preview_delegate_;
+    popup_view_controller_.acceptReturnDelegate = return_delegate_;
+    [popup_view_controller_ loadView];
+
+    first_suggestion_group_ = [AutocompleteSuggestionGroupImpl
+        groupWithTitle:@""
+           suggestions:GenerateMockSuggestions(5u)];
+    second_suggestion_group_ = [AutocompleteSuggestionGroupImpl
+        groupWithTitle:@""
+           suggestions:GenerateMockSuggestions(10u)];
+    suggestion_groups_ = @[ first_suggestion_group_, second_suggestion_group_ ];
+  }
+
+  OCMockObject<AutocompleteResultConsumerDelegate>* delegate_;
+  OCMockObject<OmniboxReturnDelegate>* return_delegate_;
+  OCMockObject<PopupMatchPreviewDelegate>* preview_delegate_;
+  OmniboxPopupViewController* popup_view_controller_;
+
+  id<AutocompleteSuggestionGroup> first_suggestion_group_;
+  id<AutocompleteSuggestionGroup> second_suggestion_group_;
+  NSArray<id<AutocompleteSuggestionGroup>>* suggestion_groups_;
 };
 
-TEST_F(OmniboxPopupViewControllerTest, HasCellsWhenShortcutsEnabled) {
-  // This test makes an assumption that this view controller is a datasource for
-  // a table view. Rewrite this test if this is not the case anymore.
-  EXPECT_TRUE([popup_view_controller_
-      conformsToProtocol:@protocol(UITableViewDataSource)]);
-  id<UITableViewDataSource> datasource =
-      (id<UITableViewDataSource>)popup_view_controller_;
-  UITableView* table_view = [[UITableView alloc] init];
+// Tests that the first suggestion of the preselected group is highlighted on
+// down arrow.
+TEST_F(OmniboxPopupViewControllerTest,
+       HighlightFirstSuggestionOfPreselectedGroup) {
+  for (NSUInteger preselectedGroupIndex = 0;
+       preselectedGroupIndex < suggestion_groups_.count;
+       ++preselectedGroupIndex) {
+    // Expect first suggestion of preselected group to be previewed.
+    ExpectPreviewSuggestion(
+        suggestion_groups_[preselectedGroupIndex].suggestions[0], YES);
+    [popup_view_controller_ updateMatches:suggestion_groups_
+               preselectedMatchGroupIndex:preselectedGroupIndex];
+    [preview_delegate_ verify];
 
-  // A stub view controller.
-  UICollectionViewController* shortcutsViewController =
-      [[UICollectionViewController alloc] init];
-
-  // Shortcuts are not enabled by default.
-  EXPECT_FALSE(popup_view_controller_.shortcutsEnabled);
-
-  // Check that the shorcuts row doesn't appear.
-  [popup_view_controller_ updateMatches:@[] withAnimation:NO];
-  EXPECT_EQ([datasource tableView:table_view numberOfRowsInSection:0], 0);
-
-  // Enable shortcuts and verify they appear. When enabling, the view controller
-  // has to be non-nil.
-  popup_view_controller_.shortcutsViewController = shortcutsViewController;
-  popup_view_controller_.shortcutsEnabled = YES;
-  EXPECT_EQ([datasource tableView:table_view numberOfRowsInSection:0], 1);
-
-  // Disable and verify it disappears again.
-  popup_view_controller_.shortcutsEnabled = NO;
-  EXPECT_EQ([datasource tableView:table_view numberOfRowsInSection:0], 0);
+    // Expect first suggestion of the preselected group to be highlighted on
+    // down arrow.
+    ExpectPreviewSuggestion(
+        suggestion_groups_[preselectedGroupIndex].suggestions[0], NO);
+    [popup_view_controller_ highlightNextSuggestion];
+    [preview_delegate_ verify];
+  }
 }
 
-TEST_F(OmniboxPopupViewControllerTest, HasTabMatch) {
-  EXPECT_TRUE([popup_view_controller_
-      conformsToProtocol:@protocol(UITableViewDataSource)]);
-  id<UITableViewDataSource> datasource =
-      (id<UITableViewDataSource>)popup_view_controller_;
-  UITableView* table_view = [[UITableView alloc] init];
+// Tests that highlighting with no suggestions do not preview any suggestions
+// and does not crash.
+TEST_F(OmniboxPopupViewControllerTest, UpDownArrowWithZeroMatches) {
+  // Expect nil for preview suggestion.
+  ExpectPreviewSuggestion(nil, YES);
+  [popup_view_controller_ updateMatches:@[] preselectedMatchGroupIndex:0];
+  [preview_delegate_ verify];
 
-  // Check that if the match has a tab match, the cell's trailing button is
-  // visible.
-  AutocompleteMatch match;
-  match.has_tab_match = true;
-  AutocompleteMatchFormatter* formatter =
-      [[AutocompleteMatchFormatter alloc] initWithMatch:match];
-  [popup_view_controller_ updateMatches:@[ formatter ] withAnimation:NO];
+  [[[preview_delegate_ reject] ignoringNonObjectArgs]
+      setPreviewSuggestion:OCMOCK_ANY
+             isFirstUpdate:NO];
 
-  EXPECT_EQ([datasource tableView:table_view numberOfRowsInSection:0], 1);
-  OmniboxPopupRow* cell = static_cast<OmniboxPopupRow*>([datasource
-                  tableView:table_view
-      cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]]);
+  // Up arrow key with zero suggestions should do nothing.
+  [popup_view_controller_ highlightPreviousSuggestion];
 
-  EXPECT_FALSE(cell.trailingButton.hidden);
+  // Down arrow key with zero suggestions should do nothing.
+  [popup_view_controller_ highlightNextSuggestion];
+}
 
-  // Check that it is not the case if the tab match isn't visible.
-  match.has_tab_match = false;
-  formatter = [[AutocompleteMatchFormatter alloc] initWithMatch:match];
-  [popup_view_controller_ updateMatches:@[ formatter ] withAnimation:NO];
+// Tests highlighting suggestions with one group of suggestions.
+TEST_F(OmniboxPopupViewControllerTest, UpDownArrowWithOneGroup) {
+  // Open match with one group of suggestions.
+  ExpectPreviewSuggestion(first_suggestion_group_.suggestions[0], YES);
+  [popup_view_controller_ updateMatches:@[ first_suggestion_group_ ]
+             preselectedMatchGroupIndex:0];
+  [preview_delegate_ verify];
 
-  EXPECT_EQ([datasource tableView:table_view numberOfRowsInSection:0], 1);
-  cell = static_cast<OmniboxPopupRow*>([datasource
-                  tableView:table_view
-      cellForRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0]]);
+  // Up Arrow when nothing is highlighted and when no group is above preselected
+  // group, does nothing.
+  [popup_view_controller_ highlightPreviousSuggestion];
 
-  EXPECT_TRUE(cell.trailingButton.hidden);
+  // Down Arrow highlights the next suggestion.
+  for (NSUInteger i = 0; i < first_suggestion_group_.suggestions.count; ++i) {
+    ExpectPreviewSuggestion(first_suggestion_group_.suggestions[i], NO);
+    [popup_view_controller_ highlightNextSuggestion];
+    [preview_delegate_ verify];
+  }
+
+  // Down Arrow when the last sugggestion is highlighted continues to highlight
+  // the last suggestion.
+  ExpectPreviewSuggestion(
+      first_suggestion_group_
+          .suggestions[first_suggestion_group_.suggestions.count - 1],
+      NO);
+  [popup_view_controller_ highlightNextSuggestion];
+  [preview_delegate_ verify];
+
+  // Up Arrow highlights the previous suggestion.
+  for (NSInteger i = first_suggestion_group_.suggestions.count - 2; i >= 0;
+       --i) {
+    ExpectPreviewSuggestion(first_suggestion_group_.suggestions[i], NO);
+    [popup_view_controller_ highlightPreviousSuggestion];
+    [preview_delegate_ verify];
+  }
+
+  // Up Arrow when the first sugggestion is highlighted continues to highlight
+  // the first suggestion.
+  ExpectPreviewSuggestion(first_suggestion_group_.suggestions[0], NO);
+  [popup_view_controller_ highlightPreviousSuggestion];
+  [preview_delegate_ verify];
+}
+
+// Tests highlighting with two groups of suggestions.
+TEST_F(OmniboxPopupViewControllerTest, UpDownArrowGroupSwitch) {
+  // Open match with two groups of suggestions, with the second group as
+  // preselected group.
+  ExpectPreviewSuggestion(second_suggestion_group_.suggestions[0], YES);
+  [popup_view_controller_ updateMatches:suggestion_groups_
+             preselectedMatchGroupIndex:1];
+  [preview_delegate_ verify];
+
+  // Up Arrow when nothing is highlighted and with a group above the preselected
+  // group, highlights the last suggestion of the group above.
+  ExpectPreviewSuggestion(
+      first_suggestion_group_
+          .suggestions[first_suggestion_group_.suggestions.count - 1],
+      NO);
+  [popup_view_controller_ highlightPreviousSuggestion];
+  [preview_delegate_ verify];
+
+  // Down Arrow when the last suggestion of the first group is highlighted,
+  // highlights the first suggestion of the second group.
+  ExpectPreviewSuggestion(second_suggestion_group_.suggestions[0], NO);
+  [popup_view_controller_ highlightNextSuggestion];
+  [preview_delegate_ verify];
+
+  // Up Arrow when the first suggestion of the second group is highlighted,
+  // highlights the last suggestion of the first group.
+  ExpectPreviewSuggestion(
+      first_suggestion_group_
+          .suggestions[first_suggestion_group_.suggestions.count - 1],
+      NO);
+  [popup_view_controller_ highlightPreviousSuggestion];
+  [preview_delegate_ verify];
+}
+
+// Tests Return key interaction when a suggestion is highlighted and when no
+// suggestions are highlighted.
+TEST_F(OmniboxPopupViewControllerTest, ReturnHighlightedSuggestion) {
+  // Open match with two groups of suggestions, with the second group as
+  // preselected group.
+  ExpectPreviewSuggestion(first_suggestion_group_.suggestions[0], YES);
+  [popup_view_controller_ updateMatches:suggestion_groups_
+             preselectedMatchGroupIndex:0];
+  [preview_delegate_ verify];
+
+  // Pressing return key when no suggestion is highlighted calls the
+  // OmniboxReturnDelegate.
+  [[return_delegate_ expect] omniboxReturnPressed:OCMOCK_ANY];
+  [popup_view_controller_ omniboxReturnPressed:nil];
+  [return_delegate_ verify];
+
+  // Select first suggestion with down arrow.
+  ExpectPreviewSuggestion(first_suggestion_group_.suggestions[0], NO);
+  [popup_view_controller_ highlightNextSuggestion];
+  [preview_delegate_ verify];
+
+  // Pressing return key when a suggestion is highlighted call the
+  // AutocompleteResultConsumerDelegate.
+  [[delegate_ expect]
+      autocompleteResultConsumer:popup_view_controller_
+             didSelectSuggestion:first_suggestion_group_.suggestions[0]
+                           inRow:0];
+  [popup_view_controller_ omniboxReturnPressed:nil];
+  [delegate_ verify];
 }
 
 }  // namespace

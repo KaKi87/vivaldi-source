@@ -1,91 +1,68 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview
- * 'crostini-shared-usb-devices' is the settings shared usb devices subpage for
- * Crostini.
+ * @fileoverview 'settings-crostini-shared-usb-devices' is a variant of the
+ * shared usb devices subpage for Crostini.
  */
 
-Polymer({
-  is: 'settings-crostini-shared-usb-devices',
+import {loadTimeData} from 'chrome://resources/js/load_time_data.m.js';
 
-  behaviors: [I18nBehavior, WebUIListenerBehavior],
+import {GuestId} from '../guest_os/guest_os_browser_proxy.js';
+import {SettingsGuestOsSharedUsbDevicesElement} from '../guest_os/guest_os_shared_usb_devices.js';
 
-  properties: {
-    /**
-     * The USB Devices available for connection to a VM.
-     * @private {Array<!CrostiniSharedUsbDevice>}
-     */
-    sharedUsbDevices_: Array,
+import {CrostiniBrowserProxy, CrostiniBrowserProxyImpl, DEFAULT_CROSTINI_GUEST_ID} from './crostini_browser_proxy.js';
 
-    /**
-     * The USB device which was toggled to be shared, but is already shared
-     * with another VM. When non-null the reassign dialog is shown.
-     * @private {?CrostiniSharedUsbDevice}
-     */
-    reassignDevice_: {
-      type: Object,
-      value: null,
-    },
-  },
+/** @polymer */
+class CrostiniSharedUsbDevicesElement extends
+    SettingsGuestOsSharedUsbDevicesElement {
+  static get is() {
+    return 'settings-crostini-shared-usb-devices';
+  }
 
-  /** @private {settings.CrostiniBrowserProxy} */
-  browserProxy_: null,
+  static get properties() {
+    return {
+      guestOsType: {
+        type: String,
+        value: 'crostini',
+      },
+
+      /**
+       * @type {!GuestId}
+       */
+      defaultGuestId: {
+        type: Object,
+        value() {
+          return DEFAULT_CROSTINI_GUEST_ID;
+        },
+      },
+
+      /**
+       * Whether the guest OS hosts multiple containers.
+       */
+      hasContainers: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('showCrostiniExtraContainers');
+        },
+      },
+    };
+  }
+
+  constructor() {
+    super();
+  }
 
   /** @override */
   ready() {
-    this.browserProxy_ = settings.CrostiniBrowserProxyImpl.getInstance();
+    super.ready();
+
     this.addWebUIListener(
-        'crostini-shared-usb-devices-changed',
-        this.onCrostiniSharedUsbDevicesChanged_.bind(this));
-    this.browserProxy_.notifyCrostiniSharedUsbDevicesPageReady();
-  },
+        'crostini-container-info', (infos) => this.onContainerInfo_(infos));
+    CrostiniBrowserProxyImpl.getInstance().requestContainerInfo();
+  }
+}
 
-  /**
-   * @param {!Array<CrostiniSharedUsbDevice>} devices
-   * @private
-   */
-  onCrostiniSharedUsbDevicesChanged_(devices) {
-    this.sharedUsbDevices_ = devices;
-  },
-
-  /**
-   * @param {!CustomEvent<!CrostiniSharedUsbDevice>} event
-   * @private
-   */
-  onDeviceSharedChange_(event) {
-    const device = event.model.item;
-    // Show reassign dialog if device is already shared with another VM.
-    if (event.target.checked && device.shareWillReassign) {
-      event.target.checked = false;
-      this.reassignDevice_ = device;
-      return;
-    }
-    this.browserProxy_.setCrostiniUsbDeviceShared(
-        device.guid, event.target.checked);
-    settings.recordSettingChange();
-  },
-
-  /** @private */
-  onReassignCancel_() {
-    this.reassignDevice_ = null;
-  },
-
-  /** @private */
-  onReassignContinueClick_() {
-    this.browserProxy_.setCrostiniUsbDeviceShared(
-        this.reassignDevice_.guid, true);
-    this.reassignDevice_ = null;
-    settings.recordSettingChange();
-  },
-
-  /**
-   * @param {!CrostiniSharedUsbDevice} device USB device.
-   * @private
-   */
-  getReassignDialogText_(device) {
-    return this.i18n('crostiniSharedUsbDevicesReassign', device.label);
-  },
-});
+customElements.define(
+    CrostiniSharedUsbDevicesElement.is, CrostiniSharedUsbDevicesElement);

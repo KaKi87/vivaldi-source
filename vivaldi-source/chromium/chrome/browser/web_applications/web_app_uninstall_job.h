@@ -1,9 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_UNINSTALL_JOB_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_UNINSTALL_JOB_H_
+
+#include <memory>
 
 #include "base/callback.h"
 #include "base/memory/raw_ptr.h"
@@ -17,14 +19,13 @@ class PrefService;
 namespace webapps {
 enum class UninstallResultCode;
 enum class WebappUninstallSource;
-}
+}  // namespace webapps
 
 namespace web_app {
 
 class OsIntegrationManager;
 class WebAppIconManager;
 class WebAppInstallManager;
-class WebAppInstallFinalizer;
 class WebAppRegistrar;
 class WebAppSyncBridge;
 class WebAppTranslationManager;
@@ -36,32 +37,46 @@ class WebAppTranslationManager;
 // Extra invariants:
 // * There is never more than one uninstall task operating on the same app at
 //   the same time.
-// TODO(https://crbug.com/1162477): Make the database delete happen last.
 class WebAppUninstallJob {
  public:
   using UninstallCallback =
       base::OnceCallback<void(webapps::UninstallResultCode)>;
 
-  WebAppUninstallJob(OsIntegrationManager* os_integration_manager,
-                     WebAppSyncBridge* sync_bridge,
-                     WebAppIconManager* icon_manager,
-                     WebAppRegistrar* registrar,
-                     WebAppInstallManager* install_manager,
-                     WebAppInstallFinalizer* install_finalizer,
-                     WebAppTranslationManager* translation_manager,
-                     PrefService* profile_prefs);
+  // static
+  static std::unique_ptr<WebAppUninstallJob> CreateAndStart(
+      const AppId& app_id,
+      const url::Origin& app_origin,
+      UninstallCallback callback,
+      OsIntegrationManager& os_integration_manager,
+      WebAppSyncBridge& sync_bridge,
+      WebAppIconManager& icon_manager,
+      WebAppRegistrar& registrar,
+      WebAppInstallManager& install_manager,
+      WebAppTranslationManager& translation_manager,
+      PrefService& profile_prefs);
+
   ~WebAppUninstallJob();
+
+ private:
+  WebAppUninstallJob(const AppId& app_id,
+                     const url::Origin& app_origin,
+                     UninstallCallback callback,
+                     OsIntegrationManager& os_integration_manager,
+                     WebAppSyncBridge& sync_bridge,
+                     WebAppIconManager& icon_manager,
+                     WebAppRegistrar& registrar,
+                     WebAppInstallManager& install_manager,
+                     WebAppTranslationManager& translation_manager,
+                     PrefService& profile_prefs);
 
   // The given `app_id` must correspond to an app in the `registrar`.
   // This modifies the app to set `is_uninstalling()` to true, and delete the
   // app from the registry after uninstallation is complete.
-  void Start(const AppId& app_id,
-             const url::Origin& app_origin,
-             webapps::WebappUninstallSource source,
-             UninstallCallback callback);
-
- private:
-  void OnSubAppUninstalled(webapps::UninstallResultCode code);
+  void Start(const url::Origin& app_origin,
+             OsIntegrationManager& os_integration_manager,
+             WebAppIconManager& icon_manager,
+             WebAppTranslationManager& translation_manager,
+             PrefService& profile_prefs);
   void OnOsHooksUninstalled(OsHooksErrors errors);
   void OnIconDataDeleted(bool success);
   void OnTranslationDataDeleted(bool success);
@@ -73,19 +88,16 @@ class WebAppUninstallJob {
     kDone = 2,
   } state_ = State::kNotStarted;
 
-  raw_ptr<OsIntegrationManager> os_integration_manager_;
-  raw_ptr<WebAppSyncBridge> sync_bridge_;
-  raw_ptr<WebAppIconManager> icon_manager_;
-  raw_ptr<WebAppRegistrar> registrar_;
-  raw_ptr<WebAppInstallManager> install_manager_;
-  raw_ptr<WebAppInstallFinalizer> install_finalizer_;
-  raw_ptr<WebAppTranslationManager> translation_manager_;
-  raw_ptr<PrefService> profile_prefs_;
-
   AppId app_id_;
-  webapps::WebappUninstallSource source_;
   UninstallCallback callback_;
-  size_t num_pending_sub_app_uninstalls_;
+
+  // The WebAppUninstallJob is kicked off by the WebAppUninstallCommand
+  // and is constructed and destructed well within the lifetime of the
+  // Uninstall command. This ensures that this class is guaranteed to be
+  // destructed before any of the WebAppProvider systems shut down.
+  raw_ptr<WebAppRegistrar> registrar_;
+  raw_ptr<WebAppSyncBridge> sync_bridge_;
+  raw_ptr<WebAppInstallManager> install_manager_;
 
   bool app_data_deleted_ = false;
   bool translation_data_deleted_ = false;

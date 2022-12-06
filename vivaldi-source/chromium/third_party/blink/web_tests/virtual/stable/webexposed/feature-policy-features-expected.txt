@@ -9,6 +9,7 @@ ch-downlink
 ch-dpr
 ch-ect
 ch-prefers-color-scheme
+ch-prefers-reduced-motion
 ch-rtt
 ch-save-data
 ch-ua
@@ -21,6 +22,7 @@ ch-ua-model
 ch-ua-platform
 ch-ua-platform-version
 ch-ua-wow64
+ch-viewport-height
 ch-viewport-width
 ch-width
 clipboard-read
@@ -30,11 +32,13 @@ display-capture
 document-domain
 encrypted-media
 fullscreen
+gamepad
 geolocation
 gyroscope
 hid
 idle-detection
 keyboard-map
+local-fonts
 magnetometer
 microphone
 midi

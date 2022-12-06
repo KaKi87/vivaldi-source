@@ -179,6 +179,9 @@ interface CountQueuingStrategy
     getter highWaterMark
     getter size
     method constructor
+interface CropTarget
+    attribute @@toStringTag
+    method constructor
 interface Crypto
     attribute @@toStringTag
     getter subtle
@@ -487,7 +490,6 @@ interface FetchEvent : ExtendableEvent
     getter preloadResponse
     getter request
     getter resultingClientId
-    method addPerformanceEntry
     method constructor
     method respondWith
 interface File : Blob
@@ -551,6 +553,7 @@ interface FileSystemHandle
     getter kind
     getter name
     method constructor
+    method getUniqueId
     method isSameEntry
     method move
     method queryPermission
@@ -1163,6 +1166,7 @@ interface PerformanceResourceTiming : PerformanceEntry
     getter connectEnd
     getter connectStart
     getter decodedBodySize
+    getter deliveryType
     getter domainLookupEnd
     getter domainLookupStart
     getter encodedBodySize
@@ -1171,14 +1175,15 @@ interface PerformanceResourceTiming : PerformanceEntry
     getter nextHopProtocol
     getter redirectEnd
     getter redirectStart
+    getter renderBlockingStatus
     getter requestStart
     getter responseEnd
     getter responseStart
+    getter responseStatus
     getter secureConnectionStart
     getter serverTiming
     getter transferSize
     getter workerStart
-    getter workerTiming
     method constructor
     method toJSON
 interface PerformanceServerTiming
@@ -1405,6 +1410,9 @@ interface ServiceWorkerRegistration : EventTarget
     setter onupdatefound
 interface StorageBucket
     attribute @@toStringTag
+    getter caches
+    getter indexedDB
+    getter locks
     method constructor
     method durability
     method estimate
@@ -1518,6 +1526,13 @@ interface TransformStream
     getter readable
     getter writable
     method constructor
+interface TransformStreamDefaultController
+    attribute @@toStringTag
+    getter desiredSize
+    method constructor
+    method enqueue
+    method error
+    method terminate
 interface TrustedHTML
     attribute @@toStringTag
     method constructor
@@ -1617,13 +1632,6 @@ interface UserActivation
     getter hasBeenActive
     getter isActive
     method constructor
-interface VideoTrackGenerator
-    attribute @@toStringTag
-    getter muted
-    getter track
-    getter writable
-    method constructor
-    setter muted
 interface WebGL2RenderingContext
     attribute @@toStringTag
     attribute ACTIVE_ATTRIBUTES
@@ -2991,6 +2999,7 @@ interface WindowClient : Client
 interface WorkerGlobalScope : EventTarget
     attribute @@toStringTag
     getter caches
+    getter crossOriginEmbedderPolicy
     getter crossOriginIsolated
     getter crypto
     getter fonts

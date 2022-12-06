@@ -15,7 +15,6 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 -webkit-box-reflect: none
 -webkit-font-smoothing: auto
 -webkit-highlight: none
--webkit-hyphenate-character: auto
 -webkit-line-break: auto
 -webkit-line-clamp: none
 -webkit-locale: auto
@@ -51,6 +50,8 @@ align-content: normal
 align-items: normal
 align-self: auto
 alignment-baseline: auto
+anchor-name: none
+anchor-scroll: none
 animation-delay: 0s
 animation-direction: normal
 animation-duration: 0s
@@ -146,7 +147,7 @@ contain-intrinsic-inline-size: none
 contain-intrinsic-size: none
 contain-intrinsic-width: none
 container-name: none
-container-type: none
+container-type: normal
 content: normal
 cursor: auto
 cx: 0px
@@ -195,9 +196,12 @@ grid-template-areas: none
 grid-template-columns: none
 grid-template-rows: none
 height: 0px
+hyphenate-character: auto
+hyphenate-limit-chars: auto
 hyphens: manual
 image-orientation: from-image
 image-rendering: auto
+initial-letter: normal
 inline-size: 769px
 inset-block-end: auto
 inset-block-start: auto
@@ -241,7 +245,6 @@ min-inline-size: 0px
 min-width: 0px
 mix-blend-mode: normal
 object-fit: fill
-object-overflow: clip
 object-position: 50% 50%
 object-view-box: none
 offset-anchor: auto
@@ -279,6 +282,7 @@ perspective: none
 perspective-origin: 384.5px 0px
 pointer-events: auto
 position: static
+position-fallback: none
 r: 0px
 resize: none
 right: auto
@@ -297,6 +301,8 @@ scroll-padding-block-end: auto
 scroll-padding-block-start: auto
 scroll-padding-inline-end: auto
 scroll-padding-inline-start: auto
+scroll-timeline-axis: block
+scroll-timeline-name: none
 scrollbar-gutter: auto
 scrollbar-width: auto
 shape-image-threshold: 0
@@ -328,13 +334,16 @@ text-emphasis-color: rgb(0, 0, 0)
 text-emphasis-position: over
 text-emphasis-style: none
 text-indent: 0px
-text-justify: auto
 text-overflow: clip
 text-rendering: auto
 text-shadow: none
 text-size-adjust: auto
 text-transform: none
 text-underline-position: auto
+toggle-group: none
+toggle-root: none
+toggle-trigger: none
+toggle-visibility: normal
 top: auto
 touch-action: auto
 transform: none
@@ -349,6 +358,9 @@ unicode-bidi: normal
 user-select: auto
 vector-effect: none
 vertical-align: baseline
+view-timeline-axis: block
+view-timeline-inset: 0px
+view-timeline-name: none
 visibility: visible
 white-space: normal
 widows: 2

@@ -1,148 +1,70 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/native_theme/native_theme.h"
 
-#include <ostream>
-#include <tuple>
-
-#include "base/notreached.h"
-#include "base/test/scoped_feature_list.h"
-#include "build/build_config.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/ui_base_features.h"
-#include "ui/native_theme/native_theme_color_id.h"
-#include "ui/native_theme/test/color_utils.h"
-
-#if defined(OS_MAC)
-#include "ui/color/mac/system_color_utils.h"
-#endif
-
-namespace {
-
-enum class ContrastMode { kNonHighContrast, kHighContrast };
-
-}  // namespace
 
 namespace ui {
 namespace {
 
-class NativeThemeRedirectedEquivalenceTest
-    : public testing::TestWithParam<std::tuple<NativeTheme::ColorScheme,
-                                               ContrastMode,
-                                               NativeTheme::ColorId>> {
+class TestNativeTheme : public NativeTheme {
  public:
-  NativeThemeRedirectedEquivalenceTest() = default;
+  TestNativeTheme() : NativeTheme(false) {}
+  TestNativeTheme(const TestNativeTheme&) = delete;
+  TestNativeTheme& operator=(const TestNativeTheme&) = delete;
+  ~TestNativeTheme() override = default;
 
-  static std::string ParamInfoToString(
-      ::testing::TestParamInfo<std::tuple<NativeTheme::ColorScheme,
-                                          ContrastMode,
-                                          NativeTheme::ColorId>> param_info) {
-    auto param_tuple = param_info.param;
-    return ColorSchemeToString(
-               std::get<NativeTheme::ColorScheme>(param_tuple)) +
-           ContrastModeToString(std::get<ContrastMode>(param_tuple)) +
-           "_With_" +
-           test::ColorIdToString(std::get<NativeTheme::ColorId>(param_tuple));
+  // NativeTheme:
+  gfx::Size GetPartSize(Part part,
+                        State state,
+                        const ExtraParams& extra) const override {
+    return gfx::Size();
   }
-
- private:
-  static std::string ColorSchemeToString(NativeTheme::ColorScheme scheme) {
-    switch (scheme) {
-      case NativeTheme::ColorScheme::kDefault:
-        NOTREACHED()
-            << "Cannot unit test kDefault as it depends on machine state.";
-        return "InvalidColorScheme";
-      case NativeTheme::ColorScheme::kLight:
-        return "kLight";
-      case NativeTheme::ColorScheme::kDark:
-        return "kDark";
-      case NativeTheme::ColorScheme::kPlatformHighContrast:
-        return "kPlatformHighContrast";
-    }
+  void Paint(cc::PaintCanvas* canvas,
+             const ui::ColorProvider* color_provider,
+             Part part,
+             State state,
+             const gfx::Rect& rect,
+             const ExtraParams& extra,
+             ColorScheme color_scheme = ColorScheme::kDefault,
+             const absl::optional<SkColor>& accent_color =
+                 absl::nullopt) const override {}
+  bool SupportsNinePatch(Part part) const override { return false; }
+  gfx::Size GetNinePatchCanvasSize(Part part) const override {
+    return gfx::Size();
   }
-
-  static std::string ContrastModeToString(ContrastMode contrast_mode) {
-    switch (contrast_mode) {
-      case ContrastMode::kNonHighContrast:
-        return "";
-      case ContrastMode::kHighContrast:
-        return "HighContrast";
-      default:
-        NOTREACHED();
-        return "InvalidContrastMode";
-    }
+  gfx::Rect GetNinePatchAperture(Part part) const override {
+    return gfx::Rect();
   }
 };
 
-std::pair<test::PrintableSkColor, test::PrintableSkColor>
-GetOriginalAndRedirected(NativeTheme::ColorId color_id,
-                         NativeTheme::ColorScheme color_scheme,
-                         ContrastMode contrast_mode) {
-  NativeTheme* native_theme = NativeTheme::GetInstanceForNativeUi();
-
-  if (contrast_mode == ContrastMode::kHighContrast) {
-#if defined(OS_WIN)
-    color_scheme = NativeTheme::ColorScheme::kPlatformHighContrast;
-#endif
-    native_theme->set_preferred_contrast(NativeTheme::PreferredContrast::kMore);
-  }
-
-  test::PrintableSkColor original{
-      native_theme->GetSystemColor(color_id, color_scheme)};
-
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(features::kColorProviderRedirection);
-  test::PrintableSkColor redirected{
-      native_theme->GetSystemColor(color_id, color_scheme)};
-  native_theme->set_preferred_contrast(
-      NativeTheme::PreferredContrast::kNoPreference);
-
-  return std::make_pair(original, redirected);
-}
-
 }  // namespace
 
-TEST_P(NativeThemeRedirectedEquivalenceTest, NativeUiGetSystemColor) {
-  auto param_tuple = GetParam();
-  auto color_scheme = std::get<NativeTheme::ColorScheme>(param_tuple);
-  auto contrast_mode = std::get<ContrastMode>(param_tuple);
-  auto color_id = std::get<NativeTheme::ColorId>(param_tuple);
+TEST(NativeThemeTest, TestOnNativeThemeUpdatedMetricsEmitted) {
+  base::HistogramTester histogram_tester;
+  TestNativeTheme theme;
+  histogram_tester.ExpectTotalCount(
+      "Views.Browser.TimeSpentProcessingOnNativeThemeUpdatedEvent", 0);
+  histogram_tester.ExpectUniqueSample(
+      "Views.Browser.NumColorProvidersInitializedDuringOnNativeThemeUpdated", 0,
+      0);
 
-  // Verifies that colors with and without the Color Provider are the same.
-  auto pair = GetOriginalAndRedirected(color_id, color_scheme, contrast_mode);
-  auto original = pair.first;
-  auto redirected = pair.second;
-  EXPECT_EQ(original, redirected);
+  theme.NotifyOnNativeThemeUpdated();
+  histogram_tester.ExpectTotalCount(
+      "Views.Browser.TimeSpentProcessingOnNativeThemeUpdatedEvent", 1);
+  histogram_tester.ExpectUniqueSample(
+      "Views.Browser.NumColorProvidersInitializedDuringOnNativeThemeUpdated", 0,
+      1);
+
+  theme.NotifyOnNativeThemeUpdated();
+  histogram_tester.ExpectTotalCount(
+      "Views.Browser.TimeSpentProcessingOnNativeThemeUpdatedEvent", 2);
+  histogram_tester.ExpectUniqueSample(
+      "Views.Browser.NumColorProvidersInitializedDuringOnNativeThemeUpdated", 0,
+      2);
 }
-
-#if defined(OS_MAC)
-TEST_P(NativeThemeRedirectedEquivalenceTest, NativeUiGetSystemColorWithTint) {
-  auto param_tuple = GetParam();
-  auto color_scheme = std::get<NativeTheme::ColorScheme>(param_tuple);
-  auto contrast_mode = std::get<ContrastMode>(param_tuple);
-  auto color_id = std::get<NativeTheme::ColorId>(param_tuple);
-
-  ScopedEnableGraphiteTint enable_graphite_tint;
-  // Verifies that colors with and without the Color Provider are the same.
-  auto pair = GetOriginalAndRedirected(color_id, color_scheme, contrast_mode);
-  auto original = pair.first;
-  auto redirected = pair.second;
-  EXPECT_EQ(original, redirected);
-}
-#endif
-
-#define OP(enum_name) NativeTheme::ColorId::enum_name
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    NativeThemeRedirectedEquivalenceTest,
-    ::testing::Combine(::testing::Values(NativeTheme::ColorScheme::kLight,
-                                         NativeTheme::ColorScheme::kDark),
-                       ::testing::Values(ContrastMode::kNonHighContrast,
-                                         ContrastMode::kHighContrast),
-                       ::testing::Values(NATIVE_THEME_COLOR_IDS)),
-    NativeThemeRedirectedEquivalenceTest::ParamInfoToString);
-#undef OP
 
 }  // namespace ui
