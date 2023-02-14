@@ -1,87 +1,79 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/webui/realbox/realbox_handler.h"
+#include "realbox_handler.h"
 
-#include <string>
-#include <unordered_map>
-
-#include <gtest/gtest.h>
-#include "base/check.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/ui/omnibox/omnibox_pedal_implementations.h"
-#include "components/omnibox/browser/actions/omnibox_pedal.h"
-#include "components/omnibox/browser/autocomplete_match.h"
-#include "components/omnibox/browser/autocomplete_match_type.h"
-#include "components/omnibox/browser/suggestion_answer.h"
-#include "components/omnibox/browser/vector_icons.h"
-#include "components/omnibox/common/omnibox_features.h"
-#include "ui/gfx/vector_icon_types.h"
+#include "chrome/test/base/testing_profile.h"
+#include "components/search/ntp_features.h"
+#include "components/variations/scoped_variations_ids_provider.h"
+#include "components/variations/variations_ids_provider.h"
+#include "content/public/test/browser_task_environment.h"
+#include "content/public/test/test_web_ui_data_source.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
-class RealboxHandlerIconTest : public testing::TestWithParam<bool> {
+class RealboxHandlerTest : public ::testing::Test {
  public:
-  RealboxHandlerIconTest() = default;
+  RealboxHandlerTest() = default;
+
+  RealboxHandlerTest(const RealboxHandlerTest&) = delete;
+  RealboxHandlerTest& operator=(const RealboxHandlerTest&) = delete;
+  ~RealboxHandlerTest() override = default;
+
+  content::TestWebUIDataSource* source() { return source_.get(); }
+  TestingProfile* profile() { return profile_.get(); }
+
+ private:
+  content::BrowserTaskEnvironment task_environment_;
+  std::unique_ptr<content::TestWebUIDataSource> source_;
+  std::unique_ptr<TestingProfile> profile_;
+  variations::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
+      variations::VariationsIdsProvider::Mode::kUseSignedInState};
+
+  void SetUp() override {
+    source_ = content::TestWebUIDataSource::Create("test-data-source");
+
+    TestingProfile::Builder profile_builder;
+    profile_ = profile_builder.Build();
+
+    ASSERT_EQ(
+        variations::VariationsIdsProvider::ForceIdsResult::SUCCESS,
+        variations::VariationsIdsProvider::GetInstance()->ForceVariationIds(
+            /*variation_ids=*/{"100"}, /*command_line_variation_ids=*/""));
+  }
 };
 
-INSTANTIATE_TEST_SUITE_P(, RealboxHandlerIconTest, testing::Bool());
+TEST_F(RealboxHandlerTest, RealboxLensSearchIsFalseWhenDisabled) {
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      /*enabled_features=*/{},
+      /*disabled_features=*/{ntp_features::kNtpRealboxLensSearch});
 
-// Tests that all Omnibox vector icons map to an equivalent SVG for use in the
-// NTP Realbox.
-TEST_P(RealboxHandlerIconTest, VectorIcons) {
-  for (int type = AutocompleteMatchType::URL_WHAT_YOU_TYPED;
-       type != AutocompleteMatchType::NUM_TYPES; type++) {
-    AutocompleteMatch match;
-    match.type = static_cast<AutocompleteMatchType::Type>(type);
-    const bool is_bookmark = GetParam();
-    const gfx::VectorIcon& vector_icon = match.GetVectorIcon(is_bookmark);
-    const std::string& svg_name =
-        RealboxHandler::AutocompleteMatchVectorIconToResourceName(vector_icon);
-    if (vector_icon.name == omnibox::kBlankIcon.name) {
-      // An empty resource name is effectively a blank icon.
-      ASSERT_TRUE(svg_name.empty());
-    } else if (vector_icon.name == omnibox::kPedalIcon.name) {
-      // Pedals are not supported in the NTP Realbox.
-      ASSERT_TRUE(svg_name.empty());
-    } else if (is_bookmark) {
-      ASSERT_EQ("chrome://resources/images/icon_bookmark.svg", svg_name);
-    } else {
-      ASSERT_FALSE(svg_name.empty());
-    }
-  }
-  for (int answer_type = SuggestionAnswer::ANSWER_TYPE_DICTIONARY;
-       answer_type != SuggestionAnswer::ANSWER_TYPE_TOTAL_COUNT;
-       answer_type++) {
-    EXPECT_FALSE(
-        base::FeatureList::IsEnabled(omnibox::kNtpRealboxSuggestionAnswers));
-    base::test::ScopedFeatureList feature_list;
-    feature_list.InitAndEnableFeature(omnibox::kNtpRealboxSuggestionAnswers);
-    EXPECT_TRUE(
-        base::FeatureList::IsEnabled(omnibox::kNtpRealboxSuggestionAnswers));
-    AutocompleteMatch match;
-    SuggestionAnswer answer;
-    answer.set_type(answer_type);
-    match.answer = answer;
-    const bool is_bookmark = GetParam();
-    const gfx::VectorIcon& vector_icon = match.GetVectorIcon(is_bookmark);
-    const std::string& svg_name =
-        RealboxHandler::AutocompleteMatchVectorIconToResourceName(vector_icon);
-    if (is_bookmark) {
-      ASSERT_EQ("chrome://resources/images/icon_bookmark.svg", svg_name);
-    } else {
-      ASSERT_FALSE(svg_name.empty());
-      ASSERT_NE("search.svg", svg_name);
-    }
-  }
+  RealboxHandler::SetupWebUIDataSource(source()->GetWebUIDataSource(),
+                                       profile());
 
-  std::unordered_map<OmniboxPedalId, scoped_refptr<OmniboxPedal>> pedals =
-      GetPedalImplementations(true, true);
-  for (auto const& it : pedals) {
-    const scoped_refptr<OmniboxPedal> pedal = it.second;
-    const gfx::VectorIcon& vector_icon = pedal->GetVectorIcon();
-    const std::string& svg_name =
-        RealboxHandler::PedalVectorIconToResourceName(vector_icon);
-    ASSERT_FALSE(svg_name.empty());
-  }
+  EXPECT_FALSE(
+      source()->GetLocalizedStrings()->FindBool("realboxLensSearch").value());
+}
+
+TEST_F(RealboxHandlerTest, RealboxLensSearchIsTrueWhenEnabled) {
+  base::test::ScopedFeatureList scoped_feature_list_;
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      /*enabled_features=*/{{ntp_features::kNtpRealboxLensSearch, {{}}}},
+      /*disabled_features=*/{});
+
+  RealboxHandler::SetupWebUIDataSource(source()->GetWebUIDataSource(),
+                                       profile());
+
+  EXPECT_TRUE(
+      source()->GetLocalizedStrings()->FindBool("realboxLensSearch").value());
+}
+
+TEST_F(RealboxHandlerTest, RealboxLensVariationsContainsVariations) {
+  RealboxHandler::SetupWebUIDataSource(source()->GetWebUIDataSource(),
+                                       profile());
+
+  EXPECT_EQ("CGQ", *source()->GetLocalizedStrings()->FindString(
+                       "realboxLensVariations"));
 }

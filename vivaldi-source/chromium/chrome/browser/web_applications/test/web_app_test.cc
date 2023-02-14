@@ -1,32 +1,31 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/web_applications/test/web_app_test.h"
 
-#include "base/threading/thread_task_runner_handle.h"
-#include "chrome/browser/web_applications/components/web_application_info.h"
+#include "chrome/test/base/testing_profile.h"
+#include "chrome/test/base/testing_profile_manager.h"
 
-namespace web_app {
-
-void TestAcceptDialogCallback(
-    content::WebContents* initiator_web_contents,
-    std::unique_ptr<WebApplicationInfo> web_app_info,
-    ForInstallableSite for_installable_site,
-    InstallManager::WebAppInstallationAcceptanceCallback acceptance_callback) {
-  base::ThreadTaskRunnerHandle::Get()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(acceptance_callback), true /*accept*/,
-                                std::move(web_app_info)));
+void WebAppTest::SetUp() {
+  ASSERT_TRUE(testing_profile_manager_.SetUp());
+  profile_ = testing_profile_manager_.CreateTestingProfile(
+      TestingProfile::kDefaultProfileUserName, /*is_main_profile=*/true);
+  content::RenderViewHostTestHarness::SetUp();
 }
 
-void TestDeclineDialogCallback(
-    content::WebContents* initiator_web_contents,
-    std::unique_ptr<WebApplicationInfo> web_app_info,
-    ForInstallableSite for_installable_site,
-    InstallManager::WebAppInstallationAcceptanceCallback acceptance_callback) {
-  base::ThreadTaskRunnerHandle::Get()->PostTask(
-      FROM_HERE, base::BindOnce(std::move(acceptance_callback),
-                                false /*accept*/, std::move(web_app_info)));
+void WebAppTest::TearDown() {
+  // RenderViewHostTestHarness::TearDown destroys the TaskEnvironment. We need
+  // to destroy profiles before that happens, and web contents need to be
+  // destroyed before profiles are destroyed.
+  DeleteContents();
+  // Make sure that we flush any messages related to WebContentsImpl destruction
+  // before we destroy the profiles.
+  base::RunLoop().RunUntilIdle();
+  testing_profile_manager_.DeleteAllTestingProfiles();
+  content::RenderViewHostTestHarness::TearDown();
 }
 
-}  // namespace web_app
+content::BrowserContext* WebAppTest::GetBrowserContext() {
+  return profile();
+}
