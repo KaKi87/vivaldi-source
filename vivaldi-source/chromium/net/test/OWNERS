@@ -1,2 +1,2 @@
-# General reviewer, except sync-specific bits.
-phajdan.jr@chromium.org
+# Anyone can update test bundle data filelists.
+per-file *.filelist=*

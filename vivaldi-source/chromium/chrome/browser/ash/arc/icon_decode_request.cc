@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "base/no_destructor.h"
-#include "chrome/browser/ui/app_list/md_icon_normalizer.h"
 #include "chrome/grit/component_extension_resources.h"
 #include "content/public/browser/browser_thread.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
@@ -31,7 +30,7 @@ bool disable_safe_decoding_for_testing = false;
 
 class IconSource : public gfx::ImageSkiaSource {
  public:
-  IconSource(const SkBitmap& bitmap, int dimension_dip, bool normalize);
+  IconSource(const SkBitmap& bitmap, int dimension_dip);
 
   IconSource(const IconSource&) = delete;
   IconSource& operator=(const IconSource&) = delete;
@@ -43,21 +42,18 @@ class IconSource : public gfx::ImageSkiaSource {
 
   const SkBitmap bitmap_;
   const int dimension_dip_;
-  const bool normalize_;
 };
 
-IconSource::IconSource(const SkBitmap& bitmap,
-                       int dimension_dip,
-                       bool normalize)
-    : bitmap_(bitmap), dimension_dip_(dimension_dip), normalize_(normalize) {}
+IconSource::IconSource(const SkBitmap& bitmap, int dimension_dip)
+    : bitmap_(bitmap), dimension_dip_(dimension_dip) {}
 
 gfx::ImageSkiaRep IconSource::GetImageForScale(float scale) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   const int dimension_px = static_cast<int>(dimension_dip_ * scale + 0.5);
   if (bitmap_.isNull()) {
-    const int resource_id =
-        dimension_px <= 32 ? IDR_ARC_SUPPORT_ICON_32 : IDR_ARC_SUPPORT_ICON_192;
+    const int resource_id = dimension_px <= 32 ? IDR_ARC_SUPPORT_ICON_32_PNG
+                                               : IDR_ARC_SUPPORT_ICON_192_PNG;
     const gfx::ImageSkia* resource_image =
         ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(resource_id);
     const gfx::ImageSkia resized_image =
@@ -67,18 +63,9 @@ gfx::ImageSkiaRep IconSource::GetImageForScale(float scale) {
     return resized_image.GetRepresentation(scale);
   }
 
-  SkBitmap resized_bitmap;
-  if (normalize_) {
-    resized_bitmap = bitmap_;
-    const gfx::Size size_px(dimension_px, dimension_px);
-    const gfx::Size padding_px =
-        app_list::GetMdIconPadding(resized_bitmap, size_px);
-    app_list::MaybeResizeAndPad(size_px, padding_px, &resized_bitmap);
-  } else {
-    resized_bitmap = skia::ImageOperations::Resize(
-        bitmap_, skia::ImageOperations::RESIZE_LANCZOS3, dimension_px,
-        dimension_px);
-  }
+  SkBitmap resized_bitmap = skia::ImageOperations::Resize(
+      bitmap_, skia::ImageOperations::RESIZE_LANCZOS3, dimension_px,
+      dimension_px);
   return gfx::ImageSkiaRep(resized_bitmap, scale);
 }
 
@@ -126,7 +113,7 @@ void IconDecodeRequest::StartWithOptions(
 void IconDecodeRequest::OnImageDecoded(const SkBitmap& bitmap) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const gfx::ImageSkia icon(
-      std::make_unique<IconSource>(bitmap, dimension_dip_, normalized_),
+      std::make_unique<IconSource>(bitmap, dimension_dip_),
       gfx::Size(dimension_dip_, dimension_dip_));
   icon.EnsureRepsForSupportedScales();
   std::move(set_icon_callback_).Run(icon);

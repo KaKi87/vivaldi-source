@@ -1,1 +1,2 @@
-# COMPONENT: Test>iOS
+# Anyone can update the test bundle data filelists.
+per-file *.filelist=*

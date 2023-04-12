@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@
 
 #include <vector>
 
-#include "base/callback.h"
-#include "base/macros.h"
+#include "base/functional/callback.h"
 #include "chrome/browser/image_decoder/image_decoder.h"
 
 namespace gfx {
@@ -49,9 +48,6 @@ class IconDecodeRequest : public ImageDecoder::ImageRequest {
   // DisableSafeDecodingForTesting() is called.
   void StartWithOptions(const std::vector<uint8_t>& image_data);
 
-  // If |normalized| is true, MD normalization is applied to the decoded icon.
-  void set_normalized(bool normalized) { normalized_ = normalized; }
-
   // ImageDecoder::ImageRequest:
   void OnImageDecoded(const SkBitmap& bitmap) override;
   void OnDecodeImageFailed() override;
@@ -59,7 +55,6 @@ class IconDecodeRequest : public ImageDecoder::ImageRequest {
  private:
   SetIconCallback set_icon_callback_;
   const int dimension_dip_;
-  bool normalized_ = false;
 };
 
 }  // namespace arc

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,22 +7,22 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/check.h"
-#include "base/macros.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/singleton.h"
 #include "base/memory/weak_ptr.h"
+#include "build/chromeos_buildflags.h"
 #include "chrome/browser/chromeos/platform_keys/extension_platform_keys_service.h"
-#include "chrome/browser/chromeos/platform_keys/key_permissions/key_permissions_service_factory.h"
-#include "chrome/browser/chromeos/platform_keys/platform_keys_service_factory.h"
-#include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/ui/platform_keys_certificate_selector_chromeos.h"
-#include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
 #include "net/cert/x509_certificate.h"
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+#include "chrome/browser/ash/crosapi/keystore_service_factory_ash.h"
+#endif
 
 namespace chromeos {
 namespace {
@@ -33,6 +33,8 @@ class DefaultSelectDelegate
     : public chromeos::ExtensionPlatformKeysService::SelectDelegate {
  public:
   DefaultSelectDelegate() {}
+  DefaultSelectDelegate(const DefaultSelectDelegate&) = delete;
+  auto operator=(const DefaultSelectDelegate&) = delete;
   ~DefaultSelectDelegate() override {}
 
   void Select(const std::string& extension_id,
@@ -64,8 +66,6 @@ class DefaultSelectDelegate
 
  private:
   base::WeakPtrFactory<DefaultSelectDelegate> weak_factory_{this};
-
-  DISALLOW_COPY_AND_ASSIGN(DefaultSelectDelegate);
 };
 
 }  // namespace
@@ -85,21 +85,15 @@ ExtensionPlatformKeysServiceFactory::GetInstance() {
 }
 
 ExtensionPlatformKeysServiceFactory::ExtensionPlatformKeysServiceFactory()
-    : BrowserContextKeyedServiceFactory(
+    : ProfileKeyedServiceFactory(
           "ExtensionPlatformKeysService",
-          BrowserContextDependencyManager::GetInstance()) {
-  DependsOn(chromeos::platform_keys::PlatformKeysServiceFactory::GetInstance());
-  DependsOn(
-      chromeos::platform_keys::KeyPermissionsServiceFactory::GetInstance());
+          ProfileSelections::BuildRedirectedInIncognito()) {
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  DependsOn(crosapi::KeystoreServiceFactoryAsh::GetInstance());
+#endif
 }
 
 ExtensionPlatformKeysServiceFactory::~ExtensionPlatformKeysServiceFactory() {}
-
-content::BrowserContext*
-ExtensionPlatformKeysServiceFactory::GetBrowserContextToUse(
-    content::BrowserContext* context) const {
-  return chrome::GetBrowserContextRedirectedInIncognito(context);
-}
 
 KeyedService* ExtensionPlatformKeysServiceFactory::BuildServiceInstanceFor(
     content::BrowserContext* context) const {

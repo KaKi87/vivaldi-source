@@ -1,48 +1,27 @@
-# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
-
-"""test_expectations.txt presubmit script.
-
-See http://dev.chromium.org/developers/how-tos/depottools/presubmit-scripts
-for more details on the presubmit API built into depot_tools.
+"""Presubmit checks for content/test
+See https://www.chromium.org/developers/how-tos/depottools/presubmit-scripts
+for more details about the presubmit API built into depot_tools.
 """
 
-import os
 import sys
 
-TEST_EXPECTATIONS_FILENAMES = ['test_expectations.txt', 'TestExpectations']
+PRESUBMIT_VERSION = '2.0.0'
 
-def LintTestFiles(input_api, output_api):
-  current_dir = str(input_api.PresubmitLocalPath())
-  tools_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-  src_dir = os.path.dirname(tools_dir)
-
-  subproc = input_api.subprocess.Popen(
-      [input_api.python_executable,
-       input_api.os.path.join(src_dir, 'third_party', 'WebKit', 'Tools',
-           'Scripts', 'lint-test-expectations')],
-      stdin=input_api.subprocess.PIPE,
-      stdout=input_api.subprocess.PIPE,
-      stderr=input_api.subprocess.STDOUT)
-  stdout_data = subproc.communicate()[0]
-  is_error = lambda line: (input_api.re.match('^Line:', line) or
-                           input_api.re.search('ERROR Line:', line))
-  error = filter(is_error, stdout_data.splitlines())
-  if error:
-    return [output_api.PresubmitError('Lint error\n%s' % '\n'.join(error),
-                                      long_text=stdout_data)]
-  return []
-
-def LintTestExpectations(input_api, output_api):
-  for path in input_api.LocalPaths():
-    if input_api.os_path.basename(path) in TEST_EXPECTATIONS_FILENAMES:
-      return LintTestFiles(input_api, output_api)
-  return []
+USE_PYTHON3 = True
 
 
-def CheckChangeOnUpload(input_api, output_api):
-  return LintTestExpectations(input_api, output_api)
-
-def CheckChangeOnCommit(input_api, output_api):
-  return LintTestExpectations(input_api, output_api)
+def CheckChange(input_api, output_api):
+    old_sys_path = sys.path[:]
+    results = []
+    try:
+        sys.path.append(input_api.change.RepositoryRoot())
+        # pylint: disable=no-name-in-module,import-outside-toplevel
+        from build.ios import presubmit_support
+        results += presubmit_support.CheckBundleData(
+            input_api, output_api, 'content_unittests_bundle_data')
+    finally:
+        sys.path = old_sys_path
+    return results

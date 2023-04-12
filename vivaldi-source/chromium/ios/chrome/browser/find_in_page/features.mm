@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,5 +8,11 @@
 #error "This file requires ARC support."
 #endif
 
-const base::Feature kFindInPageiFrame{"FindInPageiFrame",
-                                      base::FEATURE_ENABLED_BY_DEFAULT};
+BASE_FEATURE(kNativeFindInPage,
+             "NativeFindInPage",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+const char kNativeFindInPageParameterName[] = "variant";
+
+const char kNativeFindInPageWithChromeFindBarParam[] =
+    "variant_with_chrome_find_bar";
