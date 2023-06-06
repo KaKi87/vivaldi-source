@@ -1,210 +1,122 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/content_suggestions/content_suggestions_metrics_recorder.h"
 
-#include "base/mac/foundation_util.h"
+#import "base/mac/foundation_util.h"
 #import "base/metrics/histogram_macros.h"
-#include "components/ntp_snippets/content_suggestions_metrics.h"
-#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_item.h"
-#import "ios/chrome/browser/ui/content_suggestions/cells/suggested_content.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_category_wrapper.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_feature.h"
-#import "ios/chrome/browser/ui/content_suggestions/identifier/content_suggestion_identifier.h"
-#import "ios/chrome/browser/ui/content_suggestions/identifier/content_suggestions_section_information.h"
+#import "base/metrics/user_metrics.h"
+#import "base/metrics/user_metrics_action.h"
+#import "components/favicon_base/favicon_types.h"
+#import "components/ntp_tiles/metrics.h"
+#import "components/ntp_tiles/ntp_tile_impression.h"
+#import "components/ntp_tiles/tile_visual_type.h"
+#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_most_visited_item.h"
+#import "ios/chrome/browser/ui/content_suggestions/cells/content_suggestions_tile_constants.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_constants.h"
+#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_metrics_constants.h"
+#import "ios/chrome/browser/ui/favicon/favicon_attributes_with_payload.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-// Values for the UMA ContentSuggestions.Feed.EngagementType
-// histogram. These values are persisted to logs. Entries should not be
-// renumbered and numeric values should never be reused. This must be kept
-// in sync with FeedEngagementType in enums.xml.
-enum class FeedEngagementType {
-  kFeedEngaged = 0,
-  kFeedEngagedSimple = 1,
-  kFeedInteracted = 2,
-  kDeprecatedFeedScrolled = 3,
-  kFeedScrolled = 4,
-  kMaxValue = kFeedScrolled,
-};
-
-namespace {
-// Histogram name for the feed engagement types.
-const char kDiscoverFeedEngagementTypeHistogram[] =
-    "ContentSuggestions.Feed.EngagementType";
-
-// Minimum scrolling amount to record a FeedEngagementType::kFeedEngaged due to
-// scrolling.
-const int kMinScrollThreshold = 160;
-
-// Time between two metrics recorded to consider it a new session.
-const int kMinutesBetweenSessions = 5;
-}
-
-@interface ContentSuggestionsMetricsRecorder ()
-
-// Tracking property to avoid duplicate recordings of
-// FeedEngagementType::kFeedEngagedSimple.
-@property(nonatomic, assign) BOOL engagedSimpleReported;
-// Tracking property to avoid duplicate recordings of
-// FeedEngagementType::kFeedEngaged.
-@property(nonatomic, assign) BOOL engagedReported;
-// Tracking property to avoid duplicate recordings of
-// FeedEngagementType::kFeedScrolled.
-@property(nonatomic, assign) BOOL scrolledReported;
-// The time when the first metric is being recorded for this session.
-@property(nonatomic, assign) base::Time sessionStartTime;
-
-@end
-
 @implementation ContentSuggestionsMetricsRecorder
-
-@synthesize delegate = _delegate;
 
 #pragma mark - Public
 
-- (void)onSuggestionOpened:(ContentSuggestionsItem*)item
-               atIndexPath:(NSIndexPath*)indexPath
-        sectionsShownAbove:(NSInteger)sectionsShownAbove
-     suggestionsShownAbove:(NSInteger)suggestionsAbove
-                withAction:(WindowOpenDisposition)action {
-  ContentSuggestionsSectionInformation* sectionInfo =
-      item.suggestionIdentifier.sectionInfo;
-  ContentSuggestionsCategoryWrapper* categoryWrapper =
-      [self.delegate categoryWrapperForSectionInfo:sectionInfo];
-
-  ntp_snippets::metrics::OnSuggestionOpened(
-      suggestionsAbove + indexPath.item, [categoryWrapper category],
-      sectionsShownAbove, indexPath.item, item.publishDate, item.score, action,
-      /*is_prefetched=*/false, /*is_offline=*/false);
-  [self recordInteraction];
+- (void)recordReturnToRecentTabTileShown {
+  base::RecordAction(base::UserMetricsAction(kShowReturnToRecentTabTileAction));
 }
 
-- (void)onMenuOpenedForSuggestion:(ContentSuggestionsItem*)item
-                      atIndexPath:(NSIndexPath*)indexPath
-            suggestionsShownAbove:(NSInteger)suggestionsAbove {
-  ContentSuggestionsSectionInformation* sectionInfo =
-      item.suggestionIdentifier.sectionInfo;
-  ContentSuggestionsCategoryWrapper* categoryWrapper =
-      [self.delegate categoryWrapperForSectionInfo:sectionInfo];
-
-  ntp_snippets::metrics::OnSuggestionMenuOpened(
-      suggestionsAbove + indexPath.item, [categoryWrapper category],
-      indexPath.item, item.publishDate, item.score);
-  [self recordInteraction];
-}
-
-#pragma mark - ContentSuggestionsMetricsRecording
-
-- (void)onSuggestionShown:(CollectionViewItem*)item
-              atIndexPath:(NSIndexPath*)indexPath
-    suggestionsShownAbove:(NSInteger)suggestionsAbove {
-  ContentSuggestionsItem* suggestion =
-      base::mac::ObjCCastStrict<ContentSuggestionsItem>(item);
-  ContentSuggestionsSectionInformation* sectionInfo =
-      suggestion.suggestionIdentifier.sectionInfo;
-  ContentSuggestionsCategoryWrapper* categoryWrapper =
-      [self.delegate categoryWrapperForSectionInfo:sectionInfo];
-
-  ntp_snippets::metrics::OnSuggestionShown(
-      suggestionsAbove + indexPath.item, [categoryWrapper category],
-      indexPath.item, suggestion.publishDate, suggestion.score,
-      suggestion.fetchDate);
-}
-
-- (void)onMoreButtonTappedAtPosition:(NSInteger)position
-                           inSection:(ContentSuggestionsSectionInformation*)
-                                         sectionInfo {
-  ContentSuggestionsCategoryWrapper* categoryWrapper =
-      [self.delegate categoryWrapperForSectionInfo:sectionInfo];
-
-  ntp_snippets::metrics::OnMoreButtonClicked([categoryWrapper category],
-                                             position);
-  [self recordInteraction];
-}
-
-- (void)onSuggestionDismissed:(CollectionViewItem<SuggestedContent>*)item
-                  atIndexPath:(NSIndexPath*)indexPath
-        suggestionsShownAbove:(NSInteger)suggestionsAbove {
-  ContentSuggestionsSectionInformation* sectionInfo =
-      item.suggestionIdentifier.sectionInfo;
-  ContentSuggestionsCategoryWrapper* categoryWrapper =
-      [self.delegate categoryWrapperForSectionInfo:sectionInfo];
-
-  ntp_snippets::metrics::OnSuggestionDismissed(
-      suggestionsAbove + indexPath.item, [categoryWrapper category],
-      indexPath.item, /*visited=*/false);
-  [self recordInteraction];
-}
-
-- (void)recordFeedScrolled:(int)scrollDistance {
-  DCHECK(!IsDiscoverFeedEnabled());
-  [self recordEngagement:scrollDistance interacted:NO];
-
-  if (!self.scrolledReported) {
-    [self recordEngagementTypeHistogram:FeedEngagementType::kFeedScrolled];
-    self.scrolledReported = YES;
+- (void)recordShortcutTileTapped:(NTPCollectionShortcutType)shortcutType {
+  switch (shortcutType) {
+    case NTPCollectionShortcutTypeBookmark:
+      base::RecordAction(base::UserMetricsAction(kShowBookmarksAction));
+      break;
+    case NTPCollectionShortcutTypeReadingList:
+      base::RecordAction(base::UserMetricsAction(kShowReadingListAction));
+      break;
+    case NTPCollectionShortcutTypeRecentTabs:
+      base::RecordAction(base::UserMetricsAction(kShowRecentTabsAction));
+      break;
+    case NTPCollectionShortcutTypeHistory:
+      base::RecordAction(base::UserMetricsAction(kShowHistoryAction));
+      break;
+    case NTPCollectionShortcutTypeWhatsNew:
+      base::RecordAction(base::UserMetricsAction(kShowWhatsNewAction));
+      break;
+    case NTPCollectionShortcutTypeCount:
+      NOTREACHED();
+      break;
   }
+}
+
+- (void)recordTrendingQueryTappedAtIndex:(int)index {
+  UMA_HISTOGRAM_ENUMERATION(kTrendingQueriesHistogram, index,
+                            kMaxTrendingQueries);
+}
+
+- (void)recordMostRecentTabOpened {
+  base::RecordAction(base::UserMetricsAction(kOpenMostRecentTabAction));
+}
+
+- (void)recordMostVisitedTilesShown {
+  base::RecordAction(base::UserMetricsAction(kShowMostVisitedAction));
+}
+
+- (void)recordMostVisitedTileShown:(ContentSuggestionsMostVisitedItem*)item
+                           atIndex:(NSInteger)index {
+  ntp_tiles::metrics::RecordTileImpression(ntp_tiles::NTPTileImpression(
+      index, item.source, item.titleSource,
+      [self getVisualTypeFromAttributes:item.attributes],
+      [self getIconTypeFromAttributes:item.attributes], item.URL));
+}
+
+- (void)recordMostVisitedTileOpened:(ContentSuggestionsMostVisitedItem*)item
+                            atIndex:(NSInteger)index
+                           webState:(web::WebState*)webState {
+  base::RecordAction(base::UserMetricsAction(kMostVisitedAction));
+
+  ntp_tiles::metrics::RecordTileClick(ntp_tiles::NTPTileImpression(
+      index, item.source, item.titleSource,
+      [self getVisualTypeFromAttributes:item.attributes],
+      [self getIconTypeFromAttributes:item.attributes], item.URL));
+
+  new_tab_page_uma::RecordAction(
+      false, webState, new_tab_page_uma::ACTION_OPENED_MOST_VISITED_ENTRY);
+}
+
+- (void)recordMostVisitedTileRemoved {
+  base::RecordAction(base::UserMetricsAction(kMostVisitedUrlBlacklistedAction));
 }
 
 #pragma mark - Private
 
-// Records Feed engagement.
-- (void)recordEngagement:(int)scrollDistance interacted:(BOOL)interacted {
-  scrollDistance = abs(scrollDistance);
-
-  // Determine if this interaction is part of a new 'session'.
-  base::Time now = base::Time::Now();
-  base::TimeDelta visitTimeout =
-      base::TimeDelta::FromMinutes(kMinutesBetweenSessions);
-  if (now - self.sessionStartTime > visitTimeout) {
-    [self finalizeSession];
+// Returns the visual type of a favicon for metrics logging.
+- (ntp_tiles::TileVisualType)getVisualTypeFromAttributes:
+    (FaviconAttributes*)attributes {
+  if (!attributes) {
+    return ntp_tiles::TileVisualType::NONE;
+  } else if (attributes.faviconImage) {
+    return ntp_tiles::TileVisualType::ICON_REAL;
   }
-  // Reset the last active time for session measurement.
-  self.sessionStartTime = now;
-
-  // Report the user as engaged-simple if they have scrolled any amount or
-  // interacted with the card, and we have not already reported it for this
-  // chrome run.
-  if (!self.engagedSimpleReported && (scrollDistance > 0 || interacted)) {
-    [self recordEngagementTypeHistogram:FeedEngagementType::kFeedEngagedSimple];
-    self.engagedSimpleReported = YES;
-  }
-
-  // Report the user as engaged if they have scrolled more than the threshold or
-  // interacted with the card, and we have not already reported it this chrome
-  // run.
-  if (!self.engagedReported &&
-      (scrollDistance > kMinScrollThreshold || interacted)) {
-    [self recordEngagementTypeHistogram:FeedEngagementType::kFeedEngaged];
-    self.engagedReported = YES;
-  }
+  return attributes.defaultBackgroundColor
+             ? ntp_tiles::TileVisualType::ICON_DEFAULT
+             : ntp_tiles::TileVisualType::ICON_COLOR;
 }
 
-// Records Engagement histograms of |engagementType|.
-- (void)recordEngagementTypeHistogram:(FeedEngagementType)engagementType {
-  UMA_HISTOGRAM_ENUMERATION(kDiscoverFeedEngagementTypeHistogram,
-                            engagementType);
-}
-
-// Records any direct interaction with the Feed, this doesn't include scrolling.
-- (void)recordInteraction {
-  DCHECK(!IsDiscoverFeedEnabled());
-  [self recordEngagement:0 interacted:YES];
-  [self recordEngagementTypeHistogram:FeedEngagementType::kFeedInteracted];
-}
-
-// Resets the session tracking values, this occurs if there's been
-// kMinutesBetweenSessions minutes between sessions.
-- (void)finalizeSession {
-  if (!self.engagedSimpleReported)
-    return;
-  self.engagedReported = NO;
-  self.engagedSimpleReported = NO;
-  self.scrolledReported = NO;
+// Returns the icon type of a favicon for metrics logging.
+- (favicon_base::IconType)getIconTypeFromAttributes:
+    (FaviconAttributes*)attributes {
+  favicon_base::IconType icon_type = favicon_base::IconType::kInvalid;
+  if (attributes.faviconImage) {
+    FaviconAttributesWithPayload* favicon_attributes =
+        base::mac::ObjCCastStrict<FaviconAttributesWithPayload>(attributes);
+    icon_type = favicon_attributes.iconType;
+  }
+  return icon_type;
 }
 
 @end

@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,10 +18,6 @@ import org.chromium.ui.base.ResourceBundle;
 /**
  * Entry point for the Android cast shell application.  Handles initialization of information that
  * needs to be shared across the main activity and the child services created.
- *
- * Note that this gets run for each process, including sandboxed child render processes. Child
- * processes don't need most of the full "setup" performed in CastBrowserHelper.java, but they do
- * require a few basic pieces (found here).
  */
 public class CastApplication extends Application {
     private static final String PRIVATE_DATA_DIRECTORY_SUFFIX = "cast_shell";
@@ -30,10 +26,9 @@ public class CastApplication extends Application {
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         ContextUtils.initApplicationContext(this);
-        BundleUtils.setIsBundle(false);
+        BundleUtils.setIsBundle(ProductConfig.IS_BUNDLE);
         ResourceBundle.setAvailablePakLocales(ProductConfig.LOCALES);
-        LibraryLoader.getInstance().setLinkerImplementation(
-                ProductConfig.USE_CHROMIUM_LINKER, ProductConfig.USE_MODERN_LINKER);
+        LibraryLoader.getInstance().setLinkerImplementation(ProductConfig.USE_CHROMIUM_LINKER);
         LibraryLoader.getInstance().setLibraryProcessType(isBrowserProcess()
                         ? LibraryProcessType.PROCESS_BROWSER
                         : LibraryProcessType.PROCESS_CHILD);
@@ -47,6 +42,8 @@ public class CastApplication extends Application {
     }
 
     private static boolean isBrowserProcess() {
-        return !ContextUtils.getProcessName().contains(":");
+        return BundleUtils.isBundle()
+                ? ContextUtils.getProcessName().contains("cast_browser_process")
+                : !ContextUtils.getProcessName().contains(":");
     }
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -44,16 +44,14 @@ void AshInteractiveUITestBase::SetUp() {
 
   ui::RegisterPathProvider();
   ui::ResourceBundle::InitSharedInstanceWithLocale(
-      "en-US", NULL, ui::ResourceBundle::LOAD_COMMON_RESOURCES);
+      "en-US", nullptr, ui::ResourceBundle::LOAD_COMMON_RESOURCES);
   base::FilePath resources_pack_path;
   base::PathService::Get(base::DIR_MODULE, &resources_pack_path);
   resources_pack_path =
       resources_pack_path.Append(FILE_PATH_LITERAL("resources.pak"));
   ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
-      resources_pack_path, ui::SCALE_FACTOR_NONE);
-  env_ = aura::Env::CreateInstance(features::IsSingleProcessMash()
-                                       ? aura::Env::Mode::MUS
-                                       : aura::Env::Mode::LOCAL);
+      resources_pack_path, ui::kScaleFactorNone);
+  env_ = aura::Env::CreateInstance();
   ui_controls::InstallUIControlsAura(test::CreateAshUIControls());
 
   AshTestBase::SetUp();

@@ -2774,6 +2774,7 @@ static char *shell_error_context(const char *zSql, sqlite3 *db){
   if( db==0
    || zSql==0
    || (iOffset = sqlite3_error_offset(db))<0
+   || iOffset>=strlen(zSql)
   ){
     return sqlite3_mprintf("");
   }
@@ -5322,9 +5323,6 @@ static void open_db(ShellState *p, int openFlags){
 #ifndef SQLITE_SHELL_FIDDLE
     sqlite3_fileio_init(p->db, 0, 0);
     sqlite3_completion_init(p->db, 0, 0);
-#endif
-#if SQLITE_SHELL_HAVE_RECOVER
-    sqlite3_dbdata_init(p->db, 0, 0);
 #endif
 #ifdef SQLITE_HAVE_ZLIB
     if( !p->bSafeModePersist ){

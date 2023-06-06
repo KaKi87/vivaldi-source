@@ -5,20 +5,9 @@ Use of this source code is governed by a BSD-style license that can be
 found in the LICENSE file.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="asset_statements">
-      [{
-        \"relation\": [\"delegate_permission/common.handle_all_urls\"],
-        \"target\": {
-          \"namespace\": \"web\",
-          \"site\": \"https://example.com\"
-        }
-      },
-      {
-        \"relation\": [\"delegate_permission/common.handle_all_urls\"],
-        \"target\": {
-          \"namespace\": \"web\",
-          \"site\": \"http://localhost:8888\"
-        }
-      }]
-    </string>
+    <string-array name="activities_drop_down">
+        <item>Shell</item>
+        <item>UI/WebEngine State Test</item>
+        <item>Navigation Test</item>
+    </string-array>
 </resources>

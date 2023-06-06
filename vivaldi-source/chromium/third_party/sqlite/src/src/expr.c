@@ -3839,9 +3839,10 @@ void sqlite3ExprCodeGeneratedColumn(
 ){
   int iAddr;
   Vdbe *v = pParse->pVdbe;
+  int nErr = pParse->nErr;
   assert( v!=0 );
   assert( pParse->iSelfTab!=0 );
-  if( pParse->iSelfTab>0 ){
+  if( pParse->iSelfTab>0 ){
     iAddr = sqlite3VdbeAddOp3(v, OP_IfNullRow, pParse->iSelfTab-1, 0, regOut);
   }else{
     iAddr = 0;
@@ -3851,6 +3852,7 @@ void sqlite3ExprCodeGeneratedColumn(
     sqlite3VdbeAddOp4(v, OP_Affinity, regOut, 1, 0, &pCol->affinity, 1);
   }
   if( iAddr ) sqlite3VdbeJumpHere(v, iAddr);
+  if( pParse->nErr>nErr ) pParse->db->errByteOffset = -1;
 }
 #endif /* SQLITE_OMIT_GENERATED_COLUMNS */
 
@@ -3867,6 +3869,7 @@ void sqlite3ExprCodeGetColumnOfTable(
   Column *pCol;
   assert( v!=0 );
   assert( pTab!=0 );
+  assert( iCol!=XN_EXPR );
   if( iCol<0 || iCol==pTab->iPKey ){
     sqlite3VdbeAddOp2(v, OP_Rowid, iTabCur, regOut);
     VdbeComment((v, "%s.rowid", pTab->zName));
@@ -4133,6 +4136,7 @@ static SQLITE_NOINLINE int sqlite3IndexedExprLookup(
   IndexedExpr *p;
   Vdbe *v;
   for(p=pParse->pIdxEpr; p; p=p->pIENext){
+    u8 exprAff;
     int iDataCur = p->iDataCur;
     if( iDataCur<0 ) continue;
     if( pParse->iSelfTab ){
@@ -4140,6 +4144,16 @@ static SQLITE_NOINLINE int sqlite3IndexedExprLookup(
       iDataCur = -1;
     }
     if( sqlite3ExprCompare(0, pExpr, p->pExpr, iDataCur)!=0 ) continue;
+    assert( p->aff>=SQLITE_AFF_BLOB && p->aff<=SQLITE_AFF_NUMERIC );
+    exprAff = sqlite3ExprAffinity(pExpr);
+    if( (exprAff<=SQLITE_AFF_BLOB && p->aff!=SQLITE_AFF_BLOB)
+     || (exprAff==SQLITE_AFF_TEXT && p->aff!=SQLITE_AFF_TEXT)
+     || (exprAff>=SQLITE_AFF_NUMERIC && p->aff!=SQLITE_AFF_NUMERIC)
+    ){
+      /* Affinity mismatch on a generated column */
+      continue;
+    }
+
     v = pParse->pVdbe;
     assert( v!=0 );
     if( p->bMaybeNullRow ){
@@ -4719,10 +4733,13 @@ expr_code_doover:
       return target;
     }
     case TK_COLLATE: {
-      if( !ExprHasProperty(pExpr, EP_Collate)
-       && ALWAYS(pExpr->pLeft)
-       && pExpr->pLeft->op==TK_FUNCTION
-      ){
+      if( !ExprHasProperty(pExpr, EP_Collate) ){
+        /* A TK_COLLATE Expr node without the EP_Collate tag is a so-called
+        ** "SOFT-COLLATE" that is added to constraints that are pushed down
+        ** from outer queries into sub-queries by the push-down optimization.
+        ** Clear subtypes as subtypes may not cross a subquery boundary.
+        */
+        assert( pExpr->pLeft );
         inReg = sqlite3ExprCodeTarget(pParse, pExpr->pLeft, target);
         if( inReg!=target ){
           sqlite3VdbeAddOp2(v, OP_SCopy, inReg, target);
@@ -4830,16 +4847,22 @@ expr_code_doover:
           break;
         }
       }
-      addrINR = sqlite3VdbeAddOp1(v, OP_IfNullRow, pExpr->iTable);
-      /* Temporarily disable factoring of constant expressions, since
-      ** even though expressions may appear to be constant, they are not
-      ** really constant because they originate from the right-hand side
-      ** of a LEFT JOIN. */
-      pParse->okConstFactor = 0;
+      addrINR = sqlite3VdbeAddOp3(v, OP_IfNullRow, pExpr->iTable, 0, target);
+      /* The OP_IfNullRow opcode above can overwrite the result register with
+      ** NULL.  So we have to ensure that the result register is not a value
+      ** that is suppose to be a constant.  Two defenses are needed:
+      **   (1)  Temporarily disable factoring of constant expressions
+      **   (2)  Make sure the computed value really is stored in register
+      **        "target" and not someplace else.
+      */
+      pParse->okConstFactor = 0;   /* note (1) above */
       inReg = sqlite3ExprCodeTarget(pParse, pExpr->pLeft, target);
       pParse->okConstFactor = okConstFactor;
+      if( inReg!=target ){         /* note (2) above */
+        sqlite3VdbeAddOp2(v, OP_SCopy, inReg, target);
+        inReg = target;
+      }
       sqlite3VdbeJumpHere(v, addrINR);
-      sqlite3VdbeChangeP3(v, addrINR, inReg);
       break;
     }
 

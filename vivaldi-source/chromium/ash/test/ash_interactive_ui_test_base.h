@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@
 #include <string>
 
 #include "ash/test/ash_test_base.h"
-#include "base/macros.h"
 
 namespace aura {
 class Env;
@@ -20,6 +19,8 @@ namespace ash {
 class AshInteractiveUITestBase : public AshTestBase {
  public:
   AshInteractiveUITestBase();
+  AshInteractiveUITestBase(const AshInteractiveUITestBase&) = delete;
+  AshInteractiveUITestBase& operator=(const AshInteractiveUITestBase&) = delete;
   ~AshInteractiveUITestBase() override;
 
  protected:
@@ -29,8 +30,6 @@ class AshInteractiveUITestBase : public AshTestBase {
 
  private:
   std::unique_ptr<aura::Env> env_;
-
-  DISALLOW_COPY_AND_ASSIGN(AshInteractiveUITestBase);
 };
 
 }  // namespace ash

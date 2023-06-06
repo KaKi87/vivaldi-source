@@ -1,14 +1,17 @@
 This is a testharness.js-based test.
-Found 90 tests; 88 PASS, 2 FAIL, 0 TIMEOUT, 0 NOTRUN.
+Found 105 tests; 102 PASS, 3 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS URLSearchParams constructed with: test
 PASS request.formData() with input: test
 PASS response.formData() with input: test
 PASS URLSearchParams constructed with: ﻿test=﻿
-FAIL request.formData() with input: ﻿test=﻿ assert_array_equals: property 0, expected "﻿test" but got "test"
-FAIL response.formData() with input: ﻿test=﻿ assert_array_equals: property 0, expected "﻿test" but got "test"
+PASS request.formData() with input: ﻿test=﻿
+PASS response.formData() with input: ﻿test=﻿
 PASS URLSearchParams constructed with: %EF%BB%BFtest=%EF%BB%BF
 PASS request.formData() with input: %EF%BB%BFtest=%EF%BB%BF
 PASS response.formData() with input: %EF%BB%BFtest=%EF%BB%BF
+FAIL URLSearchParams constructed with: %EF%BF%BF=%EF%BF%BF assert_array_equals: expected property 0 to be "\uffff" but got "\ufffd" (expected array ["\uffff", "\uffff"] got ["\ufffd", "\ufffd"])
+FAIL request.formData() with input: %EF%BF%BF=%EF%BF%BF assert_array_equals: expected property 0 to be "\uffff" but got "\ufffd" (expected array ["\uffff", "\uffff"] got ["\ufffd", "\ufffd"])
+FAIL response.formData() with input: %EF%BF%BF=%EF%BF%BF assert_array_equals: expected property 0 to be "\uffff" but got "\ufffd" (expected array ["\uffff", "\uffff"] got ["\ufffd", "\ufffd"])
 PASS URLSearchParams constructed with: %FE%FF
 PASS request.formData() with input: %FE%FF
 PASS response.formData() with input: %FE%FF
@@ -90,5 +93,17 @@ PASS response.formData() with input: %61=a
 PASS URLSearchParams constructed with: %61+%4d%4D=
 PASS request.formData() with input: %61+%4d%4D=
 PASS response.formData() with input: %61+%4d%4D=
+PASS URLSearchParams constructed with: id=0&value=%
+PASS request.formData() with input: id=0&value=%
+PASS response.formData() with input: id=0&value=%
+PASS URLSearchParams constructed with: b=%2sf%2a
+PASS request.formData() with input: b=%2sf%2a
+PASS response.formData() with input: b=%2sf%2a
+PASS URLSearchParams constructed with: b=%2%2af%2a
+PASS request.formData() with input: b=%2%2af%2a
+PASS response.formData() with input: b=%2%2af%2a
+PASS URLSearchParams constructed with: b=%%2a
+PASS request.formData() with input: b=%%2a
+PASS response.formData() with input: b=%%2a
 Harness: the test ran to completion.
 

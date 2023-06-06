@@ -1,128 +1,91 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <string>
+#include "chrome/updater/mac/setup/keystone.h"
+
 #include <vector>
 
 #include "base/files/file_path.h"
+#include "base/files/file_util.h"
+#include "base/files/scoped_temp_dir.h"
+#include "base/path_service.h"
+#include "base/test/bind.h"
 #include "base/version.h"
-#include "chrome/updater/mac/setup/keystone.h"
+#include "chrome/common/chrome_paths.h"
 #include "chrome/updater/registration_data.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace updater {
 
-TEST(KeystoneTest, TicketsToMigrate_NoTickets) {
-  std::vector<RegistrationRequest> out =
-      internal::TicketsToMigrate("No tickets\n");
-  ASSERT_EQ(out.size(), 0UL);
-}
+class KeystoneTest : public testing::Test {
+ public:
+  ~KeystoneTest() override = default;
 
-TEST(KeystoneTest, TicketsToMigrate_Empty) {
-  std::vector<RegistrationRequest> out = internal::TicketsToMigrate("");
-  ASSERT_EQ(out.size(), 0UL);
-}
+  void SetUp() override {
+    ASSERT_TRUE(temp_keystone_dir_.CreateUniqueTempDir());
 
-TEST(KeystoneTest, TicketsToMigrate_Garbled) {
-  std::vector<RegistrationRequest> out =
-      internal::TicketsToMigrate("some\nbogus\01nonsense\xffvalue\0\n\n");
-  ASSERT_EQ(out.size(), 0UL);
-}
+    base::FilePath ticket_path =
+        temp_keystone_dir_.GetPath().AppendASCII("TicketStore");
+    ASSERT_TRUE(base::CreateDirectory(ticket_path));
 
-TEST(KeystoneTest, TicketsToMigrate_Tickets) {
-  std::vector<RegistrationRequest> out = internal::TicketsToMigrate(
-      "<KSTicket:0x7fda48414e90\n"
-      "\tproductID=com.google.Keystone\n"
-      "\tversion=1.3.16.180\n"
-      "\txc=<KSPathExistenceChecker:0x7fda48414350 "
-      "path=/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle>\n"
-      "\turl=https://tools.google.com/service/update2\n"
-      "\tcreationDate=2019-12-16 17:18:45\n"
-      "\tcohort=1:0:\n"
-      "\tcohortName=Everyone\n"
-      "\tticketVersion=1\n"
-      ">\n"
-      "<KSTicket:0x7fda484134a0\n"
-      "\tproductID=com.google.chrome_remote_desktop\n"
-      "\tversion=94.0.4606.27\n"
-      "\txc=<KSPathExistenceChecker:0x7fda48413c30 "
-      "path=/Library/LaunchAgents/org.chromium.chromoting.plist>\n"
-      "\tserverType=Omaha\n"
-      "\turl=https://tools.google.com/service/update2\n"
-      "\tcreationDate=2020-12-14 20:31:58\n"
-      "\tcohort=1:10ql:\n"
-      "\tcohortName=Stable\n"
-      "\tticketVersion=1\n"
-      ">\n"
-      "<KSTicket:0x7fda484151f0\n"
-      "\tproductID=com.google.Chrome\n"
-      "\tversion=93.0.4577.82\n"
-      "\txc=<KSPathExistenceChecker:0x7fda48414d20 path=/Applications/Google "
-      "Chrome.app>\n"
-      "\tserverType=Omaha\n"
-      "\turl=https://tools.google.com/service/update2\n"
-      "\tcreationDate=2019-12-19 17:15:37\n"
-      "\ttagPath=/Applications/Google Chrome.app/Contents/Info.plist\n"
-      "\ttagKey=KSChannelID\n"
-      "\tbrandPath=/Library/Google/Google Chrome Brand.plist\n"
-      "\tbrandKey=KSBrandID\n"
-      "\tversionPath=/Applications/Google Chrome.app/Contents/Info.plist\n"
-      "\tversionKey=KSVersion\n"
-      "\tcohort=1:1y5:119f@0.5\n"
-      "\tcohortName=Stable\n"
-      "\tticketVersion=1\n"
-      ">\n"
-      "<KSTicket:0x7fda48415700\n"
-      "\tproductID=com.google.Chrome.canary\n"
-      "\tversion=96.0.4656.0\n"
-      "\txc=<KSPathExistenceChecker:0x7fda48415810 path=/Applications/Google "
-      "Chrome Canary.app>\n"
-      "\tserverType=Omaha\n"
-      "\turl=https://tools.google.com/service/update2\n"
-      "\tcreationDate=2020-11-16 20:11:41\n"
-      "\ttag=canary\n"
-      "\ttagPath=/Applications/Google Chrome Canary.app/Contents/Info.plist\n"
-      "\ttagKey=KSChannelID\n"
-      "\tversionPath=/Applications/Google Chrome "
-      "Canary.app/Contents/Info.plist\n"
-      "\tversionKey=KSVersion\n"
-      "\tcohort=1:0:\n"
-      "\tcohortName=Canary\n"
-      "\tticketVersion=1\n"
-      ">\n");
-  ASSERT_EQ(out.size(), 4UL);
+    base::FilePath test_data_path;
+    ASSERT_TRUE(base::PathService::Get(chrome::DIR_TEST_DATA, &test_data_path));
+    test_data_path = test_data_path.AppendASCII("updater");
 
-  EXPECT_EQ(out[0].app_id, "com.google.Keystone");
-  EXPECT_EQ(out[0].brand_code, "");
-  EXPECT_EQ(out[0].tag, "");
-  EXPECT_EQ(out[0].version, base::Version("1.3.16.180"));
-  EXPECT_EQ(
-      out[0].existence_checker_path,
-      base::FilePath(
-          "/Library/Google/GoogleSoftwareUpdate/GoogleSoftwareUpdate.bundle"));
+    ASSERT_TRUE(base::CopyFile(
+        test_data_path.AppendASCII("Keystone.legacy.ticketstore"),
+        ticket_path.AppendASCII("Keystone.ticketstore")));
+    ASSERT_TRUE(base::CopyFile(
+        test_data_path.AppendASCII("CountingMetrics.plist"),
+        temp_keystone_dir_.GetPath().AppendASCII("CountingMetrics.plist")));
+  }
 
-  EXPECT_EQ(out[1].app_id, "com.google.chrome_remote_desktop");
-  EXPECT_EQ(out[1].brand_code, "");
-  EXPECT_EQ(out[1].tag, "");
-  EXPECT_EQ(out[1].version, base::Version("94.0.4606.27"));
-  EXPECT_EQ(
-      out[1].existence_checker_path,
-      base::FilePath("/Library/LaunchAgents/org.chromium.chromoting.plist"));
+ protected:
+  base::ScopedTempDir temp_keystone_dir_;
+};
 
-  EXPECT_EQ(out[2].app_id, "com.google.Chrome");
-  EXPECT_EQ(out[2].brand_code, "");
-  EXPECT_EQ(out[2].tag, "");
-  EXPECT_EQ(out[2].version, base::Version("93.0.4577.82"));
-  EXPECT_EQ(out[2].existence_checker_path,
-            base::FilePath("/Applications/Google Chrome.app"));
+TEST_F(KeystoneTest, MigrateKeystoneApps) {
+  std::vector<RegistrationRequest> registration_requests;
+  MigrateKeystoneApps(
+      temp_keystone_dir_.GetPath(),
+      base::BindLambdaForTesting(
+          [&registration_requests](const RegistrationRequest& request) {
+            registration_requests.push_back(request);
+          }));
 
-  EXPECT_EQ(out[3].app_id, "com.google.Chrome.canary");
-  EXPECT_EQ(out[3].brand_code, "");
-  EXPECT_EQ(out[3].tag, "canary");
-  EXPECT_EQ(out[3].version, base::Version("96.0.4656.0"));
-  EXPECT_EQ(out[3].existence_checker_path,
-            base::FilePath("/Applications/Google Chrome Canary.app"));
+  EXPECT_EQ(registration_requests.size(), 4u);
+
+  EXPECT_EQ(registration_requests[0].app_id, "com.chromium.CorruptedApp");
+  EXPECT_TRUE(registration_requests[0].brand_code.empty());
+  EXPECT_TRUE(registration_requests[0].brand_path.empty());
+  EXPECT_EQ(registration_requests[0].ap, "canary");
+  EXPECT_EQ(registration_requests[0].version, base::Version("1.2.1"));
+  EXPECT_EQ(registration_requests[0].existence_checker_path,
+            base::FilePath("/"));
+  EXPECT_FALSE(registration_requests[0].dla);   // Value is too big.
+  EXPECT_FALSE(registration_requests[0].dlrc);  // Value is too small.
+
+  EXPECT_EQ(registration_requests[1].app_id, "com.chromium.PopularApp");
+  EXPECT_TRUE(registration_requests[1].brand_code.empty());
+  EXPECT_EQ(registration_requests[1].brand_path, base::FilePath("/"));
+  EXPECT_EQ(registration_requests[1].ap, "GOOG");
+  EXPECT_EQ(registration_requests[1].version,
+            base::Version("101.100.1000.9999"));
+  EXPECT_EQ(registration_requests[1].existence_checker_path,
+            base::FilePath("/"));
+  EXPECT_EQ(registration_requests[1].dla.value(), 5921);
+  EXPECT_EQ(registration_requests[1].dlrc.value(), 5922);
+
+  EXPECT_EQ(registration_requests[2].app_id, "com.chromium.kipple");
+  EXPECT_TRUE(registration_requests[2].brand_path.empty());
+  EXPECT_EQ(registration_requests[2].existence_checker_path,
+            base::FilePath("/"));
+  EXPECT_FALSE(registration_requests[2].dla);   // No data.
+  EXPECT_FALSE(registration_requests[2].dlrc);  // String value is ignored.
+
+  EXPECT_EQ(registration_requests[3].app_id, "com.chromium.NonExistApp");
+  EXPECT_TRUE(registration_requests[3].brand_path.empty());
 }
 
 }  // namespace updater

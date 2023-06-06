@@ -1,19 +1,17 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/sync/model/syncable_service.h"
 
-#include <utility>
-
 namespace syncer {
-
-SyncableService::SyncableService() {}
-
-SyncableService::~SyncableService() {}
-
-void SyncableService::WaitUntilReadyToSync(base::OnceClosure done) {
-  std::move(done).Run();
+void SyncableService::OnBrowserShutdown(ModelType type) {
+  // Stop the syncable service to make sure instances of LocalChangeProcessor
+  // are not continued to be used.
+  // TODO(crbug.com/1400437): This is a temporary workaround.
+  // OnBrowserShutdown() should ideally have a default empty implementation. If
+  // not feasible, a better long-term approach should be to pass an
+  // `is_browser_shutdown` flag to StopSyncing() instead of using this method.
+  StopSyncing(type);
 }
-
 }  // namespace syncer

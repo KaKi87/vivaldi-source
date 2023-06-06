@@ -1,49 +1,51 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef IOS_CHROME_BROWSER_UI_CONTENT_SUGGESTIONS_CONTENT_SUGGESTIONS_METRICS_RECORDER_H_
 #define IOS_CHROME_BROWSER_UI_CONTENT_SUGGESTIONS_CONTENT_SUGGESTIONS_METRICS_RECORDER_H_
 
-#import <UIKit/UIKit.h>
+#import "ios/chrome/browser/ui/content_suggestions/ntp_home_constant.h"
 
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_metrics_recording.h"
+#import "ios/chrome/browser/metrics/new_tab_page_uma.h"
 
-@class ContentSuggestionsCategoryWrapper;
-@class ContentSuggestionsItem;
-@class ContentSuggestionsSectionInformation;
+namespace web {
+class WebState;
+}
 
-// Delegate for the metrics recorder.
-@protocol ContentSuggestionsMetricsRecorderDelegate
+typedef NS_ENUM(NSInteger, NTPCollectionShortcutType);
 
-// Returns a CategoryWrapper corresponding to this |sectionInfo|.
-- (nullable ContentSuggestionsCategoryWrapper*)categoryWrapperForSectionInfo:
-    (nonnull ContentSuggestionsSectionInformation*)sectionInfo;
+@class ContentSuggestionsMostVisitedItem;
 
-@end
+// Metrics recorder for the content suggestions.
+@interface ContentSuggestionsMetricsRecorder : NSObject
 
-// Records different metrics for ContentSuggestions
-@interface ContentSuggestionsMetricsRecorder
-    : NSObject<ContentSuggestionsMetricsRecording>
+// Logs a metric for the "Return to Recent Tab" tile being shown.
+- (void)recordReturnToRecentTabTileShown;
 
-@property(nonatomic, weak, nullable)
-    id<ContentSuggestionsMetricsRecorderDelegate>
-        delegate;
+// Logs a metric for a shortcut tile being tapped.
+- (void)recordShortcutTileTapped:(NTPCollectionShortcutType)shortcutType;
 
-// Records the opening of an |item| suggestion at the |indexPath|. Also needs
-// the number of |sectionsShownAbove| this section and the number of
-// |suggestionsAbove| its section. The item is opened with |action|.
-- (void)onSuggestionOpened:(nonnull ContentSuggestionsItem*)item
-               atIndexPath:(nonnull NSIndexPath*)indexPath
-        sectionsShownAbove:(NSInteger)sectionsShownAbove
-     suggestionsShownAbove:(NSInteger)suggestionsAbove
-                withAction:(WindowOpenDisposition)action;
+// Logs a trending query opened at `index` in the module.
+- (void)recordTrendingQueryTappedAtIndex:(int)index;
 
-// Records the opening of a context menu for an |item| at the |indexPath|. Needs
-// the number of |suggestionsAbove| the section of the item.
-- (void)onMenuOpenedForSuggestion:(nonnull ContentSuggestionsItem*)item
-                      atIndexPath:(nonnull NSIndexPath*)indexPath
-            suggestionsShownAbove:(NSInteger)suggestionsAbove;
+// Logs a most recent tab opened.
+- (void)recordMostRecentTabOpened;
+
+// Logs the most visited tiles being shown.
+- (void)recordMostVisitedTilesShown;
+
+// Logs a single most visited tile `item` being shown at `index`.
+- (void)recordMostVisitedTileShown:(ContentSuggestionsMostVisitedItem*)item
+                           atIndex:(NSInteger)index;
+
+// Logs a most visited tile `item` being opened at `index` in `webState`.
+- (void)recordMostVisitedTileOpened:(ContentSuggestionsMostVisitedItem*)item
+                            atIndex:(NSInteger)index
+                           webState:(web::WebState*)webState;
+
+// Logs a most visited tile being removed.
+- (void)recordMostVisitedTileRemoved;
 
 @end
 
