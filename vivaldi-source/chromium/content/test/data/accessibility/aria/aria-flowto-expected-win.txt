@@ -1,1 +1,5 @@
-#<skip - need to generate expectation>
+ROLE_SYSTEM_DOCUMENT READONLY FOCUSABLE
+++IA2_ROLE_LANDMARK name='current' flowsTo='IA2_ROLE_LANDMARK'
+++++ROLE_SYSTEM_STATICTEXT name='Lorem ipsum'
+++IA2_ROLE_LANDMARK name='next'
+++++ROLE_SYSTEM_STATICTEXT name='dolor sit amet'

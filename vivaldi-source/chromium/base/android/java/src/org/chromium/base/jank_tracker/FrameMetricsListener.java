@@ -1,58 +1,82 @@
-// Copyright 2021 The Chromium Authors
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.base.jank_tracker;
 
 import android.os.Build.VERSION_CODES;
+import android.os.SystemClock;
 import android.view.FrameMetrics;
 import android.view.Window;
 import android.view.Window.OnFrameMetricsAvailableListener;
 
 import androidx.annotation.RequiresApi;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.TraceEvent;
 
 /**
- * This class receives  OnFrameMetricsAvailableListener.onFrameMetricsAvailable() callbacks and
- * records frame durations in a FrameMetricsStore instance. Recording can be toggled from any
- * thread, but the actual recording occurs in the thread specified when this is attached to a window
- * with addOnFrameMetricsAvailableListener(). This class only adds data to the provided
- * FrameMetricsStore instance, its owner must clear it to avoid OOMs.
+ * This class receives OnFrameMetricsAvailableListener.onFrameMetricsAvailable() callbacks and
+ * records frame durations in a FrameMetricsStore instance.
  */
 @RequiresApi(api = VERSION_CODES.N)
-class FrameMetricsListener implements OnFrameMetricsAvailableListener {
+public class FrameMetricsListener implements OnFrameMetricsAvailableListener {
     private final FrameMetricsStore mFrameMetricsStore;
-    private final AtomicBoolean mIsRecording;
+    private boolean mIsRecording;
 
-    FrameMetricsListener(FrameMetricsStore frameMetricsStore) {
+    // The reporting interval start and duration are passed to the reporting code and used in the
+    // 'JankMetricsReportingInterval' trace event.
+    private long mReportingIntervalStartTime;
+    private long mReportingIntervalDurationMillis;
+
+    private final ThreadUtils.ThreadChecker mThreadChecker = new ThreadUtils.ThreadChecker();
+
+    public FrameMetricsListener(FrameMetricsStore frameMetricsStore) {
         mFrameMetricsStore = frameMetricsStore;
-        mIsRecording = new AtomicBoolean(false);
     }
 
     /**
-     * Toggles recording into JankMetricsStore, can be invoked from any thread.
+     * Toggles recording into FrameMetricsStore. When recording is stopped, reports accumulated
+     * metrics.
      * @param isRecording
      */
     public void setIsListenerRecording(boolean isRecording) {
-        mIsRecording.set(isRecording);
+        mThreadChecker.assertOnValidThread();
+        mIsRecording = isRecording;
+        if (isRecording && mReportingIntervalStartTime == 0) {
+            mReportingIntervalStartTime = SystemClock.uptimeMillis();
+        } else if (!isRecording) {
+            if (mReportingIntervalStartTime != 0) {
+                mReportingIntervalDurationMillis =
+                        SystemClock.uptimeMillis() - mReportingIntervalStartTime;
+            }
+            reportMetrics();
+        }
     }
 
     @RequiresApi(api = VERSION_CODES.N)
     @Override
     public void onFrameMetricsAvailable(
             Window window, FrameMetrics frameMetrics, int dropCountSinceLastInvocation) {
-        if (!mIsRecording.get()) {
+        mThreadChecker.assertOnValidThread();
+        if (!mIsRecording) {
             return;
         }
 
         long frameTotalDurationNs = frameMetrics.getMetric(FrameMetrics.TOTAL_DURATION);
 
-        // The total frame duration is considered from the intended VSYNC time till the actual
-        // presentation time.
-        long timestampNs = frameMetrics.getMetric(FrameMetrics.INTENDED_VSYNC_TIMESTAMP);
+        try (TraceEvent e = TraceEvent.scoped(
+                     "onFrameMetricsAvailable", Long.toString(frameTotalDurationNs))) {
+            long deadlineNs = frameMetrics.getMetric(FrameMetrics.DEADLINE);
+            boolean isJanky = frameTotalDurationNs >= deadlineNs;
+            mFrameMetricsStore.addFrameMeasurement(frameTotalDurationNs, isJanky);
+        }
+    }
 
-        mFrameMetricsStore.addFrameMeasurement(
-                timestampNs, frameTotalDurationNs, dropCountSinceLastInvocation);
+    private void reportMetrics() {
+        JankMetricUMARecorder.recordJankMetricsToUMA(mFrameMetricsStore.takeMetrics(),
+                mReportingIntervalStartTime, mReportingIntervalDurationMillis);
+        mReportingIntervalStartTime = 0;
+        mReportingIntervalDurationMillis = 0;
     }
 }

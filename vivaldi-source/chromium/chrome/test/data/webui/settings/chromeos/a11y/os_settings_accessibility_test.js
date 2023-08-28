@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,9 +11,9 @@ GEN_INCLUDE([
 ]);
 
 /**
- * Test fixture for Accessibility of Chrome Settings.
+ * Test fixture for Accessibility of Chrome OS Settings.
  * @constructor
- * @extends {Polymer2DeprecatedTest}
+ * @extends {PolymerTest}
  */
 function OSSettingsAccessibilityTest() {}
 
@@ -25,19 +25,10 @@ OSSettingsAccessibilityTest.axeOptions = {
     'skip-link': {enabled: false},
     // TODO(crbug.com/761461): enable after addressing flaky tests.
     'color-contrast': {enabled: false},
-  }
+    // The HTML language attribute isn't set by the test_loader.html dummy file.
+    'html-has-lang': {enabled: false},
+  },
 };
-
-// TODO(crbug.com/1002627): This block prevents generation of a
-// link-in-text-block browser-test. This can be removed once the bug is
-// addressed, and usage should be replaced with
-// OSSettingsAccessibilityTest.axeOptions
-OSSettingsAccessibilityTest.axeOptionsExcludeLinkInTextBlock =
-    Object.assign({}, OSSettingsAccessibilityTest.axeOptions, {
-      'rules': Object.assign({}, OSSettingsAccessibilityTest.axeOptions.rules, {
-        'link-in-text-block': {enabled: false},
-      })
-    });
 
 // Default accessibility audit options. Specify in test definition to use.
 OSSettingsAccessibilityTest.violationFilter = {
@@ -70,8 +61,22 @@ OSSettingsAccessibilityTest.violationFilter = {
 };
 
 OSSettingsAccessibilityTest.prototype = {
-  __proto__: Polymer2DeprecatedTest.prototype,
+  __proto__: PolymerTest.prototype,
 
   /** @override */
-  browsePreload: 'chrome://os-settings/',
+  browsePreload:
+      'chrome://os-settings/test_loader.html?module=settings/a11y/basic_a11y_test.js',
+
+  // Include files that define the mocha tests.
+  extraLibraries: [
+    '//third_party/axe-core/axe.js',
+  ],
+
+  setUp: function() {
+    PolymerTest.prototype.setUp.call(this);
+
+    return new Promise(resolve => {
+      document.addEventListener('a11y-setup-complete', resolve);
+    });
+  },
 };

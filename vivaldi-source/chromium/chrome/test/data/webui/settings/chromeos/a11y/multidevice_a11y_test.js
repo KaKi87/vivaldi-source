@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,28 +7,9 @@
  * Chrome OS only.
  */
 
-GEN_INCLUDE([
-  '//chrome/test/data/webui/polymer_browser_test_base.js',
-  'os_settings_accessibility_test.js',
-]);
+import {Router, routes} from 'chrome://os-settings/os_settings.js';
+import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-GEN('#include "content/public/test/browser_test.h"');
-
-// eslint-disable-next-line no-var
-var MultideviceA11yTest = class extends OSSettingsAccessibilityTest {};
-
-AccessibilityTest.define('MultideviceA11yTest', {
-  /** @override */
-  name: 'MULTIDEVICE',
-  /** @override */
-  axeOptions: OSSettingsAccessibilityTest.axeOptionsExcludeLinkInTextBlock,
-  /** @override */
-  setup: function() {
-    settings.Router.getInstance().navigateTo(settings.routes.MULTIDEVICE);
-    Polymer.dom.flush();
-  },
-  /** @override */
-  tests: {'Accessible with No Changes': function() {}},
-  /** @override */
-  violationFilter: OSSettingsAccessibilityTest.violationFilter,
-});
+Router.getInstance().navigateTo(routes.MULTIDEVICE);
+flush();
+document.dispatchEvent(new CustomEvent('a11y-setup-complete'));

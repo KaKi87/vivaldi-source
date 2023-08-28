@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,11 @@ package org.chromium.base.jank_tracker;
  * to UMA.
  */
 class JankMetrics {
-    public final long[] timestampsNs;
     public final long[] durationsNs;
-    public final long[] jankBurstsNs;
-    public final int skippedFrames;
+    public final boolean[] isJanky;
 
-    public JankMetrics(
-            long[] timestampsNs, long[] durationsNs, long[] jankBurstsNs, int skippedFrames) {
-        this.timestampsNs = timestampsNs;
+    public JankMetrics(long[] durationsNs, boolean[] isJanky) {
         this.durationsNs = durationsNs;
-        this.jankBurstsNs = jankBurstsNs;
-        this.skippedFrames = skippedFrames;
+        this.isJanky = isJanky;
     }
 }

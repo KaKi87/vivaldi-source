@@ -25,5 +25,10 @@ function generateBid(interestGroup, auctionSignals, perBuyerSignals,
 
 function reportWin(
     auctionSignals, perBuyerSignals, sellerSignals, browserSignals) {
+  registerAdBeacon({
+    'reserved.top_navigation':
+        browserSignals.interestGroupOwner +
+        '/wpt_internal/fenced_frame/resources/automatic-beacon-store.py'
+  });
   return;
 }

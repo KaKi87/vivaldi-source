@@ -1,37 +1,14 @@
 {
   "layers": [
     {
-      "name": "LayoutView #document",
-      "bounds": [800, 600],
-      "drawsContent": false,
-      "backgroundColor": "#FFFFFF"
-    },
-    {
-      "name": "Scrolling Layer",
-      "bounds": [800, 600],
-      "drawsContent": false
-    },
-    {
-      "name": "Scrolling Contents Layer",
+      "name": "Scrolling background of LayoutNGView #document",
       "bounds": [800, 600],
       "contentsOpaque": true,
-      "backgroundColor": "#FFFFFF",
-      "paintInvalidations": [
-        {
-          "object": "NGPhysicalTextFragment '\n'",
-          "rect": [24, 8, 16, 16],
-          "reason": "appeared"
-        },
-        {
-          "object": "NGPhysicalTextFragment 'b'",
-          "rect": [8, 24, 16, 16],
-          "reason": "selection"
-        },
-        {
-          "object": "NGPhysicalTextFragment 'a'",
-          "rect": [8, 8, 16, 16],
-          "reason": "selection"
-        }
+      "backgroundColor": "#90EE90",
+      "invalidations": [
+        [24, 8, 16, 16],
+        [8, 24, 16, 16],
+        [8, 8, 16, 16]
       ]
     }
   ]

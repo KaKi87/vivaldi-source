@@ -28,8 +28,10 @@ PASS CORS that succeeds with credentials: true; method: put (allowed: PUT); head
 PASS CORS that fails with credentials: true; method: PUT (allowed: put); header:  (allowed: *)
 PASS CORS that fails with credentials: true; method: put (allowed: put); header:  (allowed: *)
 PASS CORS that succeeds with credentials: true; method: PATCH (allowed: PATCH); header:  (allowed: *)
-FAIL CORS that fails with credentials: true; method: patch (allowed: PATCH); header:  (allowed: *) assert_unreached: Should have rejected: undefined Reached unreachable code
+PASS CORS that fails with credentials: true; method: patch (allowed: PATCH); header:  (allowed: *)
 PASS CORS that fails with credentials: true; method: PATCH (allowed: patch); header:  (allowed: *)
-FAIL CORS that succeeds with credentials: true; method: patch (allowed: patch); header:  (allowed: *) promise_test: Unhandled rejection with value: object "TypeError: Failed to fetch"
+PASS CORS that succeeds with credentials: true; method: patch (allowed: patch); header:  (allowed: *)
+FAIL CORS that fails with credentials: false; method: POST (allowed: *); header: Authorization,123 (allowed: *) assert_unreached: Should have rejected: undefined Reached unreachable code
+PASS CORS that succeeds with credentials: false; method: POST (allowed: *); header: Authorization,123 (allowed: *, Authorization)
 Harness: the test ran to completion.
 
