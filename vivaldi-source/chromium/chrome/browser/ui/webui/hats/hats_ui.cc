@@ -1,38 +1,41 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/webui/hats/hats_ui.h"
 
-#include <utility>
-
-#include "base/optional.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/hats/hats_handler.h"
-#include "chrome/common/url_constants.h"
-#include "chrome/grit/browser_resources.h"
+#include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/webui/webui_util.h"
+#include "chrome/common/webui_url_constants.h"
+#include "chrome/grit/hats_resources.h"
+#include "chrome/grit/hats_resources_map.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
-#include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
 
-HatsUI::HatsUI(content::WebUI* web_ui) : content::WebUIController(web_ui) {
-  // Set up the chrome://hats/ source.
-  content::WebUIDataSource* source =
-      content::WebUIDataSource::Create(chrome::kChromeUIHatsHost);
+HatsUIConfig::HatsUIConfig()
+    : WebUIConfig(content::kChromeUIUntrustedScheme,
+                  chrome::kChromeUIUntrustedHatsHost) {}
 
-  // TODO(jeffreycohen) The Site ID for the current survey will need to be
-  // passed into the JS with code similar to this :
-  // source->AddString("trigger", "z4cctguzopq5x2ftal6vdgjrui");
-  source->SetJsonPath("strings.js");
-
-  source->AddResourcePath("hats.js", IDR_DESKTOP_HATS_JS);
-  source->SetDefaultResource(IDR_DESKTOP_HATS_HTML);
-
-  Profile* profile = Profile::FromWebUI(web_ui);
-  content::WebUIDataSource::Add(profile, source);
-
-  auto handler = std::make_unique<HatsHandler>();
-  web_ui->AddMessageHandler(std::move(handler));
+bool HatsUIConfig::IsWebUIEnabled(content::BrowserContext* browser_context) {
+  return base::FeatureList::IsEnabled(features::kHaTSWebUI);
 }
 
-HatsUI::~HatsUI() {}
+std::unique_ptr<content::WebUIController> HatsUIConfig::CreateWebUIController(
+    content::WebUI* web_ui,
+    const GURL& url) {
+  return std::make_unique<HatsUI>(web_ui);
+}
+
+HatsUI::HatsUI(content::WebUI* web_ui) : ui::UntrustedWebUIController(web_ui) {
+  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
+      web_ui->GetWebContents()->GetBrowserContext(),
+      chrome::kChromeUIUntrustedHatsURL);
+
+  // Add required resources.
+  webui::SetupWebUIDataSource(
+      source, base::make_span(kHatsResources, kHatsResourcesSize),
+      IDR_HATS_HATS_HTML);
+}
+
+WEB_UI_CONTROLLER_TYPE_IMPL(HatsUI)

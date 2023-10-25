@@ -1,3 +1,1 @@
-monorail: {
-  component: "Services>SignIn"
-}
+mixins: "//chrome/browser/profiles/COMMON_METADATA"

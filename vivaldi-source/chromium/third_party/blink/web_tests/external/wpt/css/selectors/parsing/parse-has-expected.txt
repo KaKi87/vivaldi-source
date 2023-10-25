@@ -22,9 +22,12 @@ PASS ".a:has(:not(.b))" should be a valid selector
 PASS ".a:has(.b):has(.c)" should be a valid selector
 PASS "*|*:has(*)" should be a valid selector
 PASS ":has(*|*)" should be a valid selector
-FAIL ".a:has()" should be a valid selector Failed to execute 'querySelector' on 'Document': '.a:has()' is not a valid selector.
 PASS ":has" should be an invalid selector
 PASS ".a:has" should be an invalid selector
 PASS ".a:has b" should be an invalid selector
+PASS ":has()" should be an invalid selector
+PASS ":has(123)" should be an invalid selector
+PASS ":has(.a, 123)" should be an invalid selector
+FAIL ":has(:is(.a, 123))" should be a valid selector assert_equals: serialization should be canonical expected ":has(:is(.a, 123))" but got ":has(:is(.a))"
 Harness: the test ran to completion.
 

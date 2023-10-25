@@ -1,7 +1,3 @@
-specific_include_rules = {
-  # TODO(crbug.com/1294160): Remove this dependency.
-  "^tracker_util.mm": [
-    "+ios/chrome/browser/ui/commands/open_new_tab_command.h",
-  ],
-}
-
+include_rules = [
+  "+ios/chrome/browser/promos_manager",
+]
