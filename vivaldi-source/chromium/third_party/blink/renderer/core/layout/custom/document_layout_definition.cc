@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ bool DocumentLayoutDefinition::IsEqual(const CSSLayoutDefinition& other) {
              other.ChildCustomInvalidationProperties();
 }
 
-void DocumentLayoutDefinition::Trace(blink::Visitor* visitor) {
+void DocumentLayoutDefinition::Trace(Visitor* visitor) const {
   visitor->Trace(layout_definition_);
 }
 

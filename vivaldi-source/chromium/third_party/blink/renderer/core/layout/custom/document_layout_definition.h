@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ namespace blink {
 // needed by the document about the author defined layout.
 // https://drafts.css-houdini.org/css-layout-api/#document-layout-definition
 class DocumentLayoutDefinition final
-    : public GarbageCollectedFinalized<DocumentLayoutDefinition> {
+    : public GarbageCollected<DocumentLayoutDefinition> {
  public:
   explicit DocumentLayoutDefinition(CSSLayoutDefinition*);
   virtual ~DocumentLayoutDefinition();
@@ -37,7 +37,7 @@ class DocumentLayoutDefinition final
     return registered_definitions_count_;
   }
 
-  virtual void Trace(blink::Visitor*);
+  virtual void Trace(Visitor*) const;
 
  private:
   bool IsEqual(const CSSLayoutDefinition&);

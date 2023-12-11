@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,44 +13,54 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_fragment_result_options.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_function.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_intrinsic_sizes_callback.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_intrinsic_sizes_result_options.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_layout_callback.h"
-#include "third_party/blink/renderer/bindings/core/v8/v8_layout_fragment_request.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_no_argument_constructor.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_script_runner.h"
 #include "third_party/blink/renderer/core/css/cssom/prepopulated_computed_style_property_map.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
+#include "third_party/blink/renderer/core/layout/custom/custom_layout_child.h"
 #include "third_party/blink/renderer/core/layout/custom/custom_layout_constraints.h"
+#include "third_party/blink/renderer/core/layout/custom/custom_layout_edges.h"
 #include "third_party/blink/renderer/core/layout/custom/custom_layout_fragment.h"
-#include "third_party/blink/renderer/core/layout/custom/fragment_result_options.h"
-#include "third_party/blink/renderer/core/layout/custom/layout_custom.h"
+#include "third_party/blink/renderer/core/layout/custom/custom_layout_scope.h"
+#include "third_party/blink/renderer/core/layout/ng/ng_block_node.h"
+#include "third_party/blink/renderer/core/layout/ng/ng_constraint_space.h"
+#include "third_party/blink/renderer/core/layout/ng/ng_layout_input_node.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/bindings/v8_binding_macros.h"
 #include "third_party/blink/renderer/platform/bindings/v8_object_constructor.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
 namespace {
 
-bool IsLogicalHeightDefinite(const LayoutCustom& layout_custom) {
-  if (layout_custom.HasOverrideLogicalHeight())
-    return true;
+void GatherChildren(const NGBlockNode& node,
+                    CustomLayoutScope* custom_layout_scope,
+                    HeapVector<Member<CustomLayoutChild>>* children) {
+  // TODO(ikilpatrick): Determine if knowing the size of the array ahead of
+  // time improves performance in any noticeable way.
+  for (NGLayoutInputNode child = node.FirstChild(); child;
+       child = child.NextSibling()) {
+    if (child.IsOutOfFlowPositioned())
+      continue;
 
-  // In quirks mode the document and body element stretch to the viewport.
-  if (layout_custom.StretchesToViewport())
-    return true;
-
-  if (layout_custom.HasDefiniteLogicalHeight())
-    return true;
-
-  return false;
+    CustomLayoutChild* layout_child = child.GetCustomLayoutChild();
+    layout_child->SetCustomLayoutToken(custom_layout_scope->Token());
+    DCHECK(layout_child);
+    children->push_back(layout_child);
+  }
 }
 
-}  // namespace
+}  // anonymous namespace
 
 CSSLayoutDefinition::CSSLayoutDefinition(
     ScriptState* script_state,
     V8NoArgumentConstructor* constructor,
-    V8Function* intrinsic_sizes,
+    V8IntrinsicSizesCallback* intrinsic_sizes,
     V8LayoutCallback* layout,
     const Vector<CSSPropertyID>& native_invalidation_properties,
     const Vector<AtomicString>& custom_invalidation_properties,
@@ -58,7 +68,7 @@ CSSLayoutDefinition::CSSLayoutDefinition(
     const Vector<AtomicString>& child_custom_invalidation_properties)
     : script_state_(script_state),
       constructor_(constructor),
-      unused_intrinsic_sizes_(intrinsic_sizes),
+      intrinsic_sizes_(intrinsic_sizes),
       layout_(layout),
       native_invalidation_properties_(native_invalidation_properties),
       custom_invalidation_properties_(custom_invalidation_properties),
@@ -75,8 +85,13 @@ CSSLayoutDefinition::Instance::Instance(CSSLayoutDefinition* definition,
       instance_(definition->GetScriptState()->GetIsolate(), instance) {}
 
 bool CSSLayoutDefinition::Instance::Layout(
-    const LayoutCustom& layout_custom,
-    FragmentResultOptions* fragment_result_options,
+    const NGConstraintSpace& space,
+    const Document& document,
+    const NGBlockNode& node,
+    const LogicalSize& border_box_size,
+    const BoxStrut& border_scrollbar_padding,
+    CustomLayoutScope* custom_layout_scope,
+    FragmentResultOptions*& fragment_result_options,
     scoped_refptr<SerializedScriptValue>* fragment_result_data) {
   ScriptState* script_state = definition_->GetScriptState();
   v8::Isolate* isolate = script_state->GetIsolate();
@@ -86,136 +101,67 @@ bool CSSLayoutDefinition::Instance::Layout(
 
   ScriptState::Scope scope(script_state);
 
-  // TODO(ikilpatrick): Determine if knowing the size of the array ahead of
-  // time improves performance in any noticable way.
   HeapVector<Member<CustomLayoutChild>> children;
-  for (LayoutBox* child = layout_custom.FirstChildBox(); child;
-       child = child->NextSiblingBox()) {
-    if (child->IsOutOfFlowPositioned())
-      continue;
+  GatherChildren(node, custom_layout_scope, &children);
 
-    CustomLayoutChild* layout_child = child->GetCustomLayoutChild();
-    DCHECK(layout_child);
-    children.push_back(layout_child);
-  }
+  CustomLayoutEdges* edges =
+      MakeGarbageCollected<CustomLayoutEdges>(border_scrollbar_padding);
 
-  // TODO(ikilpatrick): Fill in layout edges.
-  ScriptValue edges(script_state, v8::Undefined(isolate));
-
-  LayoutUnit fixed_block_size(-1);
-  if (IsLogicalHeightDefinite(layout_custom)) {
-    LayoutBox::LogicalExtentComputedValues computed_values;
-    layout_custom.ComputeLogicalHeight(LayoutUnit(-1), LayoutUnit(),
-                                       computed_values);
-    fixed_block_size = computed_values.extent_;
-  }
-
-  // TODO(ikilpatrick): Fill in layout constraints.
   CustomLayoutConstraints* constraints =
       MakeGarbageCollected<CustomLayoutConstraints>(
-          layout_custom.LogicalWidth(), fixed_block_size,
-          layout_custom.GetConstraintData(), isolate);
+          border_box_size, space.CustomLayoutData(), isolate);
 
   // TODO(ikilpatrick): Instead of creating a new style_map each time here,
   // store on LayoutCustom, and update when the style changes.
   StylePropertyMapReadOnly* style_map =
       MakeGarbageCollected<PrepopulatedComputedStylePropertyMap>(
-          layout_custom.GetDocument(), layout_custom.StyleRef(),
-          layout_custom.GetNode(), definition_->native_invalidation_properties_,
+          document, node.Style(), definition_->native_invalidation_properties_,
           definition_->custom_invalidation_properties_);
 
+  ExecutionContext* execution_context = ExecutionContext::From(script_state);
+  v8::MicrotaskQueue* microtask_queue = ToMicrotaskQueue(execution_context);
+  DCHECK(microtask_queue);
+
   ScriptValue return_value;
-  if (!definition_->layout_
-           ->Invoke(instance_.NewLocal(isolate), children, edges, constraints,
-                    style_map)
-           .To(&return_value)) {
+  {
+    v8::MicrotasksScope microtasks_scope(isolate, microtask_queue,
+                                         v8::MicrotasksScope::kRunMicrotasks);
+    if (!definition_->layout_
+             ->Invoke(instance_.Get(isolate), children, edges, constraints,
+                      style_map)
+             .To(&return_value)) {
+      return false;
+    }
+  }
+
+  ExceptionState exception_state(isolate,
+                                 ExceptionContextType::kOperationInvoke,
+                                 "CSSLayoutAPI", "Layout");
+
+  v8::Local<v8::Value> v8_return_value = return_value.V8Value();
+  if (v8_return_value.IsEmpty() || !v8_return_value->IsPromise()) {
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "The layout function must be async or return a "
+        "promise, falling back to block layout."));
     return false;
   }
 
-  DCHECK(return_value.V8Value()->IsGeneratorObject());
-  ScriptIterator iterator(return_value.V8Value().As<v8::Object>(), isolate);
-  v8::Local<v8::Value> next_value;
-
-  // We run the generator until it's exhausted.
-  v8::Local<v8::Context> context = script_state->GetContext();
-  ExecutionContext* execution_context = ExecutionContext::From(script_state);
-  ExceptionState exception_state(isolate, ExceptionState::kExecutionContext,
-                                 "CSSLayoutAPI", "Layout");
-  while (iterator.Next(execution_context, exception_state, next_value)) {
-    if (exception_state.HadException()) {
-      ReportException(&exception_state);
-      return false;
-    }
-
-    // The value should already be non-empty, if not it should have be caught
-    // by the exception_state.HadException() above.
-    v8::Local<v8::Value> value = iterator.GetValue().ToLocalChecked();
-
-    // Process a single fragment request.
-    if (V8LayoutFragmentRequest::HasInstance(value, isolate)) {
-      CustomLayoutFragmentRequest* fragment_request =
-          V8LayoutFragmentRequest::ToImpl(v8::Local<v8::Object>::Cast(value));
-
-      CustomLayoutFragment* fragment = fragment_request->PerformLayout(isolate);
-      if (!fragment) {
-        execution_context->AddConsoleMessage(ConsoleMessage::Create(
-            mojom::ConsoleMessageSource::kJavaScript,
-            mojom::ConsoleMessageLevel::kInfo,
-            "Unable to perform layout request due to an invalid child, "
-            "falling back to block layout."));
-        return false;
+  // Run the work queue until exhaustion.
+  auto& queue = *custom_layout_scope->Queue();
+  while (!queue.empty()) {
+    {
+      v8::MicrotasksScope microtasks_scope(
+          isolate, microtask_queue, v8::MicrotasksScope::kDoNotRunMicrotasks);
+      // The queue may mutate (re-allocating the vector) while running a task.
+      for (wtf_size_t index = 0; index < queue.size(); ++index) {
+        auto task = queue[index];
+        task->Run(space, node.Style(), border_box_size.block_size);
       }
-
-      next_value = ToV8(fragment, context->Global(), isolate);
-      continue;
+      queue.clear();
     }
-
-    // Process multiple fragment requests.
-    if (HasCallableIteratorSymbol(isolate, value, exception_state)) {
-      HeapVector<Member<CustomLayoutFragmentRequest>> requests =
-          NativeValueTraits<IDLSequence<CustomLayoutFragmentRequest>>::
-              NativeValue(isolate, value, exception_state);
-      if (exception_state.HadException()) {
-        ReportException(&exception_state);
-        return false;
-      }
-
-      v8::Local<v8::Array> results = v8::Array::New(isolate, requests.size());
-      uint32_t index = 0;
-      for (const auto& request : requests) {
-        CustomLayoutFragment* fragment = request->PerformLayout(isolate);
-
-        if (!fragment) {
-          execution_context->AddConsoleMessage(ConsoleMessage::Create(
-              mojom::ConsoleMessageSource::kJavaScript,
-              mojom::ConsoleMessageLevel::kInfo,
-              "Unable to perform layout request due to an invalid child, "
-              "falling back to block layout."));
-          return false;
-        }
-
-        bool success;
-        if (!results
-                 ->CreateDataProperty(
-                     context, index++,
-                     ToV8(fragment, context->Global(), isolate))
-                 .To(&success) &&
-            success)
-          return false;
-      }
-
-      next_value = results;
-      continue;
-    }
-
-    // We recieved something that wasn't either a CustomLayoutFragmentRequest,
-    // or a sequence of CustomLayoutFragmentRequests. Fallback to block layout.
-    execution_context->AddConsoleMessage(
-        ConsoleMessage::Create(mojom::ConsoleMessageSource::kJavaScript,
-                               mojom::ConsoleMessageLevel::kInfo,
-                               "Unable to parse the layout request, "
-                               "falling back to block layout."));
-    return false;
+    microtask_queue->PerformCheckpoint(isolate);
   }
 
   if (exception_state.HadException()) {
@@ -223,28 +169,40 @@ bool CSSLayoutDefinition::Instance::Layout(
     return false;
   }
 
-  // The value should already be non-empty, if not it should have be caught by
-  // the ReportException() above.
-  v8::Local<v8::Value> result_value = iterator.GetValue().ToLocalChecked();
+  v8::Local<v8::Promise> v8_result_promise =
+      v8::Local<v8::Promise>::Cast(v8_return_value);
+
+  if (v8_result_promise->State() != v8::Promise::kFulfilled) {
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "The layout function promise must resolve, "
+        "falling back to block layout."));
+    return false;
+  }
+  v8::Local<v8::Value> inner_value = v8_result_promise->Result();
 
   // Attempt to convert the result.
-  V8FragmentResultOptions::ToImpl(isolate, result_value,
-                                  fragment_result_options, exception_state);
+  fragment_result_options =
+      NativeValueTraits<FragmentResultOptions>::NativeValue(
+          isolate, inner_value, exception_state);
 
   if (exception_state.HadException()) {
     V8ScriptRunner::ReportException(isolate, exception_state.GetException());
     exception_state.ClearException();
-    execution_context->AddConsoleMessage(
-        ConsoleMessage::Create(mojom::ConsoleMessageSource::kJavaScript,
-                               mojom::ConsoleMessageLevel::kInfo,
-                               "Unable to parse the layout function "
-                               "result, falling back to block layout."));
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "Unable to parse the layout function "
+        "result, falling back to block layout."));
     return false;
   }
 
   // Serialize any extra data provided by the web-developer to potentially pass
   // up to the parent custom layout.
   if (fragment_result_options->hasData()) {
+    v8::MicrotasksScope microtasks_scope(isolate, microtask_queue,
+                                         v8::MicrotasksScope::kRunMicrotasks);
     // We serialize "kForStorage" so that SharedArrayBuffers can't be shared
     // between LayoutWorkletGlobalScopes.
     *fragment_result_data = SerializedScriptValue::Serialize(
@@ -257,11 +215,125 @@ bool CSSLayoutDefinition::Instance::Layout(
   if (exception_state.HadException()) {
     V8ScriptRunner::ReportException(isolate, exception_state.GetException());
     exception_state.ClearException();
-    execution_context->AddConsoleMessage(
-        ConsoleMessage::Create(mojom::ConsoleMessageSource::kJavaScript,
-                               mojom::ConsoleMessageLevel::kInfo,
-                               "Unable to serialize the data provided in the "
-                               "result, falling back to block layout."));
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "Unable to serialize the data provided in the "
+        "result, falling back to block layout."));
+    return false;
+  }
+
+  return true;
+}
+
+bool CSSLayoutDefinition::Instance::IntrinsicSizes(
+    const NGConstraintSpace& space,
+    const Document& document,
+    const NGBlockNode& node,
+    const LogicalSize& border_box_size,
+    const BoxStrut& border_scrollbar_padding,
+    const LayoutUnit child_available_block_size,
+    CustomLayoutScope* custom_layout_scope,
+    IntrinsicSizesResultOptions** intrinsic_sizes_result_options,
+    bool* child_depends_on_block_constraints) {
+  ScriptState* script_state = definition_->GetScriptState();
+  v8::Isolate* isolate = script_state->GetIsolate();
+
+  if (!script_state->ContextIsValid())
+    return false;
+
+  ScriptState::Scope scope(script_state);
+
+  HeapVector<Member<CustomLayoutChild>> children;
+  GatherChildren(node, custom_layout_scope, &children);
+
+  CustomLayoutEdges* edges =
+      MakeGarbageCollected<CustomLayoutEdges>(border_scrollbar_padding);
+
+  // TODO(ikilpatrick): Instead of creating a new style_map each time here,
+  // store on LayoutCustom, and update when the style changes.
+  StylePropertyMapReadOnly* style_map =
+      MakeGarbageCollected<PrepopulatedComputedStylePropertyMap>(
+          document, node.Style(), definition_->native_invalidation_properties_,
+          definition_->custom_invalidation_properties_);
+
+  ExecutionContext* execution_context = ExecutionContext::From(script_state);
+  v8::MicrotaskQueue* microtask_queue = ToMicrotaskQueue(execution_context);
+  DCHECK(microtask_queue);
+
+  ScriptValue return_value;
+  {
+    v8::MicrotasksScope microtasks_scope(isolate, microtask_queue,
+                                         v8::MicrotasksScope::kRunMicrotasks);
+    if (!definition_->intrinsic_sizes_
+             ->Invoke(instance_.Get(isolate), children, edges, style_map)
+             .To(&return_value)) {
+      return false;
+    }
+  }
+
+  ExceptionState exception_state(isolate,
+                                 ExceptionContextType::kOperationInvoke,
+                                 "CSSLayoutAPI", "IntrinsicSizes");
+
+  v8::Local<v8::Value> v8_return_value = return_value.V8Value();
+  if (v8_return_value.IsEmpty() || !v8_return_value->IsPromise()) {
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "The intrinsicSizes function must be async or return a "
+        "promise, falling back to block layout."));
+    return false;
+  }
+
+  // Run the work queue until exhaustion.
+  auto& queue = *custom_layout_scope->Queue();
+  while (!queue.empty()) {
+    {
+      v8::MicrotasksScope microtasks_scope(
+          isolate, microtask_queue, v8::MicrotasksScope::kDoNotRunMicrotasks);
+      // The queue may mutate (re-allocating the vector) while running a task.
+      for (wtf_size_t index = 0; index < queue.size(); ++index) {
+        auto task = queue[index];
+        task->Run(space, node.Style(), child_available_block_size,
+                  child_depends_on_block_constraints);
+      }
+      queue.clear();
+    }
+    microtask_queue->PerformCheckpoint(isolate);
+  }
+
+  if (exception_state.HadException()) {
+    ReportException(&exception_state);
+    return false;
+  }
+
+  v8::Local<v8::Promise> v8_result_promise =
+      v8::Local<v8::Promise>::Cast(v8_return_value);
+
+  if (v8_result_promise->State() != v8::Promise::kFulfilled) {
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "The intrinsicSizes function promise must resolve, "
+        "falling back to block layout."));
+    return false;
+  }
+  v8::Local<v8::Value> inner_value = v8_result_promise->Result();
+
+  // Attempt to convert the result.
+  *intrinsic_sizes_result_options =
+      NativeValueTraits<IntrinsicSizesResultOptions>::NativeValue(
+          isolate, inner_value, exception_state);
+
+  if (exception_state.HadException()) {
+    V8ScriptRunner::ReportException(isolate, exception_state.GetException());
+    exception_state.ClearException();
+    execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
+        mojom::ConsoleMessageSource::kJavaScript,
+        mojom::ConsoleMessageLevel::kInfo,
+        "Unable to parse the intrinsicSizes function "
+        "result, falling back to block layout."));
     return false;
   }
 
@@ -278,7 +350,7 @@ void CSSLayoutDefinition::Instance::ReportException(
   // again (as the callbacks are invoked directly by the UA).
   V8ScriptRunner::ReportException(isolate, exception_state->GetException());
   exception_state->ClearException();
-  execution_context->AddConsoleMessage(ConsoleMessage::Create(
+  execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
       mojom::ConsoleMessageSource::kJavaScript,
       mojom::ConsoleMessageLevel::kInfo,
       "The layout function failed, falling back to block layout."));
@@ -303,13 +375,14 @@ CSSLayoutDefinition::Instance* CSSLayoutDefinition::CreateInstance() {
   return MakeGarbageCollected<Instance>(this, instance.V8Value());
 }
 
-void CSSLayoutDefinition::Instance::Trace(blink::Visitor* visitor) {
+void CSSLayoutDefinition::Instance::Trace(Visitor* visitor) const {
   visitor->Trace(definition_);
+  visitor->Trace(instance_);
 }
 
-void CSSLayoutDefinition::Trace(Visitor* visitor) {
+void CSSLayoutDefinition::Trace(Visitor* visitor) const {
   visitor->Trace(constructor_);
-  visitor->Trace(unused_intrinsic_sizes_);
+  visitor->Trace(intrinsic_sizes_);
   visitor->Trace(layout_);
   visitor->Trace(script_state_);
 }

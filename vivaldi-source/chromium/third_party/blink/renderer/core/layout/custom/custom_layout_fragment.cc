@@ -1,40 +1,42 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/custom/custom_layout_fragment.h"
 
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
-#include "third_party/blink/renderer/core/layout/custom/custom_layout_fragment_request.h"
-#include "third_party/blink/renderer/core/layout/custom/layout_custom.h"
-#include "third_party/blink/renderer/core/layout/layout_box.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/core/layout/custom/custom_layout_child.h"
+#include "third_party/blink/renderer/core/layout/ng/ng_layout_result.h"
 
 namespace blink {
 
 CustomLayoutFragment::CustomLayoutFragment(
-    CustomLayoutFragmentRequest* fragment_request,
-    const LayoutUnit inline_size,
-    const LayoutUnit block_size,
+    CustomLayoutChild* child,
+    CustomLayoutToken* token,
+    const NGLayoutResult* layout_result,
+    const LogicalSize& size,
+    const absl::optional<LayoutUnit> baseline,
     v8::Isolate* isolate)
-    : fragment_request_(fragment_request),
-      inline_size_(inline_size.ToDouble()),
-      block_size_(block_size.ToDouble()) {
+    : child_(child),
+      token_(token),
+      layout_result_(std::move(layout_result)),
+      inline_size_(size.inline_size.ToDouble()),
+      block_size_(size.block_size.ToDouble()),
+      baseline_(baseline) {
   // Immediately store the result data, so that it remains immutable between
   // layout calls to the child.
-  auto* layout_custom = DynamicTo<LayoutCustom>(GetLayoutBox());
-  if (layout_custom) {
-    SerializedScriptValue* data = layout_custom->GetFragmentResultData();
-    if (data)
-      layout_worklet_world_v8_data_.Set(isolate, data->Deserialize(isolate));
-  }
+  if (SerializedScriptValue* data = layout_result_->CustomLayoutData())
+    layout_worklet_world_v8_data_.Reset(isolate, data->Deserialize(isolate));
 }
 
-LayoutBox* CustomLayoutFragment::GetLayoutBox() const {
-  return fragment_request_->GetLayoutBox();
+const NGLayoutResult& CustomLayoutFragment::GetLayoutResult() const {
+  DCHECK(layout_result_);
+  return *layout_result_;
 }
 
-bool CustomLayoutFragment::IsValid() const {
-  return fragment_request_->IsValid();
+const NGLayoutInputNode& CustomLayoutFragment::GetLayoutNode() const {
+  return child_->GetLayoutNode();
 }
 
 ScriptValue CustomLayoutFragment::data(ScriptState* script_state) const {
@@ -45,14 +47,17 @@ ScriptValue CustomLayoutFragment::data(ScriptState* script_state) const {
   DCHECK(script_state->World().IsWorkerWorld());
 
   if (layout_worklet_world_v8_data_.IsEmpty())
-    return ScriptValue::CreateNull(script_state);
+    return ScriptValue::CreateNull(script_state->GetIsolate());
 
-  return ScriptValue(script_state, layout_worklet_world_v8_data_.NewLocal(
-                                       script_state->GetIsolate()));
+  return ScriptValue(
+      script_state->GetIsolate(),
+      layout_worklet_world_v8_data_.Get(script_state->GetIsolate()));
 }
 
-void CustomLayoutFragment::Trace(blink::Visitor* visitor) {
-  visitor->Trace(fragment_request_);
+void CustomLayoutFragment::Trace(Visitor* visitor) const {
+  visitor->Trace(child_);
+  visitor->Trace(token_);
+  visitor->Trace(layout_result_);
   visitor->Trace(layout_worklet_world_v8_data_);
   ScriptWrappable::Trace(visitor);
 }

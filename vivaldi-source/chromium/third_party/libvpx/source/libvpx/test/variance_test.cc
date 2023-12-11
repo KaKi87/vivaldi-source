@@ -1475,6 +1475,35 @@ INSTANTIATE_TEST_SUITE_P(
                       VarianceParams(2, 3, &vpx_variance4x8_neon),
                       VarianceParams(2, 2, &vpx_variance4x4_neon)));
 
+#if HAVE_NEON_DOTPROD
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, VpxSseTest,
+    ::testing::Values(SseParams(2, 2, &vpx_get4x4sse_cs_neon_dotprod)));
+
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, VpxMseTest,
+    ::testing::Values(MseParams(4, 4, &vpx_mse16x16_neon_dotprod),
+                      MseParams(4, 3, &vpx_mse16x8_neon_dotprod),
+                      MseParams(3, 4, &vpx_mse8x16_neon_dotprod),
+                      MseParams(3, 3, &vpx_mse8x8_neon_dotprod)));
+
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, VpxVarianceTest,
+    ::testing::Values(VarianceParams(6, 6, &vpx_variance64x64_neon_dotprod),
+                      VarianceParams(6, 5, &vpx_variance64x32_neon_dotprod),
+                      VarianceParams(5, 6, &vpx_variance32x64_neon_dotprod),
+                      VarianceParams(5, 5, &vpx_variance32x32_neon_dotprod),
+                      VarianceParams(5, 4, &vpx_variance32x16_neon_dotprod),
+                      VarianceParams(4, 5, &vpx_variance16x32_neon_dotprod),
+                      VarianceParams(4, 4, &vpx_variance16x16_neon_dotprod),
+                      VarianceParams(4, 3, &vpx_variance16x8_neon_dotprod),
+                      VarianceParams(3, 4, &vpx_variance8x16_neon_dotprod),
+                      VarianceParams(3, 3, &vpx_variance8x8_neon_dotprod),
+                      VarianceParams(3, 2, &vpx_variance8x4_neon_dotprod),
+                      VarianceParams(2, 3, &vpx_variance4x8_neon_dotprod),
+                      VarianceParams(2, 2, &vpx_variance4x4_neon_dotprod)));
+#endif  // HAVE_NEON_DOTPROD
+
 INSTANTIATE_TEST_SUITE_P(
     NEON, VpxSubpelVarianceTest,
     ::testing::Values(
@@ -1525,6 +1554,20 @@ INSTANTIATE_TEST_SUITE_P(
         MseParams(4, 3, &vpx_highbd_8_mse16x8_neon, VPX_BITS_8),
         MseParams(3, 4, &vpx_highbd_8_mse8x16_neon, VPX_BITS_8),
         MseParams(3, 3, &vpx_highbd_8_mse8x8_neon, VPX_BITS_8)));
+
+// TODO(webm:1819): Re-enable when vpx_highbd_8_mse16x16_neon_dotprod, etc. can
+// be used again.
+#if 0
+#if HAVE_NEON_DOTPROD
+INSTANTIATE_TEST_SUITE_P(
+    NEON_DOTPROD, VpxHBDMseTest,
+    ::testing::Values(
+        MseParams(4, 4, &vpx_highbd_8_mse16x16_neon_dotprod, VPX_BITS_8),
+        MseParams(4, 3, &vpx_highbd_8_mse16x8_neon_dotprod, VPX_BITS_8),
+        MseParams(3, 4, &vpx_highbd_8_mse8x16_neon_dotprod, VPX_BITS_8),
+        MseParams(3, 3, &vpx_highbd_8_mse8x8_neon_dotprod, VPX_BITS_8)));
+#endif  // HAVE_NEON_DOTPROD
+#endif  // 0
 
 INSTANTIATE_TEST_SUITE_P(
     NEON, VpxHBDVarianceTest,

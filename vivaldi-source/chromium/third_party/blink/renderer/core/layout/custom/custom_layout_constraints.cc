@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,30 +7,28 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/serialization/serialized_script_value.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/core/layout/geometry/logical_size.h"
 #include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 
 namespace blink {
 
-CustomLayoutConstraints::CustomLayoutConstraints(LayoutUnit fixed_inline_size,
-                                                 LayoutUnit fixed_block_size,
-                                                 SerializedScriptValue* data,
-                                                 v8::Isolate* isolate)
-    : fixed_inline_size_(fixed_inline_size),
-      fixed_block_size_(fixed_block_size) {
+CustomLayoutConstraints::CustomLayoutConstraints(
+    const LogicalSize& border_box_size,
+    SerializedScriptValue* data,
+    v8::Isolate* isolate)
+    : fixed_inline_size_(border_box_size.inline_size),
+      fixed_block_size_(border_box_size.block_size) {
   if (data)
-    layout_worklet_world_v8_data_.Set(isolate, data->Deserialize(isolate));
+    layout_worklet_world_v8_data_.Reset(isolate, data->Deserialize(isolate));
 }
 
 CustomLayoutConstraints::~CustomLayoutConstraints() = default;
 
-double CustomLayoutConstraints::fixedBlockSize(bool& is_null) const {
+absl::optional<double> CustomLayoutConstraints::fixedBlockSize() const {
   // Check if we've been passed an indefinite block-size.
-  if (fixed_block_size_ < 0.0) {
-    is_null = true;
-    return 0.0;
-  }
-
+  if (fixed_block_size_ < 0.0)
+    return absl::nullopt;
   return fixed_block_size_;
 }
 
@@ -42,13 +40,14 @@ ScriptValue CustomLayoutConstraints::data(ScriptState* script_state) const {
   DCHECK(script_state->World().IsWorkerWorld());
 
   if (layout_worklet_world_v8_data_.IsEmpty())
-    return ScriptValue::CreateNull(script_state);
+    return ScriptValue::CreateNull(script_state->GetIsolate());
 
-  return ScriptValue(script_state, layout_worklet_world_v8_data_.NewLocal(
-                                       script_state->GetIsolate()));
+  return ScriptValue(
+      script_state->GetIsolate(),
+      layout_worklet_world_v8_data_.Get(script_state->GetIsolate()));
 }
 
-void CustomLayoutConstraints::Trace(blink::Visitor* visitor) {
+void CustomLayoutConstraints::Trace(Visitor* visitor) const {
   visitor->Trace(layout_worklet_world_v8_data_);
   ScriptWrappable::Trace(visitor);
 }

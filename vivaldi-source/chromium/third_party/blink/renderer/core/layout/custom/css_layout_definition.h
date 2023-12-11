@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,57 +10,79 @@
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
+class CustomLayoutScope;
 class FragmentResultOptions;
-class LayoutCustom;
+class IntrinsicSizesResultOptions;
+class LayoutUnit;
+class NGBlockNode;
+class NGConstraintSpace;
 class ScriptState;
 class SerializedScriptValue;
-class V8Function;
+class V8IntrinsicSizesCallback;
 class V8LayoutCallback;
 class V8NoArgumentConstructor;
+struct BoxStrut;
+struct LogicalSize;
 
 // Represents a javascript class registered on the LayoutWorkletGlobalScope by
 // the author.
 // https://drafts.css-houdini.org/css-layout-api/#layout-definition
-class CSSLayoutDefinition final
-    : public GarbageCollectedFinalized<CSSLayoutDefinition>,
-      public NameClient {
+class CSSLayoutDefinition final : public GarbageCollected<CSSLayoutDefinition>,
+                                  public NameClient {
  public:
   CSSLayoutDefinition(
       ScriptState*,
       V8NoArgumentConstructor* constructor,
-      V8Function* intrinsic_sizes,
+      V8IntrinsicSizesCallback* intrinsic_sizes,
       V8LayoutCallback* layout,
       const Vector<CSSPropertyID>& native_invalidation_properties,
       const Vector<AtomicString>& custom_invalidation_properties,
       const Vector<CSSPropertyID>& child_native_invalidation_properties,
       const Vector<AtomicString>& child_custom_invalidation_properties);
-  virtual ~CSSLayoutDefinition();
+  ~CSSLayoutDefinition() final;
 
   // This class represents an instance of the layout class defined by the
   // CSSLayoutDefinition.
-  class Instance final : public GarbageCollectedFinalized<Instance> {
+  class Instance final : public GarbageCollected<Instance> {
    public:
     Instance(CSSLayoutDefinition*, v8::Local<v8::Value> instance);
 
     // Runs the web developer defined layout, returns true if everything
     // succeeded. It populates the FragmentResultOptions dictionary, and
     // fragment_result_data.
-    bool Layout(const LayoutCustom&,
-                FragmentResultOptions*,
+    bool Layout(const NGConstraintSpace&,
+                const Document&,
+                const NGBlockNode&,
+                const LogicalSize& border_box_size,
+                const BoxStrut& border_scrollbar_padding,
+                CustomLayoutScope*,
+                FragmentResultOptions*&,
                 scoped_refptr<SerializedScriptValue>* fragment_result_data);
 
-    void Trace(blink::Visitor*);
+    // Runs the web developer defined intrinsicSizes, returns true if everything
+    // succeeded. It populates the IntrinsicSizesResultOptions dictionary.
+    bool IntrinsicSizes(const NGConstraintSpace&,
+                        const Document&,
+                        const NGBlockNode&,
+                        const LogicalSize& border_box_size,
+                        const BoxStrut& border_scrollbar_padding,
+                        const LayoutUnit child_available_block_size,
+                        CustomLayoutScope*,
+                        IntrinsicSizesResultOptions**,
+                        bool* child_depends_on_block_constraints);
+
+    void Trace(Visitor*) const;
 
    private:
     void ReportException(ExceptionState*);
 
     Member<CSSLayoutDefinition> definition_;
-    ScopedPersistent<v8::Value> instance_;
+    TraceWrapperV8Reference<v8::Value> instance_;
   };
 
   // Creates an instance of the web developer defined class. May return a
@@ -80,9 +102,9 @@ class CSSLayoutDefinition final
     return child_custom_invalidation_properties_;
   }
 
-  ScriptState* GetScriptState() const { return script_state_; }
+  ScriptState* GetScriptState() const { return script_state_.Get(); }
 
-  virtual void Trace(blink::Visitor* visitor);
+  virtual void Trace(Visitor* visitor) const;
 
   const char* NameInHeapSnapshot() const override {
     return "CSSLayoutDefinition";
@@ -95,7 +117,7 @@ class CSSLayoutDefinition final
   // sizes function, and layout function alive. It participates in wrapper
   // tracing as it holds onto V8 wrappers.
   Member<V8NoArgumentConstructor> constructor_;
-  Member<V8Function> unused_intrinsic_sizes_;
+  Member<V8IntrinsicSizesCallback> intrinsic_sizes_;
   Member<V8LayoutCallback> layout_;
 
   // If a constructor call ever fails, we'll refuse to create any more

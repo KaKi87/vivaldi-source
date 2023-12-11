@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright 2021 The Chromium Authors. All rights reserved.
-     Use of this source code is governed by a BSD-style license that can be
-     found in the LICENSE file. -->
+<!--
+Copyright 2023 The Chromium Authors
+Use of this source code is governed by a BSD-style license that can be
+found in the LICENSE file.
+-->
+
 <resources>
-    <integer name="tab_thumbnail_placeholder_color_alpha">38</integer>
-    <integer name="tab_thumbnail_placeholder_selected_color_alpha">255</integer>
+    <!-- Tab hover card dimensions -->
+    <dimen name="tab_hover_card_bg_color_elev">@dimen/default_elevation_5</dimen>
 </resources>

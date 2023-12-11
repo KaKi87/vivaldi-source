@@ -1,17 +1,17 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/layout/custom/layout_worklet_global_scope.h"
 
 #include "third_party/blink/renderer/bindings/core/v8/v8_function.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_intrinsic_sizes_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_layout_callback.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_no_argument_constructor.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_object_parser.h"
 #include "third_party/blink/renderer/bindings/core/v8/worker_or_worklet_script_controller.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/execution_context/agent.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/inspector/main_thread_debugger.h"
@@ -34,9 +34,10 @@ LayoutWorkletGlobalScope* LayoutWorkletGlobalScope::Create(
       frame, std::move(creation_params), reporting_proxy,
       pending_layout_registry);
   global_scope->ScriptController()->Initialize(NullURL());
-  MainThreadDebugger::Instance()->ContextCreated(
-      global_scope->ScriptController()->GetScriptState(),
-      global_scope->GetFrame(), global_scope->DocumentSecurityOrigin());
+  MainThreadDebugger::Instance(global_scope->GetIsolate())
+      ->ContextCreated(global_scope->ScriptController()->GetScriptState(),
+                       global_scope->GetFrame(),
+                       global_scope->DocumentSecurityOrigin());
   return global_scope;
 }
 
@@ -45,22 +46,18 @@ LayoutWorkletGlobalScope::LayoutWorkletGlobalScope(
     std::unique_ptr<GlobalScopeCreationParams> creation_params,
     WorkerReportingProxy& reporting_proxy,
     PendingLayoutRegistry* pending_layout_registry)
-    : WorkletGlobalScope(std::move(creation_params),
-                         reporting_proxy,
-                         frame,
-                         // Enable a separate microtask queue for LayoutWorklet.
-                         // TODO(yutak): Set agent for all worklets and workers,
-                         // not just LayoutWorklet.
-                         Agent::CreateForWorkerOrWorklet(ToIsolate(frame))),
+    : WorkletGlobalScope(std::move(creation_params), reporting_proxy, frame),
       pending_layout_registry_(pending_layout_registry) {}
 
 LayoutWorkletGlobalScope::~LayoutWorkletGlobalScope() = default;
 
 void LayoutWorkletGlobalScope::Dispose() {
-  MainThreadDebugger::Instance()->ContextWillBeDestroyed(
-      ScriptController()->GetScriptState());
+  MainThreadDebugger::Instance(GetIsolate())
+      ->ContextWillBeDestroyed(ScriptController()->GetScriptState());
 
   WorkletGlobalScope::Dispose();
+
+  NotifyContextDestroyed();
 }
 
 // https://drafts.css-houdini.org/css-layout-api/#dom-layoutworkletglobalscope-registerlayout
@@ -68,7 +65,7 @@ void LayoutWorkletGlobalScope::registerLayout(
     const AtomicString& name,
     V8NoArgumentConstructor* layout_ctor,
     ExceptionState& exception_state) {
-  if (name.IsEmpty()) {
+  if (name.empty()) {
     exception_state.ThrowTypeError("The empty string is not a valid name.");
     return;
   }
@@ -93,19 +90,23 @@ void LayoutWorkletGlobalScope::registerLayout(
   Vector<AtomicString> custom_invalidation_properties;
 
   if (!V8ObjectParser::ParseCSSPropertyList(
-          current_context, layout_ctor->CallbackObject(), "inputProperties",
+          current_context, GetFrame()->DomWindow(),
+          layout_ctor->CallbackObject(), AtomicString("inputProperties"),
           &native_invalidation_properties, &custom_invalidation_properties,
-          &exception_state))
+          &exception_state)) {
     return;
+  }
 
   Vector<CSSPropertyID> child_native_invalidation_properties;
   Vector<AtomicString> child_custom_invalidation_properties;
 
   if (!V8ObjectParser::ParseCSSPropertyList(
-          current_context, layout_ctor->CallbackObject(),
-          "childInputProperties", &child_native_invalidation_properties,
-          &child_custom_invalidation_properties, &exception_state))
+          current_context, GetFrame()->DomWindow(),
+          layout_ctor->CallbackObject(), AtomicString("childInputProperties"),
+          &child_native_invalidation_properties,
+          &child_custom_invalidation_properties, &exception_state)) {
     return;
+  }
 
   CallbackMethodRetriever retriever(layout_ctor);
   retriever.GetPrototypeObject(exception_state);
@@ -116,29 +117,13 @@ void LayoutWorkletGlobalScope::registerLayout(
       retriever.GetMethodOrThrow("intrinsicSizes", exception_state);
   if (exception_state.HadException())
     return;
-  // TODO(ikilpatrick): Make it clear if we really need to check the function
-  // is a generator function or not.  Non generator function can return an
-  // iterator.
-  if (!v8_intrinsic_sizes->IsGeneratorFunction()) {
-    exception_state.ThrowTypeError(
-        "The 'intrinsicSizes' property on the prototype is not a generator "
-        "function.");
-    return;
-  }
-  V8Function* intrinsic_sizes = V8Function::Create(v8_intrinsic_sizes);
+  V8IntrinsicSizesCallback* intrinsic_sizes =
+      V8IntrinsicSizesCallback::Create(v8_intrinsic_sizes);
 
   v8::Local<v8::Function> v8_layout =
       retriever.GetMethodOrThrow("layout", exception_state);
   if (exception_state.HadException())
     return;
-  // TODO(ikilpatrick): Make it clear if we really need to check the function
-  // is a generator function or not.  Non generator function can return an
-  // iterator.
-  if (!v8_layout->IsGeneratorFunction()) {
-    exception_state.ThrowTypeError(
-        "The 'layout' property on the prototype is not a generator function.");
-    return;
-  }
   V8LayoutCallback* layout = V8LayoutCallback::Create(v8_layout);
 
   CSSLayoutDefinition* definition = MakeGarbageCollected<CSSLayoutDefinition>(
@@ -148,8 +133,7 @@ void LayoutWorkletGlobalScope::registerLayout(
       child_custom_invalidation_properties);
   layout_definitions_.Set(name, definition);
 
-  LayoutWorklet* layout_worklet =
-      LayoutWorklet::From(*GetFrame()->GetDocument()->domWindow());
+  LayoutWorklet* layout_worklet = LayoutWorklet::From(*GetFrame()->DomWindow());
   LayoutWorklet::DocumentDefinitionMap* document_definition_map =
       layout_worklet->GetDocumentDefinitionMap();
   if (document_definition_map->Contains(name)) {
@@ -184,7 +168,7 @@ CSSLayoutDefinition* LayoutWorkletGlobalScope::FindDefinition(
   return layout_definitions_.at(name);
 }
 
-void LayoutWorkletGlobalScope::Trace(blink::Visitor* visitor) {
+void LayoutWorkletGlobalScope::Trace(Visitor* visitor) const {
   visitor->Trace(layout_definitions_);
   visitor->Trace(pending_layout_registry_);
   WorkletGlobalScope::Trace(visitor);

@@ -1,19 +1,23 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_CUSTOM_CUSTOM_LAYOUT_FRAGMENT_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_CUSTOM_CUSTOM_LAYOUT_FRAGMENT_H_
 
+#include "third_party/blink/renderer/core/layout/custom/custom_layout_scope.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
-class CustomLayoutFragmentRequest;
+class NGLayoutInputNode;
+class CustomLayoutChild;
 class LayoutBox;
+struct LogicalSize;
+class NGLayoutResult;
 class ScriptState;
 class ScriptValue;
 
@@ -31,10 +35,14 @@ class CustomLayoutFragment : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  CustomLayoutFragment(CustomLayoutFragmentRequest*,
-                       const LayoutUnit inline_size,
-                       const LayoutUnit block_size,
+  CustomLayoutFragment(CustomLayoutChild*,
+                       CustomLayoutToken*,
+                       const NGLayoutResult*,
+                       const LogicalSize& size,
+                       const absl::optional<LayoutUnit> baseline,
                        v8::Isolate*);
+  CustomLayoutFragment(const CustomLayoutFragment&) = delete;
+  CustomLayoutFragment& operator=(const CustomLayoutFragment&) = delete;
   ~CustomLayoutFragment() override = default;
 
   double inlineSize() const { return inline_size_; }
@@ -46,14 +54,23 @@ class CustomLayoutFragment : public ScriptWrappable {
   void setInlineOffset(double inline_offset) { inline_offset_ = inline_offset; }
   void setBlockOffset(double block_offset) { block_offset_ = block_offset; }
 
+  absl::optional<double> baseline() const { return baseline_; }
+
   ScriptValue data(ScriptState*) const;
 
-  LayoutBox* GetLayoutBox() const;
-  bool IsValid() const;
+  const NGLayoutResult& GetLayoutResult() const;
+  const NGLayoutInputNode& GetLayoutNode() const;
 
-  void Trace(blink::Visitor*) override;
+  bool IsValid() const { return token_->IsValid(); }
+
+  void Trace(Visitor*) const override;
 
  private:
+  Member<CustomLayoutChild> child_;
+  Member<CustomLayoutToken> token_;
+
+  // TODO(ikilpatrick): Store the constraint space here so that we can relayout.
+  //
   // There is complexity around state in the layout tree, e.g. from the web
   // developers perspective:
   //
@@ -65,7 +82,8 @@ class CustomLayoutFragment : public ScriptWrappable {
   // layout state. As we are processing the returned childFragments we detect
   // that the last layout on the child wasn't with the same inputs, and force a
   // layout again.
-  Member<CustomLayoutFragmentRequest> fragment_request_;
+
+  Member<const NGLayoutResult> layout_result_;
 
   // The inline and block size on this object should never change.
   const double inline_size_;
@@ -75,9 +93,10 @@ class CustomLayoutFragment : public ScriptWrappable {
   double inline_offset_ = 0;
   double block_offset_ = 0;
 
-  TraceWrapperV8Reference<v8::Value> layout_worklet_world_v8_data_;
+  // The first-line baseline.
+  const absl::optional<double> baseline_;
 
-  DISALLOW_COPY_AND_ASSIGN(CustomLayoutFragment);
+  TraceWrapperV8Reference<v8::Value> layout_worklet_world_v8_data_;
 };
 
 }  // namespace blink

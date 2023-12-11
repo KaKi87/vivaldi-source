@@ -1,20 +1,22 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_CUSTOM_CUSTOM_LAYOUT_CHILD_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_CUSTOM_CUSTOM_LAYOUT_CHILD_H_
 
+#include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/core/css/cssom/prepopulated_computed_style_property_map.h"
+#include "third_party/blink/renderer/core/layout/ng/ng_layout_input_node.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/handle.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 
 namespace blink {
 
 class CSSLayoutDefinition;
 class CustomLayoutConstraintsOptions;
-class CustomLayoutFragmentRequest;
-class LayoutBox;
+class CustomLayoutToken;
+class ExceptionState;
 
 // Represents a "CSS box" for use by a web developer. This is passed into the
 // web developer defined layout and intrinsicSizes functions so that they can
@@ -26,34 +28,34 @@ class CustomLayoutChild : public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  CustomLayoutChild(const CSSLayoutDefinition&, LayoutBox*);
+  CustomLayoutChild(const CSSLayoutDefinition&, NGLayoutInputNode);
+  CustomLayoutChild(const CustomLayoutChild&) = delete;
+  CustomLayoutChild& operator=(const CustomLayoutChild&) = delete;
   ~CustomLayoutChild() override = default;
 
   // LayoutChild.idl
-  PrepopulatedComputedStylePropertyMap* styleMap() const { return style_map_; }
-  CustomLayoutFragmentRequest* layoutNextFragment(
-      ScriptState*,
-      const CustomLayoutConstraintsOptions*,
-      ExceptionState&);
-
-  LayoutBox* GetLayoutBox() const {
-    DCHECK(box_);
-    return box_;
+  PrepopulatedComputedStylePropertyMap* styleMap() const {
+    return style_map_.Get();
   }
-  void ClearLayoutBox() { box_ = nullptr; }
+  ScriptPromise intrinsicSizes(ScriptState*, ExceptionState&);
+  ScriptPromise layoutNextFragment(ScriptState*,
+                                   const CustomLayoutConstraintsOptions*,
+                                   ExceptionState&);
 
-  // A layout child may be invalid if it has been removed from the tree (it is
-  // possible for a web developer to hold onto a LayoutChild object after its
-  // underlying LayoutObject has been destroyed).
-  bool IsValid() const { return box_; }
+  const NGLayoutInputNode& GetLayoutNode() const {
+    DCHECK(node_);
+    return node_;
+  }
+  void ClearLayoutNode() { node_ = nullptr; }
 
-  void Trace(blink::Visitor*) override;
+  void SetCustomLayoutToken(CustomLayoutToken* token) { token_ = token; }
+
+  void Trace(Visitor*) const override;
 
  private:
-  LayoutBox* box_;
+  NGLayoutInputNode node_;
   Member<PrepopulatedComputedStylePropertyMap> style_map_;
-
-  DISALLOW_COPY_AND_ASSIGN(CustomLayoutChild);
+  Member<CustomLayoutToken> token_;
 };
 
 }  // namespace blink
