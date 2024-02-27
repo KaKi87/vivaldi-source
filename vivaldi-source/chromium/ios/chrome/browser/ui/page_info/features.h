@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,10 @@
 
 #include "base/feature_list.h"
 
-// Feature to enable the new design of the page info.
-extern const base::Feature kPageInfoRefactoring;
+// Feature for the revamp of Page Info in iOS.
+BASE_DECLARE_FEATURE(kRevampPageInfoIos);
+
+// Whether the Revamp Page Info feature is enabled.
+bool IsRevampPageInfoIosEnabled();
 
 #endif  // IOS_CHROME_BROWSER_UI_PAGE_INFO_FEATURES_H_

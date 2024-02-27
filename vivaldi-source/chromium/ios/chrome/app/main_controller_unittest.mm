@@ -1,151 +1,83 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import <Foundation/Foundation.h>
+#import "ios/chrome/app/main_controller.h"
 
-#include "base/threading/thread.h"
+#import "base/test/ios/wait_util.h"
+#import "components/bookmarks/test/bookmark_test_helpers.h"
+#import "components/open_from_clipboard/clipboard_recent_content.h"
+#import "components/open_from_clipboard/fake_clipboard_recent_content.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
-#import "ios/chrome/app/application_delegate/url_opener.h"
-#include "ios/chrome/app/main_controller_private.h"
-#import "ios/chrome/browser/tabs/tab_model.h"
-#import "ios/chrome/test/base/scoped_block_swizzler.h"
-#include "testing/platform_test.h"
+#import "ios/chrome/browser/bookmarks/model/account_bookmark_model_factory.h"
+#import "ios/chrome/browser/bookmarks/model/local_or_syncable_bookmark_model_factory.h"
+#import "ios/chrome/browser/reading_list/model/reading_list_model_factory.h"
+#import "ios/chrome/browser/reading_list/model/reading_list_test_utils.h"
+#import "ios/chrome/browser/sessions/fake_tab_restore_service.h"
+#import "ios/chrome/browser/sessions/ios_chrome_tab_restore_service_factory.h"
+#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/web_state_list/model/web_usage_enabler/web_usage_enabler_browser_agent.h"
+#import "ios/web/public/test/web_task_environment.h"
+#import "testing/gmock/include/gmock/gmock.h"
+#import "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
+#import "third_party/ocmock/gtest_support.h"
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
-
-#pragma mark - MainController Testing Additions
-
-@interface MainController (TestingAdditions)
-- (id)initForTesting;
-@end
-
-@implementation MainController (TestingAdditions)
-- (id)initForTesting {
-  self = [self init];
-  if (self) {
-    [self setUpAsForegrounded];
-    id mainTabModel = [OCMockObject mockForClass:[TabModel class]];
-    [[mainTabModel stub] resetSessionMetrics];
-    [[mainTabModel stub] browserStateDestroyed];
-    [[mainTabModel stub] addObserver:[OCMArg any]];
-    [[mainTabModel stub] removeObserver:[OCMArg any]];
-    [[self browserViewInformation] setMainTabModel:mainTabModel];
-  }
-  return self;
-}
-
-@end
-
-#pragma mark - MainController Test
-
-namespace {
-
-// A block that takes the arguments of
-// +handleLaunchOptions:applicationActive:tabOpener:startupInformation: and
-// returns nothing.
-typedef void (^HandleLaunchOptions)(id self,
-                                    NSDictionary* options,
-                                    BOOL applicationActive,
-                                    id<TabOpening> tabOpener,
-                                    id<StartupInformation> startupInformation,
-                                    AppState* appState);
-
-class TabOpenerTest : public PlatformTest {
+// Tests MainController.
+class MainControllerTest : public PlatformTest {
  protected:
-  void TearDown() override {
-    [main_controller_ stopChromeMain];
-    PlatformTest::TearDown();
+  MainControllerTest() {
+    ClipboardRecentContent::SetInstance(
+        std::make_unique<FakeClipboardRecentContent>());
+
+    TestChromeBrowserState::Builder builder;
+    builder.AddTestingFactory(IOSChromeTabRestoreServiceFactory::GetInstance(),
+                              FakeTabRestoreService::GetTestingFactory());
+    builder.AddTestingFactory(
+        ios::LocalOrSyncableBookmarkModelFactory::GetInstance(),
+        ios::LocalOrSyncableBookmarkModelFactory::GetDefaultFactory());
+    builder.AddTestingFactory(
+        ReadingListModelFactory::GetInstance(),
+        base::BindRepeating(&BuildReadingListModelWithFakeStorage,
+                            std::vector<scoped_refptr<ReadingListEntry>>()));
+
+    browser_state_ = builder.Build();
+
+    bookmarks::BookmarkModel* bookmarks_model =
+        ios::LocalOrSyncableBookmarkModelFactory::GetForBrowserState(
+            browser_state_.get());
+    bookmarks::test::WaitForBookmarkModelToLoad(bookmarks_model);
+    bookmarks::BookmarkModel* account_bookmark_model =
+        ios::AccountBookmarkModelFactory::GetForBrowserState(
+            browser_state_.get());
+    bookmarks::test::WaitForBookmarkModelToLoad(account_bookmark_model);
+
+    app_state_ = [[AppState alloc] initWithStartupInformation:nil];
   }
 
-  BOOL swizzleHasBeenCalled() { return swizzle_block_executed_; }
-
-  void swizzleHandleLaunchOptions(
-      NSDictionary* expectedLaunchOptions,
-      id<StartupInformation> expectedStartupInformation,
-      AppState* expectedAppState) {
-    swizzle_block_executed_ = NO;
-    swizzle_block_ =
-        [^(id self, NSDictionary* options, BOOL applicationActive,
-           id<TabOpening> tabOpener, id<StartupInformation> startupInformation,
-           AppState* appState) {
-          swizzle_block_executed_ = YES;
-          EXPECT_EQ(expectedLaunchOptions, options);
-          EXPECT_EQ(expectedStartupInformation, startupInformation);
-          EXPECT_EQ(main_controller_, tabOpener);
-          EXPECT_EQ(expectedAppState, appState);
-        } copy];
-    URL_opening_handle_launch_swizzler_.reset(new ScopedBlockSwizzler(
-        [URLOpener class], @selector(handleLaunchOptions:
-                                       applicationActive:
-                                               tabOpener:
-                                      startupInformation:
-                                                appState:),
-        swizzle_block_));
+  MainController* CreateMainController() {
+    MainController* main_controller = [[MainController alloc] init];
+    main_controller.appState = app_state_;
+    return main_controller;
   }
 
-  MainController* GetMainController() {
-    if (!main_controller_) {
-      main_controller_ = [[MainController alloc] initForTesting];
-    }
-    return main_controller_;
-  }
-
- private:
-  MainController* main_controller_;
-  __block BOOL swizzle_block_executed_;
-  HandleLaunchOptions swizzle_block_;
-  std::unique_ptr<ScopedBlockSwizzler> URL_opening_handle_launch_swizzler_;
+  web::WebTaskEnvironment task_environment_;
+  AppState* app_state_;
+  std::unique_ptr<TestChromeBrowserState> browser_state_;
 };
 
-#pragma mark - Tests.
+// Tests removing the browsing data with no interface provider. There is no
+// clear repro steps for this issue but it is happening in the wild. Prevent
+// regression on crbug.com/1522188.
+TEST_F(MainControllerTest, RemoveBrowsingDataNoInterfaceProvider) {
+  MainController* main_controller = CreateMainController();
 
-// Tests that -newTabFromLaunchOptions calls +handleLaunchOption and reset
-// options.
-TEST_F(TabOpenerTest, openTabFromLaunchOptionsWithOptions) {
-  // Setup.
-  NSString* sourceApplication = @"com.apple.mobilesafari";
-  NSDictionary* launchOptions =
-      @{UIApplicationLaunchOptionsSourceApplicationKey : sourceApplication};
-
-  id startupInformationMock =
-      [OCMockObject mockForProtocol:@protocol(StartupInformation)];
-  id appStateMock = [OCMockObject mockForClass:[AppState class]];
-
-  swizzleHandleLaunchOptions(launchOptions, startupInformationMock,
-                             appStateMock);
-
-  id<TabOpening> tabOpener = GetMainController();
-
-  // Action.
-  [tabOpener openTabFromLaunchOptions:launchOptions
-                   startupInformation:startupInformationMock
-                             appState:appStateMock];
-
-  // Test.
-  EXPECT_TRUE(swizzleHasBeenCalled());
+  base::RunLoop run_loop;
+  [main_controller
+      removeBrowsingDataForBrowserState:browser_state_.get()
+                             timePeriod:browsing_data::TimePeriod::ALL_TIME
+                             removeMask:BrowsingDataRemoveMask::REMOVE_ALL
+                        completionBlock:base::CallbackToBlock(
+                                            run_loop.QuitClosure())];
+  run_loop.Run();
 }
-
-// Tests that -newTabFromLaunchOptions do nothing if launchOptions is nil.
-TEST_F(TabOpenerTest, openTabFromLaunchOptionsWithNil) {
-  // Setup.
-  id startupInformationMock =
-      [OCMockObject mockForProtocol:@protocol(StartupInformation)];
-  id appStateMock = [OCMockObject mockForClass:[AppState class]];
-
-  swizzleHandleLaunchOptions(nil, startupInformationMock, appStateMock);
-
-  id<TabOpening> tabOpener = GetMainController();
-
-  // Action.
-  [tabOpener openTabFromLaunchOptions:nil
-                   startupInformation:startupInformationMock
-                             appState:appStateMock];
-
-  // Test.
-  EXPECT_FALSE(swizzleHasBeenCalled());
-}
-}  // namespace

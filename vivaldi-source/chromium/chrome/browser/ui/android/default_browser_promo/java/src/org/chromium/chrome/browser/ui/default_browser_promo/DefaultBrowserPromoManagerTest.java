@@ -1,180 +1,174 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.ui.default_browser_promo;
 
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.app.Activity;
+import android.app.role.RoleManager;
+import android.content.Context;
+import android.content.Intent;
 
-import androidx.test.filters.MediumTest;
-
-import org.junit.Assert;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.BuildInfo;
-import org.chromium.base.FeatureList;
-import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
-import org.chromium.chrome.browser.lifecycle.LifecycleObserver;
+import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.Features.EnableFeatures;
+import org.chromium.base.test.util.Features.JUnitProcessor;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils.DefaultBrowserState;
-import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.components.browser_ui.widget.PromoDialog;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.test.util.DummyUiActivityTestCase;
+import org.chromium.ui.base.WindowAndroid.IntentCallback;
 
-import java.util.Collections;
+/** Test whether metrics are correctly recorded by {@link DefaultBrowserPromoManager}. */
+@RunWith(BaseRobolectricTestRunner.class)
+@Batch(Batch.UNIT_TESTS)
+@EnableFeatures(ChromeFeatureList.DEFAULT_BROWSER_PROMO_ANDROID)
+public class DefaultBrowserPromoManagerTest {
+    @Rule public JUnitProcessor mFeaturesProcessor = new JUnitProcessor();
 
-/**
- * Instrument test for {@link DefaultBrowserPromoManager}.
- */
-@RunWith(ChromeJUnit4ClassRunner.class)
-@CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-public class DefaultBrowserPromoManagerTest extends DummyUiActivityTestCase {
-    private DefaultBrowserPromoManager mManager;
-    private Activity mActivity;
-    private String mAppName;
-    private WindowAndroid mWindowAndroid;
+    @Mock WindowAndroid mWindowAndroid;
+    @Mock Activity mActivity;
+    @Mock RoleManager mRoleManager;
+    @Mock Intent mIntent;
+    @Mock DefaultBrowserPromoDeps mDefaultBrowserPromoDeps;
 
-    @Override
-    public void setUpTest() throws Exception {
-        super.setUpTest();
-        mActivity = getActivity();
-        mWindowAndroid = TestThreadUtils.runOnUiThreadBlocking(() -> new WindowAndroid(mActivity));
-        mManager = new DefaultBrowserPromoManager(mActivity, new ActivityLifecycleDispatcher() {
-            @Override
-            public void register(LifecycleObserver observer) {}
-
-            @Override
-            public void unregister(LifecycleObserver observer) {}
-
-            @Override
-            public int getCurrentActivityState() {
-                return 0;
-            }
-
-            @Override
-            public boolean isNativeInitializationFinished() {
-                return false;
-            }
-        }, mWindowAndroid, DefaultBrowserState.NO_DEFAULT);
-        mAppName = BuildInfo.getInstance().hostPackageLabel;
-        // Enabling feature can assign a default value to the fieldtrial param.
-        FeatureList.setTestFeatures(Collections.EMPTY_MAP);
+    @Before
+    public void setup() {
+        MockitoAnnotations.initMocks(this);
+        doReturn(mRoleManager).when(mActivity).getSystemService(Context.ROLE_SERVICE);
+        doReturn(mIntent).when(mRoleManager).createRequestRoleIntent(RoleManager.ROLE_BROWSER);
+        DefaultBrowserPromoDeps.setInstanceForTesting(mDefaultBrowserPromoDeps);
     }
 
-    @Override
-    public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mWindowAndroid::destroy);
-        super.tearDownTest();
+    @After
+    public void tearDown() {
+        DefaultBrowserPromoDeps.setInstanceForTesting(null);
     }
 
     @Test
-    @MediumTest
-    public void testPromoByRoleManager() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> { mManager.promoByRoleManager(); });
-        DefaultBrowserPromoDialog dialog = mManager.getDialogForTesting();
-        Assert.assertEquals("Dialog should be of role manager style on Q+",
-                dialog.getDialogStyleForTesting(),
-                DefaultBrowserPromoDialog.DialogStyle.ROLE_MANAGER);
-
-        // test role manager style
-        PromoDialog.DialogParams params = dialog.getDialogParams();
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_title, mAppName),
-                params.headerCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_desc, mAppName) + "\n\n"
-                        + mActivity.getString(
-                                R.string.default_browser_promo_dialog_role_manager_steps, mAppName),
-                params.subheaderCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(
-                        R.string.default_browser_promo_dialog_choose_chrome_button, mAppName),
-                params.primaryButtonCharSequence);
-
-        checkDialogVisibility();
+    public void testRecordWhenNoDefault_OutcomeNoDefault() {
+        testRecord(DefaultBrowserState.NO_DEFAULT, DefaultBrowserState.NO_DEFAULT);
     }
 
     @Test
-    @MediumTest
-    public void testPromoBySystemSettingsOnP() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> { mManager.promoBySystemSettings(); });
-        DefaultBrowserPromoDialog dialog = mManager.getDialogForTesting();
-        Assert.assertEquals(
-                "Dialog should be of system settings style on P-, when there is another default in system",
-                dialog.getDialogStyleForTesting(),
-                DefaultBrowserPromoDialog.DialogStyle.SYSTEM_SETTINGS);
-
-        // test role manager style
-        PromoDialog.DialogParams params = dialog.getDialogParams();
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_title, mAppName),
-                params.headerCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_desc, mAppName) + "\n\n"
-                        + mActivity.getString(
-                                R.string.default_browser_promo_dialog_system_settings_steps,
-                                mAppName),
-                params.subheaderCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_go_to_settings_button),
-                params.primaryButtonCharSequence);
-
-        checkDialogVisibility();
+    public void testRecordWhenNoDefault_OutcomeOtherDefault() {
+        testRecord(DefaultBrowserState.NO_DEFAULT, DefaultBrowserState.OTHER_DEFAULT);
     }
 
     @Test
-    @MediumTest
-    public void testPromoByDisambiguationSheet() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> { mManager.promoByDisambiguationSheet(); });
-        DefaultBrowserPromoDialog dialog = mManager.getDialogForTesting();
-        Assert.assertEquals(
-                "Dialog should be of disambiguation sheet style on P-, when there is no default in system",
-                dialog.getDialogStyleForTesting(),
-                DefaultBrowserPromoDialog.DialogStyle.DISAMBIGUATION_SHEET);
-
-        // test role manager style
-        PromoDialog.DialogParams params = dialog.getDialogParams();
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_title, mAppName),
-                params.headerCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(R.string.default_browser_promo_dialog_desc, mAppName) + "\n\n"
-                        + mActivity.getString(
-                                R.string.default_browser_promo_dialog_disambiguation_sheet_steps,
-                                mAppName),
-                params.subheaderCharSequence);
-
-        Assert.assertEquals(
-                mActivity.getString(
-                        R.string.default_browser_promo_dialog_choose_chrome_button, mAppName),
-                params.primaryButtonCharSequence);
-
-        checkDialogVisibility();
+    public void testRecordWhenNoDefault_OutcomeChromeDefault() {
+        testRecord(DefaultBrowserState.NO_DEFAULT, DefaultBrowserState.CHROME_DEFAULT);
     }
 
-    private void checkDialogVisibility() {
-        onView(withId(R.id.promo_dialog_layout)).check(matches(isDisplayed()));
-        // dismiss the dialog
-        onView(withId(R.id.button_secondary)).perform(click());
-        onView(withId(R.id.promo_dialog_layout)).check((v, noMatchingViewException) -> {
-            Assert.assertNotNull("Promo dialog should be dismissed by clicking on secondary button",
-                    noMatchingViewException);
-        });
+    @Test
+    public void testRecordWhenOtherDefault_OutComeNoDefault() {
+        testRecord(DefaultBrowserState.OTHER_DEFAULT, DefaultBrowserState.NO_DEFAULT);
+    }
+
+    @Test
+    public void testRecordWhenOtherDefault_OutComeOtherDefault() {
+        testRecord(DefaultBrowserState.OTHER_DEFAULT, DefaultBrowserState.OTHER_DEFAULT);
+    }
+
+    @Test
+    public void testRecordWhenOtherDefault_OutComeChromeDefault() {
+        testRecord(DefaultBrowserState.OTHER_DEFAULT, DefaultBrowserState.CHROME_DEFAULT);
+    }
+
+    @Test
+    public void testRecordWhenNoDefault_OutcomeChromeDefault_FirstPromo() {
+        when(mDefaultBrowserPromoDeps.getPromoCount()).thenReturn(1);
+        testRecord(
+                DefaultBrowserState.OTHER_DEFAULT,
+                DefaultBrowserState.CHROME_DEFAULT,
+                "Android.DefaultBrowserPromo.Outcome.OtherDefault.FirstPromo");
+    }
+
+    @Test
+    public void testRecordWhenNoDefault_OutcomeChromeDefault_SecondPromo() {
+        when(mDefaultBrowserPromoDeps.getPromoCount()).thenReturn(2);
+        testRecord(
+                DefaultBrowserState.OTHER_DEFAULT,
+                DefaultBrowserState.CHROME_DEFAULT,
+                "Android.DefaultBrowserPromo.Outcome.OtherDefault.SecondPromo");
+    }
+
+    @Test
+    public void testRecordWhenNoDefault_OutcomeChromeDefault_ThirdPromo() {
+        when(mDefaultBrowserPromoDeps.getPromoCount()).thenReturn(3);
+        testRecord(
+                DefaultBrowserState.OTHER_DEFAULT,
+                DefaultBrowserState.CHROME_DEFAULT,
+                "Android.DefaultBrowserPromo.Outcome.OtherDefault.ThirdPromo");
+    }
+
+    @Test
+    public void testRecordWhenNoDefault_OutcomeChromeDefault_FourthPromo() {
+        when(mDefaultBrowserPromoDeps.getPromoCount()).thenReturn(4);
+        testRecord(
+                DefaultBrowserState.OTHER_DEFAULT,
+                DefaultBrowserState.CHROME_DEFAULT,
+                "Android.DefaultBrowserPromo.Outcome.OtherDefault.FourthPromo");
+    }
+
+    @Test
+    public void testRecordWhenNoDefault_OutcomeChromeDefault_SixthPromo() {
+        when(mDefaultBrowserPromoDeps.getPromoCount()).thenReturn(6);
+        testRecord(
+                DefaultBrowserState.OTHER_DEFAULT,
+                DefaultBrowserState.CHROME_DEFAULT,
+                "Android.DefaultBrowserPromo.Outcome.OtherDefault.FifthOrMorePromo");
+    }
+
+    private void testRecord(
+            @DefaultBrowserState int currentState, @DefaultBrowserState int outcomeState) {
+        testRecord(currentState, outcomeState, null);
+    }
+
+    private void testRecord(
+            @DefaultBrowserState int currentState,
+            @DefaultBrowserState int outcomeState,
+            String extraHistogram) {
+        var manager = new DefaultBrowserPromoManager(mActivity, mWindowAndroid, currentState);
+
+        String outcomeHistogram =
+                currentState == DefaultBrowserState.NO_DEFAULT
+                        ? "Android.DefaultBrowserPromo.Outcome.NoDefault"
+                        : "Android.DefaultBrowserPromo.Outcome.OtherDefault";
+
+        var histogramBuilder =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord(
+                                "Android.DefaultBrowserPromo.RoleManagerShown", currentState)
+                        .expectIntRecord(outcomeHistogram, outcomeState);
+        if (extraHistogram != null) {
+            histogramBuilder.expectIntRecord(extraHistogram, outcomeState);
+        }
+        var histogram = histogramBuilder.build();
+
+        doReturn(1).when(mWindowAndroid).showCancelableIntent(any(Intent.class), any(), any());
+        doReturn(outcomeState).when(mDefaultBrowserPromoDeps).getCurrentDefaultBrowserState();
+        ArgumentCaptor<IntentCallback> onShowCallbackCaptor =
+                ArgumentCaptor.forClass(IntentCallback.class);
+        manager.promoByRoleManager();
+        verify(mWindowAndroid)
+                .showCancelableIntent(eq(mIntent), onShowCallbackCaptor.capture(), any());
+        onShowCallbackCaptor.getValue().onIntentCompleted(1, null);
+        histogram.assertExpected("BrowserState is not correctly recorded");
     }
 }

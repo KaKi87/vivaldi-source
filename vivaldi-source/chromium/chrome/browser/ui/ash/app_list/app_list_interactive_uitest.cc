@@ -1,73 +1,59 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <memory>
-
-#include "ash/public/cpp/shell_window_ids.h"
-#include "ash/shelf/app_list_button.h"
-#include "ash/shelf/shelf.h"
-#include "ash/shelf/shelf_view.h"
-#include "ash/shelf/shelf_view_test_api.h"
-#include "ash/shelf/shelf_widget.h"
+#include "ash/ash_element_identifiers.h"
+#include "ash/root_window_controller.h"
 #include "ash/shell.h"
-#include "chrome/browser/ui/ash/app_list/app_list_presenter_service.h"
-#include "chrome/browser/ui/ash/app_list/app_list_service_ash.h"
-#include "chrome/test/base/in_process_browser_test.h"
-#include "ui/app_list/presenter/app_list.h"
-#include "ui/app_list/presenter/app_list_presenter_impl.h"
-#include "ui/aura/window.h"
-#include "ui/events/test/event_generator.h"
+#include "base/test/gtest_tags.h"
+#include "chrome/test/base/chromeos/crosier/interactive_ash_test.h"
+#include "ui/base/accelerators/accelerator.h"
+#include "ui/base/test/ui_controls.h"
+#include "ui/events/keycodes/keyboard_codes_posix.h"
+#include "ui/gfx/geometry/point.h"
 
-using AppListTest = InProcessBrowserTest;
+namespace ash {
+namespace {
 
-// An integration test to toggle the app list by pressing the shelf button.
-// TODO(jamescook|newcomer): Replace this with a unit test in //ash/app_list
-// after app list ownership moves out of the browser process into ash.
-// http://crbug.com/733662
-IN_PROC_BROWSER_TEST_F(AppListTest, PressAppListButtonToShowAndDismiss) {
-  aura::Window* root_window = ash::Shell::GetPrimaryRootWindow();
-  ash::Shelf* shelf = ash::Shelf::ForWindow(root_window);
-  ash::ShelfWidget* shelf_widget = shelf->shelf_widget();
-  ash::ShelfView* shelf_view = shelf->GetShelfViewForTesting();
-  ash::ShelfViewTestAPI(shelf_view).RunMessageLoopUntilAnimationsDone();
-  ash::AppListButton* app_list_button = shelf_widget->GetAppListButton();
-  // Ensure animations progressed to give the app list button a non-empty size.
-  ASSERT_GT(app_list_button->GetBoundsInScreen().height(), 0);
+using AppListInteractiveUiTest = InteractiveAshTest;
 
-  aura::Window* app_list_container =
-      root_window->GetChildById(ash::kShellWindowId_AppListContainer);
-  ui::test::EventGenerator generator(shelf_widget->GetNativeWindow());
+// Basic smoke test of the bubble launcher.
+// Contacts: chromeos-launcher@google.com, chromeos-sw-engprod@google.com
+// Ported from Tast by: jamescook@chromium.org
+// BugComponent: b:1288350
+IN_PROC_BROWSER_TEST_F(AppListInteractiveUiTest, BubbleSmoke) {
+  base::AddFeatureIdTagToTestResult(
+      "screenplay-90e4fecc-d2ea-40dc-b9db-eb9d61089e22");
 
-  // Click the app list button to show the app list.
-  ash::Shell* shell = ash::Shell::Get();
-  auto* service = AppListServiceAsh::GetInstance();
-  auto* presenter = service->GetAppListPresenter();
-  EXPECT_FALSE(shell->app_list()->GetTargetVisibility());
-  EXPECT_FALSE(presenter->GetTargetVisibility());
-  EXPECT_EQ(0u, app_list_container->children().size());
-  EXPECT_FALSE(app_list_button->is_showing_app_list());
-  generator.set_current_location(
-      app_list_button->GetBoundsInScreen().CenterPoint());
-  generator.ClickLeftButton();
-  // Flush the mojo message from Ash to Chrome to show the app list.
-  shell->app_list()->FlushForTesting();
-  EXPECT_TRUE(presenter->GetTargetVisibility());
-  // Flush the mojo message from Chrome to Ash reporting the visibility change.
-  auto* presenter_service = service->app_list_presenter_service();
-  presenter_service->FlushForTesting();
-  EXPECT_TRUE(shell->app_list()->GetTargetVisibility());
-  EXPECT_EQ(1u, app_list_container->children().size());
-  EXPECT_TRUE(app_list_button->is_showing_app_list());
+  SetupContextWidget();
 
-  // Click the button again to dismiss the app list; it will animate to close.
-  generator.ClickLeftButton();
-  // Flush the mojo message from Ash to Chrome to hide the app list.
-  shell->app_list()->FlushForTesting();
-  EXPECT_FALSE(presenter->GetTargetVisibility());
-  // Flush the mojo message from Chrome to Ash reporting the visibility change.
-  presenter_service->FlushForTesting();
-  EXPECT_FALSE(shell->app_list()->GetTargetVisibility());
-  EXPECT_EQ(1u, app_list_container->children().size());
-  EXPECT_FALSE(app_list_button->is_showing_app_list());
+  const gfx::Point screen_origin(0, 0);
+  const ui::Accelerator escape_key(ui::VKEY_ESCAPE, ui::EF_NONE);
+
+  RunTestSequence(
+      // Clicking the home (launcher) button once opens the bubble widget, which
+      // shows the bubble view.
+      Log("Clicking home button"), PressButton(kHomeButtonElementId),
+      WaitForShow(kAppListBubbleViewElementId),
+
+      // Clicking in the corner of the screen closes the bubble widget and view.
+      Log("Clicking screen corner"), MoveMouseTo(screen_origin), ClickMouse(),
+      WaitForHide(kAppListBubbleViewElementId),
+
+      // Pressing the Search key opens the bubble. Don't use SendAccelerator()
+      // because there's no target element.
+      Log("Pressing search key"), Do([]() {
+        ui_controls::SendKeyPress(/*window=*/nullptr, ui::VKEY_COMMAND,
+                                  /*control=*/false, /*shift=*/false,
+                                  /*alt=*/false, /*command=*/false);
+      }),
+      WaitForShow(kAppListBubbleViewElementId),
+
+      // Typing the escape key closes the bubble.
+      Log("Pressing escape"),
+      SendAccelerator(kAppListBubbleViewElementId, escape_key),
+      WaitForHide(kAppListBubbleViewElementId));
 }
+
+}  // namespace
+}  // namespace ash
