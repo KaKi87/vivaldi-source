@@ -1,19 +1,14 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//mojo/public/tools/bindings/mojom.gni")
-
-mojom("mojo_interfaces") {
+component("features") {
+  output_name = "autofill_content_common_features"
+  defines = [ "IS_AUTOFILL_IMPL" ]
   sources = [
-    "autofill_agent.mojom",
-    "autofill_driver.mojom",
+    "content_autofill_features.cc",
+    "content_autofill_features.h",
   ]
 
-  public_deps = [
-    "//components/autofill/core/common/mojom:mojo_types",
-    "//mojo/public/mojom/base",
-    "//ui/gfx/geometry/mojo",
-    "//url/mojom:url_mojom_gurl",
-  ]
+  deps = [ "//base" ]
 }

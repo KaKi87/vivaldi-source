@@ -1,82 +1,83 @@
-/* Copyright 2015 The Chromium Authors. All rights reserved.
+/* Copyright 2024 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file. */
 
+/* #css_wrapper_metadata_start
+ * #type=style-lit
+ * #import=../cr_input/cr_input_style_lit.css.js
+ * #import=../cr_shared_style_lit.css.js
+ * #import=../cr_shared_vars.css.js
+ * #import=../icons.html.js
+ * #scheme=relative
+ * #include=cr-shared-style-lit cr-input-style-lit
+ * #css_wrapper_metadata_end */
+
 :host {
-  -webkit-padding-end: 10px;
-  box-sizing: border-box;
   display: flex;
-  justify-content: flex-end;
+  user-select: none;
+  --cr-search-field-clear-icon-fill: var(--google-grey-700);
+  --cr-search-field-clear-icon-margin-end : -4px;
+  --cr-search-field-input-border-bottom: 1px solid var(--cr-secondary-text-color);
 }
 
-[hidden] {
-  display: none !important;
+#searchIcon {
+  align-self: center;
+  display: var(--cr-search-field-search-icon-display, inherit);
+  height: 16px;
+  padding: 4px;
+  vertical-align: middle;
+  width: 16px;
 }
 
-paper-input-container {
-  margin-top: 2px;
-  max-width: 200px;
-  padding: 2px 0;
-  width: 100%;
+#searchIconInline {
+  --iron-icon-fill-color: var(--cr-search-field-search-icon-fill, inherit);
+  display: var(--cr-search-field-search-icon-inline-display, none);
+  margin-inline-start: var(--cr-search-field-search-icon-inline-margin-start, 0);
 }
 
-#searchTerm {
-  --paper-input-container-color: rgb(192, 199, 205);
-  --paper-input-container-focus-color: rgb(192, 199, 205);
-  --paper-input-container-input: {
-    color: inherit;
-    font-size: inherit;
-  };
-  --paper-input-container-input-color: rgb(192, 199, 205);
-  color: rgb(192, 199, 205);
-  z-index: 0;
+#searchInput {
+  --cr-input-background-color: transparent;
+  --cr-input-border-bottom: var(--cr-search-field-input-border-bottom);
+  --cr-input-border-radius: 0;
+  --cr-input-error-display: none;
+  --cr-input-min-height: var(--cr-search-field-input-min-height, 24px);
+  --cr-input-padding-end: 0;
+  --cr-input-padding-start: var(--cr-search-field-input-padding-start, 0);
+  --cr-input-padding-bottom: var(--cr-search-field-input-padding-bottom, 2px);
+  --cr-input-padding-top: var(--cr-search-field-input-padding-top, 2px);
+  --cr-input-placeholder-color: var(--cr-search-field-placeholder-color);
+  --cr-input-underline-display: var(--cr-search-field-underline-display);
+  --cr-input-underline-border-radius: var(--cr-search-field-input-underline-border-radius, 0);
+  --cr-input-underline-height: var(--cr-search-field-input-underline-height, 0);
+  align-self: stretch;
+  color: var(--cr-primary-text-color);
+  display: block;
+  font-size: 92.3076923%;  /* To 12px from 13px. */
+  width: var(--cr-search-field-input-width, 160px);
 }
 
-#searchTerm input[type='search']::-webkit-search-decoration,
-#searchTerm input[type='search']::-webkit-search-cancel-button,
-#searchTerm input[type='search']::-webkit-search-results-button {
-  -webkit-appearance: none;
+:host([has-search-text]) #searchInput {
+  --cr-input-padding-end: calc(24px +
+    var(--cr-search-field-clear-icon-margin-end));
 }
 
-#searchTerm input[type='search']::-webkit-search-cancel-button {
-  display: none;
-}
-
-#searchTerm input[type='search'] {
-  padding-right: 20px;
-}
-
-paper-icon-button {
-  --iron-icon-height: 20px;
-  --iron-icon-width: 20px;
-  --paper-icon-button: {
-    height: 32px;
-    padding: 6px;
-    width: 32px;
-  };
-}
-
-#searchTerm paper-icon-button {
-  --iron-icon-height: 16px;
-  --iron-icon-width: 16px;
-  --paper-icon-button: {
-    -webkit-margin-end: -8px;
-    height: 32px;
-    padding: 8px;
-    width: 32px;
-  };
+#clearSearch {
+  --cr-icon-button-fill-color: var(--cr-search-field-clear-icon-fill);
+  /* A 16px icon that fits on the input line. */
+  --cr-icon-button-icon-size: var(--cr-search-field-clear-icon-size, 16px);
+  --cr-icon-button-size: var(--cr-search-field-clear-button-size, 24px);
+  margin-inline-end: var(--cr-search-field-clear-icon-margin-end);
+  margin-inline-start: 4px;
   position: absolute;
   right: 0;
-  top: -4px;
+}
+
+:host-context([chrome-refresh-2023]) #clearSearch {
+  /* Necessary to be above the '#hover-layer' in cr-input. */
   z-index: 1;
 }
 
-:host-context([dir='rtl']) #searchTerm paper-icon-button {
+:host-context([dir='rtl']) #clearSearch {
   left: 0;
   right: auto;
-}
-
-:host-context([dir='rtl']) #searchTerm input[type='search'] {
-  padding-left: 20px;
-  padding-right: 0;
 }

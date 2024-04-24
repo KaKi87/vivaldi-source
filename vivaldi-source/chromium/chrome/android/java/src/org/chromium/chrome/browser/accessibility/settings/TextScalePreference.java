@@ -1,19 +1,19 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.accessibility.settings;
 
 import android.content.Context;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import org.chromium.chrome.R;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
-
-import org.chromium.chrome.R;
 
 import java.text.NumberFormat;
 
@@ -39,12 +39,11 @@ public class TextScalePreference extends Preference implements SeekBar.OnSeekBar
 
     private TextView mAmount;
     private TextView mPreview;
+    private SeekBar mSeekBar;
 
     private NumberFormat mFormat = NumberFormat.getPercentInstance();
 
-    /**
-     * Constructor for inflating from XML.
-     */
+    /** Constructor for inflating from XML. */
     public TextScalePreference(Context context, AttributeSet attrs) {
         super(context, attrs);
 
@@ -56,10 +55,10 @@ public class TextScalePreference extends Preference implements SeekBar.OnSeekBar
     public void onBindViewHolder(PreferenceViewHolder holder) {
         super.onBindViewHolder(holder);
 
-        SeekBar seekBar = (SeekBar) holder.findViewById(R.id.seekbar);
-        seekBar.setOnSeekBarChangeListener(this);
-        seekBar.setMax(userFontScaleFactorToProgress(MAX));
-        seekBar.setProgress(userFontScaleFactorToProgress(mUserFontScaleFactor));
+        mSeekBar = (SeekBar) holder.findViewById(R.id.seekbar);
+        mSeekBar.setOnSeekBarChangeListener(this);
+        mSeekBar.setMax(userFontScaleFactorToProgress(MAX));
+        mSeekBar.setProgress(userFontScaleFactorToProgress(mUserFontScaleFactor));
 
         mAmount = (TextView) holder.findViewById(R.id.seekbar_amount);
         mPreview = (TextView) holder.findViewById(R.id.preview);
@@ -77,6 +76,21 @@ public class TextScalePreference extends Preference implements SeekBar.OnSeekBar
 
     private void updateViews() {
         mAmount.setText(mFormat.format(mUserFontScaleFactor));
+
+        // On Android R+, use stateDescription so the only percentage announced to the user is
+        // the scaling percent. For previous versions the SeekBar percentage is always announced.
+        String userFriendlyFontDescription =
+                getContext()
+                        .getResources()
+                        .getString(
+                                R.string.font_size_accessibility_label,
+                                mFormat.format(mUserFontScaleFactor));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            mSeekBar.setStateDescription(userFriendlyFontDescription);
+        } else {
+            mSeekBar.setContentDescription(userFriendlyFontDescription);
+        }
+
         mPreview.setTextSize(
                 TypedValue.COMPLEX_UNIT_DIP, SMALLEST_STANDARD_FONT_SIZE_PX * mFontScaleFactor);
     }
@@ -96,9 +110,7 @@ public class TextScalePreference extends Preference implements SeekBar.OnSeekBar
         return Math.round((userFontScaleFactor - MIN) / STEP);
     }
 
-    /**
-     * Notifies {@link Preference.OnPreferenceChangeListener}s of updated value.
-     */
+    /** Notifies {@link Preference.OnPreferenceChangeListener}s of updated value. */
     @Override
     public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
         if (!fromUser) return;
@@ -115,7 +127,7 @@ public class TextScalePreference extends Preference implements SeekBar.OnSeekBar
     @Override
     public void onStopTrackingTouch(SeekBar seekBar) {}
 
-    CharSequence getAmountForTesting() {
+    public CharSequence getAmountForTesting() {
         return mAmount.getText();
     }
 }
