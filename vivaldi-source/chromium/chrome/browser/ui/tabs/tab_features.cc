@@ -1,38 +1,71 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/tabs/tab_features.h"
 
-#include "base/feature_list.h"
 #include "base/memory/ptr_util.h"
-#include "build/build_config.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_impl.h"
+#include "base/no_destructor.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/lens/lens_overlay_controller.h"
+#include "chrome/browser/ui/tabs/tab_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 
-#if defined(TOOLKIT_VIEWS)
-#include "chrome/browser/ui/tabs/tab_strip_model_experimental.h"
-#endif
+namespace tabs {
 
-const base::Feature kExperimentalTabControllerFeature{
-    "ExperimentalTabController", base::FEATURE_DISABLED_BY_DEFAULT,
-};
+namespace {
 
-bool IsExperimentalTabStripEnabled() {
-#if defined(TOOLKIT_VIEWS)
-  return base::FeatureList::IsEnabled(kExperimentalTabControllerFeature);
-#else
-  return false;
-#endif
+// This is the generic entry point for test code to stub out TabFeature
+// functionality. It is called by production code, but only used by tests.
+TabFeatures::TabFeaturesFactory& GetFactory() {
+  static base::NoDestructor<TabFeatures::TabFeaturesFactory> factory;
+  return *factory;
 }
 
-std::unique_ptr<TabStripModel> CreateTabStripModel(
-    TabStripModelDelegate* delegate,
+}  // namespace
+
+// static
+std::unique_ptr<TabFeatures> TabFeatures::CreateTabFeatures() {
+  if (GetFactory()) {
+    return GetFactory().Run();
+  }
+  // Constructor is protected.
+  return base::WrapUnique(new TabFeatures());
+}
+
+TabFeatures::~TabFeatures() = default;
+
+// static
+void TabFeatures::ReplaceTabFeaturesForTesting(TabFeaturesFactory factory) {
+  TabFeatures::TabFeaturesFactory& f = GetFactory();
+  f = std::move(factory);
+}
+
+void TabFeatures::Init(TabInterface* tab, Profile* profile) {
+  CHECK(!initialized_);
+  initialized_ = true;
+
+  // Features that are only enabled for normal browser windows. By default most
+  // features should be instantiated in this block.
+  if (tab->IsInNormalWindow()) {
+    lens_overlay_controller_ = CreateLensController(tab, profile);
+  }
+}
+
+TabFeatures::TabFeatures() = default;
+
+std::unique_ptr<LensOverlayController> TabFeatures::CreateLensController(
+    TabInterface* tab,
     Profile* profile) {
-  // The experimental controller currently just crashes so don't inflict it on
-  // people yet who may have accidentally triggered this feature.
-#if defined(TOOLKIT_VIEWS)
-  if (IsExperimentalTabStripEnabled())
-    return base::MakeUnique<TabStripModelExperimental>(delegate, profile);
-#endif
-  return base::MakeUnique<TabStripModelImpl>(delegate, profile);
+  return std::make_unique<LensOverlayController>(
+      tab, profile->GetVariationsClient(),
+      IdentityManagerFactory::GetForProfile(profile), profile->GetPrefs(),
+      SyncServiceFactory::GetForProfile(profile),
+      ThemeServiceFactory::GetForProfile(profile));
 }
+
+}  // namespace tabs

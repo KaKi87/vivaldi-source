@@ -18,6 +18,7 @@
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/platform/graphics/paint/drawing_display_item.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_controller.h"
+#include "third_party/blink/renderer/core/paint/text_paint_style.h"
 #include "third_party/skia/include/core/SkTextBlob.h"
 
 namespace blink {
@@ -27,19 +28,19 @@ class TextPainterTest : public RenderingTest {
  public:
   TextPainterTest()
       : layout_text_(nullptr),
-        paint_controller_(std::make_unique<PaintController>()),
-        context_(*paint_controller_) {}
+        paint_controller_(MakeGarbageCollected<PaintController>()) {}
 
  protected:
   const LayoutText& GetLayoutText() { return *layout_text_; }
 
-  PaintInfo CreatePaintInfoForBackground() {
-    return PaintInfo(context_, CullRect(),
-                     PaintPhase::kSelfBlockBackgroundOnly);
+  PaintInfo CreatePaintInfoForBackground(GraphicsContext& context) {
+    return PaintInfo(context, CullRect(), PaintPhase::kSelfBlockBackgroundOnly,
+                     /*descendant_painting_blocked=*/false);
   }
 
-  PaintInfo CreatePaintInfoForTextClip() {
-    return PaintInfo(context_, CullRect(), PaintPhase::kTextClip);
+  PaintInfo CreatePaintInfoForTextClip(GraphicsContext& context) {
+    return PaintInfo(context, CullRect(), PaintPhase::kTextClip,
+                     /*descendant_painting_blocked=*/false);
   }
 
  protected:
@@ -52,12 +53,11 @@ class TextPainterTest : public RenderingTest {
     layout_text_ =
         To<LayoutText>(GetDocument().body()->firstChild()->GetLayoutObject());
     ASSERT_TRUE(layout_text_);
-    ASSERT_EQ("Hello world", layout_text_->GetText());
+    ASSERT_EQ("Hello world", layout_text_->TransformedText());
   }
 
   Persistent<LayoutText> layout_text_;
-  std::unique_ptr<PaintController> paint_controller_;
-  GraphicsContext context_;
+  Persistent<PaintController> paint_controller_;
 };
 
 TEST_F(TextPainterTest, TextPaintingStyle_Simple) {
@@ -65,9 +65,10 @@ TEST_F(TextPainterTest, TextPaintingStyle_Simple) {
                                                CSSValueID::kBlue);
   UpdateAllLifecyclePhasesForTest();
 
+  GraphicsContext context(*paint_controller_);
   TextPaintStyle text_style = TextPainter::TextPaintingStyle(
       GetLayoutText().GetDocument(), GetLayoutText().StyleRef(),
-      CreatePaintInfoForBackground());
+      CreatePaintInfoForBackground(context));
   EXPECT_EQ(Color(0, 0, 255), text_style.fill_color);
   EXPECT_EQ(Color(0, 0, 255), text_style.stroke_color);
   EXPECT_EQ(Color(0, 0, 255), text_style.emphasis_mark_color);
@@ -89,9 +90,10 @@ TEST_F(TextPainterTest, TextPaintingStyle_AllProperties) {
                                                "1px 2px 3px yellow");
   UpdateAllLifecyclePhasesForTest();
 
+  GraphicsContext context(*paint_controller_);
   TextPaintStyle text_style = TextPainter::TextPaintingStyle(
       GetLayoutText().GetDocument(), GetLayoutText().StyleRef(),
-      CreatePaintInfoForBackground());
+      CreatePaintInfoForBackground(context));
   EXPECT_EQ(Color(255, 0, 0), text_style.fill_color);
   EXPECT_EQ(Color(0, 255, 0), text_style.stroke_color);
   EXPECT_EQ(Color(0, 0, 255), text_style.emphasis_mark_color);
@@ -119,9 +121,10 @@ TEST_F(TextPainterTest, TextPaintingStyle_UsesTextAsClip) {
                                                "1px 2px 3px yellow");
   UpdateAllLifecyclePhasesForTest();
 
+  GraphicsContext context(*paint_controller_);
   TextPaintStyle text_style = TextPainter::TextPaintingStyle(
       GetLayoutText().GetDocument(), GetLayoutText().StyleRef(),
-      CreatePaintInfoForTextClip());
+      CreatePaintInfoForTextClip(context));
   EXPECT_EQ(Color::kBlack, text_style.fill_color);
   EXPECT_EQ(Color::kBlack, text_style.stroke_color);
   EXPECT_EQ(Color::kBlack, text_style.emphasis_mark_color);
@@ -141,15 +144,16 @@ TEST_F(TextPainterTest,
       CSSPropertyID::kWebkitPrintColorAdjust, CSSValueID::kEconomy);
   GetDocument().GetSettings()->SetShouldPrintBackgrounds(false);
   gfx::SizeF page_size(500, 800);
-  GetFrame().StartPrinting(page_size, page_size, 1);
+  GetFrame().StartPrinting(page_size, 1);
   UpdateAllLifecyclePhasesForTest();
   // In LayoutNG, printing currently forces layout tree reattachment,
   // so we need to re-get layout_text_.
   UpdateLayoutText();
 
+  GraphicsContext context(*paint_controller_);
   TextPaintStyle text_style = TextPainter::TextPaintingStyle(
       GetLayoutText().GetDocument(), GetLayoutText().StyleRef(),
-      CreatePaintInfoForBackground());
+      CreatePaintInfoForBackground(context));
   EXPECT_EQ(Color(255, 0, 0), text_style.fill_color);
   EXPECT_EQ(Color(0, 255, 0), text_style.stroke_color);
   EXPECT_EQ(Color(0, 0, 255), text_style.emphasis_mark_color);
@@ -166,15 +170,16 @@ TEST_F(TextPainterTest, TextPaintingStyle_ForceBackgroundToWhite_Darkened) {
       CSSPropertyID::kWebkitPrintColorAdjust, CSSValueID::kEconomy);
   GetDocument().GetSettings()->SetShouldPrintBackgrounds(false);
   gfx::SizeF page_size(500, 800);
-  GetFrame().StartPrinting(page_size, page_size, 1);
+  GetFrame().StartPrinting(page_size, 1);
   GetDocument().View()->UpdateLifecyclePhasesForPrinting();
   // In LayoutNG, printing currently forces layout tree reattachment,
   // so we need to re-get layout_text_.
   UpdateLayoutText();
 
+  GraphicsContext context(*paint_controller_);
   TextPaintStyle text_style = TextPainter::TextPaintingStyle(
       GetLayoutText().GetDocument(), GetLayoutText().StyleRef(),
-      CreatePaintInfoForBackground());
+      CreatePaintInfoForBackground(context));
   EXPECT_EQ(Color(255, 220, 220).Dark(), text_style.fill_color);
   EXPECT_EQ(Color(220, 255, 220).Dark(), text_style.stroke_color);
   EXPECT_EQ(Color(220, 220, 255).Dark(), text_style.emphasis_mark_color);
@@ -187,7 +192,7 @@ TEST_F(TextPainterTest, CachedTextBlob) {
   ASSERT_TRUE(item);
   auto* op = static_cast<const cc::DrawTextBlobOp*>(
       &item->GetPaintRecord().GetFirstOp());
-  ASSERT_EQ(cc::PaintOpType::DrawTextBlob, op->GetType());
+  ASSERT_EQ(cc::PaintOpType::kDrawTextBlob, op->GetType());
   cc::PaintFlags flags = op->flags;
   sk_sp<SkTextBlob> blob = op->blob;
 
@@ -199,7 +204,7 @@ TEST_F(TextPainterTest, CachedTextBlob) {
   ASSERT_TRUE(item);
   op = static_cast<const cc::DrawTextBlobOp*>(
       &item->GetPaintRecord().GetFirstOp());
-  ASSERT_EQ(cc::PaintOpType::DrawTextBlob, op->GetType());
+  ASSERT_EQ(cc::PaintOpType::kDrawTextBlob, op->GetType());
   EXPECT_FALSE(flags.EqualsForTesting(op->flags));
   flags = op->flags;
   EXPECT_EQ(blob, op->blob);
@@ -213,7 +218,7 @@ TEST_F(TextPainterTest, CachedTextBlob) {
   ASSERT_TRUE(item);
   op = static_cast<const cc::DrawTextBlobOp*>(
       &item->GetPaintRecord().GetFirstOp());
-  ASSERT_EQ(cc::PaintOpType::DrawTextBlob, op->GetType());
+  ASSERT_EQ(cc::PaintOpType::kDrawTextBlob, op->GetType());
   EXPECT_TRUE(flags.EqualsForTesting(op->flags));
   EXPECT_NE(blob, op->blob);
   blob = op->blob;
@@ -226,7 +231,7 @@ TEST_F(TextPainterTest, CachedTextBlob) {
   ASSERT_TRUE(item);
   op = static_cast<const cc::DrawTextBlobOp*>(
       &item->GetPaintRecord().GetFirstOp());
-  ASSERT_EQ(cc::PaintOpType::DrawTextBlob, op->GetType());
+  ASSERT_EQ(cc::PaintOpType::kDrawTextBlob, op->GetType());
   EXPECT_TRUE(flags.EqualsForTesting(op->flags));
   EXPECT_NE(blob, op->blob);
 
@@ -238,7 +243,7 @@ TEST_F(TextPainterTest, CachedTextBlob) {
   ASSERT_TRUE(item);
   op = static_cast<const cc::DrawTextBlobOp*>(
       &item->GetPaintRecord().GetFirstOp());
-  ASSERT_EQ(cc::PaintOpType::DrawTextBlob, op->GetType());
+  ASSERT_EQ(cc::PaintOpType::kDrawTextBlob, op->GetType());
   EXPECT_FALSE(flags.EqualsForTesting(op->flags));
 }
 

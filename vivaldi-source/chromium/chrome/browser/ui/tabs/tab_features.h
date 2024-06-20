@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,20 +7,53 @@
 
 #include <memory>
 
-#include "base/feature_list.h"
+#include "base/functional/callback.h"
 
-class TabStripModel;
-class TabStripModelDelegate;
+class LensOverlayController;
 class Profile;
 
-// Enables the tab controller for experimenting with different behavior.
-extern const base::Feature kExperimentalTabControllerFeature;
+namespace tabs {
 
-bool IsExperimentalTabStripEnabled();
+class TabInterface;
 
-// Creates and returns the correct TabStripModel according to the feature flag.
-std::unique_ptr<TabStripModel> CreateTabStripModel(
-    TabStripModelDelegate* delegate,
-    Profile* profile);
+// This class owns the core controllers for features that are scoped to a given
+// tab. It can be subclassed by tests to perform dependency injection.
+class TabFeatures {
+ public:
+  static std::unique_ptr<TabFeatures> CreateTabFeatures();
+  virtual ~TabFeatures();
+
+  TabFeatures(const TabFeatures&) = delete;
+  TabFeatures& operator=(const TabFeatures&) = delete;
+
+  // Call this method to stub out TabFeatures for tests.
+  using TabFeaturesFactory =
+      base::RepeatingCallback<std::unique_ptr<TabFeatures>()>;
+  static void ReplaceTabFeaturesForTesting(TabFeaturesFactory factory);
+
+  LensOverlayController* lens_overlay_controller() {
+    return lens_overlay_controller_.get();
+  }
+
+  // Called exactly once to initialize features.
+  void Init(TabInterface* tab, Profile* profile);
+
+ protected:
+  TabFeatures();
+
+  // Override these methods to stub out individual feature controllers for
+  // testing.
+  virtual std::unique_ptr<LensOverlayController> CreateLensController(
+      TabInterface* tab,
+      Profile* profile);
+
+ private:
+  bool initialized_ = false;
+
+  // Features that are per-tab will each have a controller.
+  std::unique_ptr<LensOverlayController> lens_overlay_controller_;
+};
+
+}  // namespace tabs
 
 #endif  // CHROME_BROWSER_UI_TABS_TAB_FEATURES_H_

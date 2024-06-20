@@ -1,59 +1,36 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/attribution_reporting/eligibility.h"
 
-#include "base/strings/string_piece.h"
-#include "base/types/expected.h"
-#include "components/attribution_reporting/eligibility_error.mojom-shared.h"
-#include "components/attribution_reporting/registration_type.mojom-shared.h"
-#include "net/http/structured_headers.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include <optional>
+
+#include "components/attribution_reporting/registration_eligibility.mojom-shared.h"
+#include "services/network/public/mojom/attribution.mojom-shared.h"
 
 namespace attribution_reporting {
 
 namespace {
-
-using ::attribution_reporting::mojom::EligibilityError;
-using ::attribution_reporting::mojom::RegistrationType;
-
+using ::attribution_reporting::mojom::RegistrationEligibility;
+using ::network::mojom::AttributionReportingEligibility;
 }  // namespace
 
-base::expected<mojom::RegistrationType, mojom::EligibilityError>
-ParseEligibleHeader(absl::optional<base::StringPiece> header) {
-  // All subresources are eligible to register triggers if they do *not*
-  // specify the header.
-  if (!header.has_value()) {
-    return RegistrationType::kTrigger;
+std::optional<RegistrationEligibility> GetRegistrationEligibility(
+    AttributionReportingEligibility net_value) {
+  switch (net_value) {
+    case AttributionReportingEligibility::kEmpty:
+      return std::nullopt;
+    case AttributionReportingEligibility::kUnset:
+    case AttributionReportingEligibility::kTrigger:
+      return RegistrationEligibility::kTrigger;
+    case AttributionReportingEligibility::kEventSource:
+    case AttributionReportingEligibility::kNavigationSource:
+      return RegistrationEligibility::kSource;
+    case AttributionReportingEligibility::kEventSourceOrTrigger:
+      return RegistrationEligibility::kSourceOrTrigger;
   }
-
-  absl::optional<net::structured_headers::Dictionary> dict =
-      net::structured_headers::ParseDictionary(*header);
-  if (!dict) {
-    return base::unexpected(EligibilityError::kInvalidStructuredHeader);
-  }
-
-  if (dict->contains("navigation-source")) {
-    return base::unexpected(EligibilityError::kContainsNavigationSource);
-  }
-
-  const bool allows_event_source = dict->contains("event-source");
-  const bool allows_trigger = dict->contains("trigger");
-
-  if (allows_event_source && allows_trigger) {
-    return RegistrationType::kSourceOrTrigger;
-  }
-
-  if (allows_event_source) {
-    return RegistrationType::kSource;
-  }
-
-  if (allows_trigger) {
-    return RegistrationType::kTrigger;
-  }
-
-  return base::unexpected(EligibilityError::kIneligible);
+  return std::nullopt;
 }
 
 }  // namespace attribution_reporting
