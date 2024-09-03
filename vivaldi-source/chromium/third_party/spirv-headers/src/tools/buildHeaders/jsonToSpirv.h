@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 The Khronos Group Inc.
+// Copyright (c) 2014-2024 The Khronos Group Inc.
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and/or associated documentation files (the "Materials"),
@@ -41,6 +41,8 @@ std::pair<bool, std::string> ReadFile(const std::string& path);
 void jsonToSpirv(const std::string& jsonPath, bool buildingHeaders);
 
 // For parameterizing operands.
+// The ordering here affects the printing order in the SPIR-V specification.
+// Please add new operand classes at the end.
 enum OperandClass {
     OperandNone,
     OperandId,
@@ -89,6 +91,21 @@ enum OperandClass {
     OperandRayQueryCommittedIntersectionType,
     OperandRayQueryCandidateIntersectionType,
     OperandFragmentShadingRate,
+    OperandFPDenormMode,
+    OperandFPOperationMode,
+    OperandQuantizationModes,
+    OperandOverflowModes,
+    OperandPackedVectorFormat,
+    OperandCooperativeMatrixOperands,
+    OperandCooperativeMatrixLayout,
+    OperandCooperativeMatrixUse,
+    OperandInitializationModeQualifier,
+    OperandHostAccessQualifier,
+    OperandLoadCacheControl,
+    OperandStoreCacheControl,
+    OperandNamedMaximumNumberOfRegisters,
+    OperandRawAccessChainOperands,
+    OperandFPEncoding,
 
     OperandOpcode,
 
@@ -177,6 +194,7 @@ public:
 
     iterator begin() { return values.begin(); }
     iterator end() { return values.end(); }
+    EValue& back() { return values.back(); }
 
 private:
     ContainerType values;
@@ -209,6 +227,10 @@ public:
     Extensions extensions;
     OperandParameters operands;
     const char* desc;
+
+    // Returns true if this enum is valid, in isolation.
+    // Otherwise emits a diagnostic to std::cerr and returns false.
+    bool IsValid(OperandClass oc, const std::string& context) const;
 };
 
 using EnumValues = EnumValuesContainer<EnumValue>;
@@ -254,7 +276,7 @@ public:
     InstructionValue(EnumValue&& e, const std::string& printClass, bool has_type, bool has_result)
      : EnumValue(std::move(e)),
        printingClass(printClass),
-       opDesc("TBD"),
+       opDesc("TBD."),
        typePresent(has_type),
        resultPresent(has_result),
        alias(this) { }

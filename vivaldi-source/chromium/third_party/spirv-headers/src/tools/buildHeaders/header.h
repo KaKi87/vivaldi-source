@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2019 The Khronos Group Inc.
+// Copyright (c) 2014-2024 The Khronos Group Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and/or associated documentation files (the "Materials"),
@@ -43,6 +43,7 @@ namespace spv {
         ELangPython,   // Python
         ELangCSharp,   // CSharp
         ELangD,        // D
+        ELangBeef,     // Beef
 
         ELangAll,      // print headers in all languages to files
     };

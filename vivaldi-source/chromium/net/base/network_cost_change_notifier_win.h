@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,11 @@
 #include <netlistmgr.h>
 #include <wrl/client.h>
 
-#include "base/callback_forward.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/threading/sequence_bound.h"
+#include "base/win/windows_version.h"
 #include "net/base/net_export.h"
 #include "net/base/network_change_notifier.h"
 
@@ -20,24 +21,33 @@ class NetworkCostManagerEventSinkWin;
 
 // Uses the `INetworkCostManager` Windows OS API to monitor the cost of the
 // current connection.  `INetworkCostManager` performs blocking IO and
-// synchronous RPC and must be accessed through a thread pool COM STA single
-// threaded task runner.  NetworkCostChangeNotifierWin uses
-// `base::SequenceBound` to prevent these expensive operations from happening on
-// the UI thread.
+// synchronous RPC, which must be accessed through a thread pool worker thread.
+// `NetworkCostChangeNotifierWin` uses `base::SequenceBound` to prevent these
+// expensive operations from happening on the UI thread.
 class NET_EXPORT_PRIVATE NetworkCostChangeNotifierWin final {
  public:
+  // `INetworkCostManager` requires Windows Build 19041 or higher.  On prior
+  // builds, calls to the Windows OS API `IConnectionPoint::Advise()` may hang.
+  static constexpr base::win::Version kSupportedOsVersion =
+      base::win::Version::WIN10_20H1;
+
   using CostChangedCallback =
       base::RepeatingCallback<void(NetworkChangeNotifier::ConnectionCost)>;
 
-  // Constructs a new instance using a new COM STA single threaded task runner
-  // to post the task that creates NetworkCostChangeNotifierWin and subscribes
-  // to cost change events.
+  // Constructs a new instance using a COM STA single threaded task runner.
+  // Posts the task that subscribes to cost change events using Windows OS APIs.
   static base::SequenceBound<NetworkCostChangeNotifierWin> CreateInstance(
       CostChangedCallback cost_changed_callback);
 
+  // Use `CreateInstance()` above.  This constructor is public for use by
+  // `base::SequenceBound` only.
+  explicit NetworkCostChangeNotifierWin(
+      CostChangedCallback cost_changed_callback);
+  ~NetworkCostChangeNotifierWin();
+
   // Tests use this hook to provide a fake implementation of the OS APIs.
-  // The fake implementation enables tests to simulate different cost values,
-  // cost changed events and OS errors.
+  // The fake implementation enables tests to simulate different network
+  // conditions.
   using CoCreateInstanceCallback = base::RepeatingCallback<
       HRESULT(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID*)>;
   static void OverrideCoCreateInstanceForTesting(
@@ -48,13 +58,8 @@ class NET_EXPORT_PRIVATE NetworkCostChangeNotifierWin final {
       delete;
 
  private:
-  friend class base::SequenceBound<NetworkCostChangeNotifierWin>;
-
-  explicit NetworkCostChangeNotifierWin(
-      CostChangedCallback cost_changed_callback);
-  ~NetworkCostChangeNotifierWin();
-
-  // Creates `INetworkCostManager` and subscribe to cost change events.
+  // Creates `INetworkCostManager` for `cost_manager_` and subscribe to cost
+  // change events.
   void StartWatching();
 
   // Stops monitoring the cost of the current connection by unsubscribing to

@@ -1,4 +1,4 @@
-// Copyright (c) 2014-2020 The Khronos Group Inc.
+// Copyright (c) 2014-2024 The Khronos Group Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and/or associated documentation files (the "Materials"),
@@ -69,9 +69,9 @@ namespace {
         TPrinter();
 
         static const int         DocMagicNumber = 0x07230203;
-        static const int         DocVersion     = 0x00010500;
-        static const int         DocRevision    = 3;
-        #define DocRevisionString                "3"
+        static const int         DocVersion     = 0x00010600;
+        static const int         DocRevision    = 1;
+        #define DocRevisionString                "1"
         static const std::string DocCopyright;
         static const std::string DocComment1;
         static const std::string DocComment2;
@@ -98,7 +98,7 @@ namespace {
         virtual void printEpilogue(std::ostream&) const { }
         virtual void printMeta(std::ostream&)     const;
         virtual void printTypes(std::ostream&)    const { }
-        virtual void printHasResultType(std::ostream&)     const { };
+        virtual void printUtility(std::ostream&)     const { };
 
         virtual std::string escapeComment(const std::string& s) const;
 
@@ -119,9 +119,9 @@ namespace {
                                     enumStyle_t, bool isLast = false) const {
             return "";
         }
-        virtual std::string maxEnumFmt(const std::string&, const valpair_t&,
-                                       enumStyle_t) const {
-            return "";
+        virtual std::string maxEnumFmt(const std::string& s, const valpair_t& v,
+                               enumStyle_t style) const {
+            return enumFmt(s, v, style, true);
         }
 
         virtual std::string fmtConstInt(unsigned val, const std::string& name,
@@ -169,29 +169,30 @@ namespace {
     }
 
     const std::string TPrinter::DocCopyright =
-        "Copyright (c) 2014-2020 The Khronos Group Inc.\n"
-        "\n"
-        "Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-        "of this software and/or associated documentation files (the \"Materials\"),\n"
-        "to deal in the Materials without restriction, including without limitation\n"
-        "the rights to use, copy, modify, merge, publish, distribute, sublicense,\n"
-        "and/or sell copies of the Materials, and to permit persons to whom the\n"
-        "Materials are furnished to do so, subject to the following conditions:\n"
-        "\n"
-        "The above copyright notice and this permission notice shall be included in\n"
-        "all copies or substantial portions of the Materials.\n"
-        "\n"
-        "MODIFICATIONS TO THIS FILE MAY MEAN IT NO LONGER ACCURATELY REFLECTS KHRONOS\n"
-        "STANDARDS. THE UNMODIFIED, NORMATIVE VERSIONS OF KHRONOS SPECIFICATIONS AND\n"
-        "HEADER INFORMATION ARE LOCATED AT https://www.khronos.org/registry/ \n"
-        "\n"
-        "THE MATERIALS ARE PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS\n"
-        "OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-        "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL\n"
-        "THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-        "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING\n"
-        "FROM,OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE USE OR OTHER DEALINGS\n"
-        "IN THE MATERIALS.\n";
+R"(Copyright (c) 2014-2024 The Khronos Group Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and/or associated documentation files (the "Materials"),
+to deal in the Materials without restriction, including without limitation
+the rights to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell copies of the Materials, and to permit persons to whom the
+Materials are furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Materials.
+
+MODIFICATIONS TO THIS FILE MAY MEAN IT NO LONGER ACCURATELY REFLECTS KHRONOS
+STANDARDS. THE UNMODIFIED, NORMATIVE VERSIONS OF KHRONOS SPECIFICATIONS AND
+HEADER INFORMATION ARE LOCATED AT https://www.khronos.org/registry/ 
+
+THE MATERIALS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM,OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE USE OR OTHER DEALINGS
+IN THE MATERIALS.
+)";
 
     const std::string TPrinter::DocComment1 =
         "This header is automatically generated by the same tool that creates\n"
@@ -199,7 +200,7 @@ namespace {
 
     const std::string TPrinter::DocComment2 =
         "Enumeration tokens for SPIR-V, in various styles:\n"
-        "  C, C++, C++11, JSON, Lua, Python, C#, D\n"
+        "  C, C++, C++11, JSON, Lua, Python, C#, D, Beef\n"
         "\n"
         "- C will have tokens with a \"Spv\" prefix, e.g.: SpvSourceLanguageGLSL\n"
         "- C++ will have tokens in the \"spv\" name space, e.g.: spv::SourceLanguageGLSL\n"
@@ -209,6 +210,8 @@ namespace {
         "- C# will use enum classes in the Specification class located in the \"Spv\" namespace,\n"
         "    e.g.: Spv.Specification.SourceLanguage.GLSL\n"
         "- D will have tokens under the \"spv\" module, e.g: spv.SourceLanguage.GLSL\n"
+        "- Beef will use enum classes in the Specification class located in the \"Spv\" namespace,\n"
+        "    e.g.: Spv.Specification.SourceLanguage.GLSL\n"
         "\n"
         "Some tokens act like mask values, which can be OR'd together,\n"
         "while others are mutually exclusive.  The mask-like ones have\n"
@@ -366,7 +369,7 @@ namespace {
         printTypes(out);
         printMeta(out);
         printDefs(out);
-        printHasResultType(out);
+        printUtility(out);
         printEpilogue(out);
     }
 
@@ -461,6 +464,10 @@ namespace {
             return indent(5) + '"' + prependIfDigit(s, v.second) + "\": " + fmtNum("%d", v.first) +
                 (isLast ? "\n" : ",\n");
         }
+        std::string maxEnumFmt(const std::string& s, const valpair_t& v,
+                               enumStyle_t style) const override {
+            return "";
+        }
     };
 
     // base for C and C++
@@ -500,8 +507,20 @@ namespace {
 
         virtual std::string fmtEnumUse(const std::string& opPrefix, const std::string& name) const { return pre() + name; }
 
-        virtual void printHasResultType(std::ostream& out) const
+        virtual void printUtility(std::ostream& out) const override
         {
+            out << "#ifdef SPV_ENABLE_UTILITY_CODE" << std::endl;
+            out << "#ifndef __cplusplus" << std::endl;
+            out << "#include <stdbool.h>" << std::endl;
+            out << "#endif" << std::endl;
+
+            printHasResultType(out);
+            printStringFunctions(out);
+
+            out << "#endif /* SPV_ENABLE_UTILITY_CODE */" << std::endl << std::endl;
+        }
+
+        void printHasResultType(std::ostream& out) const {
             const Json::Value& enums = spvRoot["spv"]["enum"];
 
             std::set<unsigned> seenValues;
@@ -512,7 +531,7 @@ namespace {
                     continue;
                 }
 
-                out << "#ifdef SPV_ENABLE_UTILITY_CODE" << std::endl;
+
                 out << "inline void " << pre() << "HasResultAndType(" << pre() << opName << " opcode, bool *hasResult, bool *hasResultType) {" << std::endl;
                 out << "    *hasResult = *hasResultType = false;" << std::endl;
                 out << "    switch (opcode) {" << std::endl;
@@ -533,7 +552,43 @@ namespace {
 
                 out << "    }" << std::endl;
                 out << "}" << std::endl;
-                out << "#endif /* SPV_ENABLE_UTILITY_CODE */" << std::endl << std::endl;
+            }
+        }
+
+        void printStringFunctions(std::ostream& out) const {
+            const Json::Value& enums = spvRoot["spv"]["enum"];
+
+            for (auto it = enums.begin(); it != enums.end(); ++it) {
+                const auto type   = (*it)["Type"].asString();
+                // Skip bitmasks
+                if (type == "Bit") {
+                    continue;
+                }
+                const auto name   = (*it)["Name"].asString();
+                const auto sorted = getSortedVals((*it)["Values"]);
+
+                std::set<unsigned> seenValues;
+                std::string fullName = pre() + name;
+
+                out << "inline const char* " << fullName << "ToString(" << fullName << " value) {" << std::endl;
+                out << "    switch (value) {" << std::endl;
+                for (const auto& v : sorted) {
+                    // Filter out duplicate enum values, which would break the switch statement.
+                    // These are probably just extension enums promoted to core.
+                    if (seenValues.count(v.first)) {
+                        continue;
+                    }
+                    seenValues.insert(v.first);
+
+                    std::string label{name + v.second};
+                    if (name == "Op") {
+                        label = v.second;
+                    }
+                    out << "    " << "case " << pre() << label << ": return " << "\"" << v.second << "\";" << std::endl;
+                }
+                out << "    default: return \"Unknown\";" << std::endl;
+                out << "    }" << std::endl;
+                out << "}" << std::endl << std::endl;
             }
         }
     };
@@ -558,28 +613,17 @@ namespace {
             return indent() + pre() + s + v.second + styleStr(style) + " = " + fmtStyleVal(v.first, style) + ",\n";
         }
 
-        std::string maxEnumFmt(const std::string& s, const valpair_t& v,
-                               enumStyle_t style) const override {
-            return enumFmt(s, v, style, true);
-        }
-
         std::string pre() const override { return "Spv"; } // C name prefix
         std::string headerGuardSuffix() const override { return "H"; }
     };
 
     // C++ printer
     class TPrinterCPP : public TPrinterCBase {
-    private:
-        void printPrologue(std::ostream& out) const override {
-            TPrinterCBase::printPrologue(out);
-            out << "namespace spv {\n\n";
-        }
-
-        void printEpilogue(std::ostream& out) const override {
+    protected:
+        void printMaskOperators(std::ostream& out, const std::string& specifiers) const {
             const Json::Value& enums = spvRoot["spv"]["enum"];
 
-            // Create overloaded operator| for mask types
-            out << "// Overload operator| for mask bit combining\n\n";
+            out << "// Overload bitwise operators for mask bit combining\n\n";
 
             for (auto opClass = enums.begin(); opClass != enums.end(); ++opClass) {
                 const bool isMask   = (*opClass)["Type"].asString() == "Bit";
@@ -588,11 +632,29 @@ namespace {
                 if (isMask) {
                     const auto typeName = opName + styleStr(enumMask);
 
-                    out << "inline " + typeName + " operator|(" + typeName + " a, " + typeName + " b) { return " +
-                        typeName + "(unsigned(a) | unsigned(b)); }\n";
+                    // Overload operator|
+                    out << specifiers << " " << typeName << " operator|(" << typeName << " a, " << typeName << " b) { return " <<
+                        typeName << "(unsigned(a) | unsigned(b)); }\n";
+                    // Overload operator&
+                    out << specifiers << " " << typeName << " operator&(" << typeName << " a, " << typeName << " b) { return " <<
+                        typeName << "(unsigned(a) & unsigned(b)); }\n";
+                    // Overload operator^
+                    out << specifiers << " " << typeName << " operator^(" << typeName << " a, " << typeName << " b) { return " <<
+                        typeName << "(unsigned(a) ^ unsigned(b)); }\n";
+                    // Overload operator~
+                    out << specifiers << " " << typeName << " operator~(" << typeName << " a) { return " <<
+                        typeName << "(~unsigned(a)); }\n";
                 }
             }
+        }
+    private:
+        void printPrologue(std::ostream& out) const override {
+            TPrinterCBase::printPrologue(out);
+            out << "namespace spv {\n\n";
+        }
 
+        void printEpilogue(std::ostream& out) const override {
+            printMaskOperators(out, "inline");
             out << "\n}  // end namespace spv\n\n";
             out << "#endif  // #ifndef spirv_" << headerGuardSuffix() << std::endl;
         }
@@ -613,11 +675,6 @@ namespace {
             return indent() + s + v.second + styleStr(style) + " = " + fmtStyleVal(v.first, style) + ",\n";
         }
 
-        virtual std::string maxEnumFmt(const std::string& s, const valpair_t& v,
-                                       enumStyle_t style) const override {
-            return enumFmt(s, v, style, true);
-        }
-
         // The C++ and C++11 headers define types with the same name. So they
         // should use the same header guard.
         std::string headerGuardSuffix() const override { return "HPP"; }
@@ -628,6 +685,11 @@ namespace {
     // C++11 printer (uses enum classes)
     class TPrinterCPP11 final : public TPrinterCPP {
     private:
+        void printEpilogue(std::ostream& out) const override {
+            printMaskOperators(out, "constexpr");
+            out << "\n}  // end namespace spv\n\n";
+            out << "#endif  // #ifndef spirv_" << headerGuardSuffix() << std::endl;
+        }
         std::string enumBeg(const std::string& s, enumStyle_t style) const override {
             return std::string("enum class ") + s + styleStr(style) + " : unsigned {\n";
         }
@@ -637,13 +699,8 @@ namespace {
             return indent() + prependIfDigit(s, v.second) + " = " + fmtStyleVal(v.first, style) + ",\n";
         }
 
-        std::string maxEnumFmt(const std::string& s, const valpair_t& v,
-                               enumStyle_t style) const override {
-            return enumFmt(s, v, style, true);
-        }
-
         // Add type prefix for scoped enum
-        virtual std::string fmtEnumUse(const std::string& opPrefix, const std::string& name) const { return opPrefix + "::" + name; }
+        virtual std::string fmtEnumUse(const std::string& opPrefix, const std::string& name) const override { return opPrefix + "::" + name; }
 
         std::string headerGuardSuffix() const override { return "HPP"; }
     };
@@ -698,7 +755,10 @@ namespace {
                             enumStyle_t style, bool isLast) const override {
             return indent(2) + "'" + prependIfDigit(s, v.second) + "'" + " : " + fmtStyleVal(v.first, style) + ",\n";
         }
-
+        std::string maxEnumFmt(const std::string& s, const valpair_t& v,
+                               enumStyle_t style) const override {
+            return "";
+        }
         std::string fmtConstInt(unsigned val, const std::string& name,
                                 const char* fmt, bool isLast) const override
         {
@@ -776,6 +836,43 @@ namespace {
         }
     };
 
+    // Beef printer
+    class TPrinterBeef final : public TPrinter {
+    private:
+        std::string commentBOL() const override { return "// "; }
+
+        void printPrologue(std::ostream& out) const override {
+            out << "namespace Spv\n{\n";
+            out << indent() << "using System;\n\n";
+            out << indent() << "public static class Specification\n";
+            out << indent() << "{\n";
+        }
+
+        void printEpilogue(std::ostream& out) const override {
+            out << indent() << "}\n";
+            out << "}\n";
+        }
+
+        std::string enumBeg(const std::string& s, enumStyle_t style) const override {
+            return indent(2) + "[AllowDuplicates, CRepr] public enum " + s + styleStr(style) + "\n" + indent(2) + "{\n";
+        }
+
+        std::string enumEnd(const std::string& s, enumStyle_t style, bool isLast) const override {
+            return indent(2) + "}" + +(isLast ? "\n" : "\n\n");
+        }
+
+        std::string enumFmt(const std::string& s, const valpair_t& v,
+            enumStyle_t style, bool isLast) const override {
+            return indent(3) + prependIfDigit(s, v.second) + " = " + fmtStyleVal(v.first, style) + ",\n";
+        }
+
+        std::string fmtConstInt(unsigned val, const std::string& name,
+            const char* fmt, bool isLast) const override {
+            return indent(2) + std::string("public const uint32 ") + name +
+                " = " + fmtNum(fmt, val) + (isLast ? ";\n\n" : ";\n");
+        }
+    };
+
 } // namespace
 
 namespace spv {
@@ -792,6 +889,7 @@ namespace spv {
         langInfo.push_back(std::make_pair(ELangPython,  "spirv.py"));
         langInfo.push_back(std::make_pair(ELangCSharp,  "spirv.cs"));
         langInfo.push_back(std::make_pair(ELangD,       "spv.d"));
+        langInfo.push_back(std::make_pair(ELangBeef,    "spirv.bf"));
 
         for (const auto& lang : langInfo) {
             std::ofstream out(lang.second, std::ios::out);
@@ -819,6 +917,7 @@ namespace spv {
             case ELangPython:  p = TPrinterPtr(new TPrinterPython);  break;
             case ELangCSharp:  p = TPrinterPtr(new TPrinterCSharp);  break;
             case ELangD:       p = TPrinterPtr(new TPrinterD);       break;
+            case ELangBeef:    p = TPrinterPtr(new TPrinterBeef);    break;
             case ELangAll:     PrintAllHeaders();                    break;
             default:
                 std::cerr << "Unknown language." << std::endl;

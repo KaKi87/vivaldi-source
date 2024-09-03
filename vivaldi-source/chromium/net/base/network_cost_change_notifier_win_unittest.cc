@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,7 +19,8 @@ namespace net {
 class NetworkCostChangeNotifierWinTest : public TestWithTaskEnvironment {
  public:
   void SetUp() override {
-    if (base::win::GetVersion() < base::win::Version::WIN10) {
+    if (base::win::GetVersion() <
+        NetworkCostChangeNotifierWin::kSupportedOsVersion) {
       GTEST_SKIP();
     }
   }
@@ -212,7 +213,7 @@ TEST_F(NetworkCostChangeNotifierWinTest, ErrorHandling) {
 
 TEST_F(NetworkCostChangeNotifierWinTest, UnsupportedOS) {
   base::test::ScopedOSInfoOverride os_override(
-      base::test::ScopedOSInfoOverride::Type::kWin81Pro);
+      base::test::ScopedOSInfoOverride::Type::kWinServer2016);
 
   fake_network_cost_manager_environment_.SetCost(
       NetworkChangeNotifier::ConnectionCost::CONNECTION_COST_UNMETERED);

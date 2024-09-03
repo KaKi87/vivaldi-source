@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 
 #include <map>
 
+#include "base/task/sequenced_task_runner.h"
 #include "net/base/network_cost_change_notifier_win.h"
 
 using Microsoft::WRL::ClassicCom;
@@ -42,8 +43,8 @@ void DispatchCostChangedEvent(ComPtr<INetworkCostManagerEvents> event_target,
 
 }  // namespace
 
-// A fake implementation of INetworkCostManager that can simulate costs, changed
-// costs and errors.
+// A fake implementation of `INetworkCostManager` that can simulate costs,
+// changed costs and errors.
 class FakeNetworkCostManager final
     : public RuntimeClass<RuntimeClassFlags<ClassicCom>,
                           INetworkCostManager,
@@ -55,7 +56,7 @@ class FakeNetworkCostManager final
       : error_status_(error_status), connection_cost_(connection_cost) {}
 
   // For each event sink in `event_sinks_`, call
-  // `INetworkCostManagerEvents::CostChanged` with `changed_cost` on the event
+  // `INetworkCostManagerEvents::CostChanged()` with `changed_cost` on the event
   // sink's task runner.
   void PostCostChangedEvents(
       NetworkChangeNotifier::ConnectionCost changed_cost) {
@@ -69,7 +70,7 @@ class FakeNetworkCostManager final
           NlmConnectionCostFlagsFromConnectionCost(changed_cost);
 
       // Get the snapshot of event sinks to notify.  The snapshot collection
-      // creates a new ComPtr for each event sink, which increments each the
+      // creates a new `ComPtr` for each event sink, which increments each the
       // event sink's reference count, ensuring that each event sink
       // remains alive to receive the cost changed event notification.
       event_sinks_for_changed_event = event_sinks_;
@@ -84,7 +85,7 @@ class FakeNetworkCostManager final
     }
   }
 
-  // Implement the INetworkCostManager interface.
+  // Implement the `INetworkCostManager` interface.
   HRESULT
   __stdcall GetCost(DWORD* cost,
                     NLM_SOCKADDR* destination_ip_address) override {
@@ -119,7 +120,7 @@ class FakeNetworkCostManager final
     return E_NOTIMPL;
   }
 
-  // Implement the IConnectionPointContainer interface.
+  // Implement the `IConnectionPointContainer` interface.
   HRESULT __stdcall FindConnectionPoint(REFIID connection_point_id,
                                         IConnectionPoint** result) override {
     if (error_status_ ==
@@ -142,7 +143,7 @@ class FakeNetworkCostManager final
     return E_NOTIMPL;
   }
 
-  // Implement the IConnectionPoint interface.
+  // Implement the `IConnectionPoint` interface.
   HRESULT __stdcall Advise(IUnknown* event_sink,
                            DWORD* event_sink_cookie) override {
     if (error_status_ == NetworkCostManagerStatus::kErrorAdviseFailed) {
@@ -159,7 +160,8 @@ class FakeNetworkCostManager final
     base::AutoLock auto_lock(member_lock_);
 
     event_sinks_[next_event_sink_cookie_] = {
-        cost_manager_event_sink, base::SequencedTaskRunnerHandle::Get()};
+        cost_manager_event_sink,
+        base::SequencedTaskRunner::GetCurrentDefault()};
 
     *event_sink_cookie = next_event_sink_cookie_;
     ++next_event_sink_cookie_;
@@ -195,7 +197,7 @@ class FakeNetworkCostManager final
     return E_NOTIMPL;
   }
 
-  // Implement the IUnknown interface.
+  // Implement the `IUnknown` interface.
   HRESULT __stdcall QueryInterface(REFIID interface_id,
                                    void** result) override {
     if (error_status_ == NetworkCostManagerStatus::kErrorQueryInterfaceFailed) {
@@ -210,7 +212,7 @@ class FakeNetworkCostManager final
   FakeNetworkCostManager& operator=(const FakeNetworkCostManager&) = delete;
 
  private:
-  // The error state for this FakeNetworkCostManager to simulate.  Cannot be
+  // The error state for this `FakeNetworkCostManager` to simulate.  Cannot be
   // changed.
   const NetworkCostManagerStatus error_status_;
 
@@ -231,7 +233,7 @@ class FakeNetworkCostManager final
 };
 
 FakeNetworkCostManagerEnvironment::FakeNetworkCostManagerEnvironment() {
-  // Set up NetworkCostChangeNotifierWin to use the fake OS APIs.
+  // Set up `NetworkCostChangeNotifierWin` to use the fake OS APIs.
   NetworkCostChangeNotifierWin::OverrideCoCreateInstanceForTesting(
       base::BindRepeating(
           &FakeNetworkCostManagerEnvironment::FakeCoCreateInstance,
@@ -239,9 +241,9 @@ FakeNetworkCostManagerEnvironment::FakeNetworkCostManagerEnvironment() {
 }
 
 FakeNetworkCostManagerEnvironment::~FakeNetworkCostManagerEnvironment() {
-  // Restore NetworkCostChangeNotifierWin to use the real OS APIs.
+  // Restore `NetworkCostChangeNotifierWin` to use the real OS APIs.
   NetworkCostChangeNotifierWin::OverrideCoCreateInstanceForTesting(
-      NetworkCostChangeNotifierWin::CoCreateInstanceCallback());
+      base::BindRepeating(&CoCreateInstance));
 }
 
 HRESULT FakeNetworkCostManagerEnvironment::FakeCoCreateInstance(

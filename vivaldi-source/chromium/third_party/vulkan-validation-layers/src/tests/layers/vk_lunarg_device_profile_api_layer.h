@@ -1,7 +1,8 @@
 /*
  *
- * Copyright (c) 2016-2017 Valve Corporation
- * Copyright (c) 2016-2017 LunarG, Inc.
+ * Copyright (c) 2016-2023 Valve Corporation
+ * Copyright (c) 2016-2023 LunarG, Inc.
+ * Copyright (c) 2016-2022 The Khronos Group Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +15,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
- * Author: Arda Coskunses <arda@lunarg.com>
- *
  */
 
-#ifndef __VK_DEVICE_PROFILE_API_H__
-#define __VK_DEVICE_PROFILE_API_H__
+#pragma once
 
 #include "vulkan/vulkan.h"
 #ifdef __cplusplus
@@ -40,8 +37,16 @@ typedef void(VKAPI_PTR *PFN_vkGetOriginalPhysicalDeviceFormatPropertiesEXT)(VkPh
                                                                             const VkFormatProperties *properties);
 typedef void(VKAPI_PTR *PFN_vkSetPhysicalDeviceFormatPropertiesEXT)(VkPhysicalDevice physicalDevice, VkFormat format,
                                                                     const VkFormatProperties newProperties);
+typedef void(VKAPI_PTR *PFN_vkGetOriginalPhysicalDeviceFormatProperties2EXT)(VkPhysicalDevice physicalDevice, VkFormat format,
+                                                                             const VkFormatProperties2 *properties);
+typedef void(VKAPI_PTR *PFN_vkSetPhysicalDeviceFormatProperties2EXT)(VkPhysicalDevice physicalDevice, VkFormat format,
+                                                                     const VkFormatProperties2 newProperties);
+typedef void(VKAPI_PTR *PFN_vkGetOriginalPhysicalDeviceFeaturesEXT)(VkPhysicalDevice physicalDevice,
+                                                                    const VkPhysicalDeviceFeatures *features);
+typedef void(VKAPI_PTR *PFN_vkSetPhysicalDeviceFeaturesEXT)(VkPhysicalDevice physicalDevice,
+                                                            const VkPhysicalDeviceFeatures newFeatures);
+typedef void(VKAPI_PTR *PFN_VkSetPhysicalDeviceProperties2EXT)(VkPhysicalDevice physicalDevice,
+                                                               const VkPhysicalDeviceProperties2 newProperties);
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
-
-#endif  // __VK_DEVICE_PROFILE_API_H__

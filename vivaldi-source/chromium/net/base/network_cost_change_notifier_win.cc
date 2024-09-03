@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,11 +10,10 @@
 #include "base/check.h"
 #include "base/no_destructor.h"
 #include "base/task/bind_post_task.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_thread_priority.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/win/com_init_util.h"
-#include "base/win/windows_version.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -24,27 +23,28 @@ namespace {
 
 NetworkChangeNotifier::ConnectionCost ConnectionCostFromNlmConnectionCost(
     DWORD connection_cost_flags) {
-  if (connection_cost_flags == NLM_CONNECTION_COST_UNKNOWN)
+  if (connection_cost_flags == NLM_CONNECTION_COST_UNKNOWN) {
     return NetworkChangeNotifier::CONNECTION_COST_UNKNOWN;
-  else if ((connection_cost_flags & NLM_CONNECTION_COST_UNRESTRICTED) != 0)
+  } else if ((connection_cost_flags & NLM_CONNECTION_COST_UNRESTRICTED) != 0) {
     return NetworkChangeNotifier::CONNECTION_COST_UNMETERED;
-  else
+  } else {
     return NetworkChangeNotifier::CONNECTION_COST_METERED;
+  }
 }
 
 NetworkCostChangeNotifierWin::CoCreateInstanceCallback&
-GetCoCreateInstanceOverride() {
+GetCoCreateInstanceCallback() {
   static base::NoDestructor<
       NetworkCostChangeNotifierWin::CoCreateInstanceCallback>
-      callback_for_testing;
-  return *callback_for_testing;
+      co_create_instance_callback{base::BindRepeating(&CoCreateInstance)};
+  return *co_create_instance_callback;
 }
 
 }  // namespace
 
 // This class is used as an event sink to register for notifications from the
-// INetworkCostManagerEvents interface. In particular, we are focused on getting
-// notified when the connection cost changes. This is only supported on Win10+.
+// `INetworkCostManagerEvents` interface. In particular, we are focused on
+// getting notified when the connection cost changes.
 class NetworkCostManagerEventSinkWin final
     : public Microsoft::WRL::RuntimeClass<
           Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
@@ -105,7 +105,6 @@ class NetworkCostManagerEventSinkWin final
 
   HRESULT RegisterForNotifications(INetworkCostManager* cost_manager) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    DCHECK_GE(base::win::GetVersion(), base::win::Version::WIN10);
 
     base::win::AssertComInitialized();
     base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
@@ -115,7 +114,7 @@ class NetworkCostManagerEventSinkWin final
 
     // `NetworkCostManagerEventSinkWin::QueryInterface` for `IUnknown` must
     // succeed since it is implemented by this class.
-    DCHECK_EQ(hr, S_OK);
+    CHECK_EQ(hr, S_OK);
 
     ComPtr<IConnectionPointContainer> connection_point_container;
     hr =
@@ -137,7 +136,7 @@ class NetworkCostManagerEventSinkWin final
       return hr;
     }
 
-    DCHECK_EQ(event_sink_connection_point_, nullptr);
+    CHECK_EQ(event_sink_connection_point_, nullptr);
     event_sink_connection_point_ = event_sink_connection_point;
     return S_OK;
   }
@@ -164,7 +163,7 @@ NetworkCostChangeNotifierWin::CreateInstance(
       com_best_effort_task_runner,
       // Ensure `cost_changed_callback` runs on the sequence of the creator and
       // owner of `NetworkCostChangeNotifierWin`.
-      base::BindPostTask(base::SequencedTaskRunnerHandle::Get(),
+      base::BindPostTask(base::SequencedTaskRunner::GetCurrentDefault(),
                          cost_changed_callback));
 }
 
@@ -182,33 +181,20 @@ NetworkCostChangeNotifierWin::~NetworkCostChangeNotifierWin() {
 void NetworkCostChangeNotifierWin::StartWatching() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (base::win::GetComApartmentTypeForThread() ==
-      base::win::ComApartmentType::NONE) {
-    // TODO(crbug.com/1367360): INetworkCostManager inaccessible in network
-    // sandbox.  Currently, the network sandbox does not allow COM.
+  if (base::win::GetVersion() < kSupportedOsVersion) {
     return;
   }
 
   base::win::AssertComInitialized();
   base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
 
-  if (base::win::GetVersion() < base::win::Version::WIN10) {
-    // INetworkCostManager requires Win10 or higher.
-    return;
-  }
-
   SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY();
 
-  // Create INetworkListManager using CoCreateInstance, but allow tests to
-  // provide an fake implementation of INetworkListManager through an override.
-  CoCreateInstanceCallback co_create_instance_callback =
-      base::BindRepeating(&CoCreateInstance);
-  if (GetCoCreateInstanceOverride()) {
-    co_create_instance_callback = GetCoCreateInstanceOverride();
-  }
-
+  // Create `INetworkListManager` using `CoCreateInstance()`.  Tests may provide
+  // a fake implementation of `INetworkListManager` through an
+  // `OverrideCoCreateInstanceForTesting()`.
   ComPtr<INetworkCostManager> cost_manager;
-  HRESULT hr = co_create_instance_callback.Run(
+  HRESULT hr = GetCoCreateInstanceCallback().Run(
       CLSID_NetworkListManager, /*unknown_outer=*/nullptr, CLSCTX_ALL,
       IID_INetworkCostManager, &cost_manager);
   if (hr != S_OK) {
@@ -221,7 +207,7 @@ void NetworkCostChangeNotifierWin::StartWatching() {
       // Cost changed callbacks must run on this sequence to get the new cost
       // from `INetworkCostManager`.
       base::BindPostTask(
-          base::SequencedTaskRunnerHandle::Get(),
+          base::SequencedTaskRunner::GetCurrentDefault(),
           base::BindRepeating(&NetworkCostChangeNotifierWin::HandleCostChanged,
                               weak_ptr_factory_.GetWeakPtr())),
       &cost_manager_event_sink_);
@@ -265,7 +251,7 @@ void NetworkCostChangeNotifierWin::HandleCostChanged() {
 // static
 void NetworkCostChangeNotifierWin::OverrideCoCreateInstanceForTesting(
     CoCreateInstanceCallback callback_for_testing) {
-  GetCoCreateInstanceOverride() = callback_for_testing;
+  GetCoCreateInstanceCallback() = callback_for_testing;
 }
 
 }  // namespace net

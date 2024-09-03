@@ -1,4 +1,4 @@
-# Copyright (C) 2018 The Android Open Source Project
+# Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,24 +14,34 @@
 
 import("../../../gn/proto_library.gni")
 
-SOURCES = [
-  "orchestrator.proto",
-  "worker.proto",
-]
-
-perfetto_proto_library("@TYPE@") {
+perfetto_proto_library("worker_@TYPE@") {
   proto_generators = [
     "lite",
     "zero",
     "source_set",
   ]
-  deps = [ "../trace_processor:@TYPE@" ]  # needed for descriptor.proto.
-  sources = SOURCES
+  deps = [ "../trace_processor:@TYPE@" ]
+  sources = [ "worker.proto" ]
+}
+
+perfetto_proto_library("orchestrator_@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+    "source_set",
+  ]
+  deps = [ "../trace_processor:@TYPE@" ]
+  sources = [ "orchestrator.proto" ]
 }
 
 if (enable_perfetto_grpc) {
-  perfetto_grpc_library("bigtrace_grpc") {
-    deps = [ ":lite" ]
-    sources = SOURCES
+  perfetto_grpc_library("orchestrator_grpc") {
+    deps = [ ":orchestrator_lite" ]
+    sources = [ "orchestrator.proto" ]
+  }
+
+  perfetto_grpc_library("worker_grpc") {
+    deps = [ ":worker_lite" ]
+    sources = [ "worker.proto" ]
   }
 }

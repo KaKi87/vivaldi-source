@@ -1,9 +1,12 @@
-// Copyright 2022 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef NET_TEST_TEST_CONNECTION_COST_OBSERVER_H_
 #define NET_TEST_TEST_CONNECTION_COST_OBSERVER_H_
+
+#include <memory>
+#include <vector>
 
 #include "base/run_loop.h"
 #include "base/sequence_checker.h"

@@ -5,7 +5,6 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_GRID_SUBGRID_MIN_MAX_SIZES_CACHE_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_LAYOUT_GRID_SUBGRID_MIN_MAX_SIZES_CACHE_H_
 
-#include "third_party/blink/renderer/core/layout/grid/grid_data.h"
 #include "third_party/blink/renderer/core/layout/min_max_sizes.h"
 
 namespace blink {
