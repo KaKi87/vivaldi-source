@@ -4,26 +4,26 @@
 
 package org.chromium.chrome.browser.tab_resumption;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import android.content.res.Resources;
 
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.JUnitProcessor;
 
 import java.util.concurrent.TimeUnit;
 
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-public class TabResumptionModuleUtilsUnitTest {
-    @Rule public JUnitProcessor mFeaturesProcessor = new JUnitProcessor();
+public class TabResumptionModuleUtilsUnitTest extends TestSupportExtended {
 
     @Test
     @SmallTest
@@ -49,5 +49,30 @@ public class TabResumptionModuleUtilsUnitTest {
                 "2 days ago", TabResumptionModuleUtils.getRecencyString(res, dayInMs * 2));
         Assert.assertEquals(
                 "100 days ago", TabResumptionModuleUtils.getRecencyString(res, dayInMs * 100));
+    }
+
+    @Test
+    @SmallTest
+    public void testAreSuggestionsFinalized() {
+        assertTrue(TabResumptionModuleUtils.areSuggestionsFinalized(null));
+
+        SuggestionBundle bundle = new SuggestionBundle(CURRENT_TIME_MS);
+        assertTrue(TabResumptionModuleUtils.areSuggestionsFinalized(bundle));
+
+        SuggestionEntry entry = createLocalSuggestion(11);
+        bundle.entries.add(entry);
+        assertTrue(TabResumptionModuleUtils.areSuggestionsFinalized(bundle));
+
+        SuggestionEntry entry1 = createLocalSuggestion(12);
+        bundle.entries.add(entry1);
+        assertTrue(TabResumptionModuleUtils.areSuggestionsFinalized(bundle));
+
+        SuggestionEntry entryNotFinalized = createHistorySuggestion(/* needMatchLocalTab= */ true);
+        bundle.entries.add(1, entryNotFinalized);
+        assertFalse(TabResumptionModuleUtils.areSuggestionsFinalized(bundle));
+
+        bundle.entries.clear();
+        bundle.entries.add(entryNotFinalized);
+        assertFalse(TabResumptionModuleUtils.areSuggestionsFinalized(bundle));
     }
 }

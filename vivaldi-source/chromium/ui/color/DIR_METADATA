@@ -1,3 +1,1 @@
-monorail: {
-  component: "UI"
-}
+mixins: "//ui/color/COMMON_METADATA"

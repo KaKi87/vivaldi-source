@@ -38,6 +38,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     framework/render.h
     framework/binding.h
     framework/binding.cpp
+    framework/buffer_helper.h
     framework/test_framework.cpp
     framework/ray_tracing_objects.h
     framework/ray_tracing_objects.cpp
@@ -100,6 +101,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av.cpp
     unit/gpu_av_buffer_device_address.cpp
     unit/gpu_av_buffer_device_address_positive.cpp
+    unit/gpu_av_descriptor_buffer_positive.cpp
     unit/gpu_av_descriptor_indexing.cpp
     unit/gpu_av_descriptor_indexing_positive.cpp
     unit/gpu_av_indirect_buffer.cpp

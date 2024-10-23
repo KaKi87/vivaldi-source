@@ -1,79 +1,90 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/download/download_item_view.h"
 
-#include "base/bind.h"
-#include "base/bind_helpers.h"
-#include "base/callback_forward.h"
-#include "base/strings/utf_string_conversions.h"
-#include "chrome/test/views/chrome_views_test_base.h"
+#include "chrome/browser/download/download_item_model.h"
+#include "chrome/browser/ui/views/download/download_shelf_view.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/test_with_browser_view.h"
+#include "components/download/public/common/mock_download_item.h"
+#include "content/public/browser/download_item_utils.h"
+#include "content/public/test/fake_download_item.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/views/controls/label.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
-using DownloadItemViewDangerousDownloadLabelTest = ChromeViewsTestBase;
+namespace {
 
-TEST_F(DownloadItemViewDangerousDownloadLabelTest, AdjustTextAndGetSize) {
-  // For very short label that can fit in a single line, no need to do any
-  // adjustment, return it directly.
-  base::string16 label_text = base::ASCIIToUTF16("short");
-  views::Label label(label_text);
-  label.SetMultiLine(true);
-  base::RepeatingCallback<void(views::Label*, const base::string16&)>
-      update_text_and_style = base::BindRepeating(
-          [](views::Label* label, const base::string16& text) {
-            label->SetText(text);
-          });
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(label_text, label.GetText());
+using download::DownloadItem;
+using ::testing::NiceMock;
+using ::testing::Return;
+using ::testing::ReturnRefOfCopy;
 
-  // When we have multiple linebreaks that result in the same minimum width, we
-  // should place as much text as possible on the first line.
-  label_text = base::ASCIIToUTF16(
-      "aaaa aaaa aaaa aaaa aaaa aaaa bb aaaa aaaa aaaa aaaa aaaa aaaa");
-  base::string16 expected_text = base::ASCIIToUTF16(
-      "aaaa aaaa aaaa aaaa aaaa aaaa bb\n"
-      "aaaa aaaa aaaa aaaa aaaa aaaa");
-  label.SetText(label_text);
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(expected_text, label.GetText());
+// Default values for the mock download item.
+const base::FilePath::CharType kDefaultTargetFilePath[] =
+    FILE_PATH_LITERAL("/foo/bar/foo.bar");
+const char kDefaultURL[] = "http://example.com/foo.bar";
 
-  // If the label is a single word and extremely long, we should not break it
-  // into 2 lines.
-  label_text = base::ASCIIToUTF16(
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-  label.SetText(label_text);
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(label_text, label.GetText());
+class DownloadItemViewTest : public TestWithBrowserView {
+ public:
+  DownloadItemViewTest() = default;
+  ~DownloadItemViewTest() override = default;
 
-  // Two lines have the same length.
-  label_text =
-      base::ASCIIToUTF16("aaaa aaaa aaaa aaaa bb bb aaaa aaaa aaaa aaaa");
-  expected_text = base::ASCIIToUTF16(
-      "aaaa aaaa aaaa aaaa bb\n"
-      "bb aaaa aaaa aaaa aaaa");
-  label.SetText(label_text);
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(expected_text, label.GetText());
+  DownloadItemViewTest(const DownloadItemViewTest&) = delete;
+  DownloadItemViewTest& operator=(const DownloadItemViewTest&) = delete;
 
-  // Text begins with a very long word.
-  label_text = base::ASCIIToUTF16(
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaa aaaa");
-  expected_text = base::ASCIIToUTF16(
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-      "aaaa aaaa");
-  label.SetText(label_text);
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(expected_text, label.GetText());
+  void SetUp() override {
+    TestWithBrowserView::SetUp();
 
-  // Text ends with a very long word.
-  label_text = base::ASCIIToUTF16(
-      "aaa aaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-  expected_text = base::ASCIIToUTF16(
-      "aaa aaaa\n"
-      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-  label.SetText(label_text);
-  DownloadItemView::AdjustTextAndGetSize(&label, update_text_and_style);
-  EXPECT_EQ(expected_text, label.GetText());
+    mock_item_ = std::make_unique<NiceMock<download::MockDownloadItem>>();
+    ON_CALL(*mock_item_, GetState())
+        .WillByDefault(Return(DownloadItem::IN_PROGRESS));
+    ON_CALL(*mock_item_, GetURL())
+        .WillByDefault(ReturnRefOfCopy(GURL(kDefaultURL)));
+    ON_CALL(*mock_item_, GetTargetFilePath())
+        .WillByDefault(ReturnRefOfCopy(base::FilePath(kDefaultTargetFilePath)));
+    content::DownloadItemUtils::AttachInfoForTesting(
+        mock_item_.get(), browser()->profile(), nullptr);
+
+    shelf_view_ =
+        std::make_unique<DownloadShelfView>(browser(), browser_view());
+    browser_view()->SetDownloadShelfForTest(shelf_view_.get());
+    browser_view()->GetDownloadShelf()->AddDownload(
+        DownloadItemModel::Wrap(mock_item_.get()));
+  }
+
+  void TearDown() override {
+    browser_view()->SetDownloadShelfForTest(nullptr);
+    shelf_view_.reset();
+    mock_item_.reset();
+    TestWithBrowserView::TearDown();
+  }
+
+ protected:
+  DownloadItemView* GetDownloadItemView() {
+    return GetDownloadShelfView()->GetViewOfLastDownloadItemForTesting();
+  }
+
+  DownloadShelfView* GetDownloadShelfView() {
+    return static_cast<DownloadShelfView*>(browser_view()->GetDownloadShelf());
+  }
+
+ private:
+  std::unique_ptr<DownloadShelfView> shelf_view_;
+  std::unique_ptr<NiceMock<download::MockDownloadItem>> mock_item_;
+};
+
+TEST_F(DownloadItemViewTest, AccessibleProperties) {
+  auto* item_view = GetDownloadItemView();
+  ui::AXNodeData data;
+
+  ASSERT_TRUE(item_view);
+  item_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kGroup);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            item_view->GetStatusTextForTesting() + u" ");
 }
+
+}  // namespace

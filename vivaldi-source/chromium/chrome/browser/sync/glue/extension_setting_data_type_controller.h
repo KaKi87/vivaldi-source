@@ -1,47 +1,50 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H__
-#define CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H__
+#ifndef CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H_
+#define CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H_
 
-#include <string>
-
-#include "base/compiler_specific.h"
-#include "base/macros.h"
-#include "components/sync/driver/async_directory_type_controller.h"
+#include "base/functional/callback_forward.h"
+#include "base/memory/raw_ptr.h"
+#include "components/sync/service/non_ui_syncable_service_based_data_type_controller.h"
 
 class Profile;
 
-namespace syncer {
-class SyncClient;
-class SyncService;
-}  // namespace syncer
-
 namespace browser_sync {
 
+// A DataTypeController that processes extension data on the extensions
+// background thread.
+// NOTE: Chrome OS uses a fork of this class for APP_SETTINGS.
 class ExtensionSettingDataTypeController
-    : public syncer::AsyncDirectoryTypeController {
+    : public syncer::NonUiSyncableServiceBasedDataTypeController {
  public:
-  // |type| is either EXTENSION_SETTINGS or APP_SETTINGS.
+  // |type| must be either EXTENSION_SETTINGS or APP_SETTINGS.
   // |dump_stack| is called when an unrecoverable error occurs.
-  ExtensionSettingDataTypeController(syncer::ModelType type,
-                                     const base::Closure& dump_stack,
-                                     syncer::SyncService* sync_service,
-                                     syncer::SyncClient* sync_client,
-                                     Profile* profile);
+  // |profile| must not be null.
+  ExtensionSettingDataTypeController(
+      syncer::DataType type,
+      syncer::OnceDataTypeStoreFactory store_factory,
+      SyncableServiceProvider syncable_service_provider,
+      const base::RepeatingClosure& dump_stack,
+      DelegateMode delegate_mode,
+      Profile* profile);
+
+  ExtensionSettingDataTypeController(
+      const ExtensionSettingDataTypeController&) = delete;
+  ExtensionSettingDataTypeController& operator=(
+      const ExtensionSettingDataTypeController&) = delete;
+
   ~ExtensionSettingDataTypeController() override;
 
+  // DataTypeController overrides.
+  void LoadModels(const syncer::ConfigureContext& configure_context,
+                  const ModelLoadCallback& model_load_callback) override;
+
  private:
-  // AsyncDirectoryTypeController implementation.
-  bool StartModels() override;
-
-  // Only used on the UI thread.
-  Profile* profile_;
-
-  DISALLOW_COPY_AND_ASSIGN(ExtensionSettingDataTypeController);
+  const raw_ptr<Profile> profile_;
 };
 
 }  // namespace browser_sync
 
-#endif  // CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H__
+#endif  // CHROME_BROWSER_SYNC_GLUE_EXTENSION_SETTING_DATA_TYPE_CONTROLLER_H_

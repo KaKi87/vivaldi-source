@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,48 +7,37 @@
 
 #include <memory>
 
-#include "base/macros.h"
-#include "components/prefs/pref_change_registrar.h"
-#include "components/sync/device_info/local_device_info_provider.h"
-#include "components/sync/driver/async_directory_type_controller.h"
+#include "components/history/core/browser/sync/history_data_type_controller_helper.h"
+#include "components/sync/service/data_type_controller.h"
+
+class PrefService;
+
+namespace syncer {
+class SyncService;
+}  // namespace syncer
 
 namespace sync_sessions {
 
-// Overrides StartModels to wait for the local device info to become available.
-class SessionDataTypeController : public syncer::AsyncDirectoryTypeController {
+class SessionDataTypeController : public syncer::DataTypeController {
  public:
-  // |dump_stack| is called when an unrecoverable error occurs.
-  SessionDataTypeController(const base::Closure& dump_stack,
-                            syncer::SyncClient* sync_client,
-                            syncer::LocalDeviceInfoProvider* local_device,
-                            const char* history_disabled_pref_name);
+  SessionDataTypeController(syncer::SyncService* sync_service,
+                            PrefService* pref_service,
+                            std::unique_ptr<syncer::DataTypeControllerDelegate>
+                                delegate_for_full_sync_mode,
+                            std::unique_ptr<syncer::DataTypeControllerDelegate>
+                                delegate_for_transport_mode);
+
+  SessionDataTypeController(const SessionDataTypeController&) = delete;
+  SessionDataTypeController& operator=(const SessionDataTypeController&) =
+      delete;
+
   ~SessionDataTypeController() override;
 
-  // AsyncDirectoryTypeController implementation.
-  bool StartModels() override;
-  void StopModels() override;
-  bool ReadyForStart() const override;
+  // DataTypeController overrides.
+  PreconditionState GetPreconditionState() const override;
 
  private:
-  bool IsWaiting();
-  void MaybeCompleteLoading();
-  void OnLocalDeviceInfoInitialized();
-  void OnSavingBrowserHistoryPrefChanged();
-
-  syncer::SyncClient* const sync_client_;
-
-  syncer::LocalDeviceInfoProvider* const local_device_;
-  std::unique_ptr<syncer::LocalDeviceInfoProvider::Subscription> subscription_;
-
-  // Name of the pref that indicates whether saving history is disabled.
-  const char* history_disabled_pref_name_;
-
-  // Flags that indicate the reason for pending loading models.
-  bool waiting_on_local_device_info_;
-
-  PrefChangeRegistrar pref_registrar_;
-
-  DISALLOW_COPY_AND_ASSIGN(SessionDataTypeController);
+  history::HistoryDataTypeControllerHelper helper_;
 };
 
 }  // namespace sync_sessions

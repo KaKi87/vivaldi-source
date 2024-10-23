@@ -1,64 +1,88 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "ui/android/resources/ui_resource_provider.h"
 
-#include "cc/resources/ui_resource_client.h"
-#include "cc/trees/layer_tree_host.h"
-#include "ui/android/resources/ui_resource_client_android.h"
+#include "third_party/android_opengl/etc1/etc1.h"
+#include "third_party/skia/include/core/SkData.h"
+#include "third_party/skia/include/core/SkMallocPixelRef.h"
+#include "third_party/skia/include/core/SkPixelRef.h"
 
 namespace ui {
+namespace {
 
-UIResourceProvider::UIResourceProvider()
-    : host_(NULL), supports_etc1_npot_(false) {
+unsigned int NextPowerOfTwo(int a) {
+  DCHECK(a >= 0);
+  auto x = static_cast<unsigned int>(a);
+  --x;
+  x |= x >> 1u;
+  x |= x >> 2u;
+  x |= x >> 4u;
+  x |= x >> 8u;
+  x |= x >> 16u;
+  return x + 1;
 }
 
-UIResourceProvider::~UIResourceProvider() {
-  SetLayerTreeHost(NULL);
+unsigned int RoundUpMod4(int a) {
+  DCHECK(a >= 0);
+  auto x = static_cast<unsigned int>(a);
+  return (x + 3u) & ~3u;
 }
 
-void UIResourceProvider::SetLayerTreeHost(cc::LayerTreeHost* host) {
-  if (host_ == host)
-    return;
-  host_ = host;
-  UIResourcesAreInvalid();
+size_t ETC1RowBytes(int width) {
+  DCHECK_EQ(width & 1, 0);
+  return width / 2;
 }
 
-void UIResourceProvider::UIResourcesAreInvalid() {
-  UIResourceClientMap client_map;
-  client_map.swap(ui_resource_client_map_);
-  for (UIResourceClientMap::iterator iter = client_map.begin();
-       iter != client_map.end(); iter++) {
-    iter->second->UIResourceIsInvalid();
+gfx::Size GetETCEncodedSize(const gfx::Size& bitmap_size, bool supports_npot) {
+  DCHECK(bitmap_size.width() >= 0);
+  DCHECK(bitmap_size.height() >= 0);
+  DCHECK(!bitmap_size.IsEmpty());
+
+  if (!supports_npot) {
+    return gfx::Size(NextPowerOfTwo(bitmap_size.width()),
+                     NextPowerOfTwo(bitmap_size.height()));
+  } else {
+    return gfx::Size(RoundUpMod4(bitmap_size.width()),
+                     RoundUpMod4(bitmap_size.height()));
   }
 }
 
-cc::UIResourceId UIResourceProvider::CreateUIResource(
-    ui::UIResourceClientAndroid* client) {
-  if (!host_)
-    return 0;
-  cc::UIResourceId id = host_->CreateUIResource(client);
-  DCHECK(ui_resource_client_map_.find(id) == ui_resource_client_map_.end());
+}  // namespace
 
-  ui_resource_client_map_[id] = client;
-  return id;
-}
+// static
+sk_sp<SkPixelRef> UIResourceProvider::CompressBitmap(SkBitmap raw_data,
+                                                     bool supports_etc_npot) {
+  if (raw_data.empty()) {
+    return nullptr;
+  }
 
-void UIResourceProvider::DeleteUIResource(cc::UIResourceId ui_resource_id) {
-  UIResourceClientMap::iterator iter =
-      ui_resource_client_map_.find(ui_resource_id);
-  DCHECK(iter != ui_resource_client_map_.end());
+  const gfx::Size raw_data_size(raw_data.width(), raw_data.height());
+  const gfx::Size encoded_size =
+      GetETCEncodedSize(raw_data_size, supports_etc_npot);
+  constexpr size_t kPixelSize = 4;  // For kARGB_8888_Config.
+  size_t stride = kPixelSize * raw_data_size.width();
 
-  ui_resource_client_map_.erase(iter);
+  size_t encoded_bytes =
+      etc1_get_encoded_data_size(encoded_size.width(), encoded_size.height());
+  SkImageInfo info =
+      SkImageInfo::Make(encoded_size.width(), encoded_size.height(),
+                        kUnknown_SkColorType, kUnpremul_SkAlphaType);
+  sk_sp<SkData> etc1_pixel_data(SkData::MakeUninitialized(encoded_bytes));
+  sk_sp<SkPixelRef> etc1_pixel_ref(SkMallocPixelRef::MakeWithData(
+      info, ETC1RowBytes(encoded_size.width()), std::move(etc1_pixel_data)));
 
-  if (!host_)
-    return;
-  host_->DeleteUIResource(ui_resource_id);
-}
+  if (etc1_encode_image(
+          reinterpret_cast<unsigned char*>(raw_data.getPixels()),
+          raw_data_size.width(), raw_data_size.height(), kPixelSize, stride,
+          reinterpret_cast<unsigned char*>(etc1_pixel_ref->pixels()),
+          encoded_size.width(), encoded_size.height())) {
+    etc1_pixel_ref->setImmutable();
+    return etc1_pixel_ref;
+  }
 
-bool UIResourceProvider::SupportsETC1NonPowerOfTwo() const {
-  return supports_etc1_npot_;
+  return nullptr;
 }
 
 }  // namespace ui

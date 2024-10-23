@@ -1,49 +1,63 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_HISTORY_CORE_BROWSER_SYNC_HISTORY_DELETE_DIRECTIVES_DATA_TYPE_CONTROLLER_H_
 #define COMPONENTS_HISTORY_CORE_BROWSER_SYNC_HISTORY_DELETE_DIRECTIVES_DATA_TYPE_CONTROLLER_H_
 
-#include "base/macros.h"
-#include "components/sync/driver/async_directory_type_controller.h"
-#include "components/sync/driver/sync_service_observer.h"
+#include "base/scoped_observation.h"
+#include "components/history/core/browser/sync/history_data_type_controller_helper.h"
+#include "components/sync/service/sync_service_observer.h"
+#include "components/sync/service/syncable_service_based_data_type_controller.h"
+
+class PrefService;
 
 namespace syncer {
-class SyncClient;
+class DataTypeStoreService;
 class SyncService;
 }  // namespace syncer
 
-namespace browser_sync {
+namespace history {
+
+class HistoryService;
 
 // A controller for delete directives, which cannot sync when full encryption
 // is enabled.
 class HistoryDeleteDirectivesDataTypeController
-    : public syncer::AsyncDirectoryTypeController,
+    : public syncer::SyncableServiceBasedDataTypeController,
       public syncer::SyncServiceObserver {
  public:
-  // |dump_stack| is called when an unrecoverable error occurs.
-  HistoryDeleteDirectivesDataTypeController(const base::Closure& dump_stack,
-                                            syncer::SyncService* sync_service,
-                                            syncer::SyncClient* sync_client);
+  // `sync_service`, `history_service`, and `pref_service` must not be null and
+  // must outlive this object.
+  HistoryDeleteDirectivesDataTypeController(
+      const base::RepeatingClosure& dump_stack,
+      syncer::SyncService* sync_service,
+      syncer::DataTypeStoreService* data_type_store_service,
+      HistoryService* history_service,
+      PrefService* pref_service);
+
+  HistoryDeleteDirectivesDataTypeController(
+      const HistoryDeleteDirectivesDataTypeController&) = delete;
+  HistoryDeleteDirectivesDataTypeController& operator=(
+      const HistoryDeleteDirectivesDataTypeController&) = delete;
+
   ~HistoryDeleteDirectivesDataTypeController() override;
 
-  // AsyncDirectoryTypeController override.
-  bool ReadyForStart() const override;
-  bool StartModels() override;
-  void StopModels() override;
+  // DataTypeController overrides.
+  PreconditionState GetPreconditionState() const override;
+  void LoadModels(const syncer::ConfigureContext& configure_context,
+                  const ModelLoadCallback& model_load_callback) override;
+  void Stop(syncer::SyncStopMetadataFate fate, StopCallback callback) override;
 
   // syncer::SyncServiceObserver implementation.
   void OnStateChanged(syncer::SyncService* sync) override;
 
  private:
-  // Triggers a SingleDataTypeUnrecoverable error and returns true if the
-  // type is no longer ready, else does nothing and returns false.
-  bool DisableTypeIfNecessary();
-
-  DISALLOW_COPY_AND_ASSIGN(HistoryDeleteDirectivesDataTypeController);
+  history::HistoryDataTypeControllerHelper helper_;
+  base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
+      sync_service_observation_{this};
 };
 
-}  // namespace browser_sync
+}  // namespace history
 
 #endif  // COMPONENTS_HISTORY_CORE_BROWSER_SYNC_HISTORY_DELETE_DIRECTIVES_DATA_TYPE_CONTROLLER_H_

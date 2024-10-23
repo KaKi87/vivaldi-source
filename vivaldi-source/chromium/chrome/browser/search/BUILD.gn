@@ -1,46 +1,84 @@
-# Copyright 2017 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-local_ntp_resources = "//chrome/browser/resources/local_ntp"
+assert(is_win || is_mac || is_linux || is_chromeos || is_android)
 
-action("local_ntp_code_generate") {
-  script = "tools/generate_integrity_header.py"
-  header_path = "$target_gen_dir/local_ntp_js_integrity.h"
-  animations_js = local_ntp_resources + "/animations.js"
-  assert_js = "//ui/webui/resources/js/assert.js"
-  customize_js = local_ntp_resources + "/customize.js"
-  doodles_js = local_ntp_resources + "/doodles.js"
-  local_ntp_js = local_ntp_resources + "/local_ntp.js"
-  utils_js = local_ntp_resources + "/utils.js"
-  voice_js = local_ntp_resources + "/voice.js"
-
-  inputs = [
-    animations_js,
-    assert_js,
-    customize_js,
-    doodles_js,
-    local_ntp_js,
-    utils_js,
-    voice_js,
+source_set("search") {
+  sources = [
+    "search.cc",
+    "search.h",
   ]
-
-  outputs = [ header_path ]
-
-  args = [
-    "--output_path=" + rebase_path(header_path, root_build_dir),
-    rebase_path(animations_js, root_build_dir),
-    rebase_path(assert_js, root_build_dir),
-    rebase_path(customize_js, root_build_dir),
-    rebase_path(doodles_js, root_build_dir),
-    rebase_path(local_ntp_js, root_build_dir),
-    rebase_path(utils_js, root_build_dir),
-    rebase_path(voice_js, root_build_dir),
+  public_deps = []
+  deps = [
+    "//base",
+    "//chrome/browser:browser_public_dependencies",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/search_engines",
+    "//chrome/common",
+    "//components/google/core/common",
+    "//components/search",
+    "//components/search_engines:search_engine_type",
+    "//components/supervised_user/core/browser",
+    "//components/supervised_user/core/common:buildflags",
+    "//content/public/browser",
+    "//url",
   ]
-}
-
-source_set("generated") {
-  sources = get_target_outputs(":local_ntp_code_generate")
-
-  public_deps = [ ":local_ntp_code_generate" ]
+  if (is_android) {
+    sources += [
+      "contextual_search_policy_handler_android.cc",
+      "contextual_search_policy_handler_android.h",
+    ]
+    public_deps += [ "//components/policy/core/browser" ]
+    deps += [ "//components/prefs" ]
+  } else {
+    sources += [
+      "instant_service.cc",
+      "instant_service.h",
+      "instant_service_factory.cc",
+      "instant_service_factory.h",
+      "instant_service_observer.cc",
+      "instant_service_observer.h",
+      "most_visited_iframe_source.cc",
+      "most_visited_iframe_source.h",
+      "ntp_custom_background_enabled_policy_handler.cc",
+      "ntp_custom_background_enabled_policy_handler.h",
+      "search_engine_base_url_tracker.cc",
+      "search_engine_base_url_tracker.h",
+    ]
+    public_deps += [
+      "//base",
+      "//chrome/browser/profiles:profile",
+      "//chrome/browser/themes",
+      "//chrome/common",
+      "//components/history/core/browser",
+      "//components/keyed_service/core",
+      "//components/ntp_tiles",
+      "//components/policy/core/browser",
+      "//components/prefs",
+      "//components/search_engines",
+      "//content/public/browser",
+      "//ui/native_theme",
+      "//url",
+    ]
+    deps += [
+      "//chrome/app/theme:theme_resources",
+      "//chrome/app/theme:theme_resources_grit",
+      "//chrome/browser/resources/new_tab_page_instant:resources",
+      "//chrome/browser/resources/new_tab_page_instant:resources_grit",
+      "//chrome/common:constants",
+      "//chrome/common:non_code_constants",
+      "//chrome/common/search:mojo_bindings",
+      "//components/favicon_base",
+      "//components/policy:generated",
+      "//components/policy:policy_code_generate",
+      "//components/policy/core/common",
+      "//components/sync_preferences",
+      "//extensions/browser",
+      "//extensions/common",
+      "//mojo/public/cpp/bindings",
+      "//ui/base",
+      "//ui/gfx:color_utils",
+    ]
+  }
 }

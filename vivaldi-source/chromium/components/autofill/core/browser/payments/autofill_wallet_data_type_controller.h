@@ -1,75 +1,65 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_PAYMENTS_AUTOFILL_WALLET_DATA_TYPE_CONTROLLER_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_PAYMENTS_AUTOFILL_WALLET_DATA_TYPE_CONTROLLER_H_
 
-#include "base/callback.h"
-#include "base/macros.h"
-#include "base/sequenced_task_runner.h"
-#include "components/prefs/pref_change_registrar.h"
-#include "components/sync/driver/async_directory_type_controller.h"
+#include <memory>
 
-namespace autofill {
-class AutofillWebDataService;
-class PersonalDataManager;
-}  // namespace autofill
+#include "base/memory/raw_ptr.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "components/sync/service/data_type_controller.h"
+#include "components/sync/service/sync_service_observer.h"
+
+class PrefService;
 
 namespace syncer {
-class SyncClient;
 class SyncService;
-}  // namespace syncer
+}
 
 namespace browser_sync {
 
-// Controls syncing of AUTOFILL_WALLET_METADATA.
-class AutofillWalletDataTypeController
-    : public syncer::AsyncDirectoryTypeController {
+// Controls syncing of AUTOFILL_WALLET_DATA and AUTOFILL_WALLET_METADATA.
+class AutofillWalletDataTypeController : public syncer::DataTypeController,
+                                          public syncer::SyncServiceObserver {
  public:
-  using PersonalDataManagerProvider =
-      base::RepeatingCallback<autofill::PersonalDataManager*()>;
-
-  // |type| should be AUTOFILL_WALLET_METADATA.
-  // |dump_stack| is called when an unrecoverable error occurs.
+  // The delegates and |sync_client| must not be null. Furthermore,
+  // |sync_client| must outlive this object.
   AutofillWalletDataTypeController(
-      syncer::ModelType type,
-      scoped_refptr<base::SequencedTaskRunner> db_thread,
-      const base::RepeatingClosure& dump_stack,
-      syncer::SyncService* sync_service,
-      syncer::SyncClient* sync_client,
-      const PersonalDataManagerProvider& pdm_provider,
-      const scoped_refptr<autofill::AutofillWebDataService>& web_data_service);
+      syncer::DataType type,
+      std::unique_ptr<syncer::DataTypeControllerDelegate>
+          delegate_for_full_sync_mode,
+      std::unique_ptr<syncer::DataTypeControllerDelegate>
+          delegate_for_transport_mode,
+      PrefService* pref_service,
+      syncer::SyncService* sync_service);
+
+  AutofillWalletDataTypeController(const AutofillWalletDataTypeController&) =
+      delete;
+  AutofillWalletDataTypeController& operator=(
+      const AutofillWalletDataTypeController&) = delete;
+
   ~AutofillWalletDataTypeController() override;
 
-  // AsyncDirectoryTypeController implementation.
-  bool StartModels() override;
-  bool ReadyForStart() const override;
+  // DataTypeController overrides.
+  void Stop(syncer::SyncStopMetadataFate fate, StopCallback callback) override;
+  PreconditionState GetPreconditionState() const override;
+
+  // syncer::SyncServiceObserver implementation.
+  void OnStateChanged(syncer::SyncService* sync) override;
 
  private:
   // Callback for changes to the autofill pref.
   void OnUserPrefChanged();
 
-  // Returns true if the prefs are set such that wallet sync should be enabled.
-  bool IsEnabled();
+  bool IsEnabled() const;
+  void SubscribeToPrefChanges();
 
-  // Callback that allows accessing PersonalDataManager lazily.
-  const PersonalDataManagerProvider pdm_provider_;
+  const raw_ptr<PrefService> pref_service_;
+  const raw_ptr<syncer::SyncService> sync_service_;
 
-  // Whether the database loaded callback has been registered.
-  bool callback_registered_;
-
-  // A reference to the AutofillWebDataService for this controller.
-  scoped_refptr<autofill::AutofillWebDataService> web_data_service_;
-
-  // Stores whether we're currently syncing wallet data. This is the last
-  // value computed by IsEnabled.
-  bool currently_enabled_;
-
-  // Registrar for listening to kAutofillWalletSyncExperimentEnabled status.
   PrefChangeRegistrar pref_registrar_;
-
-  DISALLOW_COPY_AND_ASSIGN(AutofillWalletDataTypeController);
 };
 
 }  // namespace browser_sync

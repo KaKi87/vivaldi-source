@@ -1,59 +1,80 @@
-// Copyright 2019 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #import "ios/chrome/browser/ui/omnibox/omnibox_view_ios.h"
 
+#import <stddef.h>
+
+#import <string>
+#import <utility>
+
+#import "base/functional/callback_helpers.h"
+#import "base/memory/raw_ptr.h"
+#import "base/strings/string_util.h"
+#import "base/strings/utf_string_conversions.h"
+#import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
-#import "ios/chrome/browser/browser_state/test_chrome_browser_state.h"
-#import "ios/chrome/browser/ui/omnibox/omnibox_text_field_legacy.h"
-#import "testing/gtest_mac.h"
+#import "build/build_config.h"
+#import "components/bookmarks/browser/bookmark_model.h"
+#import "components/omnibox/browser/autocomplete_match.h"
+#import "components/omnibox/browser/omnibox_controller.h"
+#import "components/omnibox/browser/test_omnibox_client.h"
+#import "components/omnibox/browser/test_omnibox_edit_model.h"
+#import "components/omnibox/browser/test_omnibox_view.h"
+#import "ios/chrome/browser/ui/omnibox/omnibox_view_consumer.h"
 #import "testing/platform_test.h"
 #import "third_party/ocmock/OCMock/OCMock.h"
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
+#import "third_party/ocmock/gtest_support.h"
 
 namespace {
 
 class OmniboxViewIOSTest : public PlatformTest {
- protected:
-  void SetUp() override {
-    PlatformTest::SetUp();
-    TestChromeBrowserState::Builder test_cbs_builder;
-    browser_state_ = test_cbs_builder.Build();
-    mockOmniboxTextfield_ = OCMClassMock([OmniboxTextFieldLegacy class]);
+ public:
+  OmniboxViewIOSTest() {
+    textfield_ = [[OmniboxTextFieldIOS alloc] init];
+    auto omnibox_client = std::make_unique<TestOmniboxClient>();
+    omnibox_client_ = omnibox_client.get();
+    mock_consumer_ =
+        [OCMockObject mockForProtocol:@protocol(OmniboxViewConsumer)];
+
     view_ = std::make_unique<OmniboxViewIOS>(
-        mockOmniboxTextfield_, /* WebOmniboxEditModelDelegate*/ nullptr,
-        browser_state_.get(),
-        /*id<OmniboxCommands>*/ nil);
+        textfield_, std::move(omnibox_client), /*browser_state=*/nullptr,
+        /*omnibox_focuser=*/nil, /*focus_delegate=*/nil,
+        /*toolbar_commands_handler=*/nil, mock_consumer_);
+    view_->controller()->SetEditModelForTesting(
+        std::make_unique<TestOmniboxEditModel>(view_->controller(), view_.get(),
+                                               /*pref_service=*/nullptr));
   }
 
-  // Test broser state.
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
-  // The tested object.
+  ~OmniboxViewIOSTest() override { omnibox_client_ = nullptr; }
+
+ protected:
+  base::test::TaskEnvironment task_environment_;
+
+  OmniboxTextFieldIOS* textfield_;
+  raw_ptr<TestOmniboxClient> omnibox_client_;
+  OCMockObject<OmniboxViewConsumer>* mock_consumer_;
   std::unique_ptr<OmniboxViewIOS> view_;
-  // Mock for the OmniboxTextFieldLegacy.
-  id mockOmniboxTextfield_;
-  // Message loop for the main test thread.
-  base::test::TaskEnvironment environment_;
 };
 
-TEST_F(OmniboxViewIOSTest, copyAddsTextToPasteboard) {
-  [[UIPasteboard generalPasteboard] setString:@""];
+// Tests that reverting all edits restore the thumbnail after deletion.
+TEST_F(OmniboxViewIOSTest, RevertThumbnailEdit) {
+  UIImage* image = [[UIImage alloc] init];
 
-  OCMExpect([mockOmniboxTextfield_ isPreEditing]).andReturn(YES);
-  OCMExpect([mockOmniboxTextfield_ preEditText]).andReturn(@"foobar");
+  // Add a thumbnail.
+  OCMExpect([mock_consumer_ setThumbnailImage:image]);
+  view_->SetThumbnailImage(image);
 
-  view_->OnCopy();
+  // Remove the thumbnail.
+  OCMExpect([mock_consumer_ setThumbnailImage:nil]);
+  view_->RemoveThumbnail();
 
-  EXPECT_TRUE(
-      [[[UIPasteboard generalPasteboard] string] isEqualToString:@"foobar"]);
-  [mockOmniboxTextfield_ verify];
+  // Revert edits.
+  OCMExpect([mock_consumer_ setThumbnailImage:image]);
+  view_->RevertAll();
 
-  // Clear the pasteboard state.
-  [[UIPasteboard generalPasteboard] setString:@""];
+  EXPECT_OCMOCK_VERIFY(mock_consumer_);
 }
 
 }  // namespace

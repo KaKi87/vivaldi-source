@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,98 +6,75 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
-#include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "components/autofill/core/common/autofill_prefs.h"
 #include "components/prefs/pref_service.h"
-#include "components/sync/base/data_type_histogram.h"
-#include "components/sync/driver/sync_client.h"
-#include "components/sync/driver/sync_service.h"
-#include "components/sync/model/sync_error.h"
-#include "components/sync/model/syncable_service.h"
+#include "components/sync/service/sync_service.h"
 
 namespace browser_sync {
 
 AutofillWalletDataTypeController::AutofillWalletDataTypeController(
-    syncer::ModelType type,
-    scoped_refptr<base::SequencedTaskRunner> db_thread,
-    const base::RepeatingClosure& dump_stack,
-    syncer::SyncService* sync_service,
-    syncer::SyncClient* sync_client,
-    const PersonalDataManagerProvider& pdm_provider,
-    const scoped_refptr<autofill::AutofillWebDataService>& web_data_service)
-    : AsyncDirectoryTypeController(type,
-                                   dump_stack,
-                                   sync_service,
-                                   sync_client,
-                                   syncer::GROUP_DB,
-                                   std::move(db_thread)),
-      pdm_provider_(pdm_provider),
-      callback_registered_(false),
-      web_data_service_(web_data_service),
-      currently_enabled_(IsEnabled()) {
-  DCHECK(type == syncer::AUTOFILL_WALLET_METADATA);
-  pref_registrar_.Init(sync_client->GetPrefService());
-  pref_registrar_.Add(
-      autofill::prefs::kAutofillWalletImportEnabled,
-      base::BindRepeating(&AutofillWalletDataTypeController::OnUserPrefChanged,
-                          base::Unretained(this)));
-  pref_registrar_.Add(
-      autofill::prefs::kAutofillCreditCardEnabled,
-      base::BindRepeating(&AutofillWalletDataTypeController::OnUserPrefChanged,
-                          base::AsWeakPtr(this)));
+    syncer::DataType type,
+    std::unique_ptr<syncer::DataTypeControllerDelegate>
+        delegate_for_full_sync_mode,
+    std::unique_ptr<syncer::DataTypeControllerDelegate>
+        delegate_for_transport_mode,
+    PrefService* pref_service,
+    syncer::SyncService* sync_service)
+    : DataTypeController(type,
+                         std::move(delegate_for_full_sync_mode),
+                         std::move(delegate_for_transport_mode)),
+      pref_service_(pref_service),
+      sync_service_(sync_service) {
+  DCHECK(type == syncer::AUTOFILL_WALLET_CREDENTIAL ||
+         type == syncer::AUTOFILL_WALLET_DATA ||
+         type == syncer::AUTOFILL_WALLET_METADATA ||
+         type == syncer::AUTOFILL_WALLET_OFFER ||
+         type == syncer::AUTOFILL_WALLET_USAGE);
+  SubscribeToPrefChanges();
+  sync_service_->AddObserver(this);
 }
 
-AutofillWalletDataTypeController::~AutofillWalletDataTypeController() {}
-
-bool AutofillWalletDataTypeController::StartModels() {
-  DCHECK(CalledOnValidThread());
-  DCHECK_EQ(state(), MODEL_STARTING);
-
-  if (!IsEnabled())
-    return false;
-
-  if (!web_data_service_)
-    return false;
-
-  if (web_data_service_->IsDatabaseLoaded())
-    return true;
-
-  if (!callback_registered_) {
-    web_data_service_->RegisterDBLoadedCallback(
-        base::BindRepeating(&AutofillWalletDataTypeController::OnModelLoaded,
-                            base::AsWeakPtr(this)));
-    callback_registered_ = true;
-  }
-
-  return false;
+AutofillWalletDataTypeController::~AutofillWalletDataTypeController() {
+  sync_service_->RemoveObserver(this);
 }
 
-bool AutofillWalletDataTypeController::ReadyForStart() const {
+void AutofillWalletDataTypeController::Stop(syncer::SyncStopMetadataFate fate,
+                                             StopCallback callback) {
   DCHECK(CalledOnValidThread());
-  return currently_enabled_;
+  // Special case: For Wallet-related data types, we want to clear all data
+  // even when Sync is stopped temporarily, regardless of incoming fate value.
+  DataTypeController::Stop(syncer::SyncStopMetadataFate::CLEAR_METADATA,
+                            std::move(callback));
+}
+
+syncer::DataTypeController::PreconditionState
+AutofillWalletDataTypeController::GetPreconditionState() const {
+  DCHECK(CalledOnValidThread());
+  bool preconditions_met =
+      pref_service_->GetBoolean(autofill::prefs::kAutofillCreditCardEnabled);
+  return preconditions_met ? PreconditionState::kPreconditionsMet
+                           : PreconditionState::kMustStopAndClearData;
 }
 
 void AutofillWalletDataTypeController::OnUserPrefChanged() {
   DCHECK(CalledOnValidThread());
-
-  bool new_enabled = IsEnabled();
-  if (currently_enabled_ == new_enabled)
-    return;  // No change to sync state.
-  currently_enabled_ = new_enabled;
-
-  sync_service()->ReadyForStartChanged(type());
+  sync_service_->DataTypePreconditionChanged(type());
 }
 
-bool AutofillWalletDataTypeController::IsEnabled() {
-  DCHECK(CalledOnValidThread());
+void AutofillWalletDataTypeController::SubscribeToPrefChanges() {
+  pref_registrar_.Init(pref_service_);
+  pref_registrar_.Add(
+      autofill::prefs::kAutofillCreditCardEnabled,
+      base::BindRepeating(&AutofillWalletDataTypeController::OnUserPrefChanged,
+                          base::Unretained(this)));
+}
 
-  // Require the user-visible pref to be enabled to sync Wallet data/metadata.
-  return sync_client()->GetPrefService()->GetBoolean(
-             autofill::prefs::kAutofillWalletImportEnabled) &&
-         sync_client()->GetPrefService()->GetBoolean(
-             autofill::prefs::kAutofillCreditCardEnabled);
+void AutofillWalletDataTypeController::OnStateChanged(
+    syncer::SyncService* sync) {
+  DCHECK(CalledOnValidThread());
+  sync_service_->DataTypePreconditionChanged(type());
 }
 
 }  // namespace browser_sync

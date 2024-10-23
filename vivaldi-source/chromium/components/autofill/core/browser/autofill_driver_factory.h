@@ -1,65 +1,70 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_AUTOFILL_DRIVER_FACTORY_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_AUTOFILL_DRIVER_FACTORY_H_
 
-#include <memory>
-#include <unordered_map>
-
-#include "base/callback_forward.h"
-#include "base/macros.h"
-#include "base/types/strong_alias.h"
+#include "base/observer_list.h"
+#include "components/autofill/core/browser/autofill_driver.h"
 
 namespace autofill {
 
-class AutofillClient;
-class AutofillDriver;
-
-// Manages the lifetime of AutofillDrivers for a particular AutofillClient by
-// creating, notifying, retrieving and deleting on demand.
+// The common interface for platform-dependent AutofillDriver factories:
+// - ContentAutofillDriverFactory
+// - AutofillDriverIOSFactory
 class AutofillDriverFactory {
  public:
-  using HideUi = base::StrongAlias<class HideUiTag, bool>;
+  using LifecycleState = AutofillDriver::LifecycleState;
 
-  explicit AutofillDriverFactory(AutofillClient* client);
+  // Observer of AutofillDriverFactory events.
+  class Observer : public base::CheckedObserver {
+   public:
+    // Called during destruction of the AutofillDriverFactory. It can,
+    // e.g., be used to reset `ScopedObservation`s.
+    virtual void OnAutofillDriverFactoryDestroyed(
+        AutofillDriverFactory& factory) {}
 
-  ~AutofillDriverFactory();
+    // Called right after the driver has been created.
+    // At the time of this event, the `driver` object is already fully alive and
+    // `factory.DriverForFrame(driver.render_frame_host()) == &driver` (or
+    // similarly for iOS) holds. The driver's manager is still in its
+    // `kInactive` state at the time.
+    virtual void OnAutofillDriverCreated(AutofillDriverFactory& factory,
+                                         AutofillDriver& driver) {}
 
-  // A convenience function to retrieve an AutofillDriver for the given key or
-  // null if there is none.
-  AutofillDriver* DriverForKey(void* key);
+    // Called right after the driver's state has changed.
+    // See AutofillDriver::LifecycleState for details.
+    // At the time of this event, the `driver` object is fully alive and
+    // `factory.DriverForFrame(driver.render_frame_host()) == &driver` (or
+    // similarly for iOS) holds.
+    virtual void OnAutofillDriverStateChanged(AutofillDriverFactory& factory,
+                                              AutofillDriver& driver,
+                                              LifecycleState old_state,
+                                              LifecycleState new_state) {}
+  };
 
-  // Handles finished navigation in a main frame.
-  void NavigationFinished(HideUi hide_ui);
+  AutofillDriverFactory();
+  AutofillDriverFactory(AutofillDriverFactory&) = delete;
+  AutofillDriverFactory& operator=(const AutofillDriverFactory&) = delete;
+  virtual ~AutofillDriverFactory();
 
-  // Handles hiding of the corresponding tab.
-  void TabHidden();
+  void AddObserver(Observer* observer) { observers_.AddObserver(observer); }
 
-  AutofillClient* client() { return client_; }
+  void RemoveObserver(Observer* observer) {
+    observers_.RemoveObserver(observer);
+  }
 
  protected:
-  // The API manipulating the drivers map is protected to guarantee subclasses
-  // that nothing else can interfere with the map of drivers.
+  friend class AutofillDriverFactoryTestApi;
 
-  // Adds a driver, constructed by calling |factory_method|, for |key|. If there
-  // already is a driver for |key|, |factory_method| is not called. This might
-  // end up notifying the driver that a user gesture has been observed.
-  void AddForKey(
-      void* key,
-      const base::RepeatingCallback<std::unique_ptr<AutofillDriver>()>&
-          factory_method);
+  void SetLifecycleStateAndNotifyObservers(AutofillDriver& driver,
+                                           LifecycleState new_state);
 
-  // Deletes the AutofillDriver for |key|.
-  void DeleteForKey(void* key);
+  const base::ObserverList<Observer>& observers() { return observers_; }
 
  private:
-  AutofillClient* const client_;
-
-  std::unordered_map<void*, std::unique_ptr<AutofillDriver>> driver_map_;
-
-  DISALLOW_COPY_AND_ASSIGN(AutofillDriverFactory);
+  base::ObserverList<Observer> observers_;
 };
 
 }  // namespace autofill
