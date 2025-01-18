@@ -1,15 +1,16 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef ANDROID_WEBVIEW_BROWSER_AW_CONTENTS_STATICS_H_
 #define ANDROID_WEBVIEW_BROWSER_AW_CONTENTS_STATICS_H_
 
-#include <jni.h>
+#include "net/socket/socket_tag.h"
 
 namespace android_webview {
 
-bool RegisterAwContentsStatics(JNIEnv* env);
+// Retrieves the DefaultTrafficStatsTag value set by the embedder.
+net::SocketTag GetDefaultSocketTag();
 
 }  // namespace android_webview
 
