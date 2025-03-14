@@ -1,11 +1,10 @@
 ---
 breadcrumbs:
 - - /chromium-os
-  - Chromium OS
+  - ChromiumOS
 page_name: servo
-title: Servo
+title: CrOS Hardware Debug & Control Tools
 ---
 
-This page has moved to
+This content moved to
 <https://chromium.googlesource.com/chromiumos/third_party/hdctools/+/HEAD/README.md>.
-Please update the link that brought you here.

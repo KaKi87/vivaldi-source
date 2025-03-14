@@ -1,6 +1,6 @@
 # ~~~
-# Copyright (c) 2014-2024 Valve Corporation
-# Copyright (c) 2014-2024 LunarG, Inc.
+# Copyright (c) 2014-2025 Valve Corporation
+# Copyright (c) 2014-2025 LunarG, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -86,6 +86,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/descriptor_indexing_positive.cpp
     unit/descriptors.cpp
     unit/descriptors_positive.cpp
+    unit/device_feature_property.cpp
+    unit/device_feature_property_positive.cpp
     unit/device_generated_commands.cpp
     unit/device_generated_commands_positive.cpp
     unit/device_queue.cpp
@@ -95,6 +97,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/dynamic_rendering_local_read_positive.cpp
     unit/dynamic_state.cpp
     unit/dynamic_state_positive.cpp
+    unit/external_memory_metal.cpp
     unit/external_memory_sync.cpp
     unit/external_memory_sync_positive.cpp
     unit/fragment_shading_rate.cpp
@@ -106,11 +109,20 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_buffer_device_address_positive.cpp
     unit/gpu_av_debug_printf.cpp
     unit/gpu_av_descriptor_buffer_positive.cpp
+    unit/gpu_av_descriptor_class_general_buffer.cpp
+    unit/gpu_av_descriptor_class_general_buffer_positive.cpp
+    unit/gpu_av_descriptor_class_texel_buffer.cpp
+    unit/gpu_av_descriptor_class_texel_buffer_positive.cpp
     unit/gpu_av_descriptor_indexing.cpp
     unit/gpu_av_descriptor_indexing_positive.cpp
+    unit/gpu_av_descriptor_post_process.cpp
+    unit/gpu_av_descriptor_post_process_positive.cpp
+    unit/gpu_av_image_layout.cpp
+    unit/gpu_av_image_layout_positive.cpp
     unit/gpu_av_indirect_buffer.cpp
-    unit/gpu_av_oob.cpp
-    unit/gpu_av_oob_positive.cpp
+    unit/gpu_av_indirect_buffer_positive.cpp
+    unit/gpu_av_index_buffer.cpp
+    unit/gpu_av_index_buffer_positive.cpp
     unit/gpu_av_positive.cpp
     unit/gpu_av_shader_object_positive.cpp
     unit/gpu_av_shader_debug_info.cpp
@@ -126,6 +138,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/host_image_copy_positive.cpp
     unit/image_drm.cpp
     unit/image_drm_positive.cpp
+    unit/image_layout.cpp
+    unit/image_layout_positive.cpp
     unit/image.cpp
     unit/image_positive.cpp
     unit/imageless_framebuffer.cpp
@@ -134,6 +148,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/instanceless.cpp
     unit/layer_utils_positive.cpp
     unit/layer_settings.cpp
+    unit/layer_settings_positive.cpp
     unit/memory.cpp
     unit/memory_positive.cpp
     unit/mesh.cpp
@@ -210,8 +225,12 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/sync_val.cpp
     unit/sync_val_positive.cpp
     unit/sync_val_reporting.cpp
+    unit/sync_val_ray_tracing.cpp
+    unit/sync_val_ray_tracing_positive.cpp
     unit/sync_val_semaphore.cpp
     unit/sync_val_semaphore_positive.cpp
+    unit/sync_val_video.cpp
+    unit/sync_val_video_positive.cpp
     unit/sync_val_wsi.cpp
     unit/sync_val_wsi_positive.cpp
     unit/threading.cpp
@@ -223,6 +242,24 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/vertex_input_positive.cpp
     unit/video.cpp
     unit/video_positive.cpp
+    unit/video_decode.cpp
+    unit/video_decode_positive.cpp
+    unit/video_decode_av1.cpp
+    unit/video_decode_av1_positive.cpp
+    unit/video_decode_h264.cpp
+    unit/video_decode_h264_positive.cpp
+    unit/video_decode_h265.cpp
+    unit/video_decode_h265_positive.cpp
+    unit/video_encode.cpp
+    unit/video_encode_positive.cpp
+    unit/video_encode_av1.cpp
+    unit/video_encode_av1_positive.cpp
+    unit/video_encode_h264.cpp
+    unit/video_encode_h264_positive.cpp
+    unit/video_encode_h265.cpp
+    unit/video_encode_h265_positive.cpp
+    unit/video_encode_quantization_map.cpp
+    unit/video_encode_quantization_map_positive.cpp
     unit/viewport_inheritance.cpp
     unit/wsi.cpp
     unit/wsi_positive.cpp
@@ -314,6 +351,5 @@ install(TARGETS vk_layer_validation_tests)
 include(GoogleTest)
 gtest_discover_tests(vk_layer_validation_tests DISCOVERY_TIMEOUT 100)
 
-add_subdirectory(spirv)
 add_subdirectory(layers)
 add_subdirectory(icd)

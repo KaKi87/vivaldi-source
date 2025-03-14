@@ -12,4 +12,3 @@ This is a testharness.js-based test.
 [FAIL] Ensures subscription to transient hit test works with an XRSpace from input source - after move - 1 result - webgl2
   promise_test: Unhandled rejection with value: object "TypeError: Cannot read properties of null (reading 'makeXRCompatible')"
 Harness: the test ran to completion.
-

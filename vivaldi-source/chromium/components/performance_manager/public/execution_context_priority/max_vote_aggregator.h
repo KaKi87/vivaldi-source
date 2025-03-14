@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/containers/intrusive_heap.h"
+#include "base/memory/raw_ptr.h"
 #include "components/performance_manager/public/execution_context_priority/execution_context_priority.h"
 
 namespace performance_manager {
@@ -18,73 +19,71 @@ namespace execution_context_priority {
 // the maximum vote for each frame. The upstream voting channel must be set
 // before any votes are submitted to this aggregator. New voting channels may
 // continue to be issued at any time during its lifetime, however.
-class MaxVoteAggregator : public VoteConsumer {
+class MaxVoteAggregator : public VoteObserver {
  public:
   MaxVoteAggregator();
+  MaxVoteAggregator(const MaxVoteAggregator&) = delete;
+  MaxVoteAggregator& operator=(const MaxVoteAggregator&) = delete;
   ~MaxVoteAggregator() override;
 
   // Issues a voting channel (effectively registered a voter).
   VotingChannel GetVotingChannel();
 
   // Sets the upstream voting channel. Should only be called once.
-  void SetUpstreamVotingChannel(VotingChannel&& channel);
+  void SetUpstreamVotingChannel(VotingChannel channel);
+
+  void ResetUpstreamVotingChannel();
 
  protected:
-  // VoteConsumer implementation:
-  VoteReceipt SubmitVote(util::PassKey<VotingChannel>,
-                         voting::VoterId<Vote> voter_id,
-                         const ExecutionContext* execution_context,
-                         const Vote& vote) override;
-  void ChangeVote(util::PassKey<AcceptedVote>,
-                  AcceptedVote* old_vote,
-                  const Vote& new_vote) override;
-  void VoteInvalidated(util::PassKey<AcceptedVote>,
-                       AcceptedVote* vote) override;
+  // VoteObserver implementation:
+  void OnVoteSubmitted(VoterId voter_id,
+                       const ExecutionContext* execution_context,
+                       const Vote& vote) override;
+  void OnVoteChanged(VoterId voter_id,
+                     const ExecutionContext* execution_context,
+                     const Vote& new_vote) override;
+  void OnVoteInvalidated(VoterId voter_id,
+                         const ExecutionContext* execution_context) override;
 
  private:
   friend class MaxVoteAggregatorTestAccess;
 
-  // A StampedVote is an AcceptedVote with a serial number that can be used to
-  // order votes by the order in which they were received. This ensures that
-  // votes upstreamed by this aggregator remain as stable as possible.
-  struct StampedVote {
+  // A StampedVote is a Vote with a serial number that can be used to order
+  // votes by the order in which they were received. This ensures that votes
+  // upstreamed by this aggregator remain as stable as possible.
+  class StampedVote : public base::InternalHeapHandleStorage {
+   public:
     StampedVote();
-    StampedVote(AcceptedVote&& vote, uint32_t vote_id);
+    StampedVote(const Vote& vote, uint32_t vote_id);
     StampedVote(StampedVote&&);
     StampedVote(const StampedVote&) = delete;
-    ~StampedVote();
+    ~StampedVote() override;
 
     StampedVote& operator=(StampedVote&&) = default;
     StampedVote& operator=(const StampedVote&) = delete;
 
     bool operator<(const StampedVote& rhs) const {
-      if (vote.vote().value() != rhs.vote.vote().value())
-        return vote.vote().value() < rhs.vote.vote().value();
+      if (vote_.value() != rhs.vote_.value()) {
+        return vote_.value() < rhs.vote_.value();
+      }
       // Higher |vote_id| values are of lower priority.
-      return vote_id > rhs.vote_id;
+      return vote_id_ > rhs.vote_id_;
     }
 
-    // Given an AcceptedVote that's embedded in a StampedVote::vote, retrieve
-    // the embedding StampedVote instance.
-    static StampedVote* FromAcceptedVote(AcceptedVote* accepted_vote);
+    const Vote& vote() const { return vote_; }
+    uint32_t vote_id() const { return vote_id_; }
 
-    // IntrusiveHeap contract. We actually don't need HeapHandles, as we already
-    // know the positions of the elements in the heap directly, as they are
-    // tracked with explicit back pointers.
-    void SetHeapHandle(base::HeapHandle) {}
-    void ClearHeapHandle() {}
-    base::HeapHandle GetHeapHandle() const {
-      return base::HeapHandle::Invalid();
-    }
+    void SetVote(const Vote& new_vote) { vote_ = new_vote; }
 
-    AcceptedVote vote;
-    uint32_t vote_id = 0;
+   private:
+    Vote vote_;
+    uint32_t vote_id_ = 0;
   };
 
   // The collection of votes for a single execution context. This is move-only
   // because all of its members are move-only. Internally it houses the
-  // collection of all votes associated with a execution context as max-heap,
-  // and a receipt for the vote that has been upstreamed.
+  // collection of all votes associated with an execution context as max-heap,
+  // and a map of HeapHandles to access existing votes.
   class VoteData {
    public:
     VoteData();
@@ -94,59 +93,46 @@ class MaxVoteAggregator : public VoteConsumer {
     VoteData& operator=(VoteData&& rhs);
     ~VoteData();
 
-    // Adds a vote. Returns true if a new upstream vote is needed.
-    bool AddVote(AcceptedVote&& vote, uint32_t vote_id);
+    // Adds a vote.
+    void AddVote(VoterId voter_id, const Vote& vote, uint32_t vote_id);
 
-    // Updates the vote from its given index to a new index. Returns true if the
-    // root was disturbed and a new upstream vote is needed.
-    bool UpdateVote(size_t index, uint32_t vote_id);
+    // Updates an existing vote casted by |voter_id|.
+    void UpdateVote(VoterId voter_id, const Vote& new_vote);
 
-    // Removes the vote at the provided index. Returns true if the root was
-    // disturbed and a new upstream vote is needed.
-    bool RemoveVote(size_t index);
-
-    // Gets the index of the given vote.
-    size_t GetVoteIndex(AcceptedVote* vote);
-
-    // Upstreams the vote for this vote data, using the given voting |channel|.
-    void UpstreamVote(VotingChannel* channel);
-
-    // Returns the number of votes in this structure.
-    size_t GetSize() const { return votes_.size(); }
+    // Removes an existing vote casted by |voter_id|.
+    void RemoveVote(VoterId voter_id);
 
     // Returns true if this VoteData is empty.
     bool IsEmpty() const { return votes_.empty(); }
 
-    AcceptedVote& GetVoteForTesting(size_t index) {
-      return const_cast<AcceptedVote&>(votes_[index].vote);
-    }
+    // Returns the top vote. Invalid to call if IsEmpty() returns true.
+    const Vote& GetTopVote() const;
 
    private:
     base::IntrusiveHeap<StampedVote> votes_;
 
-    // The receipt for the vote we've upstreamed.
-    VoteReceipt receipt_;
+    // Maps each voting channel to the HeapHandle to their associated vote in
+    // |votes_|.
+    std::map<VoterId, raw_ptr<base::HeapHandle, CtnExperimental>> heap_handles_;
   };
 
   using VoteDataMap = std::map<const ExecutionContext*, VoteData>;
 
-  // Looks up the VoteData associated with the provided |vote|. The data is
-  // expected to already exist (enforced by a DCHECK).
-  VoteDataMap::iterator GetVoteData(AcceptedVote* vote);
+  // Looks up the VoteData associated with the provided |execution_context|. The
+  // data is expected to already exist (enforced by a DCHECK).
+  VoteDataMap::iterator GetVoteData(const ExecutionContext* execution_context);
 
   // Our channel for upstreaming our votes.
   VotingChannel channel_;
 
-  // Our VotingChannelFactory for providing VotingChannels to our input voters.
-  VotingChannelFactory factory_;
+  // Provides VotingChannels to our input voters.
+  VotingChannelFactory voting_channel_factory_{this};
 
   // The next StampedVote ID to use.
-  uint32_t next_vote_id_;
+  uint32_t next_vote_id_ = 0;
 
   // Received votes, plus all of the upstreamed votes.
   VoteDataMap vote_data_map_;
-
-  DISALLOW_COPY_AND_ASSIGN(MaxVoteAggregator);
 };
 
 }  // namespace execution_context_priority

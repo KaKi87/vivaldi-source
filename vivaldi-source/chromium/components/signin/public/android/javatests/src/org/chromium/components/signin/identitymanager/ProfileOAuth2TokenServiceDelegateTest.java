@@ -1,146 +1,82 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.components.signin.identitymanager;
 
-import android.accounts.Account;
-
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
+import org.mockito.quality.Strictness;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-// import org.chromium.base.test.util.AdvancedMockContext;
-import org.chromium.base.test.util.Feature;
-import org.chromium.components.signin.AccessTokenData;
-import org.chromium.components.signin.AccountUtils;
+import org.chromium.base.test.util.Batch;
+import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.test.util.FakeAccountManagerFacade;
+import org.chromium.components.signin.test.util.TestAccounts;
 
-import java.util.Arrays;
-import java.util.concurrent.CountDownLatch;
-
-/** Tests for ProfileOAuth2TokenServiceDelegate. */
+/** Tests for {@link ProfileOAuth2TokenServiceDelegate}. */
 @RunWith(BaseJUnit4ClassRunner.class)
+@Batch(Batch.UNIT_TESTS)
 public class ProfileOAuth2TokenServiceDelegateTest {
+    private static final long NATIVE_DELEGATE = 1000L;
 
-    private FakeAccountManagerFacade mAccountManagerFacade;
+    @Rule
+    public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
 
-    private ProfileOAuth2TokenServiceDelegate mProfileOAuth2TokenServiceDelegate;
+    @Mock private ProfileOAuth2TokenServiceDelegate.Natives mNativeMock;
 
-    /**
-     * Class handling GetAccessToken callbacks and providing a blocking {@link
-     * #getToken()}.
-     */
-    class GetAccessTokenCallbackForTest
-            implements ProfileOAuth2TokenServiceDelegate.GetAccessTokenCallback {
-        private String mToken;
-        final CountDownLatch mTokenRetrievedCountDown = new CountDownLatch(1);
+    private final FakeAccountManagerFacade mAccountManagerFacade = new FakeAccountManagerFacade();
 
-        /**
-         * Blocks until the callback is called once and returns the token.
-         * See {@link CountDownLatch#await}
-         */
-        public String getToken() {
-            try {
-                mTokenRetrievedCountDown.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException("Interrupted or timed-out while waiting for updates", e);
-            }
-            return mToken;
-        }
-
-        @Override
-        public void onGetTokenSuccess(AccessTokenData token) {
-            mToken = token.getToken();
-            mTokenRetrievedCountDown.countDown();
-        }
-
-        @Override
-        public void onGetTokenFailure(boolean isTransientError) {
-            mToken = null;
-            mTokenRetrievedCountDown.countDown();
-        }
-    }
+    private ProfileOAuth2TokenServiceDelegate mDelegate;
 
     @Before
     public void setUp() {
-        mAccountManagerFacade = new FakeAccountManagerFacade(null);
-        mProfileOAuth2TokenServiceDelegate = new ProfileOAuth2TokenServiceDelegate(
-                0 /*nativeProfileOAuth2TokenServiceDelegateDelegate*/,
-                null /* AccountTrackerService */, mAccountManagerFacade);
+        ProfileOAuth2TokenServiceDelegateJni.setInstanceForTesting(mNativeMock);
+        AccountManagerFacadeProvider.setInstanceForTests(mAccountManagerFacade);
+        mDelegate = new ProfileOAuth2TokenServiceDelegate(NATIVE_DELEGATE);
     }
 
     @Test
     @SmallTest
-    @Feature({"Sync"})
-    public void testGetAccountsNoAccountsRegistered() {
-        String[] sysAccounts = mProfileOAuth2TokenServiceDelegate.getSystemAccountNames();
-        Assert.assertEquals("There should be no accounts registered", 0, sysAccounts.length);
+    public void testHasOAuth2RefreshTokenWhenAccountIsNotOnDevice() {
+        mAccountManagerFacade.addAccount(TestAccounts.ACCOUNT1);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    Assert.assertFalse(mDelegate.hasOAuth2RefreshToken("test2@gmail.com"));
+                });
     }
 
     @Test
     @SmallTest
-    @Feature({"Sync"})
-    public void testGetAccountsOneAccountRegistered() {
-        Account account1 = AccountUtils.createAccountFromName("foo@gmail.com");
-        mAccountManagerFacade.addAccount(account1);
-
-        String[] sysAccounts = mProfileOAuth2TokenServiceDelegate.getSystemAccountNames();
-        Assert.assertEquals("There should be one registered account", 1, sysAccounts.length);
-        Assert.assertEquals("The account should be " + account1, account1.name, sysAccounts[0]);
+    public void testHasOAuth2RefreshTokenWhenAccountIsOnDevice() {
+        mAccountManagerFacade.addAccount(TestAccounts.ACCOUNT1);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    Assert.assertTrue(
+                            mDelegate.hasOAuth2RefreshToken(TestAccounts.ACCOUNT1.getEmail()));
+                });
     }
 
     @Test
     @SmallTest
-    @Feature({"Sync"})
-    public void testGetAccountsTwoAccountsRegistered() {
-        Account account1 = AccountUtils.createAccountFromName("foo@gmail.com");
-        mAccountManagerFacade.addAccount(account1);
-        Account account2 = AccountUtils.createAccountFromName("bar@gmail.com");
-        mAccountManagerFacade.addAccount(account2);
-
-        String[] sysAccounts = mProfileOAuth2TokenServiceDelegate.getSystemAccountNames();
-        Assert.assertEquals("There should be two registered account", 2, sysAccounts.length);
-        Assert.assertTrue("The list should contain " + account1,
-                Arrays.asList(sysAccounts).contains(account1.name));
-        Assert.assertTrue("The list should contain " + account2,
-                Arrays.asList(sysAccounts).contains(account2.name));
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Sync"})
-    public void testGetOAuth2AccessTokenWithTimeoutOnSuccess() {
-        String authToken = "someToken";
-        // Auth token should be successfully received.
-        runTestOfGetOAuth2AccessTokenWithTimeout(authToken);
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Sync"})
-    public void testGetOAuth2AccessTokenWithTimeoutOnError() {
-        String authToken = null;
-        // Should not crash when auth token is null.
-        runTestOfGetOAuth2AccessTokenWithTimeout(authToken);
-    }
-
-    private void runTestOfGetOAuth2AccessTokenWithTimeout(String expectedToken) {
-        String scope = "oauth2:http://example.com/scope";
-        Account account = AccountUtils.createAccountFromName("test@gmail.com");
-        mAccountManagerFacade.addAccount(account);
-        GetAccessTokenCallbackForTest callback = new GetAccessTokenCallbackForTest();
-
-        ThreadUtils.runOnUiThreadBlocking(() -> {
-            mProfileOAuth2TokenServiceDelegate.getAccessToken(account, scope, callback);
-        });
-
-        Assert.assertEquals(
-                mAccountManagerFacade.getAccessToken(account, scope), callback.getToken());
+    public void testHasOAuth2RefreshTokenWhenCacheIsNotPopulated() {
+        try (var block =
+                mAccountManagerFacade.blockGetCoreAccountInfos(/* populateCache= */ false)) {
+            mAccountManagerFacade.addAccount(TestAccounts.ACCOUNT1);
+            ThreadUtils.runOnUiThreadBlocking(
+                    () -> {
+                        Assert.assertFalse(
+                                mDelegate.hasOAuth2RefreshToken(TestAccounts.ACCOUNT1.getEmail()));
+                    });
+        }
     }
 }

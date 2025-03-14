@@ -6,4 +6,3 @@ This is a testharness.js-based test.
 [FAIL] Non-zero minimum
   WebAssembly.Table(): Property 'initial' is required
 Harness: the test ran to completion.
-
