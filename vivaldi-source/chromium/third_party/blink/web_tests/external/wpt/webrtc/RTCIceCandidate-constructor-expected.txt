@@ -1,21 +1,9 @@
 This is a testharness.js-based test.
-PASS new RTCIceCandidate()
-PASS new RTCIceCandidate({})
-PASS new RTCIceCandidate({ ... }) with manually filled default values
-PASS new RTCIceCandidate({ sdpMid: null, sdpMLineIndex: null })
-PASS new RTCIceCandidate({ candidate: '' })
-PASS new RTCIceCandidate({ candidate: null })
-PASS new RTCIceCandidate({ ... }) with valid candidate string only
-FAIL new RTCIceCandidate({ sdpMid: 'audio' }) assert_equals: sdpMLineIndex expected (object) null but got (number) 0
-PASS new RTCIceCandidate({ sdpMLineIndex: 0 })
-PASS new RTCIceCandidate({ sdpMid: 'audio', sdpMLineIndex: 0 })
-FAIL new RTCIceCandidate({ candidate: '', sdpMid: 'audio' } assert_equals: sdpMLineIndex expected (object) null but got (number) 0
-PASS new RTCIceCandidate({ candidate: '', sdpMLineIndex: 0 }
-FAIL new RTCIceCandidate({ ... }) with valid candidate string and sdpMid assert_equals: sdpMLineIndex expected (object) null but got (number) 0
-FAIL new RTCIceCandidate({ ... }) with invalid candidate string and sdpMid assert_equals: sdpMLineIndex expected (object) null but got (number) 0
-PASS new RTCIceCandidate({ ... }) with nondefault values for all fields
-PASS new RTCIceCandidate({ ... }) with nondefault values for all fields, tcp candidate
-FAIL new RTCIceCandidate({ ... }) with invalid sdpMid assert_equals: sdpMLineIndex expected (object) null but got (number) 0
-PASS new RTCIceCandidate({ ... }) with invalid sdpMLineIndex
+[FAIL] new RTCIceCandidate({ ... }) with nondefault values for all fields
+  assert_equals: relayProtocol expected (string) "udp" but got (object) null
+[FAIL] new RTCIceCandidate({ ... }) with nondefault values for all fields, tcp candidate
+  assert_equals: url expected (string) "turn:turn.example.net" but got (object) null
+[FAIL] new RTCIceCandidate({ relayProtocol, url }) cloned vs signaled
+  assert_equals: relayProtocol cloned expected (string) "tls" but got (object) null
 Harness: the test ran to completion.
 
