@@ -172,6 +172,8 @@ enum ExecutionMode {
     ExecutionModeSignedZeroInfNanPreserve = 4461,
     ExecutionModeRoundingModeRTE = 4462,
     ExecutionModeRoundingModeRTZ = 4463,
+    ExecutionModeNonCoherentTileAttachmentReadQCOM = 4489,
+    ExecutionModeTileShadingRateQCOM = 4490,
     ExecutionModeEarlyAndLateFragmentTestsAMD = 5017,
     ExecutionModeStencilRefReplacingEXT = 5027,
     ExecutionModeCoalescingAMDX = 5069,
@@ -241,6 +243,7 @@ enum StorageClass {
     StorageClassImage = 11,
     StorageClassStorageBuffer = 12,
     StorageClassTileImageEXT = 4172,
+    StorageClassTileAttachmentQCOM = 4491,
     StorageClassNodePayloadAMDX = 5068,
     StorageClassCallableDataKHR = 5328,
     StorageClassCallableDataNV = 5328,
@@ -379,9 +382,15 @@ enum ImageChannelDataType {
     ImageChannelDataTypeFloat = 14,
     ImageChannelDataTypeUnormInt24 = 15,
     ImageChannelDataTypeUnormInt101010_2 = 16,
+    ImageChannelDataTypeUnormInt10X6EXT = 17,
     ImageChannelDataTypeUnsignedIntRaw10EXT = 19,
     ImageChannelDataTypeUnsignedIntRaw12EXT = 20,
     ImageChannelDataTypeUnormInt2_101010EXT = 21,
+    ImageChannelDataTypeUnsignedInt10X6EXT = 22,
+    ImageChannelDataTypeUnsignedInt12X4EXT = 23,
+    ImageChannelDataTypeUnsignedInt14X2EXT = 24,
+    ImageChannelDataTypeUnormInt12X4EXT = 25,
+    ImageChannelDataTypeUnormInt14X2EXT = 26,
     ImageChannelDataTypeMax = 0x7fffffff,
 };
 
@@ -713,6 +722,9 @@ enum BuiltIn {
     BuiltInDeviceIndex = 4438,
     BuiltInViewIndex = 4440,
     BuiltInShadingRateKHR = 4444,
+    BuiltInTileOffsetQCOM = 4492,
+    BuiltInTileDimensionQCOM = 4493,
+    BuiltInTileApronSizeQCOM = 4494,
     BuiltInBaryCoordNoPerspAMD = 4992,
     BuiltInBaryCoordNoPerspCentroidAMD = 4993,
     BuiltInBaryCoordNoPerspSampleAMD = 4994,
@@ -1063,6 +1075,9 @@ enum Capability {
     CapabilityTileImageColorReadAccessEXT = 4166,
     CapabilityTileImageDepthReadAccessEXT = 4167,
     CapabilityTileImageStencilReadAccessEXT = 4168,
+    CapabilityTensorsARM = 4174,
+    CapabilityStorageTensorArrayDynamicIndexingARM = 4175,
+    CapabilityStorageTensorArrayNonUniformIndexingARM = 4176,
     CapabilityCooperativeMatrixLayoutsARM = 4201,
     CapabilityFragmentShadingRateKHR = 4422,
     CapabilitySubgroupBallotKHR = 4423,
@@ -1099,6 +1114,7 @@ enum Capability {
     CapabilityTextureSampleWeightedQCOM = 4484,
     CapabilityTextureBoxFilterQCOM = 4485,
     CapabilityTextureBlockMatchQCOM = 4486,
+    CapabilityTileShadingQCOM = 4495,
     CapabilityTextureBlockMatch2QCOM = 4498,
     CapabilityFloat16ImageAMD = 5008,
     CapabilityImageGatherBiasLodAMD = 5009,
@@ -1109,6 +1125,8 @@ enum Capability {
     CapabilityShaderClockKHR = 5055,
     CapabilityShaderEnqueueAMDX = 5067,
     CapabilityQuadControlKHR = 5087,
+    CapabilityInt4TypeINTEL = 5112,
+    CapabilityInt4CooperativeMatrixINTEL = 5114,
     CapabilityBFloat16TypeKHR = 5116,
     CapabilityBFloat16DotProductKHR = 5117,
     CapabilityBFloat16CooperativeMatrixKHR = 5118,
@@ -1451,6 +1469,24 @@ enum TensorAddressingOperandsMask {
     TensorAddressingOperandsMaskNone = 0,
     TensorAddressingOperandsTensorViewMask = 0x00000001,
     TensorAddressingOperandsDecodeFuncMask = 0x00000002,
+};
+
+enum TensorOperandsShift {
+    TensorOperandsNontemporalARMShift = 0,
+    TensorOperandsOutOfBoundsValueARMShift = 1,
+    TensorOperandsMakeElementAvailableARMShift = 2,
+    TensorOperandsMakeElementVisibleARMShift = 3,
+    TensorOperandsNonPrivateElementARMShift = 4,
+    TensorOperandsMax = 0x7fffffff,
+};
+
+enum TensorOperandsMask {
+    TensorOperandsMaskNone = 0,
+    TensorOperandsNontemporalARMMask = 0x00000001,
+    TensorOperandsOutOfBoundsValueARMMask = 0x00000002,
+    TensorOperandsMakeElementAvailableARMMask = 0x00000004,
+    TensorOperandsMakeElementVisibleARMMask = 0x00000008,
+    TensorOperandsNonPrivateElementARMMask = 0x00000010,
 };
 
 enum InitializationModeQualifier {
@@ -1917,6 +1953,10 @@ enum Op {
     OpColorAttachmentReadEXT = 4160,
     OpDepthAttachmentReadEXT = 4161,
     OpStencilAttachmentReadEXT = 4162,
+    OpTypeTensorARM = 4163,
+    OpTensorReadARM = 4164,
+    OpTensorWriteARM = 4165,
+    OpTensorQuerySizeARM = 4166,
     OpTerminateInvocation = 4416,
     OpTypeUntypedPointerKHR = 4417,
     OpUntypedVariableKHR = 4418,
@@ -2733,6 +2773,10 @@ inline void HasResultAndType(Op opcode, bool *hasResult, bool *hasResultType) {
     case OpColorAttachmentReadEXT: *hasResult = true; *hasResultType = true; break;
     case OpDepthAttachmentReadEXT: *hasResult = true; *hasResultType = true; break;
     case OpStencilAttachmentReadEXT: *hasResult = true; *hasResultType = true; break;
+    case OpTypeTensorARM: *hasResult = true; *hasResultType = false; break;
+    case OpTensorReadARM: *hasResult = true; *hasResultType = true; break;
+    case OpTensorWriteARM: *hasResult = false; *hasResultType = false; break;
+    case OpTensorQuerySizeARM: *hasResult = true; *hasResultType = true; break;
     case OpTerminateInvocation: *hasResult = false; *hasResultType = false; break;
     case OpTypeUntypedPointerKHR: *hasResult = true; *hasResultType = false; break;
     case OpUntypedVariableKHR: *hasResult = true; *hasResultType = true; break;
@@ -3295,6 +3339,8 @@ inline const char* ExecutionModeToString(ExecutionMode value) {
     case ExecutionModeSignedZeroInfNanPreserve: return "SignedZeroInfNanPreserve";
     case ExecutionModeRoundingModeRTE: return "RoundingModeRTE";
     case ExecutionModeRoundingModeRTZ: return "RoundingModeRTZ";
+    case ExecutionModeNonCoherentTileAttachmentReadQCOM: return "NonCoherentTileAttachmentReadQCOM";
+    case ExecutionModeTileShadingRateQCOM: return "TileShadingRateQCOM";
     case ExecutionModeEarlyAndLateFragmentTestsAMD: return "EarlyAndLateFragmentTestsAMD";
     case ExecutionModeStencilRefReplacingEXT: return "StencilRefReplacingEXT";
     case ExecutionModeCoalescingAMDX: return "CoalescingAMDX";
@@ -3361,6 +3407,7 @@ inline const char* StorageClassToString(StorageClass value) {
     case StorageClassImage: return "Image";
     case StorageClassStorageBuffer: return "StorageBuffer";
     case StorageClassTileImageEXT: return "TileImageEXT";
+    case StorageClassTileAttachmentQCOM: return "TileAttachmentQCOM";
     case StorageClassNodePayloadAMDX: return "NodePayloadAMDX";
     case StorageClassCallableDataKHR: return "CallableDataKHR";
     case StorageClassIncomingCallableDataKHR: return "IncomingCallableDataKHR";
@@ -3504,9 +3551,15 @@ inline const char* ImageChannelDataTypeToString(ImageChannelDataType value) {
     case ImageChannelDataTypeFloat: return "Float";
     case ImageChannelDataTypeUnormInt24: return "UnormInt24";
     case ImageChannelDataTypeUnormInt101010_2: return "UnormInt101010_2";
+    case ImageChannelDataTypeUnormInt10X6EXT: return "UnormInt10X6EXT";
     case ImageChannelDataTypeUnsignedIntRaw10EXT: return "UnsignedIntRaw10EXT";
     case ImageChannelDataTypeUnsignedIntRaw12EXT: return "UnsignedIntRaw12EXT";
     case ImageChannelDataTypeUnormInt2_101010EXT: return "UnormInt2_101010EXT";
+    case ImageChannelDataTypeUnsignedInt10X6EXT: return "UnsignedInt10X6EXT";
+    case ImageChannelDataTypeUnsignedInt12X4EXT: return "UnsignedInt12X4EXT";
+    case ImageChannelDataTypeUnsignedInt14X2EXT: return "UnsignedInt14X2EXT";
+    case ImageChannelDataTypeUnormInt12X4EXT: return "UnormInt12X4EXT";
+    case ImageChannelDataTypeUnormInt14X2EXT: return "UnormInt14X2EXT";
     default: return "Unknown";
     }
 }
@@ -3762,6 +3815,9 @@ inline const char* BuiltInToString(BuiltIn value) {
     case BuiltInDeviceIndex: return "DeviceIndex";
     case BuiltInViewIndex: return "ViewIndex";
     case BuiltInShadingRateKHR: return "ShadingRateKHR";
+    case BuiltInTileOffsetQCOM: return "TileOffsetQCOM";
+    case BuiltInTileDimensionQCOM: return "TileDimensionQCOM";
+    case BuiltInTileApronSizeQCOM: return "TileApronSizeQCOM";
     case BuiltInBaryCoordNoPerspAMD: return "BaryCoordNoPerspAMD";
     case BuiltInBaryCoordNoPerspCentroidAMD: return "BaryCoordNoPerspCentroidAMD";
     case BuiltInBaryCoordNoPerspSampleAMD: return "BaryCoordNoPerspSampleAMD";
@@ -3942,6 +3998,9 @@ inline const char* CapabilityToString(Capability value) {
     case CapabilityTileImageColorReadAccessEXT: return "TileImageColorReadAccessEXT";
     case CapabilityTileImageDepthReadAccessEXT: return "TileImageDepthReadAccessEXT";
     case CapabilityTileImageStencilReadAccessEXT: return "TileImageStencilReadAccessEXT";
+    case CapabilityTensorsARM: return "TensorsARM";
+    case CapabilityStorageTensorArrayDynamicIndexingARM: return "StorageTensorArrayDynamicIndexingARM";
+    case CapabilityStorageTensorArrayNonUniformIndexingARM: return "StorageTensorArrayNonUniformIndexingARM";
     case CapabilityCooperativeMatrixLayoutsARM: return "CooperativeMatrixLayoutsARM";
     case CapabilityFragmentShadingRateKHR: return "FragmentShadingRateKHR";
     case CapabilitySubgroupBallotKHR: return "SubgroupBallotKHR";
@@ -3976,6 +4035,7 @@ inline const char* CapabilityToString(Capability value) {
     case CapabilityTextureSampleWeightedQCOM: return "TextureSampleWeightedQCOM";
     case CapabilityTextureBoxFilterQCOM: return "TextureBoxFilterQCOM";
     case CapabilityTextureBlockMatchQCOM: return "TextureBlockMatchQCOM";
+    case CapabilityTileShadingQCOM: return "TileShadingQCOM";
     case CapabilityTextureBlockMatch2QCOM: return "TextureBlockMatch2QCOM";
     case CapabilityFloat16ImageAMD: return "Float16ImageAMD";
     case CapabilityImageGatherBiasLodAMD: return "ImageGatherBiasLodAMD";
@@ -3986,6 +4046,8 @@ inline const char* CapabilityToString(Capability value) {
     case CapabilityShaderClockKHR: return "ShaderClockKHR";
     case CapabilityShaderEnqueueAMDX: return "ShaderEnqueueAMDX";
     case CapabilityQuadControlKHR: return "QuadControlKHR";
+    case CapabilityInt4TypeINTEL: return "Int4TypeINTEL";
+    case CapabilityInt4CooperativeMatrixINTEL: return "Int4CooperativeMatrixINTEL";
     case CapabilityBFloat16TypeKHR: return "BFloat16TypeKHR";
     case CapabilityBFloat16DotProductKHR: return "BFloat16DotProductKHR";
     case CapabilityBFloat16CooperativeMatrixKHR: return "BFloat16CooperativeMatrixKHR";
@@ -4667,6 +4729,10 @@ inline const char* OpToString(Op value) {
     case OpColorAttachmentReadEXT: return "OpColorAttachmentReadEXT";
     case OpDepthAttachmentReadEXT: return "OpDepthAttachmentReadEXT";
     case OpStencilAttachmentReadEXT: return "OpStencilAttachmentReadEXT";
+    case OpTypeTensorARM: return "OpTypeTensorARM";
+    case OpTensorReadARM: return "OpTensorReadARM";
+    case OpTensorWriteARM: return "OpTensorWriteARM";
+    case OpTensorQuerySizeARM: return "OpTensorQuerySizeARM";
     case OpTerminateInvocation: return "OpTerminateInvocation";
     case OpTypeUntypedPointerKHR: return "OpTypeUntypedPointerKHR";
     case OpUntypedVariableKHR: return "OpUntypedVariableKHR";
@@ -5174,6 +5240,10 @@ inline TensorAddressingOperandsMask operator|(TensorAddressingOperandsMask a, Te
 inline TensorAddressingOperandsMask operator&(TensorAddressingOperandsMask a, TensorAddressingOperandsMask b) { return TensorAddressingOperandsMask(unsigned(a) & unsigned(b)); }
 inline TensorAddressingOperandsMask operator^(TensorAddressingOperandsMask a, TensorAddressingOperandsMask b) { return TensorAddressingOperandsMask(unsigned(a) ^ unsigned(b)); }
 inline TensorAddressingOperandsMask operator~(TensorAddressingOperandsMask a) { return TensorAddressingOperandsMask(~unsigned(a)); }
+inline TensorOperandsMask operator|(TensorOperandsMask a, TensorOperandsMask b) { return TensorOperandsMask(unsigned(a) | unsigned(b)); }
+inline TensorOperandsMask operator&(TensorOperandsMask a, TensorOperandsMask b) { return TensorOperandsMask(unsigned(a) & unsigned(b)); }
+inline TensorOperandsMask operator^(TensorOperandsMask a, TensorOperandsMask b) { return TensorOperandsMask(unsigned(a) ^ unsigned(b)); }
+inline TensorOperandsMask operator~(TensorOperandsMask a) { return TensorOperandsMask(~unsigned(a)); }
 inline MatrixMultiplyAccumulateOperandsMask operator|(MatrixMultiplyAccumulateOperandsMask a, MatrixMultiplyAccumulateOperandsMask b) { return MatrixMultiplyAccumulateOperandsMask(unsigned(a) | unsigned(b)); }
 inline MatrixMultiplyAccumulateOperandsMask operator&(MatrixMultiplyAccumulateOperandsMask a, MatrixMultiplyAccumulateOperandsMask b) { return MatrixMultiplyAccumulateOperandsMask(unsigned(a) & unsigned(b)); }
 inline MatrixMultiplyAccumulateOperandsMask operator^(MatrixMultiplyAccumulateOperandsMask a, MatrixMultiplyAccumulateOperandsMask b) { return MatrixMultiplyAccumulateOperandsMask(unsigned(a) ^ unsigned(b)); }

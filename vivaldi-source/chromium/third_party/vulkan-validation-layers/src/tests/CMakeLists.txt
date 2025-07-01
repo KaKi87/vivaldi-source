@@ -73,8 +73,6 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/buffer_positive.cpp
     unit/command.cpp
     unit/command_positive.cpp
-    unit/cooperative_vector.cpp
-    unit/cooperative_vector_positive.cpp
     unit/copy_buffer_image.cpp
     unit/copy_buffer_image_positive.cpp
     unit/debug_extensions.cpp
@@ -111,6 +109,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_buffer_device_address_positive.cpp
     unit/gpu_av_cooperative_vector.cpp
     unit/gpu_av_cooperative_vector_positive.cpp
+    unit/gpu_av_copies.cpp
+    unit/gpu_av_copies_positive.cpp
     unit/gpu_av_debug_printf.cpp
     unit/gpu_av_descriptor_buffer_positive.cpp
     unit/gpu_av_descriptor_class_general_buffer.cpp
@@ -136,6 +136,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_ray_query_positive.cpp
     unit/gpu_av_ray_tracing.cpp
     unit/gpu_av_ray_tracing_positive.cpp
+    unit/gpu_av_vertex_attribute_fetch.cpp
     unit/graphics_library.cpp
     unit/graphics_library_positive.cpp
     unit/host_image_copy.cpp
@@ -201,6 +202,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/shader_compute_positive.cpp
     unit/shader_cooperative_matrix.cpp
     unit/shader_cooperative_matrix_positive.cpp
+    unit/shader_cooperative_vector.cpp
+    unit/shader_cooperative_vector_positive.cpp
     unit/shader_debug_info.cpp
     unit/shader_image_access.cpp
     unit/shader_image_access_positive.cpp
@@ -339,7 +342,7 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/config_$<CONFIG>.h" INPUT "${C
 target_compile_definitions(vk_layer_validation_tests PRIVATE CONFIG_HEADER_FILE="config_$<CONFIG>.h")
 
 target_sources(vk_layer_validation_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config_$<CONFIG>.h)
-target_include_directories(vk_layer_validation_tests PRIVATE 
+target_include_directories(vk_layer_validation_tests PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${VVL_SOURCE_DIR}/layers/external
 )

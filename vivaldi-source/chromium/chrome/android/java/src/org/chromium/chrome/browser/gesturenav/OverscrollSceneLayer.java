@@ -9,6 +9,8 @@ import android.view.View;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.base.WindowAndroid;
@@ -16,6 +18,7 @@ import org.chromium.ui.resources.ResourceManager;
 
 /** {@link SceneOverlayLayer} implementation for gesture navigation overscroll effect. */
 @JNINamespace("android")
+@NullMarked
 class OverscrollSceneLayer extends SceneOverlayLayer {
     private final View mParentView;
 
@@ -46,10 +49,11 @@ class OverscrollSceneLayer extends SceneOverlayLayer {
 
     /**
      * Send down the swipe offset to update animation for overscroll effect.
+     *
      * @param resourceManager An object for accessing static and dynamic resources.
      * @param offset Swipe offset from touch events.
-     * @return {@code true} if the animation is still in progress; {@code false} if the animation
-     *         is completed.
+     * @return {@code true} if the animation is still in progress; {@code false} if the animation is
+     *     completed.
      */
     boolean update(ResourceManager resourceManager, float offset) {
         float xDelta = -(offset - mAccumulatedScroll);
@@ -115,7 +119,7 @@ class OverscrollSceneLayer extends SceneOverlayLayer {
         boolean update(
                 long nativeOverscrollSceneLayer,
                 OverscrollSceneLayer caller,
-                ResourceManager resourceManager,
+                @Nullable ResourceManager resourceManager,
                 float accumulatedScroll,
                 float delta);
 

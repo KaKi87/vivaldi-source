@@ -7,42 +7,35 @@
 
 #import <Foundation/Foundation.h>
 
+#import <memory>
 #import <string_view>
 
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/sync_error_settings_command_handler.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/signin/model/constants.h"
 
 @class AccountMenuMediator;
 @class AuthenticationFlow;
+class SigninInProgress;
 @protocol SystemIdentity;
 
-@protocol AccountMenuMediatorDelegate <SyncErrorSettingsCommandHandler>
+@protocol AccountMenuMediatorDelegate <NSObject>
 
 // Requests to dismiss the account menu.
-- (void)mediatorWantsToBeDismissed:(AccountMenuMediator*)mediator;
-// Starts the sign-in flow. Then call `completion`, with a parameter stating
-// whether the the sign-in was done.
-- (AuthenticationFlow*)
-    triggerSigninWithSystemIdentity:(id<SystemIdentity>)identity
-                         completion:
-                             (signin_ui::SigninCompletionCallback)completion;
+- (void)mediatorWantsToBeDismissed:(AccountMenuMediator*)mediator
+                        withResult:(SigninCoordinatorResult)result
+                    signedIdentity:(id<SystemIdentity>)signedIdentity
+                   userTappedClose:(BOOL)userTappedClose;
 
-// Displays the identity snackbar with `systemIdentity`.
-- (void)triggerAccountSwitchSnackbarWithIdentity:
-    (id<SystemIdentity>)systemIdentity;
+// Returns an authentication flow.
+- (AuthenticationFlow*)authenticationFlow:(id<SystemIdentity>)identity
+                               anchorRect:(CGRect)anchorRect;
 
 // Sign out, display a toast, and call `callback` with argument stating whether
 // it’s a success.
 // It should only be called when the current scene is not blocked.
 - (void)signOutFromTargetRect:(CGRect)targetRect
-                    forSwitch:(BOOL)forSwith
-                   completion:(void (^)(BOOL))completion;
-
-// Requests a switch to the profile with the given `profileName`.
-- (void)triggerProfileSwitchToProfileNamed:(std::string_view)profileName
-               andSigninWithSystemIdentity:(id<SystemIdentity>)identity;
+                   completion:(signin_ui::SignoutCompletionCallback)completion;
 
 // Shows https://myaccount.google.com/ for the account currently signed-in
 // to Chrome. The content is displayed in a new view in the stack, i.e.
@@ -53,15 +46,13 @@
 - (void)didTapManageAccounts;
 
 // The user tapped on "Add account…".
-- (void)didTapAddAccountWithCompletion:
-    (SigninCoordinatorCompletionCallback)completion;
+- (void)didTapAddAccount;
 
-// Blocks the user from using Chromium. Returns whether the block was possible.
-- (BOOL)blockOtherScenesIfPossible;
+// The user tapped to open Settings page.
+- (void)didTapSettingsButton;
 
-// Stops the `blockOtherScenesIfPossible`.
-- (void)unblockOtherScenes;
-
+// The signin is finished.
+- (void)signinFinished;
 @end
 
 #endif  // IOS_CHROME_BROWSER_AUTHENTICATION_UI_BUNDLED_ACCOUNT_MENU_ACCOUNT_MENU_MEDIATOR_DELEGATE_H_

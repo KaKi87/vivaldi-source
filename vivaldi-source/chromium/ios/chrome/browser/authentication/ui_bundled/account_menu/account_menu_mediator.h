@@ -7,23 +7,24 @@
 
 #import <Foundation/Foundation.h>
 
+#import "base/ios/block_types.h"
 #import "ios/chrome/browser/authentication/ui_bundled/account_menu/account_menu_data_source.h"
 #import "ios/chrome/browser/authentication/ui_bundled/account_menu/account_menu_mutator.h"
 
+enum class AccountMenuAccessPoint;
 @protocol AccountMenuConsumer;
 @protocol AccountMenuMediatorDelegate;
+@protocol SyncErrorSettingsCommandHandler;
 class AuthenticationService;
 class ChromeAccountManagerService;
-@protocol ManageSyncSettingsCommandHandler;
+class GURL;
 class PrefService;
-typedef NS_ENUM(NSUInteger, SigninCoordinatorResult);
 namespace signin {
 class IdentityManager;
 }  // namespace signin
 namespace syncer {
 class SyncService;
 }  // namespace syncer
-@protocol SystemIdentity;
 
 // Mediator for AccountMenu
 @interface AccountMenuMediator
@@ -35,12 +36,9 @@ class SyncService;
 // The delegate of the mediator.
 @property(nonatomic, weak) id<AccountMenuMediatorDelegate> delegate;
 
-// Parameters for [super
-// runCompletionWithSigninResult:completionIdentity];
-@property(nonatomic, readwrite) SigninCoordinatorResult signinCoordinatorResult;
-// the identity with which the user is newly signed-in.
-@property(nonatomic, strong, readonly) id<SystemIdentity>
-    signinCompletionIdentity;
+// The sync error settings command handler.
+@property(nonatomic, weak) id<SyncErrorSettingsCommandHandler>
+    syncErrorSettingsCommandHandler;
 
 - (instancetype)initWithSyncService:(syncer::SyncService*)syncService
               accountManagerService:
@@ -48,11 +46,17 @@ class SyncService;
                         authService:(AuthenticationService*)authService
                     identityManager:(signin::IdentityManager*)identityManager
                               prefs:(PrefService*)prefs
+                        accessPoint:(AccountMenuAccessPoint)accessPoint
+                                URL:(const GURL&)url
+               prepareChangeProfile:(ProceduralBlock)prepareChangeProfile
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 // Disconnects the mediator.
 - (void)disconnect;
+
+// Informs the mediator that the Add Account process is done.
+- (void)accountAddedIsDone;
 
 @end
 

@@ -1,4 +1,4 @@
-/* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2025 The OpenXLA Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,263 +13,155 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
-#include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <optional>
 #include <vector>
 
-#include "absl/log/check.h"
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include "absl/strings/ascii.h"
+#include "absl/types/span.h"
+#include "third_party/cudnn_frontend/include/cudnn_frontend.h"  // IWYU pragma: keep - cudnn frontend headers are not hermetic
+#include "third_party/cudnn_frontend/include/cudnn_frontend/graph_interface.h"
+#include "third_party/cudnn_frontend/include/cudnn_frontend/graph_properties.h"
+#include "third_party/cudnn_frontend/include/cudnn_frontend_utils.h"
+#include "xla/service/platform_util.h"
 #include "xla/stream_executor/command_buffer.h"
-#include "xla/stream_executor/cuda/cuda_test_kernels.h"
-#include "xla/stream_executor/launch_dim.h"
-#include "xla/stream_executor/multi_platform_manager.h"
+#include "xla/stream_executor/cuda/cuda_compute_capability.h"
+#include "xla/stream_executor/cuda/cuda_dnn.h"
+#include "xla/stream_executor/device_memory.h"
+#include "xla/stream_executor/dnn.h"
+#include "xla/stream_executor/numeric_options.h"
 #include "xla/stream_executor/platform.h"
+#include "xla/stream_executor/platform_manager.h"
 #include "xla/stream_executor/stream.h"
 #include "xla/stream_executor/stream_executor.h"
-#include "tsl/platform/status.h"
-#include "tsl/platform/test.h"
-#include "tsl/platform/test_benchmark.h"
+#include "xla/tsl/lib/core/status_test_util.h"
+#include "xla/tsl/platform/status_matchers.h"
+#include "xla/tsl/platform/statusor.h"
 
 namespace stream_executor::cuda {
+namespace {
 
-using AddI32Kernel = TypedKernel<DeviceMemory<int32_t>, DeviceMemory<int32_t>,
-                                 DeviceMemory<int32_t>>;
+using ::testing::Each;
+using ::tsl::testing::IsOkAndHolds;
 
-static constexpr auto nested = CommandBuffer::Mode::kNested;    // NOLINT
+static Platform* CudaPlatform() {
+  auto name = absl::AsciiStrToUpper(
+      xla::PlatformUtil::CanonicalPlatformName("cuda").value());
+  return PlatformManager::PlatformWithName(name).value();
+}
+
 static constexpr auto primary = CommandBuffer::Mode::kPrimary;  // NOLINT
 
-TEST(CudaCommandBufferTest, LaunchSingleKernel) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
+TEST(CudaCommandBufferTest, CuDnnExplicitConstructionAndUpdateWork) {
+  Platform* platform = CudaPlatform();
   StreamExecutor* executor = platform->ExecutorForDevice(0).value();
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Stream> stream,
+                          executor->CreateStream());
+  dnn::DnnSupport& dnn_support = *executor->AsDnn();
 
-  Stream stream(executor);
-  stream.Init();
-  ASSERT_TRUE(stream.ok());
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  ASSERT_TRUE(executor->GetKernel(spec, &add).ok());
-
-  int64_t length = 4;
-  int64_t byte_length = sizeof(int32_t) * length;
-
-  // Prepare arguments: a=1, b=2, c=0
-  DeviceMemory<int32_t> a = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> c = executor->AllocateArray<int32_t>(length, 0);
-
-  stream.ThenMemset32(&a, 1, byte_length);
-  stream.ThenMemset32(&b, 2, byte_length);
-  stream.ThenMemZero(&c, byte_length);
-
-  // Create a command buffer with a single kernel launch.
-  auto cmd_buffer = CommandBuffer::Create(executor).value();
-  ASSERT_TRUE(cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), a, b, c).ok());
-  ASSERT_TRUE(cmd_buffer.Finalize().ok());
-
-  ASSERT_TRUE(executor->Submit(&stream, cmd_buffer).ok());
-
-  // Copy `c` data back to host.
-  std::vector<int32_t> dst(4, 42);
-  stream.ThenMemcpy(dst.data(), c, byte_length);
-
-  std::vector<int32_t> expected = {3, 3, 3, 3};
-  ASSERT_EQ(dst, expected);
-
-  // Prepare argument for graph update: d = 0
-  DeviceMemory<int32_t> d = executor->AllocateArray<int32_t>(length, 0);
-  stream.ThenMemZero(&d, byte_length);
-
-  // Update command buffer to write into `d` buffer.
-  ASSERT_TRUE(cmd_buffer.Update().ok());
-  ASSERT_TRUE(cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), a, b, d).ok());
-  ASSERT_TRUE(cmd_buffer.Finalize().ok());
-
-  ASSERT_TRUE(executor->Submit(&stream, cmd_buffer).ok());
-
-  // Copy `d` data back to host.
-  std::fill(dst.begin(), dst.end(), 42);
-  stream.ThenMemcpy(dst.data(), d, byte_length);
-  ASSERT_EQ(dst, expected);
-}
-
-TEST(CudaCommandBufferTest, TraceSingleKernel) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
-  StreamExecutor* executor = platform->ExecutorForDevice(0).value();
-
-  Stream stream(executor);
-  stream.Init();
-  ASSERT_TRUE(stream.ok());
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  ASSERT_TRUE(executor->GetKernel(spec, &add).ok());
-
-  int64_t length = 4;
-  int64_t byte_length = sizeof(int32_t) * length;
-
-  // Prepare arguments: a=1, b=2, c=0
-  DeviceMemory<int32_t> a = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> c = executor->AllocateArray<int32_t>(length, 0);
-
-  stream.ThenMemset32(&a, 1, byte_length);
-  stream.ThenMemset32(&b, 2, byte_length);
-  stream.ThenMemZero(&c, byte_length);
-
-  // Create a command buffer by tracing kernel launch operations.
-  auto cmd_buffer = CommandBuffer::Trace(executor, [&](Stream* stream) {
-    return stream->ThenLaunch(ThreadDim(), BlockDim(4), add, a, b, c);
-  });
-
-  ASSERT_TRUE(cmd_buffer.ok());
-  ASSERT_TRUE(executor->Submit(&stream, *cmd_buffer).ok());
-
-  // Copy data back to host.
-  std::vector<int32_t> dst(4, 42);
-  stream.ThenMemcpy(dst.data(), c, byte_length);
-
-  std::vector<int32_t> expected = {3, 3, 3, 3};
-  ASSERT_EQ(dst, expected);
-}
-
-TEST(CudaCommandBufferTest, LaunchNestedCommandBuffer) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
-  StreamExecutor* executor = platform->ExecutorForDevice(0).value();
-
-  Stream stream(executor);
-  stream.Init();
-  ASSERT_TRUE(stream.ok());
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  ASSERT_TRUE(executor->GetKernel(spec, &add).ok());
-
-  int64_t length = 4;
-  int64_t byte_length = sizeof(int32_t) * length;
-
-  // Prepare arguments: a=1, b=2, c=0
-  DeviceMemory<int32_t> a = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(length, 0);
-  DeviceMemory<int32_t> c = executor->AllocateArray<int32_t>(length, 0);
-
-  stream.ThenMemset32(&a, 1, byte_length);
-  stream.ThenMemset32(&b, 2, byte_length);
-  stream.ThenMemZero(&c, byte_length);
-
-  // Create a command buffer with a single kernel launch.
-  auto primary_cmd_buffer = CommandBuffer::Create(executor).value();
-  auto nested_cmd_buffer = CommandBuffer::Create(executor, nested).value();
-  ASSERT_TRUE(
-      nested_cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), a, b, c).ok());
-  ASSERT_TRUE(
-      primary_cmd_buffer.AddNestedCommandBuffer(nested_cmd_buffer).ok());
-  ASSERT_TRUE(primary_cmd_buffer.Finalize().ok());
-
-  ASSERT_TRUE(executor->Submit(&stream, primary_cmd_buffer).ok());
-
-  // Copy `c` data back to host.
-  std::vector<int32_t> dst(4, 42);
-  stream.ThenMemcpy(dst.data(), c, byte_length);
-
-  std::vector<int32_t> expected = {3, 3, 3, 3};
-  ASSERT_EQ(dst, expected);
-}
-
-//===----------------------------------------------------------------------===//
-// Performance benchmarks below
-//===----------------------------------------------------------------------===//
-
-#define BENCHMARK_SIZES(NAME) \
-  BENCHMARK(NAME)->Arg(8)->Arg(32)->Arg(128)->Arg(512)->Arg(1024);
-
-// In benchmarks we construct command buffers in nested mode when we
-// do not want to measure graph executable instantiation overhead.
-static void BM_CreateCommandBuffer(benchmark::State& state) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
-  StreamExecutor* executor = platform->ExecutorForDevice(0).value();
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  CHECK_OK(executor->GetKernel(spec, &add));
-
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(1, 0);
-
-  for (auto s : state) {
-    auto cmd_buffer = CommandBuffer::Create(executor, nested).value();
-    for (int i = 1; i < state.range(0); ++i) {
-      CHECK_OK(cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), b, b, b));
-    }
-    CHECK_OK(cmd_buffer.Finalize());
+  if (dnn_support.GetVersion().value_or(dnn::VersionInfo{0, 0, 0}) <
+      dnn::VersionInfo(9, 7, 0)) {
+    GTEST_SKIP() << "Requires cuDNN 9.7.0 or later.";
   }
+
+  if (executor->GetDeviceDescription().cuda_compute_capability() <
+      CudaComputeCapability::Ampere()) {
+    GTEST_SKIP() << "Requires at least an Ampere GPU.";
+  }
+
+  constexpr int kDimSize = 32;
+  constexpr int kTotalElements = kDimSize * kDimSize;
+
+  stream_executor::gpu::CudnnGraph graph([]() {
+    cudnn_frontend::graph::Graph graph;
+    graph.set_compute_data_type(cudnn_frontend::DataType_t::INT32);
+    std::shared_ptr<cudnn_frontend::graph::Tensor_attributes> lhs =
+        graph.tensor(cudnn_frontend::graph::Tensor_attributes()
+                         .set_dim({1, kDimSize, kDimSize})
+                         .set_stride({kDimSize * kDimSize, kDimSize, 1})
+                         .set_data_type(cudnn_frontend::DataType_t::INT8)
+                         .set_uid(1));
+    std::shared_ptr<cudnn_frontend::graph::Tensor_attributes> rhs =
+        graph.tensor_like(lhs);
+    rhs->set_uid(2);
+    graph.matmul(lhs, rhs, cudnn_frontend::graph::Matmul_attributes())
+        ->set_output(true)
+        .set_data_type(cudnn_frontend::DataType_t::INT32)
+        .set_uid(3);
+    return graph;
+  }());
+  TF_ASSERT_OK(graph.Prepare(dnn_support, NumericOptions{}));
+  TF_ASSERT_OK(graph.Build(dnn_support, /*plan_id=*/std::nullopt));
+  EXPECT_THAT(graph.SupportsExplicitCommandBufferConstruction(),
+              IsOkAndHolds(true));
+
+  DeviceMemory<int8_t> input = executor->AllocateArray<int8_t>(kTotalElements);
+  TF_ASSERT_OK(stream->MemZero(&input, input.size()));
+  DeviceMemory<int32_t> output0 =
+      executor->AllocateArray<int32_t>(kTotalElements);
+  DeviceMemoryBase workspace;
+  std::vector<DeviceMemoryBase> operands;
+  operands.reserve(4);
+  operands.push_back(input);  // multiplying the input by itself
+  operands.push_back(input);
+  operands.push_back(output0);
+  if (graph.Graph().get_workspace_size() > 0) {
+    workspace = executor->Allocate(graph.Graph().get_workspace_size());
+    operands.push_back(workspace);
+  }
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommandBuffer> cmd_buffer,
+                          executor->CreateCommandBuffer(primary));
+  TF_ASSERT_OK_AND_ASSIGN(
+      auto* dnn_command,
+      cmd_buffer->CreateDnnGraphCommand(
+          graph, *stream, absl::Span<DeviceMemoryBase>(operands), {}));
+  TF_ASSERT_OK(cmd_buffer->Finalize());
+
+  std::vector<int32_t> host_buffer(output0.ElementCount());
+
+  // Initialize and check the output before execution.
+  TF_ASSERT_OK(stream->Memset32(&output0, 123, output0.size()));
+  TF_ASSERT_OK(stream->Memcpy(host_buffer.data(), output0, output0.size()));
+  TF_ASSERT_OK(stream->BlockHostUntilDone());
+  EXPECT_THAT(host_buffer, Each(123));
+
+  // Run the computation.
+  TF_ASSERT_OK(cmd_buffer->Submit(stream.get()));
+
+  // Check the output after execution.
+  TF_ASSERT_OK(stream->Memcpy(host_buffer.data(), output0, output0.size()));
+  TF_ASSERT_OK(stream->BlockHostUntilDone());
+  EXPECT_THAT(host_buffer, Each(0));
+
+  // Swap the output buffer.
+  DeviceMemory<int32_t> output1 =
+      executor->AllocateArray<int32_t>(kTotalElements);
+  operands[2] = output1;
+  executor->Deallocate(&output0);
+
+  // Initialize and check the output before execution.
+  TF_ASSERT_OK(stream->Memset32(&output1, 456, output1.size()));
+  TF_ASSERT_OK(stream->Memcpy(host_buffer.data(), output1, output1.size()));
+  TF_ASSERT_OK(stream->BlockHostUntilDone());
+  EXPECT_THAT(host_buffer, Each(456));
+
+  // Update the command buffer to write into the new output buffer.
+  TF_ASSERT_OK(cmd_buffer->Update());
+  TF_ASSERT_OK(cmd_buffer->UpdateDnnGraphCommand(
+      dnn_command, graph, *stream, absl::Span<DeviceMemoryBase>(operands)));
+  TF_ASSERT_OK(cmd_buffer->Finalize());
+
+  // Run the computation.
+  TF_ASSERT_OK(cmd_buffer->Submit(stream.get()));
+
+  // Check the output after execution.
+  TF_ASSERT_OK(stream->Memcpy(host_buffer.data(), output1, output1.size()));
+  TF_ASSERT_OK(stream->BlockHostUntilDone());
+  EXPECT_THAT(host_buffer, Each(0));
 }
 
-BENCHMARK_SIZES(BM_CreateCommandBuffer);
-
-static void BM_TraceCommandBuffer(benchmark::State& state) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
-  StreamExecutor* executor = platform->ExecutorForDevice(0).value();
-
-  Stream stream(executor);
-  stream.Init();
-  CHECK(stream.ok());
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  CHECK_OK(executor->GetKernel(spec, &add));
-
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(1, 0);
-
-  for (auto s : state) {
-    auto launch_kernels = [&](Stream* stream) {
-      for (int i = 1; i < state.range(0); ++i) {
-        CHECK_OK(stream->ThenLaunch(ThreadDim(), BlockDim(4), add, b, b, b));
-      }
-      return tsl::OkStatus();
-    };
-
-    CHECK_OK(CommandBuffer::Trace(executor, launch_kernels, nested));
-  }
-}
-
-BENCHMARK_SIZES(BM_TraceCommandBuffer);
-
-static void BM_UpdateCommandBuffer(benchmark::State& state) {
-  Platform* platform = MultiPlatformManager::PlatformWithName("CUDA").value();
-  StreamExecutor* executor = platform->ExecutorForDevice(0).value();
-
-  MultiKernelLoaderSpec spec(/*arity=*/3);
-  spec.AddCudaPtxInMemory(internal::kAddI32Kernel, "add");
-
-  AddI32Kernel add(executor);
-  CHECK_OK(executor->GetKernel(spec, &add));
-
-  DeviceMemory<int32_t> b = executor->AllocateArray<int32_t>(1, 0);
-
-  auto cmd_buffer = CommandBuffer::Create(executor, primary).value();
-  for (int i = 1; i < state.range(0); ++i) {
-    CHECK_OK(cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), b, b, b));
-  }
-  CHECK_OK(cmd_buffer.Finalize());
-
-  for (auto s : state) {
-    CHECK_OK(cmd_buffer.Update());
-    for (int i = 1; i < state.range(0); ++i) {
-      CHECK_OK(cmd_buffer.Launch(add, ThreadDim(), BlockDim(4), b, b, b));
-    }
-    CHECK_OK(cmd_buffer.Finalize());
-  }
-}
-
-BENCHMARK_SIZES(BM_UpdateCommandBuffer);
-
+}  // namespace
 }  // namespace stream_executor::cuda

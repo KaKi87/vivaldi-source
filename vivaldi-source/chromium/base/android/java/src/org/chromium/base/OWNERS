@@ -1,2 +1,2 @@
-per-file ApiCompatibilityUtils.java=aurimas@chromium.org
-per-file ApiCompatibilityUtils.java=newt@chromium.org
+per-file *.aidl=set noparent
+per-file *.aidl=file://ipc/SECURITY_OWNERS

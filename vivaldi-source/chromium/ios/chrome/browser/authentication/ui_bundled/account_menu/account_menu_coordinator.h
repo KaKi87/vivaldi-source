@@ -7,26 +7,28 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
+#import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 
+enum class AccountMenuAccessPoint;
 @protocol AccountMenuCoordinatorDelegate;
+class GURL;
 
 // Coordinator to display the fast account menu view controller.
-@interface AccountMenuCoordinator : SigninCoordinator
+@interface AccountMenuCoordinator : ChromeCoordinator
 
+@property(nonatomic, weak) id<AccountMenuCoordinatorDelegate> delegate;
+
+// `anchorView`: Clicked view, used to anchor the menu to it when using
+// UIModalPresentationPopover mode.
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
+                                anchorView:(UIView*)anchorView
+                               accessPoint:(AccountMenuAccessPoint)accessPoint
+                                       URL:(const GURL&)url
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                                   browser:(Browser*)browser
-                               accessPoint:
-                                   (signin_metrics::AccessPoint)accessPoint
-    NS_UNAVAILABLE;
-
-// Clicked view, used to anchor the menu to it when using
-// UIModalPresentationPopover mode.
-@property(nonatomic, strong) UIView* anchorView;
+                                   browser:(Browser*)browser NS_UNAVAILABLE;
 
 @end
 

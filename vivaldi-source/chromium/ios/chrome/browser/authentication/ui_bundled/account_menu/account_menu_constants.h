@@ -7,6 +7,17 @@
 
 #import <Foundation/Foundation.h>
 
+// Possible "access points" from where the account menu can be triggered.
+enum class AccountMenuAccessPoint {
+  // The most common one: The account particle disc on the NTP.
+  kNewTabPage,
+  // The "Use another account" button in Chrome settings.
+  kSettings,
+  // A button on a Gaia web page, called something like "Use another account" or
+  // "Manage accounts".
+  kWeb,
+};
+
 // The accessibility identifier of the view controller's view.
 extern NSString* const kAccountMenuTableViewId;
 // The accessibility identifier of the view controlle's close button.
@@ -25,5 +36,13 @@ extern NSString* const kAccountMenuSignoutButtonId;
 extern NSString* const kAccountMenuSecondaryAccountButtonId;
 // The accessibility identifier for the account menu activity indicator.
 extern NSString* const kAccountMenuActivityIndicatorId;
+// The accessibility identifier of the open settings button.
+extern NSString* const kAccountMenuOpenSettingsButtonId;
+// The accessibility identifier of manage accounts button.
+extern NSString* const kAccountMenuManageAccountsButtonId;
+// The accessibility identifier for the "edit account list" menu entry.
+extern NSString* const kAccountMenuEditAccountListId;
+// The accessibility ideentifier for the "manage your account" menu entry.
+extern NSString* const kAccountMenuManageYourGoogleAccountId;
 
 #endif  // IOS_CHROME_BROWSER_AUTHENTICATION_UI_BUNDLED_ACCOUNT_MENU_ACCOUNT_MENU_CONSTANTS_H_

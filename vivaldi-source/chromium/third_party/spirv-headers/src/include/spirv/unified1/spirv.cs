@@ -172,6 +172,8 @@ namespace Spv
             SignedZeroInfNanPreserve = 4461,
             RoundingModeRTE = 4462,
             RoundingModeRTZ = 4463,
+            NonCoherentTileAttachmentReadQCOM = 4489,
+            TileShadingRateQCOM = 4490,
             EarlyAndLateFragmentTestsAMD = 5017,
             StencilRefReplacingEXT = 5027,
             CoalescingAMDX = 5069,
@@ -242,6 +244,7 @@ namespace Spv
             Image = 11,
             StorageBuffer = 12,
             TileImageEXT = 4172,
+            TileAttachmentQCOM = 4491,
             NodePayloadAMDX = 5068,
             CallableDataKHR = 5328,
             CallableDataNV = 5328,
@@ -386,9 +389,15 @@ namespace Spv
             Float = 14,
             UnormInt24 = 15,
             UnormInt101010_2 = 16,
+            UnormInt10X6EXT = 17,
             UnsignedIntRaw10EXT = 19,
             UnsignedIntRaw12EXT = 20,
             UnormInt2_101010EXT = 21,
+            UnsignedInt10X6EXT = 22,
+            UnsignedInt12X4EXT = 23,
+            UnsignedInt14X2EXT = 24,
+            UnormInt12X4EXT = 25,
+            UnormInt14X2EXT = 26,
             Max = 0x7fffffff,
         }
 
@@ -730,6 +739,9 @@ namespace Spv
             DeviceIndex = 4438,
             ViewIndex = 4440,
             ShadingRateKHR = 4444,
+            TileOffsetQCOM = 4492,
+            TileDimensionQCOM = 4493,
+            TileApronSizeQCOM = 4494,
             BaryCoordNoPerspAMD = 4992,
             BaryCoordNoPerspCentroidAMD = 4993,
             BaryCoordNoPerspSampleAMD = 4994,
@@ -1096,6 +1108,9 @@ namespace Spv
             TileImageColorReadAccessEXT = 4166,
             TileImageDepthReadAccessEXT = 4167,
             TileImageStencilReadAccessEXT = 4168,
+            TensorsARM = 4174,
+            StorageTensorArrayDynamicIndexingARM = 4175,
+            StorageTensorArrayNonUniformIndexingARM = 4176,
             CooperativeMatrixLayoutsARM = 4201,
             FragmentShadingRateKHR = 4422,
             SubgroupBallotKHR = 4423,
@@ -1132,6 +1147,7 @@ namespace Spv
             TextureSampleWeightedQCOM = 4484,
             TextureBoxFilterQCOM = 4485,
             TextureBlockMatchQCOM = 4486,
+            TileShadingQCOM = 4495,
             TextureBlockMatch2QCOM = 4498,
             Float16ImageAMD = 5008,
             ImageGatherBiasLodAMD = 5009,
@@ -1142,6 +1158,8 @@ namespace Spv
             ShaderClockKHR = 5055,
             ShaderEnqueueAMDX = 5067,
             QuadControlKHR = 5087,
+            Int4TypeINTEL = 5112,
+            Int4CooperativeMatrixINTEL = 5114,
             BFloat16TypeKHR = 5116,
             BFloat16DotProductKHR = 5117,
             BFloat16CooperativeMatrixKHR = 5118,
@@ -1505,6 +1523,26 @@ namespace Spv
             MaskNone = 0,
             TensorView = 0x00000001,
             DecodeFunc = 0x00000002,
+        }
+
+        public enum TensorOperandsShift
+        {
+            NontemporalARM = 0,
+            OutOfBoundsValueARM = 1,
+            MakeElementAvailableARM = 2,
+            MakeElementVisibleARM = 3,
+            NonPrivateElementARM = 4,
+            Max = 0x7fffffff,
+        }
+
+        public enum TensorOperandsMask
+        {
+            MaskNone = 0,
+            NontemporalARM = 0x00000001,
+            OutOfBoundsValueARM = 0x00000002,
+            MakeElementAvailableARM = 0x00000004,
+            MakeElementVisibleARM = 0x00000008,
+            NonPrivateElementARM = 0x00000010,
         }
 
         public enum InitializationModeQualifier
@@ -1984,6 +2022,10 @@ namespace Spv
             OpColorAttachmentReadEXT = 4160,
             OpDepthAttachmentReadEXT = 4161,
             OpStencilAttachmentReadEXT = 4162,
+            OpTypeTensorARM = 4163,
+            OpTensorReadARM = 4164,
+            OpTensorWriteARM = 4165,
+            OpTensorQuerySizeARM = 4166,
             OpTerminateInvocation = 4416,
             OpTypeUntypedPointerKHR = 4417,
             OpUntypedVariableKHR = 4418,
