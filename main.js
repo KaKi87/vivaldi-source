@@ -38,7 +38,7 @@ for(const {
     console.log(`Tagging version ${version}`);
     await $`git tag -a ${version} -m ${version}`;
     console.log(`Pushing version ${version}`);
-    await $`git push`;
+    await $`git push --follow-tags`;
     console.log(`Version ${version} pushed`)
 }
 console.log('Done');
