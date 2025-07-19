@@ -30,7 +30,7 @@ for(const {
         continue;
     }
     console.log(`Downloading ${url}`);
-    await $`curl -L ${url} | tar xJ`;
+    await $`curl -L ${url} | tar xJ --overwrite`;
     console.log(`Staging version ${version}`);
     await $`git add vivaldi-source`
     console.log(`Committing version ${version}`);
