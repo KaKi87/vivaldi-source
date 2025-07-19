@@ -1,5 +1,7 @@
 import { $ } from 'bun';
 
+await $`git config --global user.name "GitHub Actions"`;
+await $`git config --global user.email "KaKi87@users.noreply.github.com"`;
 console.log('Fetching versions');
 const items =
     await fetch('https://vivaldi.com/source/')
