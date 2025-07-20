@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Maximize build disk space
-        uses: jlumbroso/maximize-build-space@v7
+        uses: easimon/maximize-build-space@master
         with:
           root-reserve-mb: 512
           swap-size-mb: 512
