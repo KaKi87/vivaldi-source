@@ -19,12 +19,34 @@ DeprecationTrialURLLoaderInterceptor::~DeprecationTrialURLLoaderInterceptor() =
 bool DeprecationTrialURLLoaderInterceptor::HandleRequest(
     RequestParams* request_params) const {
   const GURL& url = request_params->url_request.url;
-  if (url == EnabledUrl()) {
-    HandleEnabledUrlRequest(*request_params);
+  if (url == EnabledHttpUrl() || url == EnabledHttpWorkerUrl()) {
+    HandleEnabledHttpUrlRequest(*request_params, url == EnabledHttpWorkerUrl());
     return true;
   }
 
-  if (url == DisabledUrl()) {
+  if (url == enabled_http_worker_js_url_) {
+    // Served off of the http://enabled.test domain, but no origin trial token
+    // served. This is needed because the worker html hosting will request the
+    // JS based on the worker hosting domain which isn't mapped to the right
+    // port for the embedded test server, and so needs to be served from this
+    // interceptor.
+    //
+    // TODO(crbug.com/395895368): remove this functionality when we move away
+    // from using this interceptor for browser tests and use a library function
+    // like in https://crbug.com/40860522#comment8.
+    URLLoaderInterceptor::WriteResponse(
+        "chrome/test/data/private_network_access/"
+        "fetch-from-worker-as-public-address.js",
+        request_params->client.get());
+    return true;
+  }
+
+  if (url == EnabledHttpsUrl()) {
+    HandleEnabledHttpsUrlRequest(*request_params);
+    return true;
+  }
+
+  if (url == DisabledHttpUrl() || url == DisabledHttpsUrl()) {
     HandleDisabledUrlRequest(*request_params);
     return true;
   }
@@ -32,27 +54,63 @@ bool DeprecationTrialURLLoaderInterceptor::HandleRequest(
   return false;
 }
 
-void DeprecationTrialURLLoaderInterceptor::HandleEnabledUrlRequest(
+void DeprecationTrialURLLoaderInterceptor::HandleEnabledHttpUrlRequest(
+    RequestParams& request_params,
+    bool use_worker_html) const {
+  std::string headers =            //
+      "HTTP/1.1 200 OK\n"          //
+      "Content-Type: text/html\n"  //
+      // Use CSP to make the page `public`, even though it is served with no
+      // IP address information. Without this it is treated as `unknown`, and
+      // that interferes with its private network request policy.
+      "Content-Security-Policy: treat-as-public-address\n"  //
+      // This token was generated using:
+      //
+      //   $ tools/origin_trials/generate_token.py \
+      //       --expire-days 1000 \
+      //       --version 3 \
+      //       http://enabled.test LocalNetworkAccessNonSecureContextAllowed
+      //
+      "Origin-Trial: "
+      "A8+6/"
+      "4bo2hPUNWNCV6kyLxXFPU0ddMhYjnwqkknDOEuN3vRZQXQu84ZPU+"
+      "EzYqofTDfcz3zmjXHu8ARvGarh/"
+      "w4AAAByeyJvcmlnaW4iOiAiaHR0cDovL2VuYWJsZWQudGVzdDo4MCIsICJmZWF0dXJlIjogI"
+      "kxvY2FsTmV0d29ya0FjY2Vzc05vblNlY3VyZUNvbnRleHRBbGxvd2VkIiwgImV4cGlyeSI6I"
+      "DE4MzkxOTU4NTZ9"
+      "\n\n";
+  if (use_worker_html) {
+    URLLoaderInterceptor::WriteResponse(
+        "chrome/test/data/private_network_access/"
+        "fetch-from-worker-as-public-address.html",
+        request_params.client.get(), &headers);
+  } else {
+    URLLoaderInterceptor::WriteResponse(headers, "",
+                                        request_params.client.get());
+  }
+}
+
+void DeprecationTrialURLLoaderInterceptor::HandleEnabledHttpsUrlRequest(
     RequestParams& request_params) const {
   constexpr char kHeaders[] =      //
       "HTTP/1.1 200 OK\n"          //
       "Content-Type: text/html\n"  //
       // Use CSP to make the page `public`, even though it is served with no
       // IP address information. Without this it is treated as `unknown`, and
-      // that interferes with its local network request policy.
+      // that interferes with its private network request policy.
       "Content-Security-Policy: treat-as-public-address\n"  //
       // This token was generated using:
       //
       //   $ tools/origin_trials/generate_token.py \
-      //       --expire-days 5000 \
+      //       --expire-days 1000 \
       //       --version 3 \
-      //       http://enabled.test PrivateNetworkAccessNonSecureContextsAllowed
+      //       https://enabled.test LocalNetworkAccessNonSecureContextAllowed
       //
       "Origin-Trial: "
-      "A4dgNIB2F3P8qkQQes/oiaobjPNRbfZcaPd5TqdcIHUlpX3/al3rvk5b4f+dnke3WcsXeX"
-      "4aMNENL3mg1FM8+wYAAAB1eyJvcmlnaW4iOiAiaHR0cDovL2VuYWJsZWQudGVzdDo4MCIs"
-      "ICJmZWF0dXJlIjogIlByaXZhdGVOZXR3b3JrQWNjZXNzTm9uU2VjdXJlQ29udGV4dHNBbG"
-      "xvd2VkIiwgImV4cGlyeSI6IDIwNTcxNDYwMzB9"  //
+      "AwHpYP8SqPYnzwaXGbjfEmjoQK5RWNZ0zbhc/o2H0PYnMAm0y9Em631RgOwCwqG/"
+      "k1mcOCbGZpqmnCpt1iSkfQsAAAB0eyJvcmlnaW4iOiAiaHR0cHM6Ly9lbmFibGVkLnRlc3Q6"
+      "NDQzIiwgImZlYXR1cmUiOiAiTG9jYWxOZXR3b3JrQWNjZXNzTm9uU2VjdXJlQ29udGV4dEFs"
+      "bG93ZWQiLCAiZXhwaXJ5IjogMTgzOTE5NTgxNX0="
       "\n\n";
   URLLoaderInterceptor::WriteResponse(kHeaders, "",
                                       request_params.client.get());

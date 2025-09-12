@@ -1,18 +1,16 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "components/security_interstitials/core/features.h"
 
-namespace security_interstitials {
+#include "base/feature_list.h"
 
-const base::Feature kInsecureFormSubmissionInterstitial{
-    "InsecureFormSubmissionInterstitial", base::FEATURE_ENABLED_BY_DEFAULT};
+namespace security_interstitials::features {
 
-const char kInsecureFormSubmissionInterstitialMode[] = "mode";
-const char kInsecureFormSubmissionInterstitialModeIncludeAllRedirects[] =
-    "include-redirects";
-const char kInsecureFormSubmissionInterstitialModeNoRedirects[] =
-    "no-redirects";
+// Enables a dialog-based UI for HTTPS-First Mode.
+BASE_FEATURE(kHttpsFirstDialogUi,
+             "HttpsFirstDialogUi",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
-}  // namespace security_interstitials
+}  // namespace security_interstitials::features

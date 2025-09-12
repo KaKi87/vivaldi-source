@@ -1,17 +1,16 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "android_webview/browser/metrics/memory_metrics_logger.h"
 
-#include "base/bind.h"
-#include "base/bind_helpers.h"
 #include "base/compiler_specific.h"
-#include "base/logging.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/sequenced_task_runner.h"
-#include "base/task/post_task.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/task/thread_pool.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "services/resource_coordinator/public/cpp/memory_instrumentation/browser_metrics.h"
@@ -20,7 +19,7 @@
 using memory_instrumentation::GetPrivateFootprintHistogramName;
 using memory_instrumentation::HistogramProcessType;
 
-namespace android_webview {
+namespace metrics {
 namespace {
 
 MemoryMetricsLogger* g_instance = nullptr;
@@ -31,8 +30,9 @@ void RecordMemoryMetricsImpl(
     bool success,
     std::unique_ptr<memory_instrumentation::GlobalMemoryDump> dump) {
   if (!success) {
-    if (done_callback)
+    if (done_callback) {
       std::move(done_callback).Run(false);
+    }
     return;
   }
 
@@ -54,18 +54,23 @@ void RecordMemoryMetricsImpl(
             process_dump.os_dump().private_footprint_kb / 1024);
         break;
       }
+      case memory_instrumentation::mojom::ProcessType::GPU: {
+        MEMORY_METRICS_HISTOGRAM_MB(
+            GetPrivateFootprintHistogramName(HistogramProcessType::kGpu),
+            process_dump.os_dump().private_footprint_kb / 1024);
+        break;
+      }
 
-      // WebView only supports the browser and possibly renderer process.
-      case memory_instrumentation::mojom::ProcessType::GPU:
-        FALLTHROUGH;
+      // Currently this class only records metrics for the browser and
+      // renderer process, as it originated from WebView, where there are no
+      // other processes.
       case memory_instrumentation::mojom::ProcessType::ARC:
-        FALLTHROUGH;
+        [[fallthrough]];
       case memory_instrumentation::mojom::ProcessType::UTILITY:
-        FALLTHROUGH;
+        [[fallthrough]];
       case memory_instrumentation::mojom::ProcessType::PLUGIN:
-        FALLTHROUGH;
+        [[fallthrough]];
       case memory_instrumentation::mojom::ProcessType::OTHER:
-        NOTREACHED();
         break;
     }
   }
@@ -73,8 +78,9 @@ void RecordMemoryMetricsImpl(
     MEMORY_METRICS_HISTOGRAM_MB("Memory.Total.PrivateMemoryFootprint",
                                 total_private_footprint_kb / 1024);
   }
-  if (done_callback)
+  if (done_callback) {
     std::move(done_callback).Run(true);
+  }
 }
 
 }  // namespace
@@ -83,6 +89,9 @@ void RecordMemoryMetricsImpl(
 // thread and the background task runner.
 struct MemoryMetricsLogger::State : public base::RefCountedThreadSafe<State> {
   State() = default;
+
+  State(const State&) = delete;
+  State& operator=(const State&) = delete;
 
   // MemoryInstrumentation requires a SequencedTaskRunner.
   scoped_refptr<base::SequencedTaskRunner> task_runner;
@@ -93,14 +102,12 @@ struct MemoryMetricsLogger::State : public base::RefCountedThreadSafe<State> {
   friend class base::RefCountedThreadSafe<State>;
 
   ~State() = default;
-
-  DISALLOW_COPY_AND_ASSIGN(State);
 };
 
 MemoryMetricsLogger::MemoryMetricsLogger()
     : state_(base::MakeRefCounted<State>()) {
   g_instance = this;
-  state_->task_runner = base::CreateSequencedTaskRunner({base::ThreadPool()});
+  state_->task_runner = base::ThreadPool::CreateSequencedTaskRunner({});
   state_->task_runner->PostTask(
       FROM_HERE,
       base::BindOnce(&MemoryMetricsLogger::RecordMemoryMetricsAfterDelay,
@@ -127,8 +134,9 @@ void MemoryMetricsLogger::ScheduleRecordForTesting(
 // static
 void MemoryMetricsLogger::RecordMemoryMetricsAfterDelay(
     scoped_refptr<State> state) {
-  if (state->stop_logging)
+  if (state->stop_logging) {
     return;
+  }
 
   state->task_runner->PostDelayedTask(
       FROM_HERE,
@@ -140,10 +148,15 @@ void MemoryMetricsLogger::RecordMemoryMetricsAfterDelay(
 // static
 void MemoryMetricsLogger::RecordMemoryMetrics(scoped_refptr<State> state,
                                               RecordCallback done_callback) {
-  memory_instrumentation::MemoryInstrumentation::GetInstance()
-      ->RequestGlobalDump({}, base::BindOnce(&RecordMemoryMetricsImpl,
-                                             std::move(done_callback)));
+  auto* instrumentation =
+      memory_instrumentation::MemoryInstrumentation::GetInstance();
+  if (!instrumentation) {
+    // Content layer is not initialized yet, nothing to log.
+    return;
+  }
+  instrumentation->RequestGlobalDump(
+      {}, base::BindOnce(&RecordMemoryMetricsImpl, std::move(done_callback)));
   RecordMemoryMetricsAfterDelay(state);
 }
 
-}  // namespace android_webview
+}  // namespace metrics

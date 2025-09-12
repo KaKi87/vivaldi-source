@@ -2,6 +2,7 @@
 # Copyright (c) 2014-2025 Valve Corporation
 # Copyright (c) 2014-2025 LunarG, Inc.
 # Copyright (c) 2023-2025 RasterGrid Kft.
+# Copyright (C) 2025 Arm Limited.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,9 +57,14 @@ target_sources(VkLayer_utils PRIVATE
     ${API_TYPE}/generated/vk_extension_helper.h
     ${API_TYPE}/generated/vk_extension_helper.cpp
     utils/action_command_utils.h
+    utils/assert_utils.h
     utils/cast_utils.h
     utils/convert_utils.cpp
     utils/convert_utils.h
+    utils/dispatch_utils.cpp
+    utils/dispatch_utils.h
+    utils/file_system_utils.cpp
+    utils/file_system_utils.h
     utils/hash_util.h
     utils/hash_util.cpp
     utils/hash_vk_types.h
@@ -66,6 +72,7 @@ target_sources(VkLayer_utils PRIVATE
     utils/image_utils.cpp
     utils/image_layout_utils.h
     utils/image_layout_utils.cpp
+    utils/lock_utils.h
     utils/math_utils.h
     utils/vk_layer_extension_utils.cpp
     utils/vk_layer_extension_utils.h
@@ -73,12 +80,13 @@ target_sources(VkLayer_utils PRIVATE
     utils/keyboard.h
     utils/ray_tracing_utils.cpp
     utils/ray_tracing_utils.h
+    utils/sync_utils.cpp
+    utils/sync_utils.h
     utils/text_utils.cpp
     utils/text_utils.h
-    utils/vk_layer_utils.cpp
-    utils/vk_layer_utils.h
     utils/vk_struct_compare.cpp
     utils/vk_struct_compare.h
+    utils/vk_api_utils.h
     vk_layer_config.h
     vk_layer_config.cpp
 )
@@ -103,6 +111,14 @@ endif()
 if (USE_CUSTOM_HASH_MAP)
     message(STATUS "Using parallel_hashmap as custom hash maps")
     target_compile_definitions(VkLayer_utils PUBLIC USE_CUSTOM_HASH_MAP)
+    # Prefer using a locally installed parallel-hashmap package before using the in-tree sources.
+    # This approach supports installation with package managers such as conan
+    find_package(phmap CONFIG)
+    if (TARGET phmap)
+        target_link_libraries(VkLayer_utils PRIVATE phmap)
+    else()
+        add_subdirectory(external/parallel_hashmap)
+    endif()
 else()
     message(STATUS "Using STL maps instead of custom hash maps")
 endif()
@@ -163,7 +179,6 @@ else()
 endif()
 
 target_sources(vvl PRIVATE
-    best_practices/best_practices_utils.cpp
     best_practices/bp_buffer.cpp
     best_practices/bp_cmd_buffer.cpp
     best_practices/bp_cmd_buffer_nv.cpp
@@ -182,14 +197,14 @@ target_sources(vvl PRIVATE
     best_practices/bp_state.h
     best_practices/bp_state.cpp
     best_practices/bp_synchronization.cpp
+    best_practices/bp_utils.cpp
+    best_practices/bp_utils.h
     best_practices/bp_video.cpp
     best_practices/bp_wsi.cpp
     best_practices/best_practices_validation.h
     chassis/chassis_modification_state.h
     chassis/chassis_manual.cpp
     chassis/dispatch_object_manual.cpp
-    containers/qfo_transfer.h
-    containers/qfo_transfer.cpp
     containers/range.h
     containers/range_map.h
     containers/subresource_adapter.cpp
@@ -224,8 +239,11 @@ target_sources(vvl PRIVATE
     core_checks/cc_state_tracker.cpp
     core_checks/cc_submit.h
     core_checks/cc_submit.cpp
+    core_checks/cc_sync_vuid_maps.h
+    core_checks/cc_sync_vuid_maps.cpp
     core_checks/cc_synchronization.h
     core_checks/cc_synchronization.cpp
+    core_checks/cc_tensor.cpp
     core_checks/cc_video.cpp
     core_checks/cc_vuid_maps.cpp
     core_checks/cc_vuid_maps.h
@@ -237,15 +255,6 @@ target_sources(vvl PRIVATE
     error_message/spirv_logging.cpp
     external/vma/vma.h
     external/vma/vma.cpp
-    external/parallel_hashmap/btree.h
-    external/parallel_hashmap/meminfo.h
-    external/parallel_hashmap/phmap_base.h
-    external/parallel_hashmap/phmap_bits.h
-    external/parallel_hashmap/phmap_config.h
-    external/parallel_hashmap/phmap_dump.h
-    external/parallel_hashmap/phmap_fwd_decl.h
-    external/parallel_hashmap/phmap_utils.h
-    external/parallel_hashmap/phmap.h
     ${API_TYPE}/generated/best_practices.cpp
     ${API_TYPE}/generated/best_practices_device_methods.h
     ${API_TYPE}/generated/best_practices_instance_methods.h
@@ -254,6 +263,8 @@ target_sources(vvl PRIVATE
     ${API_TYPE}/generated/valid_enum_values.h
     ${API_TYPE}/generated/valid_flag_values.cpp
     ${API_TYPE}/generated/command_validation.cpp
+    ${API_TYPE}/generated/deprecation.cpp
+    ${API_TYPE}/generated/deprecation.h
     ${API_TYPE}/generated/device_features.cpp
     ${API_TYPE}/generated/device_features.h
     ${API_TYPE}/generated/dynamic_state_helper.cpp
@@ -302,8 +313,6 @@ target_sources(vvl PRIVATE
     gpuav/descriptor_validation/gpuav_descriptor_validation.cpp
     gpuav/descriptor_validation/gpuav_descriptor_set.cpp
     gpuav/descriptor_validation/gpuav_descriptor_set.h
-    gpuav/descriptor_validation/gpuav_image_layout.h
-    gpuav/descriptor_validation/gpuav_image_layout.cpp
     gpuav/debug_printf/debug_printf.cpp
     gpuav/debug_printf/debug_printf.h
     gpuav/error_message/gpuav_vuids.cpp
@@ -312,6 +321,10 @@ target_sources(vvl PRIVATE
     gpuav/instrumentation/gpuav_shader_instrumentor.h
     gpuav/instrumentation/gpuav_instrumentation.h
     gpuav/instrumentation/gpuav_instrumentation.cpp
+    gpuav/instrumentation/buffer_device_address.h
+    gpuav/instrumentation/buffer_device_address.cpp
+    gpuav/instrumentation/descriptor_checks.h
+    gpuav/instrumentation/descriptor_checks.cpp
     gpuav/instrumentation/post_process_descriptor_indexing.h
     gpuav/instrumentation/post_process_descriptor_indexing.cpp
     gpuav/resources/gpuav_state_trackers.cpp
@@ -352,12 +365,16 @@ target_sources(vvl PRIVATE
     state_tracker/pipeline_state.h
     state_tracker/pipeline_sub_state.cpp
     state_tracker/pipeline_sub_state.h
-    state_tracker/query_state.h
+    state_tracker/push_constant_data.h
     state_tracker/semaphore_state.cpp
     state_tracker/semaphore_state.h
     state_tracker/special_supported.h
     state_tracker/state_object.cpp
     state_tracker/state_object.h
+    state_tracker/query_state.cpp
+    state_tracker/query_state.h
+    state_tracker/tensor_state.cpp
+    state_tracker/tensor_state.h
     state_tracker/queue_state.cpp
     state_tracker/queue_state.h
     state_tracker/ray_tracing_state.h
@@ -397,6 +414,7 @@ target_sources(vvl PRIVATE
     stateless/sl_spirv.cpp
     stateless/sl_spirv.h
     stateless/sl_synchronization.cpp
+    stateless/sl_tensor.cpp
     stateless/sl_utils.cpp
     stateless/sl_vuid_maps.cpp
     stateless/sl_vuid_maps.h
@@ -425,18 +443,15 @@ target_sources(vvl PRIVATE
     sync/sync_stats.h
     sync/sync_submit.cpp
     sync/sync_submit.h
-    sync/sync_utils.cpp
-    sync/sync_utils.h
     sync/sync_validation.cpp
     sync/sync_validation.h
-    sync/sync_vuid_maps.cpp
-    sync/sync_vuid_maps.h
     thread_tracker/thread_safety_validation.cpp
     thread_tracker/thread_safety_validation.h
     utils/shader_utils.cpp
     utils/shader_utils.h
     layer_options.cpp
     layer_options.h
+    layer_options_validation.h
     profiling/profiling.h
 )
 get_target_property(LAYER_SOURCES vvl SOURCES)
@@ -521,7 +536,7 @@ if (VVL_ENABLE_TRACY)
     FetchContent_Declare(
         tracy
         GIT_REPOSITORY https://github.com/arno-lunarg/tracy.git
-        GIT_TAG v0.11.1-arno
+        GIT_TAG v0.12.1-arno
         GIT_SHALLOW TRUE
         GIT_PROGRESS TRUE)
 

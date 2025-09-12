@@ -542,6 +542,16 @@ const std::unordered_map<const char*, int, str_hash, str_eq> KeywordMap {
     {"bf16vec3",BF16VEC3},
     {"bf16vec4",BF16VEC4},
 
+    {"floate5m2_t",FLOATE5M2_T},
+    {"fe5m2vec2",FE5M2VEC2},
+    {"fe5m2vec3",FE5M2VEC3},
+    {"fe5m2vec4",FE5M2VEC4},
+
+    {"floate4m3_t",FLOATE4M3_T},
+    {"fe4m3vec2",FE4M3VEC2},
+    {"fe4m3vec3",FE4M3VEC3},
+    {"fe4m3vec4",FE4M3VEC4},
+
     {"float32_t",FLOAT32_T},
     {"f32vec2",F32VEC2},
     {"f32vec3",F32VEC3},
@@ -758,6 +768,8 @@ const std::unordered_map<const char*, int, str_hash, str_eq> KeywordMap {
 
     {"hitObjectNV",HITOBJECTNV},
     {"hitObjectAttributeNV",HITOBJECTATTRNV},
+
+    {"tensorARM",TENSORARM},
 
     {"__function",FUNCTION},
     {"tensorLayoutNV",TENSORLAYOUTNV},
@@ -1494,6 +1506,28 @@ int TScanContext::tokenizeIdentifier()
 
         return identifierOrType();
 
+    case FLOATE5M2_T:
+    case FE5M2VEC2:
+    case FE5M2VEC3:
+    case FE5M2VEC4:
+        afterType = true;
+        if (parseContext.symbolTable.atBuiltInLevel() ||
+            parseContext.extensionTurnedOn(E_GL_EXT_float_e5m2))
+            return keyword;
+
+        return identifierOrType();
+
+    case FLOATE4M3_T:
+    case FE4M3VEC2:
+    case FE4M3VEC3:
+    case FE4M3VEC4:
+        afterType = true;
+        if (parseContext.symbolTable.atBuiltInLevel() ||
+            parseContext.extensionTurnedOn(E_GL_EXT_float_e4m3))
+            return keyword;
+
+        return identifierOrType();
+
     case SAMPLERCUBEARRAY:
     case SAMPLERCUBEARRAYSHADOW:
     case ISAMPLERCUBEARRAY:
@@ -1822,6 +1856,12 @@ int TScanContext::tokenizeIdentifier()
         afterType = true;
         if (parseContext.symbolTable.atBuiltInLevel() ||
             parseContext.extensionTurnedOn(E_GL_NV_integer_cooperative_matrix))
+            return keyword;
+        return identifierOrType();
+    case TENSORARM:
+        afterType = true;
+        if (parseContext.symbolTable.atBuiltInLevel() ||
+            parseContext.extensionTurnedOn(E_GL_ARM_tensors))
             return keyword;
         return identifierOrType();
 
