@@ -1,13 +1,18 @@
-// Copyright 2024 The Chromium Authors
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 package org.chromium.ui.base;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.os.Build;
+import android.os.SystemClock;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
@@ -23,9 +28,8 @@ import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
-import org.chromium.ui.MotionEventUtils;
+import org.chromium.ui.util.MotionEventUtils;
 
 /**
  * Tests logic in the {@link EventForwarder} class.
@@ -38,7 +42,6 @@ import org.chromium.ui.MotionEventUtils;
 @Batch(Batch.UNIT_TESTS)
 public class EventForwarderDeviceTest {
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mocker = new JniMocker();
 
     @Mock EventForwarder.Natives mNativeMock;
 
@@ -46,67 +49,127 @@ public class EventForwarderDeviceTest {
 
     @Before
     public void setUp() {
-        mocker.mock(EventForwarderJni.TEST_HOOKS, mNativeMock);
+        EventForwarderJni.setInstanceForTesting(mNativeMock);
     }
 
     @Test
     @SmallTest
     @MinAndroidSdkLevel(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     public void testSendTrackpadScrollAsMouseWheelToNativeAtLeastU() {
-        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        final long downTime = SystemClock.uptimeMillis();
+        long eventTime = downTime;
         MotionEvent startEvent =
                 getTrackpadScrollEvent(
-                        MotionEvent.ACTION_DOWN,
-                        /* x= */ 13,
-                        /* y= */ 24,
-                        /* distanceX= */ 15,
-                        /* distanceY= */ 99);
+                        MotionEvent.ACTION_DOWN, /* x= */ 13, /* y= */ 24, downTime, eventTime);
         eventForwarder.onTouchEvent(startEvent);
 
-        verifyNativeMouseWheelEventSent(eventForwarder, startEvent, startEvent);
+        verifyNativeMouseWheelEventSent(startEvent, startEvent);
 
+        // Move for a small distance from last event so velocity would not trigger fling.
+        eventTime += 50;
         MotionEvent moveEvent =
                 getTrackpadScrollEvent(
-                        MotionEvent.ACTION_MOVE,
-                        /* x= */ 35,
-                        /* y= */ 49,
-                        /* distanceX= */ 88,
-                        /* distanceY= */ 64);
+                        MotionEvent.ACTION_MOVE, /* x= */ 13, /* y= */ 26, downTime, eventTime);
         eventForwarder.onTouchEvent(moveEvent);
 
-        verifyNativeMouseWheelEventSent(eventForwarder, startEvent, moveEvent);
+        verifyNativeMouseWheelEventSent(startEvent, moveEvent);
+
+        eventTime += 50;
+        MotionEvent upEvent =
+                getTrackpadScrollEvent(
+                        MotionEvent.ACTION_UP, /* x= */ 13, /* y= */ 26, downTime, eventTime);
+        eventForwarder.onTouchEvent(upEvent);
+
+        verifyNativeMouseWheelEventSent(moveEvent, upEvent);
+
+        verifyNativeStartFlingEventNotSent();
+    }
+
+    @Test
+    @SmallTest
+    @MinAndroidSdkLevel(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public void testSendTrackpadStartFlingToNativeAtLeastU() {
+        EventForwarder eventForwarder =
+                new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true, false);
+
+        final long downTime = SystemClock.uptimeMillis();
+        long eventTime = downTime;
+        MotionEvent startEvent =
+                getTrackpadScrollEvent(
+                        MotionEvent.ACTION_DOWN, /* x= */ 13, /* y= */ 24, downTime, eventTime);
+        eventForwarder.onTouchEvent(startEvent);
+
+        verifyNativeMouseWheelEventSent(startEvent, startEvent);
+
+        // Move for sufficiently large distance from last event so velocity should trigger fling.
+        eventTime += 20;
+        MotionEvent moveEvent =
+                getTrackpadScrollEvent(
+                        MotionEvent.ACTION_MOVE, /* x= */ 15, /* y= */ 854, downTime, eventTime);
+        eventForwarder.onTouchEvent(moveEvent);
+
+        verifyNativeMouseWheelEventSent(startEvent, moveEvent);
+
+        eventTime += 20;
+        MotionEvent upEvent =
+                getTrackpadScrollEvent(
+                        MotionEvent.ACTION_UP, /* x= */ 18, /* y= */ 854, downTime, eventTime);
+        eventForwarder.onTouchEvent(upEvent);
+
+        verifyNativeStartFlingEventSent(upEvent);
     }
 
     private void verifyNativeMouseWheelEventSent(
-            EventForwarder eventForwarder,
-            MotionEvent trackpadScrollStartEvent,
-            MotionEvent trackpadScrollCurrentEvent) {
+            MotionEvent trackpadScrollLastEvent, MotionEvent trackpadScrollCurrentEvent) {
         verify(mNativeMock, times(1))
                 .onMouseWheelEvent(
-                        EventForwarderDeviceTest.NATIVE_EVENT_FORWARDER_ID,
-                        eventForwarder,
-                        MotionEventUtils.getEventTimeNanos(trackpadScrollCurrentEvent),
-                        trackpadScrollStartEvent.getX(),
-                        trackpadScrollStartEvent.getY(),
-                        trackpadScrollStartEvent.getRawX(),
-                        trackpadScrollStartEvent.getRawY(),
-                        -trackpadScrollCurrentEvent.getAxisValue(
-                                MotionEvent.AXIS_GESTURE_SCROLL_X_DISTANCE),
-                        -trackpadScrollCurrentEvent.getAxisValue(
-                                MotionEvent.AXIS_GESTURE_SCROLL_Y_DISTANCE),
-                        trackpadScrollCurrentEvent.getMetaState(),
-                        trackpadScrollCurrentEvent.getSource());
+                        eq(EventForwarderDeviceTest.NATIVE_EVENT_FORWARDER_ID),
+                        eq(trackpadScrollCurrentEvent),
+                        eq(MotionEventUtils.getEventTimeNanos(trackpadScrollCurrentEvent)),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(trackpadScrollCurrentEvent.getX() - trackpadScrollLastEvent.getX()),
+                        eq(trackpadScrollCurrentEvent.getY() - trackpadScrollLastEvent.getY()));
+    }
+
+    private void verifyNativeStartFlingEventNotSent() {
+        verify(mNativeMock, times(0))
+                .startFling(
+                        anyLong(),
+                        anyLong(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean());
+    }
+
+    private void verifyNativeStartFlingEventSent(MotionEvent trackpadScrollCurrentEvent) {
+        verify(mNativeMock, times(1))
+                .startFling(
+                        eq(EventForwarderDeviceTest.NATIVE_EVENT_FORWARDER_ID),
+                        eq(trackpadScrollCurrentEvent.getEventTime()),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(false),
+                        eq(false),
+                        eq(true));
     }
 
     private static MotionEvent getTrackpadScrollEvent(
-            int action, float x, float y, float distanceX, float distanceY) {
+            int action, float x, float y, long downTime, long eventTime) {
         return MotionEvent.obtain(
-                /* downTime= */ 0,
-                /* eventTime= */ 100,
+                /* downTime= */ downTime,
+                /* eventTime= */ eventTime,
                 action,
                 /* pointerCount= */ 1,
                 getToolTypeFingerProperties(),
-                getPointerCoords(x, y, distanceX, distanceY),
+                getPointerCoords(x, y),
                 /* metaState= */ 0,
                 /* buttonState= */ 0,
                 /* xPrecision= */ 0,
@@ -129,14 +192,11 @@ public class EventForwarderDeviceTest {
         return pointerPropertiesArray;
     }
 
-    private static MotionEvent.PointerCoords[] getPointerCoords(
-            float x, float y, float distanceX, float distanceY) {
+    private static MotionEvent.PointerCoords[] getPointerCoords(float x, float y) {
         MotionEvent.PointerCoords[] pointerCoordsArray = new MotionEvent.PointerCoords[1];
         MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
         coords.x = x;
         coords.y = y;
-        coords.setAxisValue(MotionEvent.AXIS_GESTURE_SCROLL_X_DISTANCE, distanceX);
-        coords.setAxisValue(MotionEvent.AXIS_GESTURE_SCROLL_Y_DISTANCE, distanceY);
         pointerCoordsArray[0] = coords;
         return pointerCoordsArray;
     }

@@ -1,104 +1,104 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_CONTROLLER_H_
 #define CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_CONTROLLER_H_
 
-#include "base/basictypes.h"
+#include <memory>
+
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_ptr.h"
-#include "base/strings/string16.h"
-#include "chrome/browser/bitmap_fetcher/bitmap_fetcher_service.h"
+#include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
-#include "components/omnibox/browser/autocomplete_controller_delegate.h"
 #include "components/omnibox/browser/autocomplete_match.h"
+#include "components/search_engines/template_url_starter_pack_data.h"
 
-class AUtocompleteInput;
-struct AutocompleteMatch;
-class AutocompleteResult;
-class InstantController;
-class OmniboxEditModel;
-class OmniboxPopupModel;
-class Profile;
+class OmniboxClient;
+class OmniboxView;
 
-namespace gfx {
-class Rect;
-}
-
-// This class controls the various services that can modify the content
-// for the omnibox, including AutocompleteController and InstantController. It
-// is responsible of updating the omnibox content.
-// TODO(beaudoin): Keep on expanding this class so that OmniboxEditModel no
-//     longer needs to hold any reference to AutocompleteController. Also make
-//     this the point of contact between InstantController and OmniboxEditModel.
-//     As the refactor progresses, keep the class comment up-to-date to
-//     precisely explain what this class is doing.
-class OmniboxController : public AutocompleteControllerDelegate {
+// This class controls the various services that can modify the content of the
+// omnibox, including `AutocompleteController` and `OmniboxEditModel`.
+class OmniboxController : public AutocompleteController::Observer {
  public:
-  OmniboxController(OmniboxEditModel* omnibox_edit_model,
-                    Profile* profile);
+  OmniboxController(OmniboxView* view,
+                    std::unique_ptr<OmniboxClient> client,
+                    base::TimeDelta autocomplete_stop_timer_duration =
+                        kAutocompleteDefaultStopTimerDuration);
   ~OmniboxController() override;
+  OmniboxController(const OmniboxController&) = delete;
+  OmniboxController& operator=(const OmniboxController&) = delete;
 
   // The |current_url| field of input is only set for mobile ports.
   void StartAutocomplete(const AutocompleteInput& input) const;
 
-  // AutocompleteControllerDelegate:
-  void OnResultChanged(bool default_match_changed) override;
+  // Cancels any pending asynchronous query. If `clear_result` is true, will
+  // also erase the result set.
+  void StopAutocomplete(bool clear_result) const;
+
+  // Starts an autocomplete prefetch request so that zero-prefix providers can
+  // optionally start a prefetch request to warm up the their underlying
+  // service(s) and/or optionally cache their otherwise async response.
+  // Virtual for testing.
+  virtual void StartZeroSuggestPrefetch();
+
+  // AutocompleteController::Observer:
+  void OnResultChanged(AutocompleteController* controller,
+                       bool default_match_changed) override;
+
+  OmniboxClient* client() { return client_.get(); }
+
+  OmniboxEditModel* edit_model() { return edit_model_.get(); }
+
+  void SetEditModelForTesting(std::unique_ptr<OmniboxEditModel> edit_model) {
+    edit_model_ = std::move(edit_model);
+  }
 
   AutocompleteController* autocomplete_controller() {
     return autocomplete_controller_.get();
   }
 
-  // Set |current_match_| to an invalid value, indicating that we do not yet
-  // have a valid match for the current text in the omnibox.
-  void InvalidateCurrentMatch();
-
-  void set_popup_model(OmniboxPopupModel* popup_model) {
-    popup_ = popup_model;
+  const AutocompleteController* autocomplete_controller() const {
+    return autocomplete_controller_.get();
   }
 
-  // TODO(beaudoin): The edit and popup model should be siblings owned by the
-  // LocationBarView, making this accessor unnecessary.
-  OmniboxPopupModel* popup_model() const { return popup_; }
-
-  const AutocompleteMatch& current_match() const { return current_match_; }
+  void SetAutocompleteControllerForTesting(
+      std::unique_ptr<AutocompleteController> autocomplete_controller) {
+    autocomplete_controller_ = std::move(autocomplete_controller);
+  }
 
   // Turns off keyword mode for the current match.
   void ClearPopupKeywordMode() const;
 
-  const AutocompleteResult& result() const {
-    return autocomplete_controller_->result();
-  }
+  // Returns the header string associated with `suggestion_group_id`, or an
+  // empty string if `suggestion_group_id` is not found in the results.
+  std::u16string GetHeaderForSuggestionGroup(
+      omnibox::GroupId suggestion_group_id) const;
 
-  // TODO(beaudoin): Make private once OmniboxEditModel no longer refers to it.
-  void DoPreconnect(const AutocompleteMatch& match);
-
-  // Stores the bitmap in the OmniboxPopupModel.
-  void SetAnswerBitmap(const SkBitmap& bitmap);
+  // Returns whether or not the row for a particular match should be hidden in
+  // the UI. This is currently used to hide suggestions in the 'Gemini' scope
+  // when the starter pack expansion feature is enabled.
+  bool IsSuggestionHidden(const AutocompleteMatch& match) const;
 
  private:
-  // Weak, it owns us.
-  // TODO(beaudoin): Consider defining a delegate to ease unit testing.
-  OmniboxEditModel* omnibox_edit_model_;
+  // Stores the bitmap, using `icon_url` as the key in
+  // `edit_model_->icon_bitmaps_` if provided, or `result_index` in
+  // `edit_model_->rich_suggestion_bitmaps_` otherwise.
+  void SetRichSuggestionBitmap(int result_index,
+                               const GURL& icon_url,
+                               const SkBitmap& bitmap);
 
-  Profile* profile_;
+  std::unique_ptr<OmniboxClient> client_;
 
-  OmniboxPopupModel* popup_;
+  std::unique_ptr<AutocompleteController> autocomplete_controller_;
 
-  scoped_ptr<AutocompleteController> autocomplete_controller_;
+  // `edit_model_` may indirectly contains raw pointers (e.g.
+  // `edit_model_->current_match_->provider`) into `AutocompleteProvider`
+  // objects owned by `autocomplete_controller_`.  Because of this (per
+  // docs/dangling_ptr_guide.md) the `edit_model_` field needs to be declared
+  // *after* the `autocomplete_controller_` field.
+  std::unique_ptr<OmniboxEditModel> edit_model_;
 
-  // TODO(beaudoin): This AutocompleteMatch is used to let the OmniboxEditModel
-  // know what it should display. Not every field is required for that purpose,
-  // but the ones specifically needed are unclear. We should therefore spend
-  // some time to extract these fields and use a tighter structure here.
-  AutocompleteMatch current_match_;
-
-  BitmapFetcherService::RequestId request_id_;
-
-  base::WeakPtrFactory<OmniboxController> weak_ptr_factory_;
-
-  DISALLOW_COPY_AND_ASSIGN(OmniboxController);
+  base::WeakPtrFactory<OmniboxController> weak_ptr_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_CONTROLLER_H_

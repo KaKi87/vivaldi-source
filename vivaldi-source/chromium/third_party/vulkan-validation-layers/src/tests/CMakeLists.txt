@@ -43,6 +43,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     framework/test_framework.cpp
     framework/ray_tracing_objects.h
     framework/ray_tracing_objects.cpp
+    framework/data_graph_objects.h
+    framework/data_graph_objects.cpp
     framework/ray_tracing_helper_nv.h
     framework/ray_tracing_helper_nv.cpp
     framework/external_memory_sync.h
@@ -77,13 +79,16 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/command_positive.cpp
     unit/copy_buffer_image.cpp
     unit/copy_buffer_image_positive.cpp
+    unit/data_graph.cpp
+    unit/data_graph_positive.cpp
     unit/debug_extensions.cpp
     unit/debug_extensions_positive.cpp
     unit/debug_printf.cpp
     unit/debug_printf_shader_debug_info.cpp
     unit/debug_printf_ray_tracing.cpp
-    unit/deprecation.cpp
-    unit/deprecation_positive.cpp
+    # Off until WG decides on naming
+    # unit/deprecation.cpp
+    # unit/deprecation_positive.cpp
     unit/descriptor_buffer.cpp
     unit/descriptor_buffer_positive.cpp
     unit/descriptor_indexing.cpp
@@ -140,6 +145,7 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_ray_tracing.cpp
     unit/gpu_av_ray_tracing_positive.cpp
     unit/gpu_av_vertex_attribute_fetch.cpp
+    unit/gpu_av_vertex_attribute_fetch_positive.cpp
     unit/graphics_library.cpp
     unit/graphics_library_positive.cpp
     unit/host_image_copy.cpp
@@ -226,6 +232,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/shader_storage_image_positive.cpp
     unit/shader_storage_texel.cpp
     unit/shader_storage_texel_positive.cpp
+    unit/shader_untyped.cpp
+    unit/shader_untyped_positive.cpp
     unit/sparse_buffer.cpp
     unit/sparse_buffer_positive.cpp
     unit/sparse_image.cpp
@@ -494,11 +502,8 @@ if(DEFINED SLANG_INSTALL_DIR)
 
             # Add post-build step to verify the library was copied and is executable
             add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E echo "Verifying shared libraries in $<TARGET_FILE_DIR:${TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E echo "Slang library path: $<TARGET_FILE_DIR:${TARGET_NAME}>/${SLANG_SONAME}"
+                COMMAND ${CMAKE_COMMAND} -E echo "Verifying slang library path: $<TARGET_FILE_DIR:${TARGET_NAME}>/${SLANG_SONAME}"
                 COMMAND test -f "$<TARGET_FILE_DIR:${TARGET_NAME}>/${SLANG_SONAME}" || echo "Library not copied correctly"
-                COMMAND chmod +x "$<TARGET_FILE_DIR:${TARGET_NAME}>/${SLANG_SONAME}"
-                COMMAND echo "Library permissions:" && ls -la "$<TARGET_FILE_DIR:${TARGET_NAME}>/${SLANG_SONAME}"
             )
         endif()
     endfunction()
@@ -514,10 +519,6 @@ if(DEFINED SLANG_INSTALL_DIR)
             endforeach()
 
             set_target_properties(${TARGET_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
-
-            # Add install-time command to set executable permissions
-            install(CODE "message(STATUS \"Setting executable permissions on ${CMAKE_INSTALL_PREFIX}/${DESTINATION}/${SLANG_SONAME}\")
-                         execute_process(COMMAND chmod +x \"${CMAKE_INSTALL_PREFIX}/${DESTINATION}/${SLANG_SONAME}\")")
          endif()
     endfunction()
 
@@ -532,7 +533,6 @@ target_link_libraries(vk_layer_validation_tests PRIVATE
     VkLayer_utils
     $<$<BOOL:${USE_SLANG}>:slang>
     glslang::SPIRV
-    glslang::SPVRemapper
     SPIRV-Tools-static
     SPIRV-Headers::SPIRV-Headers
     GTest::gtest

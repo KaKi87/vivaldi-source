@@ -1,216 +1,188 @@
-// Copyright 2013 The Chromium Authors. All rights reserved.
+// Copyright 2013 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 
+#include <memory>
+#include <string>
+
+#include "base/functional/bind.h"
 #include "base/metrics/histogram.h"
-#include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
-#include "chrome/browser/bitmap_fetcher/bitmap_fetcher_service_factory.h"
-#include "chrome/browser/net/predictor.h"
-#include "chrome/browser/predictors/autocomplete_action_predictor.h"
-#include "chrome/browser/prerender/prerender_field_trial.h"
-#include "chrome/browser/prerender/prerender_manager.h"
-#include "chrome/browser/prerender/prerender_manager_factory.h"
-#include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/search/search.h"
-#include "chrome/browser/ui/omnibox/omnibox_edit_controller.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/trace_event/trace_event.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
-#include "chrome/browser/ui/omnibox/omnibox_popup_model.h"
-#include "chrome/common/instant_types.h"
+#include "chrome/browser/ui/omnibox/omnibox_popup_view.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
+#include "components/omnibox/browser/autocomplete_controller_emitter.h"
+#include "components/omnibox/browser/autocomplete_enums.h"
 #include "components/omnibox/browser/autocomplete_match.h"
-#include "components/omnibox/browser/omnibox_popup_view.h"
-#include "components/omnibox/browser/search_provider.h"
-#include "components/search/search.h"
-#include "extensions/common/constants.h"
+#include "components/omnibox/browser/autocomplete_match_type.h"
+#include "components/omnibox/browser/omnibox_client.h"
+#include "components/omnibox/browser/omnibox_field_trial.h"
+#include "components/omnibox/browser/omnibox_popup_selection.h"
+#include "components/omnibox/browser/page_classification_functions.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
+#include "components/search_engines/template_url_starter_pack_data.h"
 #include "ui/gfx/geometry/rect.h"
 
-namespace {
-
-// Returns the AutocompleteMatch that the InstantController should prefetch, if
-// any.
-//
-// The SearchProvider may mark some suggestions to be prefetched based on
-// instructions from the suggest server. If such a match ranks sufficiently
-// highly or if kAllowPrefetchNonDefaultMatch field trial is enabled, we'll
-// return it.
-//
-// If the kAllowPrefetchNonDefaultMatch field trial is enabled we return the
-// prefetch suggestion even if it is not the default match. Otherwise we only
-// care about matches that are the default or the second entry in the dropdown
-// (which can happen for non-default matches when a top verbatim match is
-// shown); for other matches, we think the likelihood of the user selecting
-// them is low enough that prefetching isn't worth doing.
-const AutocompleteMatch* GetMatchToPrefetch(const AutocompleteResult& result) {
-  if (chrome::ShouldAllowPrefetchNonDefaultMatch()) {
-    const AutocompleteResult::const_iterator prefetch_match = std::find_if(
-        result.begin(), result.end(), SearchProvider::ShouldPrefetch);
-    return prefetch_match != result.end() ? &(*prefetch_match) : NULL;
+OmniboxController::OmniboxController(
+    OmniboxView* view,
+    std::unique_ptr<OmniboxClient> client,
+    base::TimeDelta autocomplete_stop_timer_duration)
+    : client_(std::move(client)),
+      autocomplete_controller_(std::make_unique<AutocompleteController>(
+          client_->CreateAutocompleteProviderClient(),
+          AutocompleteClassifier::DefaultOmniboxProviders(),
+          autocomplete_stop_timer_duration)),
+      edit_model_(std::make_unique<OmniboxEditModel>(
+          /*omnibox_controller=*/this,
+          view)) {
+  // Directly observe omnibox's `AutocompleteController` instance - i.e., when
+  // `view` is provided in the constructor. In the case of realbox - i.e., when
+  // `view` is not provided in the constructor - `RealboxHandler` directly
+  // observes the `AutocompleteController` instance itself.
+  if (view) {
+    autocomplete_controller_->AddObserver(this);
   }
 
-  // If the default match should be prefetched, do that.
-  const auto default_match = result.default_match();
-  if ((default_match != result.end()) &&
-      SearchProvider::ShouldPrefetch(*default_match))
-    return &(*default_match);
-
-  // Otherwise, if the top match is a verbatim match and the very next match
-  // is prefetchable, fetch that.
-  if (result.TopMatchIsStandaloneVerbatimMatch() && (result.size() > 1) &&
-      SearchProvider::ShouldPrefetch(result.match_at(1)))
-    return &result.match_at(1);
-
-  return NULL;
+  // Register the `AutocompleteController` with `AutocompleteControllerEmitter`.
+  if (auto* emitter = client_->GetAutocompleteControllerEmitter()) {
+    autocomplete_controller_->AddObserver(emitter);
+  }
 }
 
-// Calls back to the OmniboxController when the requested image is downloaded.
-// This is a separate class instead of being implemented on OmniboxController
-// because BitmapFetcherService currently takes ownership of this object.
-// TODO(dschuyler): Make BitmapFetcherService use the more typical non-owning
-// ObserverList pattern and have OmniboxController implement the Observer call
-// directly.
-class AnswerImageObserver : public BitmapFetcherService::Observer {
- public:
-  explicit AnswerImageObserver(
-      const base::WeakPtr<OmniboxController>& controller)
-      : controller_(controller) {}
+constexpr bool is_ios = !!BUILDFLAG(IS_IOS);
 
-  void OnImageChanged(BitmapFetcherService::RequestId request_id,
-                      const SkBitmap& image) override;
-
- private:
-  const base::WeakPtr<OmniboxController> controller_;
-  DISALLOW_COPY_AND_ASSIGN(AnswerImageObserver);
-};
-
-void AnswerImageObserver::OnImageChanged(
-    BitmapFetcherService::RequestId request_id,
-    const SkBitmap& image) {
-  DCHECK(!image.empty());
-  DCHECK(controller_);
-  controller_->SetAnswerBitmap(image);
-}
-
-}  // namespace
-
-OmniboxController::OmniboxController(OmniboxEditModel* omnibox_edit_model,
-                                     Profile* profile)
-    : omnibox_edit_model_(omnibox_edit_model),
-      profile_(profile),
-      popup_(NULL),
-      autocomplete_controller_(new AutocompleteController(
-          make_scoped_ptr(new ChromeAutocompleteProviderClient(profile)),
-          this,
-          AutocompleteClassifier::kDefaultOmniboxProviders)),
-      request_id_(BitmapFetcherService::REQUEST_ID_INVALID),
-      weak_ptr_factory_(this) {
-}
-
-OmniboxController::~OmniboxController() {
-  BitmapFetcherService* image_service =
-      BitmapFetcherServiceFactory::GetForBrowserContext(profile_);
-  if (image_service)
-    image_service->CancelRequest(request_id_);
-}
+OmniboxController::~OmniboxController() = default;
 
 void OmniboxController::StartAutocomplete(
     const AutocompleteInput& input) const {
+  TRACE_EVENT0("omnibox", "OmniboxController::StartAutocomplete");
   ClearPopupKeywordMode();
-  popup_->SetHoveredLine(OmniboxPopupModel::kNoMatch);
 
   // We don't explicitly clear OmniboxPopupModel::manually_selected_match, as
   // Start ends up invoking OmniboxPopupModel::OnResultChanged which clears it.
   autocomplete_controller_->Start(input);
 }
 
-void OmniboxController::OnResultChanged(bool default_match_changed) {
-  const bool was_open = popup_->IsOpen();
+void OmniboxController::StopAutocomplete(bool clear_result) const {
+  TRACE_EVENT0("omnibox", "OmniboxController::StopAutocomplete");
+  autocomplete_controller_->Stop(clear_result
+                                     ? AutocompleteStopReason::kClobbered
+                                     : AutocompleteStopReason::kInteraction);
+}
+
+void OmniboxController::StartZeroSuggestPrefetch() {
+  TRACE_EVENT0("omnibox", "OmniboxController::StartZeroSuggestPrefetch");
+  client_->MaybePrewarmForDefaultSearchEngine();
+
+  auto page_classification =
+      client_->GetPageClassification(/*is_prefetch=*/true);
+
+  GURL current_url = client_->GetURL();
+  std::u16string text = base::UTF8ToUTF16(current_url.spec());
+
+  if (omnibox::IsNTPPage(page_classification) || !is_ios) {
+    text.clear();
+  }
+
+  AutocompleteInput input(text, page_classification,
+                          client_->GetSchemeClassifier());
+  input.set_current_url(current_url);
+  input.set_current_title(client_->GetTitle());
+  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  autocomplete_controller_->StartPrefetch(input);
+}
+
+void OmniboxController::OnResultChanged(AutocompleteController* controller,
+                                        bool default_match_changed) {
+  TRACE_EVENT0("omnibox", "OmniboxController::OnResultChanged");
+  DCHECK(controller == autocomplete_controller_.get());
+
+  const bool popup_was_open = edit_model_->PopupIsOpen();
   if (default_match_changed) {
     // The default match has changed, we need to let the OmniboxEditModel know
     // about new inline autocomplete text (blue highlight).
-    const AutocompleteResult::const_iterator match(result().default_match());
-    if (match != result().end()) {
-      current_match_ = *match;
-      if (!prerender::IsOmniboxEnabled(profile_))
-        DoPreconnect(*match);
-      omnibox_edit_model_->OnCurrentMatchChanged();
+    if (autocomplete_controller_->result().default_match()) {
+      edit_model_->OnCurrentMatchChanged();
     } else {
-      InvalidateCurrentMatch();
-      popup_->OnResultChanged();
-      omnibox_edit_model_->OnPopupDataChanged(base::string16(), NULL,
-                                              base::string16(), false);
+      edit_model_->OnPopupResultChanged();
+      edit_model_->OnPopupDataChanged(
+          std::u16string(),
+          /*is_temporary_text=*/false, std::u16string(), std::u16string(),
+          std::u16string(), false, std::u16string(), AutocompleteMatch());
     }
   } else {
-    popup_->OnResultChanged();
+    edit_model_->OnPopupResultChanged();
   }
 
-  if (!popup_->IsOpen() && was_open) {
+  const bool popup_is_open = edit_model_->PopupIsOpen();
+  if (popup_was_open != popup_is_open) {
+    client_->OnPopupVisibilityChanged(popup_is_open);
+  }
+
+  if (popup_was_open && !popup_is_open) {
     // Accept the temporary text as the user text, because it makes little sense
     // to have temporary text when the popup is closed.
-    omnibox_edit_model_->AcceptTemporaryTextAsUserText();
+    edit_model_->AcceptTemporaryTextAsUserText();
+    // Closing the popup can change the default suggestion. This usually occurs
+    // when it's unclear whether the input represents a search or URL; e.g.,
+    // 'a.com/b c' or when title autocompleting. Clear the additional text to
+    // avoid suggesting the omnibox contains a URL suggestion when that may no
+    // longer be the case; i.e. when the default suggestion changed from a URL
+    // to a search suggestion upon closing the popup.
+    edit_model_->ClearAdditionalText();
   }
 
-  if (chrome::IsInstantExtendedAPIEnabled() &&
-     ((default_match_changed && result().default_match() != result().end()) ||
-      (chrome::ShouldAllowPrefetchNonDefaultMatch() && !result().empty()))) {
-    InstantSuggestion prefetch_suggestion;
-    const AutocompleteMatch* match_to_prefetch = GetMatchToPrefetch(result());
-    if (match_to_prefetch) {
-      prefetch_suggestion.text = match_to_prefetch->contents;
-      prefetch_suggestion.metadata =
-          SearchProvider::GetSuggestMetadata(*match_to_prefetch);
-    }
-    // Send the prefetch suggestion unconditionally to the InstantPage. If
-    // there is no suggestion to prefetch, we need to send a blank query to
-    // clear the prefetched results.
-    omnibox_edit_model_->SetSuggestionToPrefetch(prefetch_suggestion);
-  }
-
-  for (AutocompleteResult::const_iterator match(result().begin());
-       match != result().end(); ++match) {
-    if (match->answer) {
-      BitmapFetcherService* image_service =
-          BitmapFetcherServiceFactory::GetForBrowserContext(profile_);
-      if (image_service) {
-        image_service->CancelRequest(request_id_);
-        request_id_ = image_service->RequestImage(
-            match->answer->second_line().image_url(),
-            new AnswerImageObserver(weak_ptr_factory_.GetWeakPtr()));
-      }
-      // We only fetch one answer image.
-      break;
-    }
-  }
-}
-
-void OmniboxController::InvalidateCurrentMatch() {
-  current_match_ = AutocompleteMatch();
+  // Note: The client outlives |this|, so bind a weak pointer to the callback
+  // passed in to eliminate the potential for crashes on shutdown.
+  // `should_preload` is set to `controller->done()` as prerender may only want
+  // to start preloading a result after all Autocomplete results are ready.
+  client_->OnResultChanged(
+      autocomplete_controller_->result(), default_match_changed,
+      /*should_preload=*/controller->done(),
+      base::BindRepeating(&OmniboxController::SetRichSuggestionBitmap,
+                          weak_ptr_factory_.GetWeakPtr()));
 }
 
 void OmniboxController::ClearPopupKeywordMode() const {
-  if (popup_->IsOpen() &&
-      popup_->selected_line_state() == OmniboxPopupModel::KEYWORD)
-    popup_->SetSelectedLineState(OmniboxPopupModel::NORMAL);
-}
-
-void OmniboxController::DoPreconnect(const AutocompleteMatch& match) {
-  if (!match.destination_url.SchemeIs(extensions::kExtensionScheme)) {
-    // Warm up DNS Prefetch cache, or preconnect to a search service.
-    UMA_HISTOGRAM_ENUMERATION("Autocomplete.MatchType", match.type,
-                              AutocompleteMatchType::NUM_TYPES);
-    if (profile_->GetNetworkPredictor()) {
-      profile_->GetNetworkPredictor()->AnticipateOmniboxUrl(
-          match.destination_url,
-          predictors::AutocompleteActionPredictor::IsPreconnectable(match));
+  TRACE_EVENT0("omnibox", "OmniboxController::ClearPopupKeywordMode");
+  if (edit_model_->PopupIsOpen()) {
+    OmniboxPopupSelection selection = edit_model_->GetPopupSelection();
+    if (selection.state == OmniboxPopupSelection::KEYWORD_MODE) {
+      selection.state = OmniboxPopupSelection::NORMAL;
+      edit_model_->SetPopupSelection(selection);
     }
-    // We could prefetch the alternate nav URL, if any, but because there
-    // can be many of these as a user types an initial series of characters,
-    // the OS DNS cache could suffer eviction problems for minimal gain.
   }
 }
 
-void OmniboxController::SetAnswerBitmap(const SkBitmap& bitmap) {
-  request_id_ = BitmapFetcherService::REQUEST_ID_INVALID;
-  popup_->SetAnswerBitmap(bitmap);
+std::u16string OmniboxController::GetHeaderForSuggestionGroup(
+    omnibox::GroupId suggestion_group_id) const {
+  return autocomplete_controller_->result().GetHeaderForSuggestionGroup(
+      suggestion_group_id);
+}
+
+bool OmniboxController::IsSuggestionHidden(
+    const AutocompleteMatch& match) const {
+  if (OmniboxFieldTrial::IsStarterPackExpansionEnabled() &&
+      match.from_keyword) {
+    const TemplateURL* turl =
+        match.GetTemplateURL(client_->GetTemplateURLService());
+    if (turl &&
+        turl->starter_pack_id() == template_url_starter_pack_data::kGemini) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void OmniboxController::SetRichSuggestionBitmap(int result_index,
+                                                const GURL& icon_url,
+                                                const SkBitmap& bitmap) {
+  if (!icon_url.is_empty()) {
+    edit_model_->SetIconBitmap(icon_url, bitmap);
+  } else {
+    edit_model_->SetPopupRichSuggestionBitmap(result_index, bitmap);
+  }
 }

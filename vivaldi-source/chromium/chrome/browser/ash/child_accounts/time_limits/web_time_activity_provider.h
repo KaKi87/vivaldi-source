@@ -1,14 +1,20 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 #ifndef CHROME_BROWSER_ASH_CHILD_ACCOUNTS_TIME_LIMITS_WEB_TIME_ACTIVITY_PROVIDER_H_
 #define CHROME_BROWSER_ASH_CHILD_ACCOUNTS_TIME_LIMITS_WEB_TIME_ACTIVITY_PROVIDER_H_
 
+#include <map>
+#include <memory>
 #include <set>
+#include <vector>
 
-#include "base/observer_list_types.h"
+#include "base/memory/raw_ptr.h"
+#include "base/scoped_multi_source_observation.h"
+#include "base/scoped_observation.h"
 #include "chrome/browser/ash/child_accounts/time_limits/app_service_wrapper.h"
+#include "chrome/browser/ash/child_accounts/time_limits/app_types.h"
 #include "chrome/browser/ash/child_accounts/time_limits/web_time_navigation_observer.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -20,12 +26,10 @@ class UnguessableToken;
 
 class Browser;
 
-namespace ash {
-namespace app_time {
+namespace ash::app_time {
 
 class AppId;
 class AppTimeController;
-class AppServiceWrapper;
 enum class ChromeAppActivityState;
 
 class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
@@ -64,7 +68,7 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
                      const base::UnguessableToken& instance_id,
                      base::Time timestamp) override;
 
-  ChromeAppActivityState chrome_app_activty_state() const {
+  ChromeAppActivityState chrome_app_activity_state() const {
     return chrome_app_activity_state_;
   }
 
@@ -79,13 +83,7 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   ChromeAppActivityState CalculateChromeAppActivityState() const;
 
   // Reference to AppTimeController. Owned by ChildUserService.
-  AppTimeController* const app_time_controller_;
-
-  // Reference to AppServiceWrapper. Owned by AppTimeController.
-  AppServiceWrapper* const app_service_wrapper_;
-
-  // The set of navigation observers |this| instance is listening to.
-  std::set<WebTimeNavigationObserver*> navigation_observers_;
+  const raw_ptr<AppTimeController> app_time_controller_;
 
   // A set of active browser instances.
   std::set<const Browser*> active_browsers_;
@@ -93,9 +91,21 @@ class WebTimeActivityProvider : public WebTimeNavigationObserver::EventListener,
   // The default chrome app activity state.
   ChromeAppActivityState chrome_app_activity_state_ =
       ChromeAppActivityState::kInactive;
+
+  // A map from a navigation observer to its most recently reported navigation
+  // info.
+  std::map<const WebTimeNavigationObserver*,
+           WebTimeNavigationObserver::NavigationInfo>
+      navigation_info_map_;
+
+  base::ScopedObservation<AppServiceWrapper, AppServiceWrapper::EventListener>
+      app_service_wrapper_observation_{this};
+
+  base::ScopedMultiSourceObservation<WebTimeNavigationObserver,
+                                     WebTimeNavigationObserver::EventListener>
+      web_time_navigation_observers_{this};
 };
 
-}  // namespace app_time
-}  // namespace ash
+}  // namespace ash::app_time
 
 #endif  // CHROME_BROWSER_ASH_CHILD_ACCOUNTS_TIME_LIMITS_WEB_TIME_ACTIVITY_PROVIDER_H_

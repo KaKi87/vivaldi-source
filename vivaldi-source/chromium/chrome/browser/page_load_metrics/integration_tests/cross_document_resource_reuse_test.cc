@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/page_load_metrics/integration_tests/metric_integration_test.h"
-
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
@@ -32,6 +31,6 @@ IN_PROC_BROWSER_TEST_F(CrossDocumentResourceReuseTest,
   content::FetchHistogramsFromChildProcesses();
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
 
-  ExpectUniqueUMABucketCount("Blink.MemoryCache.CrossDocumentCachedResource2",
+  ExpectUniqueUMABucketCount("Blink.MemoryCache.CrossDocumentCachedResource3",
                              kImage, 1);
 }
