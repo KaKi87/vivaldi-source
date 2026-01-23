@@ -39,6 +39,7 @@ import org.chromium.base.process_launcher.ChildProcessConnection;
 import org.chromium.base.process_launcher.ChildProcessLauncher;
 import org.chromium.base.process_launcher.IChildProcessArgs;
 import org.chromium.base.process_launcher.IFileDescriptorInfo;
+import org.chromium.base.process_launcher.ScopedServiceBindingBatch;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
@@ -120,6 +121,9 @@ public final class ChildProcessLauncherHelperImpl {
     // Set on UI thread only, but null-checked on launcher thread as well.
     private static ApplicationStatus.@Nullable ApplicationStateListener sAppStateListener;
 
+    // Set on UI thread only, but null-checked on launcher thread as well.
+    private static ApplicationStatus.@Nullable WindowFocusChangedListener sWindowFocusListener;
+
     // TODO(boliu): These are only set for sandboxed renderer processes. Generalize them for
     // all types of processes.
     private final @Nullable ChildProcessRanking mRanking;
@@ -197,16 +201,13 @@ public final class ChildProcessLauncherHelperImpl {
                     if (pid > 0) {
                         sLauncherByPid.put(pid, ChildProcessLauncherHelperImpl.this);
                         if (mRanking != null) {
-                            // TODO(crbug.com/409703175): Set isSpareRenderer once the
-                            // spare renderer information is passed when launching the
-                            // process.
                             mRanking.addConnection(
                                     connection,
                                     /* visible= */ false,
                                     /* frameDepth= */ 1,
                                     /* intersectsViewport= */ false,
-                                    /* isSpareRenderer= */ false,
-                                    ChildProcessImportance.MODERATE);
+                                    mIsSpareRenderer,
+                                    mEffectiveImportance);
                             if (mBindingManager != null) mBindingManager.rankingChanged();
                         }
                         if (mSandboxed) {
@@ -483,6 +484,10 @@ public final class ChildProcessLauncherHelperImpl {
      */
     public static void startBindingManagement(final Context context) {
         assert ThreadUtils.runningOnUiThread();
+        // startBindingManagement() is safe to check feature flags because it is executed after C++
+        // native context is initialized.
+        boolean activated = ScopedServiceBindingBatch.tryActivate(LauncherThread.getHandler());
+        Log.i(TAG, "ScopedServiceBindingBatch.tryActivate: %b", activated);
         LauncherThread.post(
                 new Runnable() {
                     @Override
@@ -565,6 +570,16 @@ public final class ChildProcessLauncherHelperImpl {
         if (!connection.isConnected()) return;
         connection.addStrongBinding();
         mDroppedStrongBingingDueToBackgrounding = false;
+    }
+
+    private static void onWindowFocusChanged(boolean hasFocus) {
+        assert ThreadUtils.runningOnUiThread();
+        LauncherThread.post(
+                () -> {
+                    if (sSandboxedChildConnectionRanking != null) {
+                        sSandboxedChildConnectionRanking.onWindowFocusChanged(hasFocus);
+                    }
+                });
     }
 
     private static void onBroughtToForeground() {
@@ -762,6 +777,30 @@ public final class ChildProcessLauncherHelperImpl {
         }
 
         if (!ApplicationStatus.isInitialized()) return;
+        if (sWindowFocusListener == null
+                && ContentFeatureList.sStrictHighRankProcessLRU.isEnabled()) {
+            PostTask.postTask(
+                    TaskTraits.UI_BEST_EFFORT,
+                    () -> {
+                        if (sWindowFocusListener != null) {
+                            return;
+                        }
+                        sWindowFocusListener =
+                                (activity, hasFocus) -> {
+                                    // If we have 2 activities and window focus states are changed
+                                    // in A(true) -> B(true) -> A(false) order, we should ignore the
+                                    // last A(false) event to make the application window focus
+                                    // state true.
+                                    if (activity
+                                            == ApplicationStatus.getLastTrackedFocusedActivity()) {
+                                        onWindowFocusChanged(hasFocus);
+                                    }
+                                };
+                        ApplicationStatus.registerWindowFocusChangedListener(sWindowFocusListener);
+                        // Set the initial window focus state.
+                        onWindowFocusChanged(ApplicationStatus.hasWindowFocusedActivity());
+                    });
+        }
         if (sAppStateListener != null) return;
         PostTask.postTask(
                 TaskTraits.UI_BEST_EFFORT,
@@ -852,7 +891,8 @@ public final class ChildProcessLauncherHelperImpl {
 
     @VisibleForTesting
     @CalledByNative
-    void setPriority(
+    @SpareRendererPriority
+    int setPriority(
             int pid,
             boolean visible,
             boolean hasMediaStream,
@@ -871,9 +911,12 @@ public final class ChildProcessLauncherHelperImpl {
                         + ") did not match the launcher's pid ("
                         + mLauncher.getPid()
                         + ").";
+        boolean isSpareRendererPriorityGraduate = (mIsSpareRenderer && !isSpareRenderer);
         if (getByPid(pid) == null) {
             // Child already disconnected. Ignore any trailing calls.
-            return;
+            return isSpareRendererPriorityGraduate
+                    ? SpareRendererPriority.SPARE_DEAD
+                    : SpareRendererPriority.SPARE_NO_CHANGE;
         }
 
         ChildProcessConnection connection = assumeNonNull(mLauncher.getConnection());
@@ -907,11 +950,6 @@ public final class ChildProcessLauncherHelperImpl {
         }
 
         // Add first and remove second.
-        if (visible && !mVisible) {
-            if (mBindingManager != null) mBindingManager.addConnection(connection);
-        }
-        mVisible = visible;
-
         if (mEffectiveImportance != newEffectiveImportance) {
             switch (newEffectiveImportance) {
                 case ChildProcessImportance.NORMAL:
@@ -938,6 +976,14 @@ public final class ChildProcessLauncherHelperImpl {
                     assert false;
             }
         }
+
+        // Add connection to BindingManager after upgrading the connection binding priority. The
+        // binding state stronger than not-perceptible, which will be added by BindingManager,
+        // should be applied first.
+        if (visible && !mVisible) {
+            if (mBindingManager != null) mBindingManager.addConnection(connection);
+        }
+        mVisible = visible;
 
         mIsSpareRenderer = isSpareRenderer;
 
@@ -985,6 +1031,13 @@ public final class ChildProcessLauncherHelperImpl {
         }
 
         mEffectiveImportance = newEffectiveImportance;
+
+        if (isSpareRendererPriorityGraduate) {
+            return connection.isConnectedProcessAlive()
+                    ? SpareRendererPriority.SPARE_GRADUATED
+                    : SpareRendererPriority.SPARE_DEAD;
+        }
+        return SpareRendererPriority.SPARE_NO_CHANGE;
     }
 
     @CalledByNative

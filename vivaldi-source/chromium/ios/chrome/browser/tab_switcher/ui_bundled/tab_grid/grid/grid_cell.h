@@ -61,11 +61,17 @@ typedef NS_ENUM(NSInteger, EmptyThumbnailLayoutType);
 // Hides the price drop annotation
 - (void)hidePriceDrop;
 
-// Starts the activity indicator animation.
-- (void)showActivityIndicator;
+// Starts the activity indicator animation over the favicon.
+- (void)showFaviconActivityIndicator;
 
-// Stops the activity indicator animation.
-- (void)hideActivityIndicator;
+// Stops the activity indicator animation over the favicon.
+- (void)hideFaviconActivityIndicator;
+
+// Starts the activity indicator animation over the snapshot.
+- (void)showSnapshotActivityIndicator;
+
+// Stops the activity indicator animation over the snapshot.
+- (void)hideSnapshotActivityIndicator;
 
 // Registers the cell as a layout guide.
 - (void)registerAsSelectedCellGuide;
@@ -76,6 +82,9 @@ typedef NS_ENUM(NSInteger, EmptyThumbnailLayoutType);
 // Sets the accessibility identifiers within this cell based on its current
 // `index`.
 - (void)setAccessibilityIdentifiersWithIndex:(NSUInteger)index;
+
+// Highlights or resets the highlighting of the cell.
+- (void)setHighlightForGrouping:(BOOL)highlight;
 
 // Vivaldi
 // Set the selected and not selected for the cell.

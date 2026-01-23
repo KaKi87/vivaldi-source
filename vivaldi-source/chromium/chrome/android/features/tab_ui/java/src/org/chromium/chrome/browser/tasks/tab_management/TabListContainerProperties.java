@@ -78,6 +78,15 @@ class TabListContainerProperties {
     public static final PropertyModel.WritableBooleanPropertyKey SUPPRESS_ACCESSIBILITY =
             new PropertyModel.WritableBooleanPropertyKey();
 
+    public static final PropertyModel.WritableBooleanPropertyKey IS_TABLET_OR_LANDSCAPE =
+            new PropertyModel.WritableBooleanPropertyKey();
+
+    public static final PropertyModel.WritableBooleanPropertyKey IS_NON_ZERO_Y_OFFSET =
+            new PropertyModel.WritableBooleanPropertyKey();
+
+    public static final WritableObjectPropertyKey<ObservableSupplier<Boolean>>
+            IS_PINNED_TAB_STRIP_ANIMATING_SUPPLIER = new WritableObjectPropertyKey<>();
+
     // Vivaldi
     public static final PropertyModel.WritableObjectPropertyKey<Integer> SCROLL_INDEX_NORMAL =
             new PropertyModel.WritableObjectPropertyKey<>(true);
@@ -102,6 +111,9 @@ class TabListContainerProperties {
                 IS_CONTENT_SENSITIVE,
                 PAGE_KEY_LISTENER,
                 SUPPRESS_ACCESSIBILITY,
+                IS_TABLET_OR_LANDSCAPE,
+                IS_NON_ZERO_Y_OFFSET,
+                IS_PINNED_TAB_STRIP_ANIMATING_SUPPLIER,
 
                 SCROLL_INDEX_NORMAL, // Vivaldi
                 SCROLL_INDEX_PRIVATE, // Vivaldi

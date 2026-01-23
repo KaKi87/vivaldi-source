@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/containers/queue.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
@@ -58,11 +59,10 @@ class StudentScreenPresenterImpl : public StudentScreenPresenter {
              base::OnceClosure disconnected_cb) override;
   void CheckConnection() override;
   void Stop(base::OnceCallback<void(bool)> success_cb) override;
-  bool IsPresenting() override;
+  bool IsPresenting(std::optional<std::string_view> student_id) override;
 
  private:
-  void OnStartResponse(base::OnceCallback<void(bool)> success_cb,
-                       std::optional<std::string> connection_id);
+  void OnStartResponse(std::optional<std::string> connection_id);
 
   void OnCheckConnectionResponse(std::optional<::boca::KioskReceiver> receiver);
 
@@ -70,6 +70,8 @@ class StudentScreenPresenterImpl : public StudentScreenPresenter {
       std::optional<::boca::ReceiverConnectionState> connection_state);
 
   void Reset();
+
+  void NotifyStopSuccess(bool success);
 
   const std::string session_id_;
   const ::boca::UserIdentity teacher_identity_;
@@ -79,12 +81,13 @@ class StudentScreenPresenterImpl : public StudentScreenPresenter {
   std::optional<std::string> receiver_id_;
   base::OnceClosure disconnected_cb_;
   std::optional<std::string> connection_id_;
+  std::optional<std::string> student_id_;
   std::unique_ptr<google_apis::RequestSender> start_connection_request_sender_;
   std::unique_ptr<google_apis::RequestSender> get_receiver_request_sender_;
   std::unique_ptr<google_apis::RequestSender> update_connection_request_sender_;
+  base::OnceCallback<void(bool)> start_success_cb_;
   bool stop_request_in_progress_ = false;
-  base::OnceCallback<void(bool)> stop_success_cb_;
-  base::OneShotTimer stopped_check_timer_;
+  base::queue<base::OnceCallback<void(bool)>> stop_success_callbacks_;
 
   base::WeakPtrFactory<StudentScreenPresenterImpl> weak_ptr_factory_{this};
 };

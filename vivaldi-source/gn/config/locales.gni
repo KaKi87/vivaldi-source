@@ -40,9 +40,16 @@ if (!is_android) {
     # Chromium supports these languages but has in extended_locales, we adjusted
     # extended_locales to include these languages hence subtracted from here.
     vivaldi_pending_mobile_locales -= [
+      "az",
       "be",
+      "eu",
+      "gl",
+      "hy",
       "is",
       "ka",
+      "mk",
+      "pa",
+      "sq",
       "sr-Latn",
     ]
 
@@ -59,6 +66,16 @@ if (!is_android) {
       "ta",
       "te",
       "ur",
+    ]
+
+    vivaldi_native_ios_extra_locales = [
+      "az",
+      "eu",
+      "hy",
+      "mk",
+      "pa",
+      "sq",
+      "gl",
     ]
 
     vivaldi_pending_ios_unsupported_locales = [

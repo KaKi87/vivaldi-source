@@ -99,8 +99,6 @@
 <translation id="7716147886133743102">Blokirao administrator</translation>
 <translation id="7716424297397655342">Web-lokacija se ne može učitati iz predmemorije</translation>
 <translation id="7758069387465995638">Vezu možda blokira vatrozid ili antivirusni softver.</translation>
-<translation id="7834399512844817676"><ph name="SITE" /> obično upotrebljava enkripciju radi zaštite vaših podataka. Prilikom ovog pokušaja povezivanja Chromiuma s web-lokacijom <ph name="SITE" /> ta je web-lokacija vratila neuobičajene
-i netočne vjerodajnice. To može značiti da se neki napadač pokušava predstaviti kao <ph name="SITE" /> ili je zaslon za prijavu na Wi-Fi prekinuo vezu. Vaši su podaci još uvijek sigurni jer je Vivaldi zaustavio povezivanje prije razmjene podataka.</translation>
 <translation id="7951415247503192394">(32-bitni)</translation>
 <translation id="808894953321890993">Promjena zaporke</translation>
 <translation id="8150722005171944719">Datoteka na adresi <ph name="URL" /> nije čitljiva. Možda je uklonjena ili premještena ili dozvole datoteka sprječavaju pristup.</translation>
@@ -109,7 +107,7 @@ i netočne vjerodajnice. To može značiti da se neki napadač pokušava predsta
 <translation id="8289355894181816810">Obratite se svojem mrežnom administratoru ako niste sigurni što to znači.</translation>
 <translation id="8332188693563227489">Pristup hostu <ph name="HOST_NAME" /> je odbijen</translation>
 <translation id="8498891568109133222">Poslužitelju <ph name="HOST_NAME" /> bilo je potrebno previše vremena za odgovor.</translation>
-<translation id="8740359287975076522">&lt;abbr id="dnsDefinition"&gt;DNS adresa poslužitelja&lt;/abbr&gt;<ph name="HOST_NAME" />nije pronađena. U tijeku je dijagnosticiranje problema.</translation>
+<translation id="8740359287975076522"><ph name="HOST_NAME" /> &lt;abbr id="dnsDefinition"&gt;DNS adresa&lt;/abbr&gt; ne može se pronaći. Dijagnosticiranje problema.</translation>
 <translation id="8820817407110198400">Oznake</translation>
 <translation id="9025348182339809926">(Nije važeće)</translation>
 <translation id="9039213469156557790">Nadalje, ova stranica sadrži druge resurse koji nisu sigurni. Te resurse mogu vidjeti drugi tijekom prijenosa i napadač ih može izmijeniti kako bi promijenio ponašanje stranice.</translation>
@@ -118,4 +116,5 @@ i netočne vjerodajnice. To može značiti da se neki napadač pokušava predsta
 <translation id="9183425211371246419">Host <ph name="HOST_NAME" /> upotrebljava nepodržane protokole.</translation>
 <translation id="969892804517981540">Službeni sastavak</translation>
 <translation id="988159990683914416">Sastavak razvojnog programera</translation>
+<translation id="995755448277384931">Dodaj IBAN</translation>
 </translationbundle>

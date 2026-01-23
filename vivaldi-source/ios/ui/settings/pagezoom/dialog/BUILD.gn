@@ -11,8 +11,6 @@ source_set("vivaldi_pagezoom_dialog") {
     "vivaldi_pagezoom_view_controller.h",
     "vivaldi_pagezoom_view_controller.mm",
     "vivaldi_pagezoom_utils.mm",
-    "uiwindow_pagezoom.h",
-    "uiwindow_pagezoom.mm",
   ]
 
   deps = [

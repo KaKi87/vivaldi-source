@@ -3,7 +3,7 @@ import("//build/config/win/manifest.gni")
 
 assert(is_win)
 
-dpi_aware_manifest = "//chrome/installer/setup/setup.exe.manifest"
+dpi_aware_manifest = "//vivaldi/installer/mini_installer/setup/setup.exe.manifest"
 
 windows_manifest("dpi_aware_exe_manifest") {
   sources = [
@@ -14,7 +14,7 @@ windows_manifest("dpi_aware_exe_manifest") {
 action("vivaldi_release") {
   script = "//vivaldi/scripts/generate_chrome_release.py"
 
-  chrome_release_file = "//chrome/installer/mini_installer/chrome.release"
+  chrome_release_file = "//vivaldi/installer/mini_installer/mini_installer/chrome.release"
   vivaldi_release_file = "//vivaldi/installer/win/vivaldi.release"
   vivaldi_release_target = "$root_gen_dir/vivaldi/vivaldi.release"
 

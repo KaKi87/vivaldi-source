@@ -14,6 +14,7 @@ bundle_data_xcassets("resources") {
     "Assets.xcassets/grid_empty_state_body_text_color.colorset/Contents.json",
     "Assets.xcassets/grid_empty_state_login_button_bg_color.colorset/Contents.json",
     "Assets.xcassets/page_control_background_color.colorset/Contents.json",
+    "Assets.xcassets/page_control_slider_color.colorset/Contents.json",
     "Assets.xcassets/page_control_icon_not_selected_color.colorset/Contents.json",
     "Assets.xcassets/grid_selected_color.colorset/Contents.json",
     "Assets.xcassets/grid_not_selected_color.colorset/Contents.json",

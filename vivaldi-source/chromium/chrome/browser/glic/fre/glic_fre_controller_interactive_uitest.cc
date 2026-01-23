@@ -37,7 +37,9 @@ namespace {
 
 using glic::test::internal::kGlicFreShowingDialogState;
 
+#if !BUILDFLAG(IS_CHROMEOS)
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFirstTab);
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ui::test::PollingStateObserver<GURL>,
                                     kOpenedTabUrlState);
 
@@ -156,6 +158,7 @@ class GlicFreControllerUiTest : public GlicFreControllerUiTestBase {
     ASSERT_TRUE(fre_server_.InitializeAndListen());
 
     fre_url_ = fre_server_.GetURL("/glic/test_client/fre.html");
+    SetGlicFreUrlOverride(fre_url_);
 
     GlicFreControllerUiTestBase::SetUp();
   }
@@ -203,6 +206,10 @@ DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ui::test::PollingStateObserver<size_t>,
                                     kAcceptedSocketCount);
 
 IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest, PreconnectOnButtonHover) {
+  if (base::FeatureList::IsEnabled(features::kGlicMultiInstance)) {
+    // TODO(b/453696965): Broken in multi-instance.
+    GTEST_SKIP() << "Skipping for kGlicMultiInstance";
+  }
   EXPECT_TRUE(predictors::IsPreconnectAllowed(browser()->profile()));
 
   // The `server_running` handle is held until the end of the function, to keep
@@ -293,6 +300,11 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest, PressContinueButton) {
       }));
 }
 
+// Note: ChromeOS maintains auth tokens as a part of OS User sessions,
+// and so reauth flow is not expected.
+// TODO(crbug.com/450629835): Revisit if we figure out actual flow we need
+// reauth.
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest,
                        InvalidatedAccountSignInOnGlicFreOpenFlow) {
   auto server_running = fre_server().StartAcceptingConnectionsAndReturnHandle();
@@ -310,6 +322,7 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest,
                   WaitForState(kFreWebUiState, mojom::FreWebUiState::kReady),
                   StopObservingState(kFreWebUiState));
 }
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest,
                        ShowsErrorPanelOnCookieSyncFailure) {
@@ -332,7 +345,7 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest,
       InstrumentNonTabWebView(test::kGlicFreHostElementId,
                               GlicFreDialogView::kWebViewElementIdForTesting),
       InAnyContext(WaitForElementVisible(test::kGlicFreHostElementId,
-                                         {"#errorPanel:not([hidden])"})));
+                                         {"#freErrorPanel:not([hidden])"})));
 }
 
 IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest, ShowsErrorPanelOnInvalidAuth) {
@@ -350,7 +363,7 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest, ShowsErrorPanelOnInvalidAuth) {
       InstrumentNonTabWebView(test::kGlicFreHostElementId,
                               GlicFreDialogView::kWebViewElementIdForTesting),
       InAnyContext(WaitForElementVisible(test::kGlicFreHostElementId,
-                                         {"#errorPanel:not([hidden])"})));
+                                         {"#freErrorPanel:not([hidden])"})));
 }
 
 IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTest,
@@ -408,7 +421,7 @@ class GlicFreControllerUiHttpErrorTest : public GlicFreControllerUiTestBase {
     fre_server_.RegisterRequestHandler(base::BindRepeating(
         [](const GURL& url, const net::test_server::HttpRequest& request)
             -> std::unique_ptr<net::test_server::HttpResponse> {
-          if (request.relative_url == url.path()) {
+          if (request.relative_url == url.GetPath()) {
             auto response =
                 std::make_unique<net::test_server::BasicHttpResponse>();
             response->set_code(net::HTTP_BAD_GATEWAY);
@@ -420,6 +433,7 @@ class GlicFreControllerUiHttpErrorTest : public GlicFreControllerUiTestBase {
     ASSERT_TRUE(fre_server_.InitializeAndListen());
 
     fre_url_ = fre_server_.GetURL("/glic/test_client/fre.html");
+    SetGlicFreUrlOverride(fre_url_);
 
     GlicFreControllerUiTestBase::SetUp();
   }
@@ -446,7 +460,7 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiHttpErrorTest,
       InstrumentNonTabWebView(test::kGlicFreHostElementId,
                               GlicFreDialogView::kWebViewElementIdForTesting),
       InAnyContext(WaitForElementVisible(test::kGlicFreHostElementId,
-                                         {"#errorPanel:not([hidden])"})));
+                                         {"#freErrorPanel:not([hidden])"})));
 }
 
 class GlicFreControllerUiTimeoutTest : public GlicFreControllerUiTestBase {
@@ -501,6 +515,7 @@ class GlicFreControllerRedirectTest : public GlicFreControllerUiTestBase,
 
     fre_url_ = fre_server_.GetURL(
         base::StrCat({"/server-redirect-302?", admin_url.spec()}));
+    SetGlicFreUrlOverride(fre_url_);
 
     destination_url_ =
         fre_server_.GetURL("/echo").ReplaceComponents(replacements);
@@ -552,7 +567,7 @@ IN_PROC_BROWSER_TEST_F(GlicFreControllerUiTimeoutTest,
       InstrumentNonTabWebView(test::kGlicFreHostElementId,
                               GlicFreDialogView::kWebViewElementIdForTesting),
       InAnyContext(WaitForElementVisible(test::kGlicFreHostElementId,
-                                         {"#errorPanel:not([hidden])"})));
+                                         {"#freErrorPanel:not([hidden])"})));
 }
 
 // TODO(crbug.com/427261741#comment11) Test is flaky on all platforms.
@@ -666,12 +681,12 @@ IN_PROC_BROWSER_TEST_P(GlicFreControllerRedirectTest, AccessDeniedAdmin) {
                               GlicFreDialogView::kWebViewElementIdForTesting),
       InAnyContext(
           WaitForElementVisible(test::kGlicFreHostElementId,
-                                {"#disabledByAdminPanel:not([hidden])"})),
+                                {"#freDisabledByAdminPanel:not([hidden])"})),
       CheckTabCount(1),
-      InAnyContext(WaitForElementVisible(test::kGlicFreHostElementId,
-                                         {"#disabledByAdminPanel .notice a"})),
+      InAnyContext(WaitForElementVisible(
+          test::kGlicFreHostElementId, {"#freDisabledByAdminPanel .notice a"})),
       InAnyContext(ClickElement(test::kGlicFreHostElementId,
-                                {"#disabledByAdminPanel .notice a"})),
+                                {"#freDisabledByAdminPanel .notice a"})),
       InAnyContext(Do([&]() {
         EXPECT_EQ(user_action_tester().GetActionCount(
                       "Glic.Fre.DisabledByAdminPanelLinkClicked"),

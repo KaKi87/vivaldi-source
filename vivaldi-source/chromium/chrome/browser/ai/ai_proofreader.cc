@@ -14,8 +14,7 @@
 
 AIProofreader::AIProofreader(
     AIContextBoundObjectSet& context_bound_object_set,
-    std::unique_ptr<optimization_guide::OptimizationGuideModelExecutor::Session>
-        session,
+    std::unique_ptr<optimization_guide::OnDeviceSession> session,
     blink::mojom::AIProofreaderCreateOptionsPtr options,
     mojo::PendingReceiver<blink::mojom::AIProofreader> receiver)
     : AIContextBoundObject(context_bound_object_set),
@@ -63,6 +62,12 @@ void AIProofreader::GetCorrectionType(
         pending_responder) {
   StartExecution(input, corrected_input, correction_instruction,
                  std::move(pending_responder));
+}
+
+void AIProofreader::SetPriority(on_device_model::mojom::Priority priority) {
+  if (session_) {
+    session_->SetPriority(priority);
+  }
 }
 
 void AIProofreader::StartExecution(

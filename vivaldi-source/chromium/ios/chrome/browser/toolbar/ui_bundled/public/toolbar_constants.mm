@@ -50,13 +50,7 @@ const CGFloat kToolbarOmniboxHeight = 50;
 // Remember to update ToolbarExpandedHeight if kPrimaryToolbarWithOmniboxHeight
 // is updated.
 const CGFloat kPrimaryToolbarWithOmniboxHeight = kToolbarOmniboxHeight;
-
-#if defined(VIVALDI_BUILD)
-const CGFloat kSecondaryToolbarWithoutOmniboxHeight = kToolbarOmniboxHeight;
-#else
 const CGFloat kSecondaryToolbarWithoutOmniboxHeight = 44;
-#endif // End Vivaldi
-
 const CGFloat kNonDynamicToolbarHeight = 14;
 const CGFloat kToolbarHeightFullscreen = 20;
 const CGFloat kNonDynamicToolbarHeightFullscreen = 3;
@@ -69,8 +63,6 @@ NSString* const kToolbarShareButtonIdentifier =
     @"kToolbarShareButtonIdentifier";
 NSString* const kToolbarNewTabButtonIdentifier =
     @"kToolbarNewTabButtonIdentifier";
-NSString* const kToolbarCancelOmniboxEditButtonIdentifier =
-    @"kToolbarCancelOmniboxEditButtonIdentifier";
 
 const NSInteger kTabGridButtonFontSize = 13;
 

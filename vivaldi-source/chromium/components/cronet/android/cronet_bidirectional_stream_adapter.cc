@@ -67,7 +67,7 @@ size_t SafeGetArrayLength(JNIEnv* env, JavaArrayType jarray) {
 }  // namespace
 
 CronetMetrics::CronetMetrics() = default;
-CronetMetrics::CronetMetrics(CronetMetrics& metrics) = default;
+CronetMetrics::CronetMetrics(const CronetMetrics& metrics) = default;
 CronetMetrics::~CronetMetrics() = default;
 
 PendingWriteData::PendingWriteData(
@@ -532,3 +532,6 @@ std::optional<CronetMetrics> CronetBidirectionalStreamAdapter::GetMetrics() {
 }
 
 }  // namespace cronet
+
+DEFINE_JNI(CronetBidirectionalStream)
+DEFINE_JNI(CronetMetrics)

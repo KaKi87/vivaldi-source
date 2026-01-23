@@ -14,6 +14,8 @@ import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndr
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 
+import java.util.List;
+
 /** A basic {@link WebContentsDelegateAndroid} that proxies methods into Tab. */
 @NullMarked
 public abstract class TabWebContentsDelegateAndroid extends WebContentsDelegateAndroid
@@ -156,6 +158,19 @@ public abstract class TabWebContentsDelegateAndroid extends WebContentsDelegateA
     }
 
     protected boolean openInAppOrChromeFromCct(GURL gurl) {
+        return false;
+    }
+
+    /** Called when WebContents reports a change to the non-draggable regions in header content. */
+    protected void nonDraggableRegionsChanged(List<Rect> regions) {}
+
+    /**
+     * Called when WebContents is about to handle a keyboard event.
+     *
+     * @param nativeKeyEvent The native key event.
+     * @return true if the event was handled.
+     */
+    protected boolean preHandleKeyboardEvent(long nativeKeyEvent) {
         return false;
     }
 }

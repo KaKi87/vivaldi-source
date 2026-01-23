@@ -8,7 +8,6 @@ desc: |-
 default: false
 example_value: false
 features:
-  can_be_recommended: false ,
   dynamic_refresh: true
   per_profile: false
 future_on:

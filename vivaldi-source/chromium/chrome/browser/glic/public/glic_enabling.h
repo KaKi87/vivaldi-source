@@ -96,6 +96,38 @@ class GlicEnabling : public signin::IdentityManager::Observer {
   // * The profile has completed the first run experience
   static bool ShouldShowSettingsPage(Profile* profile);
 
+  // Whether the FRE screen is displayed in the same window as the chat app.
+  static bool IsUnifiedFreEnabled(Profile* profile);
+
+  // Whether the required feature flags for multi-instance - kGlicMultiInstance,
+  // kGlicMultiTab, and kGlicMultitabUnderlines - are enabled. When calling, be
+  // sure that IsMultiInstanceEnabled() should not be used instead.
+  static bool IsMultiInstanceEnabledByFlags();
+
+  // Returns true if glic is enabled for the profile, the feature is enabled,
+  // and the account is non-enterprise (or for glic dev).
+  static bool IsShareImageEnabledForProfile(Profile* profile);
+
+  // Whether the required feature flags for multi-instance are enabled, or
+  // multi-instance should be enabled due to subscription tier. This serves as
+  // the default enablement check for the multi-instance feature and should be
+  // used in most cases.
+  static bool IsMultiInstanceEnabled();
+
+  // Whether the result of
+  // `GetAndUpdateEligibilityForGlicMultiInstanceTieredRollout` was true the
+  // first time this function was called during the current run of Chrome.
+  static bool IsEligibleForGlicMultiInstanceTieredRolloutThisRun();
+
+  // Whether any loaded profile is, or has ever been, of a subscription tier
+  // that should enable multi-instance. `additional_profile` may be provided by
+  // the caller in case it has not been fully loaded.
+  // NOTE: new usages of this API should be extremely limited. Checking the
+  // feature enablement of multi-instance should go through
+  // IsMultiInstanceEnabled() instead. Please contact @cuianthony before using.
+  static bool GetAndUpdateEligibilityForGlicMultiInstanceTieredRollout(
+      Profile* additional_profile);
+
   struct ProfileEnablement {
     // These conditions are checked first and may prevent following checks from
     // occurring.
@@ -205,6 +237,10 @@ class GlicEnabling : public signin::IdentityManager::Observer {
   base::CallbackListSubscription RegisterOnShowSettingsPageChanged(
       ShowSettingsPageChangedCallback callback);
 
+  using ProfileReadyStateChangedCallback = base::RepeatingClosure;
+  base::CallbackListSubscription RegisterProfileReadyStateChanged(
+      ProfileReadyStateChangedCallback callback);
+
  private:
   void OnGlicSettingsPolicyChanged();
 
@@ -242,6 +278,10 @@ class GlicEnabling : public signin::IdentityManager::Observer {
       base::RepeatingCallbackList<void()>;
   OnShowSettingsPageChangeCallbackList
       show_settings_page_changed_callback_list_;
+  using ProfileReadyStateChangedCallbackList =
+      base::RepeatingCallbackList<void()>;
+  ProfileReadyStateChangedCallbackList
+      profile_ready_state_changed_callback_list_;
   PrefChangeRegistrar pref_registrar_;
   std::unique_ptr<GlicUserStatusFetcher> glic_user_status_fetcher_;
   base::ScopedObservation<signin::IdentityManager,

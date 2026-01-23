@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Масштаб для <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi повільний, падає або нагріває пристрій</translation>
 <translation id="1929299157575856072">ТИПОВИЙ РІВЕНЬ БЛОКУВАННЯ</translation>
+<translation id="1933618400514506228">Сербохорватська (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Відкрити зображення у фоновій вкладці</translation>
 <translation id="1986733655397734221">Нічого з наведеного</translation>
 <translation id="1994506778397655062">Відкрити в новій фоновій вкладці</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">Мені не потрібні закладки або Експрес-панелі за промовчанням</translation>
 <translation id="3091563570137981919">Блокування стеження та реклами</translation>
 <translation id="3097968995088564986">Показати кнопку Додати</translation>
-<translation id="3102790820790869053">Шукати нещодавні вкладки</translation>
 <translation id="3134385238404760368">Немає недавніх вкладок</translation>
 <translation id="3142562627629111859">Нова група</translation>
 <translation id="3157931365184549694">Відновити</translation>
@@ -310,7 +310,6 @@
 <translation id="462860218383788109">За датою змінення</translation>
 <translation id="4640946580087069269">У нотатки</translation>
 <translation id="4643117005422448078">Топ сайтів</translation>
-<translation id="4654428449690716275">Не показувати банери до або після того, як буде запропоновано переклади</translation>
 <translation id="4654578955713250802">Блокувати трекери та рекламу</translation>
 <translation id="4655510151391078468">Код не збігається з надісланим вам.
          У вас залишилось  <ph name="ATTEMPTS" /> спроб.</translation>
@@ -663,6 +662,7 @@
 <translation id="8948792607467387336">Вибрати як шпалери</translation>
 <translation id="8964449607824577665">Без вашого поточного пароля шифрування ми не можемо розшифрувати ваші дані. Для скидання цього пароля потрібно видалити всі наявні дані синхронізації на серверах Vivaldi.</translation>
 <translation id="8965371804397726192">Почати синхронізацію всього</translation>
+<translation id="896787570003733070">Не показувати банери до або після того, як запропоновано переклад</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Закладку переміщено в "{title}"}
           other {Закладок переміщено в "{title}"}}</translation>

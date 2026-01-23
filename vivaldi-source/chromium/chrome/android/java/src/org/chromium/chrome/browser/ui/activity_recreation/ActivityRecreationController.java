@@ -22,6 +22,7 @@ import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserv
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.omnibox.OmniboxFocusReason;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
+import org.chromium.chrome.browser.ui.ExclusiveAccessManager;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 
 // Vivaldi
@@ -35,12 +36,12 @@ import org.chromium.chrome.browser.ChromeApplicationImpl;
 @NullMarked
 public class ActivityRecreationController {
     static final String ACTIVITY_RECREATION_UI_STATE = "activity_recreation_ui_state";
-
     private final OneshotSupplier<ToolbarManager> mToolbarManagerSupplier;
     private final ObservableSupplier<LayoutManager> mLayoutManagerSupplier;
     private final ActivityTabProvider mActivityTabProvider;
     private final Handler mLayoutStateHandler;
     private @Nullable ActivityRecreationUiState mRetainedUiState;
+    private @Nullable final ExclusiveAccessManager mExclusiveAccessManager;
 
     /** Vivaldi **/
     private final @Nullable OneshotSupplierImpl<PanelManager> mPanelManagerOneshotSupplier;
@@ -55,16 +56,19 @@ public class ActivityRecreationController {
      * @param layoutManagerSupplier The {@link LayoutManager} instance supplier.
      * @param activityTabProvider The current activity tab provider.
      * @param layoutStateHandler The {@link Handler} to post UI state restoration.
+     * @param exclusiveAccessManager The {@link ExclusiveAccessManager} instance.
      */
     public ActivityRecreationController(
             OneshotSupplierImpl<ToolbarManager> toolbarManagerSupplier,
             ObservableSupplier<LayoutManager> layoutManagerSupplier,
             ActivityTabProvider activityTabProvider,
-            Handler layoutStateHandler) {
+            Handler layoutStateHandler,
+            @Nullable ExclusiveAccessManager exclusiveAccessManager) {
         mToolbarManagerSupplier = toolbarManagerSupplier;
         mLayoutManagerSupplier = layoutManagerSupplier;
         mActivityTabProvider = activityTabProvider;
         mLayoutStateHandler = layoutStateHandler;
+        mExclusiveAccessManager = exclusiveAccessManager;
         mPanelManagerOneshotSupplier = null; // Vivaldi
     }
 
@@ -73,11 +77,13 @@ public class ActivityRecreationController {
             ObservableSupplier<LayoutManager> layoutManagerSupplier,
             ActivityTabProvider activityTabProvider,
             OneshotSupplierImpl<PanelManager> panelManagerOneshotSupplier,
-            Handler layoutStateHandler) {
+            Handler layoutStateHandler,
+            @Nullable ExclusiveAccessManager exclusiveAccessManager) {
         mToolbarManagerSupplier = toolbarManagerSupplier;
         mLayoutManagerSupplier = layoutManagerSupplier;
         mActivityTabProvider = activityTabProvider;
         mLayoutStateHandler = layoutStateHandler;
+        mExclusiveAccessManager = exclusiveAccessManager;
         mPanelManagerOneshotSupplier = panelManagerOneshotSupplier;
     }
 
@@ -104,6 +110,11 @@ public class ActivityRecreationController {
             if (layoutManager.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
                 mRetainedUiState.mIsTabSwitcherShown = true;
             }
+        }
+
+        if (mExclusiveAccessManager != null) {
+            mRetainedUiState.mIsPointerLocked = mExclusiveAccessManager.isPointerLocked();
+            mRetainedUiState.mIsKeyboardLocked = mExclusiveAccessManager.isKeyboardLocked();
         }
     }
 
@@ -156,6 +167,7 @@ public class ActivityRecreationController {
                 mLayoutStateHandler);
         restoreKeyboardState(uiState, mActivityTabProvider, layoutManager, mLayoutStateHandler);
         restoreTabSwitcherState(uiState, layoutManager);
+        restoreExclusiveAccessState(uiState, mExclusiveAccessManager, mActivityTabProvider);
 
         if (ChromeApplicationImpl.isVivaldi()) {
             assumeNonNull(mPanelManagerOneshotSupplier);
@@ -283,6 +295,35 @@ public class ActivityRecreationController {
             return;
         }
         layoutManager.showLayout(LayoutType.TAB_SWITCHER, false);
+    }
+
+    private static void restoreExclusiveAccessState(
+            ActivityRecreationUiState uiState,
+            @Nullable ExclusiveAccessManager exclusiveAccessManager,
+            ActivityTabProvider activityTabProvider) {
+        // Due to renderer synchronization issues the full screen state is recreated during tab
+        // restoration. UI state restoration is done after active tab restoration and as such
+        // renderer will receive the window state update before this restore is done.
+        if (exclusiveAccessManager == null) {
+            return;
+        }
+        var tab = activityTabProvider.get();
+        if (tab == null) {
+            return;
+        }
+        var webContents = tab.getWebContents();
+        if (webContents == null) {
+            return;
+        }
+        if (!uiState.mIsPointerLocked && !uiState.mIsKeyboardLocked) {
+            return;
+        }
+        if (uiState.mIsPointerLocked) {
+            exclusiveAccessManager.requestPointerLock(webContents, true, true);
+        }
+        if (uiState.mIsKeyboardLocked) {
+            exclusiveAccessManager.requestKeyboardLock(webContents, false);
+        }
     }
 
     private static void setUrlBarFocusAndText(

@@ -52,13 +52,6 @@
 #include "chrome/installer/util/work_item.h"
 #include "chrome/installer/util/work_item_list.h"
 
-#include "app/vivaldi_constants.h"
-#include "base/win/registry.h"
-#include "base/win/win_util.h"
-
-#include "installer/util/vivaldi_setup_util.h"
-#include "installer/vivaldi_install_modes.h"
-
 namespace installer {
 
 namespace {
@@ -246,12 +239,6 @@ InstallStatus InstallNewVersion(const InstallParams& install_params,
     return OLD_VERSION_DOWNGRADE;
   }
 
-  // if standalone install we treat this as a first install
-  if (vivaldi::IsInstallStandalone()) {
-    VLOG(1) << "Standalone install of version " << new_version.GetString();
-    return installer::FIRST_INSTALL_SUCCESS;
-  }
-
   LOG(ERROR) << "Not sure how we got here while updating"
              << ", new version: " << new_version
              << ", old version: " << current_version;
@@ -272,8 +259,7 @@ std::string GenerateVisualElementsManifest(const base::Version& version) {
       "      Square70x70Logo='%s\\SmallLogo%s.png'\r\n"
       "      Square44x44Logo='%s\\SmallLogo%s.png'\r\n"
       "      ForegroundText='light'\r\n"
-      "      BackgroundColor='" VIVALDI_RELEASE_BACKGROUND_COLOR
-      "'/>\r\n"
+      "      BackgroundColor='#5F6368'/>\r\n"
       "</Application>\r\n";
 
   // Construct the relative path to the versioned VisualElements directory.
@@ -391,14 +377,6 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
                              InstallShortcutLevel install_level,
                              InstallShortcutOperation install_operation) {
   bool do_not_create_any_shortcuts = false;
-
-  const base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
-  bool is_vivaldi_standalone =
-      command_line.HasSwitch(vivaldi::constants::kVivaldiStandalone);
-  if (is_vivaldi_standalone)
-    return;
-
   prefs.GetBool(initial_preferences::kDoNotCreateAnyShortcuts,
                 &do_not_create_any_shortcuts);
   if (do_not_create_any_shortcuts)
@@ -447,10 +425,6 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
   ShellUtil::ShortcutProperties base_properties(shortcut_level);
   ShellUtil::AddDefaultShortcutProperties(target, &base_properties);
 
-  std::wstring app_name =
-      ShellUtil::GetBrowserModelId(InstallUtil::IsPerUserInstall());
-  base_properties.set_app_id(app_name);
-
   if (!do_not_create_desktop_shortcut ||
       shortcut_operation == ShellUtil::SHELL_SHORTCUT_REPLACE_EXISTING) {
     ExecuteAndLogShortcutOperation(ShellUtil::SHORTCUT_LOCATION_DESKTOP,
@@ -474,16 +448,10 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
     start_menu_properties.set_pin_to_taskbar(!do_not_create_taskbar_shortcut);
   }
 
-  // We need to update the toast activator id with the one used in Vivaldi
-  // internally based on target exe. Note this is crucial for native
-  //notifications to work. See
-  //|InstallUtil::IsStartMenuShortcutWithActivatorGuidInstalled()|
-  const CLSID toast_activator_clsid =
-      vivaldi::GetOrGenerateToastActivatorCLSID(&target);
-
-  if (toast_activator_clsid != CLSID_NULL) {
+  const CLSID toast_activator_clsid = install_static::GetToastActivatorClsid();
+  if (toast_activator_clsid != CLSID_NULL)
     start_menu_properties.set_toast_activator_clsid(toast_activator_clsid);
-  }
+
   // The attempt below to update the stortcut will fail if it does not already
   // exist at the expected location on disk.  First check if it exists in the
   // previous location (under a subdirectory) and, if so, move it to the new
@@ -504,17 +472,9 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
                                  start_menu_properties, shortcut_operation);
 }
 
-// Registers Chrome on this machine.
-// If |make_chrome_default|, also attempts to make Chrome default where doing so
-// requires no more user interaction than a UAC prompt. In practice, this means
-// on versions of Windows prior to Windows 8.
-// |version| the current version of this install.
+// Registers Chrome on the system.
 void RegisterChromeOnMachine(const InstallerState& installer_state,
-                             bool make_chrome_default,
                              const base::Version& version) {
-  if (!vivaldi::PrepareRegistration(installer_state))
-    return;
-
   // Try to add Chrome to Media Player shim inclusion list. We don't do any
   // error checking here because this operation will fail if user doesn't
   // have admin rights and we want to ignore the error.
@@ -525,20 +485,11 @@ void RegisterChromeOnMachine(const InstallerState& installer_state,
   if (installer_state.system_install())
     RegisterEventLogProvider(installer_state.target_path(), version);
 
-  // Make Chrome the default browser if desired when possible. Otherwise, only
-  // register it with Windows.
+  // Register Chrome as a browser with Windows.
   const base::FilePath chrome_exe(
       installer_state.target_path().Append(kChromeExe));
   VLOG(1) << "Registering Chrome as browser: " << chrome_exe.value();
-  if (make_chrome_default && install_static::SupportsSetAsDefaultBrowser() &&
-      ShellUtil::CanMakeChromeDefaultUnattended()) {
-    int level = ShellUtil::CURRENT_USER;
-    if (installer_state.system_install())
-      level = level | ShellUtil::SYSTEM_LEVEL;
-    ShellUtil::MakeChromeDefault(level, chrome_exe, true);
-  } else {
-    ShellUtil::RegisterChromeBrowserBestEffort(chrome_exe);
-  }
+  ShellUtil::RegisterChromeBrowserBestEffort(chrome_exe);
 }
 
 // Run a child process that will create/update a shortcut for an
@@ -645,30 +596,12 @@ InstallStatus InstallOrUpdateProduct(const InstallParams& install_params,
                           : std::nullopt,
         install_level, install_operation);
 
-    // Register Chrome and, if requested, make Chrome the default browser.
+    // Register Chrome on the system.
     installer_state.SetStage(REGISTERING_CHROME);
 
-    bool make_chrome_default = false;
-    prefs.GetBool(initial_preferences::kMakeChromeDefault,
-                  &make_chrome_default);
+    RegisterChromeOnMachine(installer_state, new_version);
 
-    // If this is not the user's first Chrome install, but they have chosen
-    // Chrome to become their default browser on the download page, we must
-    // force it here because the initial preferences file will not get copied
-    // into the build.
-    bool force_chrome_default_for_user = false;
-    if (result == NEW_VERSION_UPDATED || result == INSTALL_REPAIRED ||
-        result == OLD_VERSION_DOWNGRADE || result == IN_USE_DOWNGRADE) {
-      prefs.GetBool(initial_preferences::kMakeChromeDefaultForUser,
-                    &force_chrome_default_for_user);
-    }
-
-    RegisterChromeOnMachine(
-        installer_state, make_chrome_default || force_chrome_default_for_user,
-        new_version);
-
-    if (!installer_state.system_install() &&
-        !vivaldi::IsInstallStandalone()) {
+    if (!installer_state.system_install()) {
       UpdateDefaultBrowserBeaconForPath(
           installer_state.target_path().Append(kChromeExe));
     }
@@ -733,7 +666,7 @@ void HandleOsUpgradeForBrowser(const InstallerState& installer_state,
       INSTALL_SHORTCUT_REPLACE_EXISTING);
 
   // Adapt Chrome registrations to this new OS.
-  RegisterChromeOnMachine(installer_state, false, installed_version);
+  RegisterChromeOnMachine(installer_state, installed_version);
 
   // Active Setup registrations are sometimes lost across OS update, make sure
   // they're back in place. Note: when Active Setup registrations in HKLM are

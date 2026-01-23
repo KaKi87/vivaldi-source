@@ -21,8 +21,6 @@
 #import "ios/chrome/browser/drag_and_drop/model/drag_item_util.h"
 #import "ios/chrome/browser/drag_and_drop/model/table_view_url_drag_drop_handler.h"
 #import "ios/chrome/browser/history/ui_bundled/base_history_view_controller+subclassing.h"
-#import "ios/chrome/browser/history/ui_bundled/history_entries_status_item.h"
-#import "ios/chrome/browser/history/ui_bundled/history_entries_status_item_delegate.h"
 #import "ios/chrome/browser/history/ui_bundled/history_entry_inserter.h"
 #import "ios/chrome/browser/history/ui_bundled/history_entry_item.h"
 #import "ios/chrome/browser/history/ui_bundled/history_menu_provider.h"
@@ -34,7 +32,6 @@
 #import "ios/chrome/browser/metrics/model/new_tab_page_uma.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
-#import "ios/chrome/browser/settings/ui_bundled/clear_browsing_data/features.h"
 #import "ios/chrome/browser/shared/coordinator/alert/action_sheet_coordinator.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -109,7 +106,6 @@ static const base::TimeDelta kDelayUntilReadyToRemoveLoadingIndicatorsMs =
 }  // namespace
 
 @interface BaseHistoryViewController () <
-    HistoryEntriesStatusItemDelegate,
     HistoryEntryInserterDelegate,
     TableViewLinkHeaderFooterItemDelegate> {
   // Closure to request next page of history.
@@ -400,14 +396,6 @@ static const base::TimeDelta kDelayUntilReadyToRemoveLoadingIndicatorsMs =
   [self showHistoryMatchingQuery:_currentQuery];
 }
 
-#pragma mark - HistoryEntriesStatusItemDelegate
-
-- (void)historyEntriesStatusItem:(HistoryEntriesStatusItem*)item
-               didRequestOpenURL:(const GURL&)URL {
-  // TODO(crbug.com/41366648): Migrate. This will navigate to the status message
-  // "Show Full History" URL.
-}
-
 #pragma mark - HistoryEntryInserterDelegate
 
 - (void)historyEntryInserter:(HistoryEntryInserter*)inserter
@@ -611,27 +599,27 @@ static const base::TimeDelta kDelayUntilReadyToRemoveLoadingIndicatorsMs =
 
 - (UITableViewCell*)tableView:(UITableView*)tableView
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cellToReturn = [super tableView:tableView
-                             cellForRowAtIndexPath:indexPath];
   TableViewItem* item = [self.tableViewModel itemAtIndexPath:indexPath];
-  cellToReturn.userInteractionEnabled = !(item.type == kItemTypeEntriesStatus);
   if (item.type == kItemTypeHistoryEntry) {
     HistoryEntryItem* URLItem =
         base::apple::ObjCCastStrict<HistoryEntryItem>(item);
-    TableViewURLCell* URLCell =
-        base::apple::ObjCCastStrict<TableViewURLCell>(cellToReturn);
-    CrURL* crurl = [[CrURL alloc] initWithGURL:URLItem.URL];
-    [self.imageDataSource
-        faviconForPageURL:crurl
-               completion:^(FaviconAttributes* attributes) {
-                 // Only set favicon if the cell hasn't been reused.
-                 if ([URLCell.cellUniqueIdentifier
-                         isEqualToString:URLItem.uniqueIdentifier]) {
-                   DCHECK(attributes);
-                   [URLCell.faviconView configureWithAttributes:attributes];
-                 }
-               }];
+    if (!URLItem.faviconAttributes) {
+      CrURL* crurl = [[CrURL alloc] initWithGURL:URLItem.URL];
+      [self.imageDataSource
+          faviconForPageURL:crurl
+                 completion:^(FaviconAttributes* attributes, bool cached) {
+                   URLItem.faviconAttributes = attributes;
+                   if (!cached && attributes.faviconImage) {
+                     [tableView reconfigureRowsAtIndexPaths:@[ indexPath ]];
+                   }
+                 }];
+    }
   }
+
+  UITableViewCell* cellToReturn = [super tableView:tableView
+                             cellForRowAtIndexPath:indexPath];
+  cellToReturn.userInteractionEnabled = !(item.type == kItemTypeEntriesStatus);
+
   return cellToReturn;
 }
 

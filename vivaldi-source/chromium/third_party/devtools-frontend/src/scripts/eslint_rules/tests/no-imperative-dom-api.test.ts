@@ -563,6 +563,73 @@ class SomeWidget extends UI.Widget.Widget {
 class SomeWidget extends UI.Widget.Widget {
   constructor() {
     super();
+    const toolbar = this.contentElement.createChild('devtools-toolbar');
+    this.action = UI.ActionRegistry.ActionRegistry.instance().getAction('some-action');
+    this.actionButton = UI.Toolbar.Toolbar.createActionButton(this.action);
+    toolbar.appendToolbarItem(this.actionButton);
+    toolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton('other-action'));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-toolbar>
+        <devtools-button \${bindToAction('some-action')}></devtools-button>
+        <devtools-button \${bindToAction('other-action')}></devtools-button>
+      </devtools-toolbar>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.action = UI.ActionRegistry.ActionRegistry.instance().getAction('some-action');
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    const toolbar = this.contentElement.createChild('devtools-toolbar');
+    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarComboBox(
+       this.someToolbarComboBoxClicked.bind(this), 'Combox',
+       'the-toolbar-combox', 'some-toolbar-combox'));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-toolbar>
+        <select class="the-toolbar-combox" title="Combox" aria-label="Combox"
+            jslog=\${VisualLogging.dropDown('some-toolbar-combox').track({change: true})}
+            @change=\${this.someToolbarComboBoxClicked.bind(this)}></select>
+      </devtools-toolbar>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
     const select = document.createElement('select');
     select.add(UI.UIUtils.createOption('Option 1', '1', 'option-1'));
     this.contentElement.appendChild(UI.UIUtils.createLabel('Some label:', 'some-label', select));
@@ -662,9 +729,12 @@ class SomeWidget extends UI.Widget.Widget {
 class SomeWidget extends UI.Widget.Widget {
   constructor() {
     super();
-    const icon = new IconButton.Icon.Icon();
-    icon.data = {iconName: 'checkmark', color: 'var(--icon-checkmark-green)', width: '14px', height: '14px'};
+    const icon = createIcon('checkmark');
+    icon.data = {color: 'var(--icon-checkmark-green)', width: '14px', height: '14px'};
     this.contentElement.appendChild(icon);
+    const icon2 = new Icon();
+    icon2.name = 'cross-circle-filled';
+    this.contentElement.appendChild(icon2);
   }
 }`,
       output: `
@@ -674,6 +744,7 @@ export const DEFAULT_VIEW = (input, _output, target) => {
     <div>
       <devtools-icon name="checkmark"
           style="color:var(--icon-checkmark-green); width:14px; height:14px"></devtools-icon>
+      <devtools-icon name="cross-circle-filled"></devtools-icon>
     </div>\`,
     target, {host: input});
 };
@@ -723,6 +794,40 @@ export const DEFAULT_VIEW = (input, _output, target) => {
             \${bindToSetting(this.someSetting)}>\${i18nString(UIStrings.alternateToolbarTitle)}</devtools-checkbox>
         <devtools-checkbox \${bindToSetting(this.someOtherSetting)}>\${this.someOtherSetting.title()}</devtools-checkbox>
       </devtools-toolbar>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.contentElement.appendChild(UI.UIUtils.createIconLabel({
+        iconName: 'checkmark',
+        color: 'var(--icon-checkmark-green)',
+        width: '14px',
+        height: '14px',
+        title: 'some-title',
+    }));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-icon name="checkmark"
+          style="color:var(--icon-checkmark-green); width:14px; height:14px"></devtools-icon>
+      <span>some-title</span>
     </div>\`,
     target, {host: input});
 };
@@ -1222,6 +1327,212 @@ export const DEFAULT_VIEW = (input, _output, target) => {
       <devtools-widget .widgetConfig=\${widgetConfig(UI.EmptyWidget.EmptyWidget,{
           header: i18nString(UIStrings.nothingToSeeHere), text: this.explanation,
           link: 'http://www.google.com',})}></devtools-widget>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    const toolbar = this.contentElement.createChild('devtools-toolbar');
+    toolbar.wrappable = true;
+    toolbar.appendSeparator();
+    const combo = new UI.Toolbar.ToolbarComboBox(this.onSelect.bind(this), 'aria-label', undefined, 'combo-box');
+    combo.createOption('Option 1', '1', 'option-1');
+    const option2 = document.createElement('option');
+    option2.value = '2';
+    option2.textContent = 'Option 2';
+    combo.addOption(option2);
+    toolbar.appendToolbarItem(combo);
+    toolbar.appendSpacer();
+    const button = new UI.Toolbar.ToolbarButton('Click me', 'largeicon-add');
+    button.setEnabled(false);
+    toolbar.appendToolbarItem(button);
+    const otherButton = new UI.Toolbar.ToolbarButton('Other button', 'largeicon-delete');
+    otherButton.setEnabled(this.isEnabled);
+    toolbar.appendToolbarItem(otherButton);
+    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator());
+    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator(false));
+    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator(true));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-toolbar wrappable>
+        <div class="toolbar-divider"></div>
+        <select title="aria-label" aria-label="aria-label"
+            jslog=\${VisualLogging.dropDown('combo-box').track({change: true})}
+            @change=\${this.onSelect.bind(this)}>
+          <option value="1" jslog=\${VisualLogging.item('option-1').track({click: true})}>Option 1</option>
+          <option value="2">Option 2</option>
+        </select>
+        <div class="toolbar-spacer"></div>
+        <devtools-button title="Click me" .variant=\${Buttons.Button.Variant.TOOLBAR}
+            .iconName=\${'largeicon-add'}></devtools-button>
+        <devtools-button title="Other button" ?disabled=\${this.isEnabled}
+            .variant=\${Buttons.Button.Variant.TOOLBAR} .iconName=\${'largeicon-delete'}></devtools-button>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-spacer"></div>
+      </devtools-toolbar>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.reportView = new UI.ReportView.ReportView();
+    this.reportView.show(this.contentElement);
+    this.section = this.reportView.appendSection('Some Section');
+    this.section.appendRow().appendChild(document.createTextNode('some message'));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-report>
+        <devtools-report-section-header>Some Section</devtools-report-section-header>
+        <devtools-report-section>
+          some message
+        </devtools-report-section>
+      </devtools-report>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.reportView = new UI.ReportView.ReportView('Some report');
+    this.reportView.show(this.contentElement);
+    const section1 = this.reportView.appendSection('Some Section', 'section-class', 'section-context');
+    section1.appendField('Field 1', 'Value 1');
+    section1.appendFlexedField('Field 2').appendChild(document.createTextNode('Value 2'));
+    section1.setTitle('New Section Title');
+    section1.appendRow().textContent = 'some content';
+
+    const section2 = this.reportView.appendSection('Another Section');
+    section2.appendSelectableRow().textContent = 'selectable content';
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-report .data=\${{title: 'Some report'}}>
+        <devtools-report-section-header class="section-class"
+            jslog=\${VisualLogging.section('section-context')}>New Section Title</devtools-report-section-header>
+        <devtools-report-key>Field 1</devtools-report-key>
+        <devtools-report-value>Value 1</devtools-report-value>
+        <devtools-report-key>Field 2</devtools-report-key>
+        <devtools-report-value class="report-field-value-is-flexed">
+          Value 2
+        </devtools-report-value>
+        <devtools-report-section>some content</devtools-report-section>
+        <devtools-report-divider></devtools-report-divider>
+        <devtools-report-section-header>Another Section</devtools-report-section-header>
+        <devtools-report-section class="report-row-selectable">selectable content</devtools-report-section>
+      </devtools-report>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.contentElement.appendChild(
+        UI.XLink.XLink.create('https://google.com', 'Google', 'some-class', undefined, 'some-context', 0));
+    this.contentElement.appendChild(
+        UI.XLink.XLink.create('https://chromium.org', 'Chromium', undefined, undefined, undefined, 1));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-link class="some-class" href="https://google.com" .jslogContext=\${'some-context'}>Google</devtools-link>
+      <devtools-link href="https://chromium.org" tabindex="1">Chromium</devtools-link>
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    this.contentElement.appendChild(uiI18n.getFormatLocalizedString(locString, UIStrings.testString, {
+      PH1: document.createElement('div'),
+      PH2: 'some text',
+    }));
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      \${i18nTemplate(locString, UIStrings.testString, {
+        PH1: html\`
+        <div></div>\`,
+        PH2: 'some text',
+      })}
     </div>\`,
     target, {host: input});
 };

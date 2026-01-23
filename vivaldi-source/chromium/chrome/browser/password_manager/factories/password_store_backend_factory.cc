@@ -50,6 +50,7 @@ CreatePasswordStoreBackend(password_manager::IsAccountStore is_account_store,
   TRACE_EVENT0("passwords", is_account_store
                                 ? "AccountPasswordStoreBackendCreation"
                                 : "ProfilePasswordStoreBackendCreation");
+
 /*
 Note(david@vivaldi.com) In Android we use the generic |LoginDatabase|.
 #if BUILDFLAG(IS_ANDROID)

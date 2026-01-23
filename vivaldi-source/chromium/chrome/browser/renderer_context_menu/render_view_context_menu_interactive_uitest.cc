@@ -23,6 +23,7 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_browsertest_util.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/startup/startup_types.h"
 #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_delegate.h"
@@ -41,6 +42,7 @@
 #include "components/custom_handlers/protocol_handler_registry.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/privacy_sandbox_attestations.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/scoped_privacy_sandbox_attestations.h"
+#include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "content/public/browser/context_menu_params.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -68,9 +70,29 @@
 
 #if BUILDFLAG(ENABLE_GLIC)
 #include "chrome/browser/glic/host/glic_features.mojom.h"
+#include "chrome/browser/glic/host/guest_util.h"
 #include "chrome/browser/glic/test_support/interactive_glic_test.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
+#include "components/prefs/pref_service.h"
+
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+#include "base/base64.h"
+#include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"  // nogncheck
+#include "chrome/browser/enterprise/connectors/analysis/content_analysis_dialog_controller.h"  // nogncheck
+#include "chrome/browser/enterprise/connectors/test/deep_scanning_test_utils.h"  // nogncheck
+#include "chrome/browser/enterprise/connectors/test/fake_clipboard_request_handler.h"  // nogncheck
+#include "chrome/browser/enterprise/connectors/test/fake_content_analysis_delegate.h"  // nogncheck
+#include "chrome/browser/enterprise/data_controls/desktop_data_controls_dialog_test_helper.h"
+#include "chrome/browser/policy/dm_token_utils.h"
+#include "components/enterprise/connectors/core/cloud_content_scanning/common.h"  // nogncheck
+#include "components/enterprise/content/clipboard_restriction_service.h"  // nogncheck
+#include "components/enterprise/data_controls/core/browser/test_utils.h"
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+
 #endif  // BUILDFLAG(ENABLE_GLIC)
 
+using testing::_;
 using testing::AllOf;
 using testing::AnyOfArray;
 using testing::Contains;
@@ -80,10 +102,6 @@ using testing::Le;
 using testing::Not;
 
 namespace {
-
-#if BUILDFLAG(ENABLE_GLIC)
-constexpr char kDocumentWithImage[] = "/test_visual.html";
-#endif  // BUILDFLAG(ENABLE_GLIC)
 
 class ContextMenuUiTest : public InteractiveBrowserTest {
  public:
@@ -1160,12 +1178,6 @@ IN_PROC_BROWSER_TEST_F(ContextMenuFencedFrameTestNoTestingConfig,
 
 #if BUILDFLAG(ENABLE_GLIC)
 
-// TODO(b:448604727): State observation is currently unsupported with multi-
-// instance, so we will poll.
-DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(
-    ui::test::PollingStateObserver<glic::mojom::WebUiState>,
-    kPollingWebUiState);
-
 class GlicInteractiveContextMenuTest
     : public glic::test::InteractiveGlicTest,
       public ::testing::WithParamInterface<bool> {
@@ -1176,16 +1188,22 @@ class GlicInteractiveContextMenuTest
           /*enabled_features=*/{features::kGlic, features::kTabstripComboButton,
                                 features::kGlicShareImage,
                                 features::kGlicMultiInstance,
-                                glic::mojom::features::kGlicMultiTab},
+                                features::kGlicUnifiedFreScreen,
+                                glic::mojom::features::kGlicMultiTab,
+                                features::kGlicMultitabUnderlines},
           /*disabled_features=*/{features::kGlicWarming,
-                                 features::kGlicFreWarming});
+                                 features::kGlicFreWarming,
+                                 blink::features::kSvgFallBackToContainerSize});
     } else {
       scoped_feature_list_.InitWithFeatures(
           /*enabled_features=*/{features::kGlic, features::kTabstripComboButton,
                                 features::kGlicShareImage},
           /*disabled_features=*/{features::kGlicWarming,
-                                 features::kGlicFreWarming});
+                                 features::kGlicFreWarming,
+                                 blink::features::kSvgFallBackToContainerSize});
     }
+    // Ensure that we open the FRE.
+    glic_test_environment().SetFreStatusForNewProfiles(std::nullopt);
   }
   ~GlicInteractiveContextMenuTest() override = default;
 
@@ -1193,9 +1211,29 @@ class GlicInteractiveContextMenuTest
     glic::test::InteractiveGlicTest::SetUpOnMainThread();
     ASSERT_TRUE(embedded_https_test_server().Start());
     host_resolver()->AddRule("*", "127.0.0.1");
+    signin::IdentityManager* identity_manager =
+        IdentityManagerFactory::GetForProfile(browser()->profile());
+    signin::MakePrimaryAccountAvailable(identity_manager, "foo@google.com",
+                                        signin::ConsentLevel::kSignin);
+    signin::SetRefreshTokenForPrimaryAccount(identity_manager);
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    base::CommandLine::ForCurrentProcess()->AppendSwitch(::switches::kGlicDev);
   }
 
   bool UseMultiInstance() const { return GetParam(); }
+
+  auto PollForAndAcceptFre() {
+    return Steps(
+        PollUntil(
+            [this]() {
+              return glic_service()->fre_controller().GetWebUiState() ==
+                     glic::mojom::FreWebUiState::kReady;
+            },
+            "polling until the fre is ready"),
+        Do([this]() { glic_service()->fre_controller().AcceptFre(nullptr); }));
+  }
 
   auto PollForAndInstrumentGlic() {
     return Steps(
@@ -1207,16 +1245,18 @@ class GlicInteractiveContextMenuTest
                   InstrumentInnerWebContents(glic::test::kGlicContentsElementId,
                                              glic::test::kGlicHostElementId, 0),
                   WaitForWebContentsReady(glic::test::kGlicContentsElementId))),
-        PollState(
-            kPollingWebUiState,
-            [this]() -> glic::mojom::WebUiState {
+        // TODO(b:448604727): State observation is currently unsupported with
+        // multi- instance, so we will poll.
+        PollUntil(
+            [this]() {
               if (glic::GlicInstance* instance =
                       glic_service()->GetInstanceForActiveTab(browser())) {
-                return instance->host().GetPrimaryWebUiState();
+                return instance->host().GetPrimaryWebUiState() ==
+                       glic::mojom::WebUiState::kReady;
               }
-              return glic::mojom::WebUiState::kUnavailable;
-            }),
-        WaitForState(kPollingWebUiState, glic::mojom::WebUiState::kReady));
+              return false;
+            },
+            "polling until web client is ready"));
   }
 
   auto CheckHistograms() {
@@ -1230,39 +1270,470 @@ class GlicInteractiveContextMenuTest
     });
   }
 
+  auto CacheCurrentInstance() {
+    return Do([this]() {
+      if (glic::GlicInstance* instance =
+              glic_service()->GetInstanceForActiveTab(browser())) {
+        cached_instance_id_ = instance->id();
+      }
+    });
+  }
+
+  auto CheckCachedInstance() {
+    return Do([this]() {
+      glic::GlicInstance* instance =
+          glic_service()->GetInstanceForActiveTab(browser());
+      EXPECT_TRUE(instance->id().is_valid());
+      EXPECT_TRUE(cached_instance_id_.is_valid());
+      EXPECT_NE(instance->id(), cached_instance_id_);
+      cached_instance_id_ = base::Uuid();
+    });
+  }
+
+  auto PollUntilPainted() {
+    return PollUntil(
+        [this]() {
+          return browser()
+              ->GetActiveTabInterface()
+              ->GetContents()
+              ->CompletedFirstVisuallyNonEmptyPaint();
+        },
+        "polling until the active tab thinks that it has painted");
+  }
+
+  auto PollForNewGlicInstance() {
+    return PollUntil(
+        [this]() {
+          return cached_instance_id_.is_valid() &&
+                 cached_instance_id_ !=
+                     glic_service()->GetInstanceForActiveTab(browser())->id();
+        },
+        "polling we have a new glic instance");
+  }
+
+  auto WaitForAdditionalContext() {
+    return WaitForJsResult(
+        glic::test::kGlicContentsElementId,
+        "() => { "
+        "  let c = document.querySelector('#additionalContextResult');"
+        "  return !!c && c.children.length === 5 && "
+        "      c.children[1].innerText.startsWith('MIME Type: image/png') && "
+        "      c.children[4].innerText.startsWith("
+        "           'Tab Context: present');"
+        "}");
+  }
+
+  auto CheckToastIsShowing(ToastId toast_id) {
+    return PollUntil(
+        [this, toast_id]() {
+          auto* controller = browser()->GetFeatures().toast_controller();
+          return controller && controller->IsShowingToast() &&
+                 controller->GetCurrentToastId() == toast_id;
+        },
+        "polling until toast is showing");
+  }
+
+  auto WaitForShareResult(glic::ShareImageResult result) {
+    return PollUntil(
+        [this, result]() {
+          return histogram_tester_.GetBucketCount(
+                     "Glic.TabContext.ShareImageResult",
+                     static_cast<int>(result)) == 1;
+        },
+        "polling until result");
+  }
+
+ protected:
+  base::HistogramTester histogram_tester_;
+
+  static constexpr char kPageWithImage[] = "/test_visual.html";
+  static constexpr char kPageWithUnsupportedImage[] =
+      "/glic/page_with_simple_svg.html";
+
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
-  base::HistogramTester histogram_tester_;
+  glic::InstanceId cached_instance_id_;
 };
 
-IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest, GlicShareImage) {
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImage DISABLED_GlicShareImage
+#else
+#define MAYBE_GlicShareImage GlicShareImage
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest, MAYBE_GlicShareImage) {
   DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
 
-  const GURL url = embedded_test_server()->GetURL(kDocumentWithImage);
-  const DeepQuery kPathToImg{
-      "img",
-  };
+  const GURL url = embedded_test_server()->GetURL(kPageWithImage);
+  const DeepQuery kPathToImg{"img"};
   RunTestSequence(
-      InstrumentTab(kActiveTab), NavigateWebContents(kActiveTab, url),
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
       MoveMouseTo(kActiveTab, kPathToImg),
       MayInvolveNativeContextMenu(
           ClickMouse(ui_controls::RIGHT),
           SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
-      PollForAndInstrumentGlic(),
-      WaitForJsResult(
-          glic::test::kGlicContentsElementId,
-          "() => { "
-          "  let c = document.querySelector('#additionalContextResult');"
-          "  return !!c && c.children.length === 4 && "
-          "      c.children[1].innerText.startsWith('MIME Type: image/png');"
-          "}"),
-      CheckHistograms());
+      PollForAndAcceptFre(), PollForAndInstrumentGlic(),
+      WaitForAdditionalContext(), CheckHistograms());
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_CreateNewInstance DISABLED_CreateNewInstance
+#else
+#define MAYBE_CreateNewInstance CreateNewInstance
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest,
+                       MAYBE_CreateNewInstance) {
+  if (!UseMultiInstance()) {
+    GTEST_SKIP()
+        << " creating a new instance is only meaningful for multi-instance";
+  }
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+
+  const GURL url = embedded_test_server()->GetURL(kPageWithImage);
+  const DeepQuery kPathToImg{
+      "img",
+  };
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      ToggleGlicWindow(GlicWindowMode::kAttached), PollForAndAcceptFre(),
+      WaitForAndInstrumentGlic(kHostAndContents), CacheCurrentInstance(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForNewGlicInstance(), PollForAndInstrumentGlic(),
+      WaitForAdditionalContext(), CheckCachedInstance(), CheckHistograms());
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_CreateNewInstanceDetached DISABLED_CreateNewInstanceDetached
+#else
+#define MAYBE_CreateNewInstanceDetached CreateNewInstanceDetached
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest,
+                       MAYBE_CreateNewInstanceDetached) {
+  if (!UseMultiInstance()) {
+    GTEST_SKIP()
+        << " creating a new instance is only meaningful for multi-instance";
+  }
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+
+  const GURL url = embedded_test_server()->GetURL(kPageWithImage);
+  const DeepQuery kPathToImg{
+      "img",
+  };
+  // It appears that the detached window can set atop the image, interfering
+  // with the context menu. If we change the window bounds, this is avoided.
+  browser()->GetWindow()->SetBounds(gfx::Rect(0, 0, 1000, 1000));
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      ToggleGlicWindow(GlicWindowMode::kAttached), PollForAndAcceptFre(),
+      // In this case, we will close the detached panel and then open again in
+      // the side panel. This should still result in a new instance.
+      WaitForAndInstrumentGlic(kHostAndContents), Detach(),
+      CacheCurrentInstance(), MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForNewGlicInstance(), PollForAndInstrumentGlic(),
+      WaitForAdditionalContext(), CheckCachedInstance(), CheckHistograms());
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImageFailsOnNoImage DISABLED_GlicShareImageFailsOnNoImage
+#else
+#define MAYBE_GlicShareImageFailsOnNoImage GlicShareImageFailsOnNoImage
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuTest,
+                       MAYBE_GlicShareImageFailsOnNoImage) {
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+
+  const GURL url = embedded_test_server()->GetURL(kPageWithUnsupportedImage);
+  const DeepQuery kPathToImg{"img"};
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      CheckToastIsShowing(ToastId::kGlicShareImageFailed),
+      WaitForShareResult(glic::ShareImageResult::kFailedNoImage));
 }
 
 INSTANTIATE_TEST_SUITE_P(MultiInstance,
                          GlicInteractiveContextMenuTest,
                          // This parameter toggles multi-instance mode.
                          testing::Bool());
+
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+
+// Test setup taken and adapted from IsClipboardPasteAllowedTest in
+// chrome_content_browser_client_browsertest.cc
+class ClipboardTestContentAnalysisDelegate
+    : public enterprise_connectors::test::FakeContentAnalysisDelegate {
+ public:
+  static std::unique_ptr<ContentAnalysisDelegate> Create(
+      base::RepeatingClosure delete_closure,
+      StatusCallback status_callback,
+      std::string dm_token,
+      content::WebContents* web_contents,
+      Data data,
+      CompletionCallback callback) {
+    auto ret = std::make_unique<ClipboardTestContentAnalysisDelegate>(
+        delete_closure, std::move(status_callback), std::move(dm_token),
+        web_contents, std::move(data), std::move(callback));
+    enterprise_connectors::ClipboardRequestHandler::SetFactoryForTesting(
+        base::BindRepeating(
+            &enterprise_connectors::test::FakeClipboardRequestHandler::Create,
+            base::Unretained(ret.get())));
+    return ret;
+  }
+
+  using FakeContentAnalysisDelegate::FakeContentAnalysisDelegate;
+
+ protected:
+};
+
+class GlicInteractiveContextMenuPolicyTest
+    : public GlicInteractiveContextMenuTest,
+      public enterprise_connectors::ContentAnalysisDialogController::
+          TestObserver {
+ public:
+  GlicInteractiveContextMenuPolicyTest() {
+    enterprise_connectors::ContentAnalysisDialogController::
+        SetObserverForTesting(this);
+  }
+
+  void SetUpOnMainThread() override {
+    GlicInteractiveContextMenuTest::SetUpOnMainThread();
+
+    policy::SetDMTokenForTesting(
+        policy::DMToken::CreateValidToken(kFakeDMToken));
+
+    // These overrides make the overall tests faster as the content analysis
+    // dialog won't stay in each state for mandatory minimum times.
+    enterprise_connectors::ContentAnalysisDialogController::
+        SetMinimumPendingDialogTimeForTesting(base::Milliseconds(0));
+    enterprise_connectors::ContentAnalysisDialogController::
+        SetShowDialogDelayForTesting(base::Milliseconds(0));
+    enterprise_connectors::ContentAnalysisDialogController::
+        SetSuccessDialogTimeoutForTesting(base::Milliseconds(0));
+
+    enterprise_connectors::test::SetAnalysisConnector(
+        browser()->profile()->GetPrefs(),
+        enterprise_connectors::BULK_DATA_ENTRY, kBulkDataEntryPolicyValue);
+
+    enterprise_connectors::ContentAnalysisDelegate::SetFactoryForTesting(
+        base::BindRepeating(
+            &ClipboardTestContentAnalysisDelegate::Create, base::DoNothing(),
+            base::BindRepeating([](const std::string& contents,
+                                   const base::FilePath& path) {
+              bool success = false;
+              if (contents.size() > kPatternSize) {
+                std::string pattern = base::Base64Encode(contents.substr(
+                    contents.size() - kPatternSize - 1, kPatternSize));
+                success = pattern != kBlockedPattern;
+              }
+              return success
+                         ? enterprise_connectors::test::
+                               FakeContentAnalysisDelegate::SuccessfulResponse(
+                                   {"dlp"})
+                         : enterprise_connectors::test::
+                               FakeContentAnalysisDelegate::DlpResponse(
+                                   enterprise_connectors::
+                                       ContentAnalysisResponse::Result::SUCCESS,
+                                   "rule-name",
+                                   enterprise_connectors::
+                                       ContentAnalysisResponse::Result::
+                                           TriggeredRule::BLOCK);
+            }),
+            kFakeDMToken));
+  }
+
+  void TearDownOnMainThread() override {
+    GlicInteractiveContextMenuTest::TearDownOnMainThread();
+  }
+
+  auto WaitForContentAnalysisDialog() {
+    return Steps(
+        PollUntil([this]() { return content_analysis_dialog_shown_; },
+                  "polling until the content analysis dialog is shown"));
+  }
+
+ protected:
+  // enterprise_connectors::ContentAnalysisDialogController::TestObserver
+  void ViewsFirstShown(
+      enterprise_connectors::ContentAnalysisDialogDelegate* dialog,
+      base::TimeTicks timestamp) override {
+    content_analysis_dialog_shown_ = true;
+  }
+
+  static constexpr char kPageWithAllowedImage[] =
+      "/accessibility/image_annotation.html";
+  static constexpr char kPastePolicyTemplate[] = R"(
+  {
+    "name": "rule_name",
+    "rule_id": "rule_id",
+    "destinations": {
+     "urls": ["%s"]
+    },
+    "restrictions": [
+     {"class": "CLIPBOARD", "level": "BLOCK"}
+    ]
+  })";
+
+ private:
+  static constexpr int kPatternSize = 16;
+  static constexpr char kBlockedPattern[] = "c3VhbC5odG1sIj48L2ltZw==";
+  static constexpr char kBulkDataEntryPolicyValue[] = R"(
+  {
+    "service_provider": "google",
+    "enable": [
+      {
+        "url_list": ["*"],
+        "tags": ["dlp"]
+      }
+    ],
+    "block_until_verdict": 1,
+    "minimum_data_size": 1
+  })";
+  static constexpr char kFakeDMToken[] = "fake-dm-token";
+
+  bool content_analysis_dialog_shown_ = false;
+};
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImageFailsOnCopyDenied \
+  DISABLED_GlicShareImageFailsOnCopyDenied
+#else
+#define MAYBE_GlicShareImageFailsOnCopyDenied GlicShareImageFailsOnCopyDenied
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuPolicyTest,
+                       MAYBE_GlicShareImageFailsOnCopyDenied) {
+  // Taken from DataProtectionClipboardBrowserTest in clipboard_browsertest.cc.
+  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+                                   "name": "rule_name",
+                                   "rule_id": "rule_id",
+                                   "sources": {
+                                     "urls": ["*"]
+                                   },
+                                   "restrictions": [
+                                     {"class": "CLIPBOARD", "level": "BLOCK"}
+                                   ]
+                                 })"});
+  data_controls::DesktopDataControlsDialogTestHelper helper(
+      data_controls::DataControlsDialog::Type::kClipboardCopyBlock);
+
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+  const GURL url = embedded_test_server()->GetURL(kPageWithAllowedImage);
+  const DeepQuery kPathToImg{"img:nth-of-type(3)"};
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      WaitForShareResult(glic::ShareImageResult::kFailedClipboardCopyPolicy));
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImageFailsOnPasteDenied \
+  DISABLED_GlicShareImageFailsOnPasteDenied
+#else
+#define MAYBE_GlicShareImageFailsOnPasteDenied GlicShareImageFailsOnPasteDenied
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuPolicyTest,
+                       MAYBE_GlicShareImageFailsOnPasteDenied) {
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+  const GURL url = embedded_test_server()->GetURL(kPageWithImage);
+  const DeepQuery kPathToImg{"img"};
+
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForAndAcceptFre(),
+      WaitForShareResult(glic::ShareImageResult::kFailedClipboardPastePolicy),
+      WaitForContentAnalysisDialog());
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImageFailsOnPasteAllowed \
+  DISABLED_GlicShareImageFailsOnPasteAllowed
+#else
+#define MAYBE_GlicShareImageFailsOnPasteAllowed \
+  GlicShareImageFailsOnPasteAllowed
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuPolicyTest,
+                       MAYBE_GlicShareImageFailsOnPasteAllowed) {
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+  const GURL url = embedded_test_server()->GetURL(kPageWithAllowedImage);
+  const DeepQuery kPathToImg{"img:nth-of-type(3)"};
+
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForAndAcceptFre(),
+      WaitForShareResult(glic::ShareImageResult::kSuccess));
+}
+
+#if BUILDFLAG(IS_WIN)
+// TODO(crbug.com/397668031): Flaky on Windows.
+#define MAYBE_GlicShareImageFailsWhenGuestURLBlocked \
+  DISABLED_GlicShareImageFailsWhenGuestURLBlocked
+#else
+#define MAYBE_GlicShareImageFailsWhenGuestURLBlocked \
+  GlicShareImageFailsWhenGuestURLBlocked
+#endif  // BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_P(GlicInteractiveContextMenuPolicyTest,
+                       MAYBE_GlicShareImageFailsWhenGuestURLBlocked) {
+  // Check that our destination is the Guest URL.
+  auto guest_url = glic::GetGuestURL();
+  data_controls::SetDataControls(
+      browser()->profile()->GetPrefs(),
+      {base::StringPrintf(kPastePolicyTemplate, guest_url.spec())});
+  data_controls::DesktopDataControlsDialogTestHelper helper(
+      data_controls::DataControlsDialog::Type::kClipboardPasteBlock);
+
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kActiveTab);
+  const GURL url = embedded_test_server()->GetURL(kPageWithAllowedImage);
+  const DeepQuery kPathToImg{"img:nth-of-type(3)"};
+
+  RunTestSequence(
+      InstrumentTab(kActiveTab, std::nullopt, browser(), true),
+      NavigateWebContents(kActiveTab, url), PollUntilPainted(),
+      MoveMouseTo(kActiveTab, kPathToImg),
+      MayInvolveNativeContextMenu(
+          ClickMouse(ui_controls::RIGHT),
+          SelectMenuItem(RenderViewContextMenu::kGlicShareImageMenuItem)),
+      PollForAndAcceptFre(),
+      WaitForShareResult(glic::ShareImageResult::kFailedClipboardPastePolicy));
+}
+
+INSTANTIATE_TEST_SUITE_P(MultiInstance,
+                         GlicInteractiveContextMenuPolicyTest,
+                         // This parameter toggles multi-instance mode.
+                         testing::Bool());
+
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 
 #endif  // BUILDFLAG(ENABLE_GLIC)
 

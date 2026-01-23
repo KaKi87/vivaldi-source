@@ -2013,7 +2013,7 @@ std::vector<GemmTestParams> CreateTests2(
 #endif  // XNN_ARCH_ARM || XNN_ARCH_ARM64
 
 
-#if XNN_ARCH_X86 || XNN_ARCH_X86_64
+#if XNN_ENABLE_SSE && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
   INSTANTIATE_TEST_SUITE_P(
       F32_GEMM_MINMAX_1X8__SSE_DUP, GemmTest,
       testing::ValuesIn(CreateTests1(
@@ -2028,7 +2028,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2047,7 +2047,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2066,7 +2066,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2085,7 +2085,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2104,7 +2104,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2123,7 +2123,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2142,7 +2142,7 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
@@ -2161,11 +2161,14 @@ std::vector<GemmTestParams> CreateTests2(
                         xnn_init_f32_minmax_scalar_params,
                         xnn_pack_f32_gemm_goi_w);
           },
-          0)),
+          xnn_arch_x86_sse)),
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
+#endif  // XNN_ENABLE_SSE && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
 
+
+#if XNN_ENABLE_AVX && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
   INSTANTIATE_TEST_SUITE_P(
       F32_GEMM_MINMAX_1X16__AVX_BROADCAST, GemmTest,
       testing::ValuesIn(CreateTests1(
@@ -2260,7 +2263,10 @@ std::vector<GemmTestParams> CreateTests2(
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
+#endif  // XNN_ENABLE_AVX && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
 
+
+#if XNN_ENABLE_FMA3 && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
   INSTANTIATE_TEST_SUITE_P(
       F32_GEMM_MINMAX_1X16S4__FMA3_BROADCAST, GemmTest,
       testing::ValuesIn(CreateTests1(
@@ -2298,10 +2304,10 @@ std::vector<GemmTestParams> CreateTests2(
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
-#endif  // XNN_ARCH_X86 || XNN_ARCH_X86_64
+#endif  // XNN_ENABLE_FMA3 && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
 
 
-#if XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
+#if XNN_ENABLE_FMA3 && XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
   INSTANTIATE_TEST_SUITE_P(
       F32_GEMM_MINMAX_1X8__ASM_AMD64_FMA3_BROADCAST, GemmTest,
       testing::ValuesIn(CreateTests1(
@@ -2510,7 +2516,7 @@ std::vector<GemmTestParams> CreateTests2(
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
-#endif  // XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
+#endif  // XNN_ENABLE_FMA3 && XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
 
 
 #if XNN_ENABLE_AVX512F && XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
@@ -2934,7 +2940,7 @@ std::vector<GemmTestParams> CreateTests2(
 #endif  // XNN_ENABLE_AVX512F && XNN_ARCH_X86_64 && XNN_ENABLE_ASSEMBLY
 
 
-#if XNN_ARCH_X86 || XNN_ARCH_X86_64
+#if XNN_ENABLE_FMA3 && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
   INSTANTIATE_TEST_SUITE_P(
       F32_GEMM_MINMAX_4X16__FMA3_BROADCAST, GemmTest,
       testing::ValuesIn(CreateTests1(
@@ -3105,7 +3111,7 @@ std::vector<GemmTestParams> CreateTests2(
       [](const testing::TestParamInfo<GemmTest::ParamType>& info) {
         return info.param.test_name;
       });
-#endif  // XNN_ARCH_X86 || XNN_ARCH_X86_64
+#endif  // XNN_ENABLE_FMA3 && (XNN_ARCH_X86 || XNN_ARCH_X86_64)
 
 
 #if XNN_ENABLE_AVX512F && (XNN_ARCH_X86 || XNN_ARCH_X86_64)

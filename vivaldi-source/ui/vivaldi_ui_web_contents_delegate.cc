@@ -221,10 +221,7 @@ void VivaldiUIWebContentsDelegate::RenderFrameCreated(
   DCHECK(host_view);
   host_view->SetBackgroundColor(SK_ColorTRANSPARENT);
 
-  content::RenderFrameHostImpl* host =
-      static_cast<content::RenderFrameHostImpl*>(render_frame_host);
-
-  host->GetVivaldiFrameService()->SetSupportsDraggableRegions(true);
+  web_contents()->SetSupportsDraggableRegions(true);
 
   // An incognito profile is not initialized with the UI zoom value. Set it up
   // here by reading prefs from the regular profile. At this point we do not
@@ -409,10 +406,10 @@ content::WebContents* VivaldiUIWebContentsDelegate::AddNewContents(
   }
 
   NavigateParams params(profile, target_url, ui::PAGE_TRANSITION_LINK);
-  params.window_action = NavigateParams::SHOW_WINDOW;
+  params.window_action = NavigateParams::WindowAction::kShowWindow;
   params.disposition = disposition;
   params.window_features = window_features;
-  params.window_action = NavigateParams::SHOW_WINDOW;
+  params.window_action = NavigateParams::WindowAction::kShowWindow;
   params.user_gesture = user_gesture;
   Navigate(&params);
 

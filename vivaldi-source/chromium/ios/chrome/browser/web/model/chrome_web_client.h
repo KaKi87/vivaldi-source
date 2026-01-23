@@ -72,6 +72,18 @@ class ChromeWebClient : public web::WebClient {
       web::BrowserState* browser_state) const override;
   void BuildEditMenu(web::WebState* web_state,
                      id<UIMenuBuilder>) const override;
+  bool CanRunOpenPanel(web::WebState* web_state) const override
+      API_AVAILABLE(ios(18.4));
+  void RunOpenPanel(web::WebState* web_state,
+                    WKOpenPanelParameters* parameters,
+                    WKFrameInfo* frame,
+                    base::OnceCallback<void(NSArray<NSURL*>*)> completion)
+      const override API_AVAILABLE(ios(18.4));
+
+  // Vivaldi
+  void BuildSelectionlessEditMenu(web::WebState* web_state,
+                                  id<UIMenuBuilder>) const override;
+  // End Vivaldi
 
  private:
   // Reference to a view that is attached to a window.

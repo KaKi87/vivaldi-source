@@ -14,6 +14,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "components/notes/note_node.h"
+#include "components/sync/engine/commit_and_get_updates_types.h"
 #include "components/sync/protocol/entity_data.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
@@ -48,6 +49,13 @@ SyncedNoteTrackerEntity::~SyncedNoteTrackerEntity() = default;
 
 bool SyncedNoteTrackerEntity::IsUnsynced() const {
   return metadata_.sequence_number() > metadata_.acked_sequence_number();
+}
+
+bool SyncedNoteTrackerEntity::IsUnsyncedLocalCreation() const {
+  // `kUncommittedVersion` implies that the entity is unsynced but add this
+  // condition for clarity.
+  return metadata_.server_version() == syncer::kUncommittedVersion &&
+         IsUnsynced();
 }
 
 bool SyncedNoteTrackerEntity::MatchesData(

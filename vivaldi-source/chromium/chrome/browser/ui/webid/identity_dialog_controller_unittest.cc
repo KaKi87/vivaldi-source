@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/webid/identity_dialog_controller.h"
 
 #include <memory>
+#include <utility>
 
 #include "base/functional/callback_helpers.h"
 #include "base/run_loop.h"
@@ -14,6 +15,7 @@
 #include "chrome/browser/ui/webid/account_selection_view.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "components/optimization_guide/core/hints/mock_optimization_guide_decider.h"
+#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/optimization_guide_proto_util.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/test/mock_permission_prompt_factory.h"
@@ -199,10 +201,8 @@ class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
     controller->ShowAccountsDialog(
         content::RelyingPartyData(kTopFrameEtldPlusOne,
                                   /*iframe_for_display=*/u""),
-        {idp_data}, accounts_, rp_mode,
-        /*new_accounts=*/std::vector<IdentityRequestAccountPtr>(),
-        /*on_selected=*/base::DoNothing(), /*on_add_account=*/base::DoNothing(),
-        std::move(dismiss_callback),
+        {idp_data}, accounts_, rp_mode, /*on_selected=*/base::DoNothing(),
+        /*on_add_account=*/base::DoNothing(), std::move(dismiss_callback),
         /*accounts_displayed_callback=*/base::DoNothing());
   }
 
@@ -226,7 +226,7 @@ class IdentityDialogControllerTest : public ChromeRenderViewHostTestHarness {
               result.ordered_labels = {result_label};
               if (this->optimization_guide_decider_) {
                 ASSERT_EQ(segmentation_platform::processing::ProcessedValue(
-                              web_contents()->GetLastCommittedURL().host()),
+                              web_contents()->GetLastCommittedURL().GetHost()),
                           input_context->GetMetadataArgument(
                               segmentation_platform::kFedCmHost));
                 ASSERT_EQ(segmentation_platform::processing::ProcessedValue(
@@ -523,8 +523,7 @@ TEST_F(IdentityDialogControllerTest,
             CreateMockOptimizationGuideDecider());
 
     auto mock_view = std::make_unique<MockAccountSelectionView>();
-    EXPECT_CALL(*mock_view, Show(_, _, _, _, _))
-        .WillOnce(testing::Return(true));
+    EXPECT_CALL(*mock_view, Show).WillOnce(testing::Return(true));
     controller->SetAccountSelectionViewForTesting(std::move(mock_view));
 
     EXPECT_CALL(*segmentation_platform_service_,
@@ -551,8 +550,7 @@ TEST_F(IdentityDialogControllerTest,
             CreateMockOptimizationGuideDecider());
 
     auto mock_view = std::make_unique<MockAccountSelectionView>();
-    EXPECT_CALL(*mock_view, Show(_, _, _, _, _))
-        .WillOnce(testing::Return(true));
+    EXPECT_CALL(*mock_view, Show).WillOnce(testing::Return(true));
     controller->SetAccountSelectionViewForTesting(std::move(mock_view));
 
     EXPECT_CALL(*segmentation_platform_service_,
@@ -579,8 +577,7 @@ TEST_F(IdentityDialogControllerTest,
             CreateMockOptimizationGuideDecider());
 
     auto mock_view = std::make_unique<MockAccountSelectionView>();
-    EXPECT_CALL(*mock_view, Show(_, _, _, _, _))
-        .WillOnce(testing::Return(true));
+    EXPECT_CALL(*mock_view, Show).WillOnce(testing::Return(true));
     controller->SetAccountSelectionViewForTesting(std::move(mock_view));
 
     EXPECT_CALL(*segmentation_platform_service_,
@@ -610,7 +607,7 @@ TEST_F(IdentityDialogControllerTest,
           CreateMockSegmentationPlatformService("FedCmUserLoud", run_loop),
           CreateMockOptimizationGuideDecider());
   auto mock_view = std::make_unique<MockAccountSelectionView>();
-  EXPECT_CALL(*mock_view, Show(_, _, _, _, _)).WillOnce(testing::Return(false));
+  EXPECT_CALL(*mock_view, Show).WillOnce(testing::Return(false));
   controller->SetAccountSelectionViewForTesting(std::move(mock_view));
   EXPECT_CALL(*segmentation_platform_service_,
               CollectTrainingData(_, _, _, _, _))

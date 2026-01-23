@@ -9,6 +9,7 @@ import static org.chromium.chrome.browser.hub.HubToolbarProperties.APPLY_DELAY_F
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.BACK_BUTTON_ENABLED;
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.BACK_BUTTON_LISTENER;
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.BACK_BUTTON_VISIBLE;
+import static org.chromium.chrome.browser.hub.HubToolbarProperties.HAIRLINE_VISIBILITY;
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.HUB_SEARCH_ENABLED_STATE;
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.IS_INCOGNITO;
 import static org.chromium.chrome.browser.hub.HubToolbarProperties.MENU_BUTTON_VISIBLE;
@@ -130,6 +131,11 @@ public class HubToolbarMediator {
     private final Callback<Pane> mOnFocusedPaneChange = this::onFocusedPaneChange;
     private final Callback<Boolean> mOnHubSearchEnabledStateChange =
             this::onHubSearchEnabledStateChange;
+    private final Callback<Boolean> mOnSearchBoxVisibilityChange =
+            this::onSearchBoxVisibilityChange;
+    private final ObservableSupplier<Boolean> mHairlineVisibilitySupplier;
+
+    private final Callback<Boolean> mOnHairlineVisibilityChange = this::onHairlineVisibilityChange;
     private final Callback<@Nullable Tab> mOnCurrentTabChange = this::onCurrentTabChange;
 
     private @Nullable PaneButtonLookup mPaneButtonLookup;
@@ -169,7 +175,13 @@ public class HubToolbarMediator {
             mRemoveReferenceButtonObservers.add(() -> supplier.removeObserver(observer));
 
             pane.getHubSearchEnabledStateSupplier().addObserver(mOnHubSearchEnabledStateChange);
+            pane.getHubSearchBoxVisibilitySupplier().addObserver(mOnSearchBoxVisibilityChange);
         }
+        mHairlineVisibilitySupplier =
+                paneManager
+                        .getFocusedPaneSupplier()
+                        .createTransitive(Pane::getHairlineVisibilitySupplier);
+        mHairlineVisibilitySupplier.addObserver(mOnHairlineVisibilityChange);
         ObservableSupplier<Pane> focusedPaneSupplier = paneManager.getFocusedPaneSupplier();
         focusedPaneSupplier.addObserver(mOnFocusedPaneChange);
         rebuildPaneSwitcherButtonData();
@@ -198,7 +210,9 @@ public class HubToolbarMediator {
             @Nullable Pane pane = mPaneManager.getPaneForId(paneId);
             if (pane == null) continue;
             pane.getHubSearchEnabledStateSupplier().removeObserver(mOnHubSearchEnabledStateChange);
+            pane.getHubSearchBoxVisibilitySupplier().removeObserver(mOnSearchBoxVisibilityChange);
         }
+        mHairlineVisibilitySupplier.removeObserver(mOnHairlineVisibilityChange);
     }
 
     /** Returns the button view for a given pane if present. */
@@ -228,6 +242,15 @@ public class HubToolbarMediator {
             }
         }
         return INVALID_PANE_SWITCHER_INDEX;
+    }
+
+    private void onSearchBoxVisibilityChange(Boolean shouldShow) {
+        int screenWidthDp = mContext.getResources().getConfiguration().screenWidthDp;
+        boolean isTablet = HubUtils.isScreenWidthTablet(screenWidthDp);
+        shouldShow = !isTablet && shouldShow;
+
+        if(!BuildConfig.IS_VIVALDI) // Note(david@vivaldi.com): Do not show the search box at all.
+        mPropertyModel.set(SEARCH_BOX_VISIBLE, shouldShow);
     }
 
     private void onReferenceButtonChange(@PaneId int paneId, @Nullable DisplayButtonData current) {
@@ -318,6 +341,10 @@ public class HubToolbarMediator {
 
     private void onHubSearchEnabledStateChange(boolean enabled) {
         mPropertyModel.set(HUB_SEARCH_ENABLED_STATE, enabled);
+    }
+
+    private void onHairlineVisibilityChange(@Nullable Boolean visible) {
+        mPropertyModel.set(HAIRLINE_VISIBILITY, Boolean.TRUE.equals(visible));
     }
 
     private void consumeButtonLookup(PaneButtonLookup paneButtonLookup) {

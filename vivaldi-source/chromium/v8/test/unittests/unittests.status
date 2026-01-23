@@ -331,9 +331,6 @@
 ['variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)', {
   # Maglev doesn't support compiler::NodeObserver machinery.
   'SloppyEqualityTest.SloppyEqualityTest': [FAIL],
-  # Maglev doesn't produce optimized enough code to trigger expected
-  # deoptimization.
-  'FeedbackVectorTest.VectorCallSpeculationModeAndFeedbackContent': [FAIL],
 }],  # variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
 
 ##############################################################################
@@ -391,5 +388,11 @@
   # Tests too slow in non-optimized debug mode.
   'LogAllTest.LogAll': [SKIP],
 }],  # 'full_debug'
+
+##############################################################################
+['ubsan', {
+  # https://crbug.com/456051623
+  'SimdShuffleTest.TryMatch32x4OneLaneSwizzle': [SKIP],
+}],  # 'ubsan'
 
 ]

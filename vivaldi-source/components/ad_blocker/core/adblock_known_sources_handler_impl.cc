@@ -21,6 +21,8 @@ constexpr char kAdblockPlusAntiAdblock[] =
     "https://downloads.vivaldi.com/lists/abp/antiadblockfilters-current.txt";
 constexpr char kPartnersList[] =
     "https://downloads.vivaldi.com/lists/vivaldi/partners-current.txt";
+constexpr char kVivaldiBlockList[] =
+    "https://downloads.vivaldi.com/lists/vivaldi/blocklist-current.txt";
 
 constexpr char kRussianList[] =
     "https://easylist-downloads.adblockplus.org/advblock.txt";
@@ -66,6 +68,10 @@ constexpr auto kPresetSources = base::MakeFixedFlatMap<std::string_view,
       {.kind = PresetKind::kPartners,
        .url = kPartnersList,
        .settings = {.allow_attribution_tracker_rules = true},
+       .removable = false}},
+     {"e8df32ce-6190-4aa2-b341-6dc1c6a0e638",
+      {.kind = PresetKind::kAnnoyances,
+       .url = kVivaldiBlockList,
        .removable = false}},
      {"f7bc721e-5cd1-440c-8036-50813c063929",
       {.kind = PresetKind::kRegional,
@@ -306,6 +312,11 @@ KnownRuleSourcesHandlerImpl::KnownRuleSourcesHandlerImpl(
       DisableSource(RuleGroup::kAdBlockingRules, partner_list_id);
       EnableSource(RuleGroup::kAdBlockingRules, partner_list_id);
     }
+  }
+
+  if (storage_version < 12) {
+    EnableSource(RuleGroup::kAdBlockingRules,
+                 RuleSourceCore::FromUrl(GURL(kVivaldiBlockList))->id());
   }
 }
 

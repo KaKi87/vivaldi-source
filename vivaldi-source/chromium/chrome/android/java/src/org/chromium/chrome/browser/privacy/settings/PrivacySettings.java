@@ -38,6 +38,7 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.prefetch.settings.PreloadPagesSettingsFragment;
 import org.chromium.chrome.browser.privacy.secure_dns.SecureDnsSettings;
+import org.chromium.chrome.browser.privacy_guide.PrivacyGuideFragment;
 import org.chromium.chrome.browser.privacy_guide.PrivacyGuideInteractions;
 import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxBridge;
 import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxReferrer;
@@ -82,6 +83,8 @@ import android.Manifest;
 
 import androidx.core.content.ContextCompat;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.provider.Settings;
@@ -96,6 +99,9 @@ import org.chromium.components.browser_ui.settings.ChromeBasePreference;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 import org.chromium.build.BuildConfig;
+
+import static org.vivaldi.browser.preferences.VivaldiPreferences.PREF_ENABLE_WEEKLY_REPORTS;
+import static org.vivaldi.browser.prompts.PrivacyReportNotificationReceiver.PRIVACY_REPORT_CHANNEL;
 
 /** Fragment to keep track of the all the privacy related preferences. */
 @NullMarked
@@ -115,16 +121,10 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     private static final String PREF_PRIVACY_GUIDE = "privacy_guide";
     private static final String PREF_INCOGNITO_LOCK = "incognito_lock";
     private static final String PREF_JAVASCRIPT_OPTIMIZER = "javascript_optimizer";
-    private static final String PREF_INCOGNITO_TRACKING_PROTECTIONS =
-            "incognito_tracking_protections";
     @VisibleForTesting static final String PREF_DO_NOT_TRACK = "do_not_track";
     @VisibleForTesting static final String PREF_THIRD_PARTY_COOKIES = "third_party_cookies";
     @VisibleForTesting static final String PREF_TRACKING_PROTECTION = "tracking_protection";
     private static final String PREF_ADVANCED_PROTECTION_INFO = "advanced_protection_info";
-
-    @VisibleForTesting
-    static final String TRACKING_PROTECTIONS_OPENED_USER_ACTION =
-            "Settings.TrackingProtections.OpenedFromPrivacyPage";
 
     // Vivaldi
     private static final String PREF_CLEAR_SESSION_BROWSING_DATA = "clear_session_browsing_data";
@@ -175,16 +175,6 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
         SettingsUtils.addPreferencesFromResource(this, R.xml.privacy_preferences);
 
         if (!ChromeApplicationImpl.isVivaldi()) {
-        Preference incognitoTrackingProtectionsPreference =
-                findPreference(PREF_INCOGNITO_TRACKING_PROTECTIONS);
-        incognitoTrackingProtectionsPreference.setVisible(
-                shouldShowIncognitoTrackingProtectionsUi());
-        incognitoTrackingProtectionsPreference.setOnPreferenceClickListener(
-                preference -> {
-                    RecordUserAction.record(TRACKING_PROTECTIONS_OPENED_USER_ACTION);
-                    return false;
-                });
-
         Preference sandboxPreference = findPreference(PREF_PRIVACY_SANDBOX);
         // Overwrite the click listener to pass a correct referrer to the fragment.
         sandboxPreference.setOnPreferenceClickListener(
@@ -222,7 +212,14 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                             PrivacyGuideInteractions.SETTINGS_LINK_ROW_ENTRY,
                             PrivacyGuideInteractions.MAX_VALUE);
                     UserPrefs.get(getProfile()).setBoolean(Pref.PRIVACY_GUIDE_VIEWED, true);
-                    return false;
+
+                    // Explicitly launch PrivacyGuideFragment from here. Because the fragment
+                    // does not implement EmbeddableSettingsPage, it will work as standalone mode.
+                    // In details it is still a part of SettingsActivity, it will let user find
+                    // it is an independent flow.
+                    SettingsNavigationFactory.createSettingsNavigation()
+                            .startSettings(getActivity(), PrivacyGuideFragment.class);
+                    return true;
                 });
         if (getProfile().isChild()
                 || ManagedBrowserUtils.isBrowserManaged(getProfile())
@@ -339,8 +336,8 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
 
             ChromeBasePreference viewPrivacyReportButton =
                     findPreference(VivaldiPreferences.PREF_VIEW_PRIVACY_REPORT);
-            if (ChromeApplicationImpl.isVivaldi() && viewPrivacyReportButton != null) {
-                getPreferenceScreen().removePreference(viewPrivacyReportButton);
+            if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD && viewPrivacyReportButton != null) {
+                getPreferenceScreen().removePreference(viewPrivacyReportButton); // Vivaldi VAB-12279
             } else
             if (viewPrivacyReportButton != null) {
                 viewPrivacyReportButton.setOnPreferenceClickListener((preference) -> {
@@ -352,8 +349,8 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
 
             ChromeBasePreference enablePrivacyReportButton =
                     findPreference(VivaldiPreferences.PREF_ENABLE_WEEKLY_REPORTS);
-            if (ChromeApplicationImpl.isVivaldi() && enablePrivacyReportButton != null) {
-                getPreferenceScreen().removePreference(enablePrivacyReportButton);
+            if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD && enablePrivacyReportButton != null) {
+                getPreferenceScreen().removePreference(enablePrivacyReportButton); // Vivaldi VAB-12279
             } else
             if (enablePrivacyReportButton != null) {
                 Intent intent =
@@ -361,6 +358,19 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                 PackageManager pm = getActivity().getPackageManager();
                 if (pm != null && intent.resolveActivity(pm) != null) {
                     enablePrivacyReportButton.setOnPreferenceClickListener(preference -> {
+                        if (getContext().getSystemService(NotificationManager.class)
+                                        .getNotificationChannel(PRIVACY_REPORT_CHANNEL)
+                                == null) {
+                            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+                            NotificationChannel channel = new NotificationChannel(
+                                    PRIVACY_REPORT_CHANNEL, "PrivacyReportChannel", importance);
+                            channel.setName(getString(R.string.privacy_report_channel_name));
+                            NotificationManager notificationManager =
+                                    getContext().getSystemService(NotificationManager.class);
+                            notificationManager.createNotificationChannel(channel);
+                        }
+                        VivaldiPreferences.getSharedPreferencesManager()
+                                .writeBoolean(PREF_ENABLE_WEEKLY_REPORTS, true);
                         startActivity(intent);
                         return true;
                     });
@@ -631,11 +641,6 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
                 || ChromeFeatureList.isEnabled(ChromeFeatureList.TRACKING_PROTECTION_3PCD);
     }
 
-    private boolean shouldShowIncognitoTrackingProtectionsUi() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.FINGERPRINTING_PROTECTION_UX)
-                || ChromeFeatureList.isEnabled(ChromeFeatureList.IP_PROTECTION_UX);
-    }
-
     /** Shows the advanced-protection-section if needed. */
     private void maybeShowAdvancedProtectionSection() {
         Context context = getContext();
@@ -735,5 +740,10 @@ public class PrivacySettings extends ChromeBaseSettingsFragment
     @Override
     public @SettingsFragment.AnimationType int getAnimationType() {
         return SettingsFragment.AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "privacy";
     }
 }

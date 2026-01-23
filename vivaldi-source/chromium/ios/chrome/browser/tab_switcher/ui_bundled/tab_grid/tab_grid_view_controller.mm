@@ -67,10 +67,10 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_consumer.h"
+#import "ios/chrome/browser/recent_tabs/ui/recent_tabs_consumer.h"
+#import "ios/chrome/browser/recent_tabs/ui/recent_tabs_table_view_controller.h"
 #import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller_ui_delegate.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_inactive_tabs_pinned_helper.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -225,6 +225,11 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   TabGridMode _mode;
   // The app bar, for diamond prototype.
   ChromeAppBarPrototype* _appBar;
+  // Top and bottom toolbar edge effects.
+  UIScrollEdgeElementContainerInteraction* _topToolbarEdgeEffect
+      API_AVAILABLE(ios(26.0));
+  UIScrollEdgeElementContainerInteraction* _bottomToolbarEdgeEffect
+      API_AVAILABLE(ios(26.0));
 }
 
 - (instancetype)initWithPageConfiguration:
@@ -278,6 +283,8 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
   [self setupBottomToolbar];
 
+  [self updateToolbarEdgeEffects];
+
   if (IsPinnedTabsEnabled()) {
     CHECK(self.pinnedTabsViewController);
     [self setupPinnedTabsViewController];
@@ -292,7 +299,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
   NSArray<UITrait>* traits = TraitCollectionSetForTraits(nil);
   [self registerForTraitChanges:traits
-                     withAction:@selector(updateConstraintsOnTraitChange)];
+                     withAction:@selector(handleTraitChanges)];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -373,12 +380,22 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   // tapping on the page control during scrolling can result in erratic
   // scrolling.
   self.topToolbar.pageControl.userInteractionEnabled = NO;
+
+  if (IsVivaldiRunning()) {
+    [VivaldiTabGridInactiveTabsPinnedHelper
+        setFadeEnabled:NO
+      forGridViewController:self.regularTabsViewController];
+  } // End Vivaldi
 }
 
 - (void)scrollViewDidEndDragging:(UIScrollView*)scrollView
                   willDecelerate:(BOOL)decelerate {
   // Re-enable the page control since the user isn't dragging anymore.
   self.topToolbar.pageControl.userInteractionEnabled = YES;
+
+  if (IsVivaldiRunning() && !decelerate) {
+    [self updateInactiveTabsFadeVisibility];
+  } // End Vivaldi
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView*)scrollView {
@@ -394,6 +411,10 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
     [self broadcastIncognitoContentVisibility];
     [self.topToolbar.pageControl setSelectedPage:page animated:YES];
   }
+
+  if (IsVivaldiRunning()) {
+    [self updateInactiveTabsFadeVisibility];
+  } // End Vivaldi
 }
 
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView*)scrollView {
@@ -411,6 +432,10 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   if (!self.isDragSessionInProgress) {
     [self maybeShowSwipeToIncognitoIPH];
   }
+
+  if (IsVivaldiRunning()) {
+    [self updateInactiveTabsFadeVisibility];
+  } // End Vivaldi
 }
 
 #pragma mark - UIAccessibilityAction
@@ -490,6 +515,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
   self.closedTabsViewController.session = self.view.window.windowScene.session;
   self.closedTabsViewController.preventUpdates = NO;
+  [self updateInactiveTabsFadeVisibility];
   // End Vivaldi
 
 }
@@ -636,6 +662,34 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
 #pragma mark - Private
 
+// Updates elements in response to trait collection changes.
+- (void)handleTraitChanges {
+  [self updateConstraintsOnTraitChange];
+  [self updateToolbarEdgeEffects];
+}
+
+// Updates the edge effects on the top and bottom toolbars based on the current
+// layout.
+- (void)updateToolbarEdgeEffects {
+  if (!@available(iOS 26, *)) {
+    return;
+  }
+
+  UIView* topToolbar = self.topToolbar;
+  UIView* bottomToolbar = self.bottomToolbar;
+
+  // Only use the edge effects for compact layout (not large width).
+  BOOL shouldUseCompactLayout = [self shouldUseCompactLayout];
+
+  if (shouldUseCompactLayout) {
+    [topToolbar addInteraction:_topToolbarEdgeEffect];
+    [bottomToolbar addInteraction:_bottomToolbarEdgeEffect];
+  } else {
+    [topToolbar removeInteraction:_topToolbarEdgeEffect];
+    [bottomToolbar removeInteraction:_bottomToolbarEdgeEffect];
+  }
+}
+
 // Records the idle page status for the current `currentPage`.
 - (void)recordIdlePageStatus {
   if (!self.viewVisible) {
@@ -759,6 +813,10 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   // Make sure the current page becomes the first responder, so that it can
   // register and handle key commands.
   [self.currentPageViewController becomeFirstResponder];
+
+  if (IsVivaldiRunning()) {
+    [self updateInactiveTabsFadeVisibility];
+  } // End Vivaldi
 }
 
 // Sets the value of `currentPage`, adjusting the position of the scroll view
@@ -975,7 +1033,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
     } else {
       [edgeEffect setEdge:UIRectEdgeTop];
     }
-    [topToolbar addInteraction:edgeEffect];
+    _topToolbarEdgeEffect = edgeEffect;
   }
 }
 
@@ -1035,7 +1093,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
     } else {
       [edgeEffect setEdge:UIRectEdgeBottom];
     }
-    [bottomToolbar addInteraction:edgeEffect];
+    _bottomToolbarEdgeEffect = edgeEffect;
   }
 }
 
@@ -2461,13 +2519,8 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 // Setup remote grid.
 - (void)setupRemoteTabsViewController {
   self.remoteTabsViewController.UIDelegate = self;
-  ChromeTableViewStyler* styler = [[ChromeTableViewStyler alloc] init];
-  styler.tableViewBackgroundColor = [UIColor colorNamed:kGridBackgroundColor];
-  styler.cellBackgroundColor =
-      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   self.remoteTabsViewController.overrideUserInterfaceStyle =
       UIUserInterfaceStyleUnspecified;
-  self.remoteTabsViewController.styler = styler;
   self.remoteGridContainerViewController.containedViewController =
       self.remoteTabsViewController;
   self.remoteTabsViewController.view.accessibilityElementsHidden =
@@ -2500,14 +2553,9 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 // and sets constraints.
 - (void)setupClosedTabsViewController {
   self.closedTabsViewController.UIDelegate = self;
-  ChromeTableViewStyler* styler = [[ChromeTableViewStyler alloc] init];
-  styler.tableViewBackgroundColor = [UIColor colorNamed:kGridBackgroundColor];
-  styler.cellBackgroundColor =
-      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   self.closedTabsViewController.overrideUserInterfaceStyle =
       UIUserInterfaceStyleUnspecified;
 
-  self.closedTabsViewController.styler = styler;
   self.closedGridContainerViewController.containedViewController =
       self.closedTabsViewController;
   self.closedTabsViewController.view.accessibilityElementsHidden =
@@ -2643,6 +2691,23 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
 - (void)keyCommand_select5 {
   [self setCurrentPageAndPageControl:TabGridPageClosedTabs animated:YES];
+}
+
+// Hides the inactive tabs fade overlay when the regular page is not
+// active or while paging between tab grids.
+- (void)updateInactiveTabsFadeVisibility {
+  if (!IsVivaldiRunning()) {
+    return;
+  }
+  BOOL showFade = (self.currentPage == TabGridPageRegularTabs);
+  if (self.scrollView &&
+      (self.scrollView.dragging || self.scrollView.decelerating ||
+       self.scrollViewAnimatingContentOffset)) {
+    showFade = NO;
+  }
+  [VivaldiTabGridInactiveTabsPinnedHelper
+      setFadeEnabled:showFade
+    forGridViewController:self.regularTabsViewController];
 }
 
 #pragma mark - RecentTabsTableViewControllerUIDelegate

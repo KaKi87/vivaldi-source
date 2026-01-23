@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -26,25 +27,29 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import android.app.Activity;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.text.InputType;
 import android.text.Layout;
 import android.text.SpannableStringBuilder;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.util.TypedValue;
-import android.view.ContextThemeWrapper;
 import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.MeasureSpec;
-import android.view.ViewGroup.LayoutParams;
 import android.view.ViewStructure;
 import android.view.inputmethod.EditorInfo;
+import android.widget.FrameLayout;
+import android.widget.FrameLayout.LayoutParams;
 
 import androidx.core.view.inputmethod.EditorInfoCompat;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -53,15 +58,21 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.Robolectric;
+import org.robolectric.android.controller.ActivityController;
 import org.robolectric.annotation.Config;
+import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.ContextUtils;
+import org.chromium.base.Callback;
 import org.chromium.base.MathUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.UrlBar.UrlBarDelegate;
 import org.chromium.chrome.browser.omnibox.test.R;
+import org.chromium.components.omnibox.OmniboxFeatureList;
+import org.chromium.ui.base.TestActivity;
 
 import java.util.Collections;
 import java.util.List;
@@ -89,6 +100,8 @@ public class UrlBarUnitTest {
     // tests will fail if it's accidentally changed.
     private static final int MIN_LENGTH_FOR_TRUNCATION = 100;
 
+    private ActivityController<TestActivity> mController;
+    private Activity mActivity;
     private UrlBar mUrlBar;
     private final Paint.FontMetrics mFontMetrics = new Paint.FontMetrics();
     public @Rule MockitoRule mockitoRule = MockitoJUnit.rule();
@@ -96,6 +109,9 @@ public class UrlBarUnitTest {
     private @Mock ViewStructure mViewStructure;
     private @Mock Layout mLayout;
     private @Mock TextPaint mPaint;
+
+    private int mLastTextDirection;
+    private int mLastTextAlignment;
 
     private final String mShortPath = "/aaaa";
     private final String mLongPath =
@@ -108,11 +124,29 @@ public class UrlBarUnitTest {
 
     @Before
     public void setUp() {
-        var ctx =
-                new ContextThemeWrapper(
-                        ContextUtils.getApplicationContext(), R.style.Theme_BrowserUI_DayNight);
-        mUrlBar = spy(new UrlBarApi26(ctx, null));
+        mController = Robolectric.buildActivity(TestActivity.class).setup();
+        mActivity = mController.get();
+        mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
+        var layout = new FrameLayout(mActivity);
+        mActivity.setContentView(layout);
+
+        UrlBar urlBar =
+                LayoutInflater.from(mActivity)
+                        .inflate(R.layout.url_bar, layout, true)
+                        .findViewById(R.id.url_bar);
+
+        mUrlBar = spy(urlBar);
         mUrlBar.setDelegate(mUrlBarDelegate);
+
+        mLastTextDirection = -1;
+        mLastTextAlignment = -1;
+
+        doAnswer(i -> mLastTextDirection = i.getArgument(0))
+                .when(mUrlBar)
+                .setTextDirection(anyInt());
+        doAnswer(i -> mLastTextAlignment = i.getArgument(0))
+                .when(mUrlBar)
+                .setTextAlignment(anyInt());
 
         lenient().doReturn(1).when(mLayout).getLineCount();
         lenient()
@@ -134,6 +168,12 @@ public class UrlBarUnitTest {
 
         lenient().doReturn(mFontMetrics).when(mPaint).getFontMetrics();
         lenient().doReturn(mPaint).when(mUrlBar).getPaint();
+    }
+
+    @After
+    public void tearDown() {
+        mController.close();
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
     }
 
     /** Force reset text layout. */
@@ -279,7 +319,7 @@ public class UrlBarUnitTest {
     @Test
     public void testTruncation_NoTruncationForWrapContent() {
         measureAndLayoutUrlBar();
-        LayoutParams previousLayoutParams = mUrlBar.getLayoutParams();
+        LayoutParams previousLayoutParams = (LayoutParams) mUrlBar.getLayoutParams();
         LayoutParams params =
                 new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT);
         mUrlBar.setLayoutParams(params);
@@ -614,7 +654,7 @@ public class UrlBarUnitTest {
         mUrlBar.setScrollState(UrlBar.ScrollType.SCROLL_TO_TLD, mShortDomain.length());
         verify(mUrlBar, times(1)).calculateVisibleHint();
         String visibleHint = mUrlBar.getVisibleTextPrefixHint().toString();
-        assertEquals(url2.substring(0, NUMBER_OF_VISIBLE_CHARACTERS + 2), visibleHint);
+        assertEquals(url2.substring(0, NUMBER_OF_VISIBLE_CHARACTERS + 1), visibleHint);
     }
 
     @Test
@@ -924,6 +964,38 @@ public class UrlBarUnitTest {
     }
 
     @Test
+    public void fixupTextDirection_unfocusedWithText() {
+        mUrlBar.onFocusChanged(false, 0, null);
+        mUrlBar.setText("test");
+        assertEquals(View.TEXT_DIRECTION_LTR, mLastTextDirection);
+        assertEquals(View.TEXT_ALIGNMENT_TEXT_START, mLastTextAlignment);
+    }
+
+    @Test
+    public void fixupTextDirection_focusedWithText() {
+        mUrlBar.onFocusChanged(true, 0, null);
+        mUrlBar.setText("test");
+        assertEquals(View.TEXT_DIRECTION_INHERIT, mLastTextDirection);
+        assertEquals(View.TEXT_ALIGNMENT_TEXT_START, mLastTextAlignment);
+    }
+
+    @Test
+    public void fixupTextDirection_unfocusedWithoutText() {
+        mUrlBar.onFocusChanged(false, 0, null);
+        mUrlBar.setText("");
+        assertEquals(View.TEXT_DIRECTION_INHERIT, mLastTextDirection);
+        assertEquals(View.TEXT_ALIGNMENT_VIEW_START, mLastTextAlignment);
+    }
+
+    @Test
+    public void fixupTextDirection_focusedWithoutText() {
+        mUrlBar.onFocusChanged(true, 0, null);
+        mUrlBar.setText("");
+        assertEquals(View.TEXT_DIRECTION_INHERIT, mLastTextDirection);
+        assertEquals(View.TEXT_ALIGNMENT_VIEW_START, mLastTextAlignment);
+    }
+
+    @Test
     public void getTextWithAutocomplete_modelNotInitialized() {
         mUrlBar.setText("some autocomplete text");
         assertNull(mUrlBar.getModelForTesting());
@@ -953,5 +1025,80 @@ public class UrlBarUnitTest {
         mUrlBar.setText("user input");
         mUrlBar.setModelForTesting(model);
         assertEquals("model non-autocomplete text", mUrlBar.getTextWithoutAutocomplete());
+    }
+
+    @Test
+    @EnableFeatures(OmniboxFeatureList.MULTILINE_EDIT_FIELD)
+    public void setInputIsMultilineEligible() {
+        mUrlBar.onFocusChanged(true, View.LAYOUT_DIRECTION_LTR, new Rect());
+        mUrlBar.setInputIsMultilineEligible(true);
+        assertEquals(UrlBar.MULTILINE_EDIT_MAX_LINES, mUrlBar.getMaxLines());
+        assertFalse(mUrlBar.isSingleLine());
+        assertFalse(mUrlBar.isHorizontallyScrollable());
+
+        mUrlBar.setInputIsMultilineEligible(false);
+        assertEquals(UrlBar.MULTILINE_EDIT_MAX_LINES, mUrlBar.getMaxLines());
+        assertFalse(mUrlBar.isSingleLine());
+        assertTrue(mUrlBar.isHorizontallyScrollable());
+
+        // Defocused omnibox - never multiline
+        mUrlBar.onFocusChanged(false, View.LAYOUT_DIRECTION_LTR, new Rect());
+        mUrlBar.setInputIsMultilineEligible(true);
+        assertEquals(1, mUrlBar.getMaxLines());
+        assertTrue(mUrlBar.isSingleLine());
+        assertTrue(mUrlBar.isHorizontallyScrollable());
+    }
+
+    @Test
+    public void testTextWrappingCallback() {
+        var callback = mock(Callback.class);
+        mUrlBar.setUrlTextWrappingChangeListener(callback);
+        doReturn(mLayout).when(mUrlBar).getLayout();
+
+        mUrlBar.onFocusChanged(true, 0, null);
+        measureAndLayoutUrlBar();
+
+        // No single-line report (implied initial state).
+        doReturn(1).when(mLayout).getLineCount();
+        mUrlBar.onTextChanged("text", 0, 0, 4);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        verify(callback, never()).onResult(anyBoolean());
+        clearInvocations(callback);
+
+        // Report multi-line.
+        doReturn(2).when(mLayout).getLineCount();
+        mUrlBar.onTextChanged("longer text", 0, 0, 11);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        verify(callback).onResult(true);
+        clearInvocations(callback);
+
+        // No repeated callbacks.
+        mUrlBar.onTextChanged("longer text 2", 0, 0, 13);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        verify(callback, never()).onResult(anyBoolean());
+
+        // Report single-line again.
+        doReturn(1).when(mLayout).getLineCount();
+        mUrlBar.onTextChanged("text", 0, 0, 4);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        verify(callback).onResult(false);
+        clearInvocations(callback);
+
+        // No repeated callbacks.
+        mUrlBar.onTextChanged("text 2", 0, 0, 6);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+        verify(callback, never()).onResult(anyBoolean());
+    }
+
+    @Test
+    @EnableFeatures(OmniboxFeatureList.URL_BAR_WITHOUT_LIGATURES)
+    public void testUrlBarWithoutLigaturesEnabled() {
+        assertEquals("liga=0, clig=0, calt=0, dlig=0", mUrlBar.getFontFeatureSettings());
+    }
+
+    @Test
+    @DisableFeatures(OmniboxFeatureList.URL_BAR_WITHOUT_LIGATURES)
+    public void testUrlBarWithoutLigaturesDisabled() {
+        assertNull(mUrlBar.getFontFeatureSettings());
     }
 }

@@ -572,7 +572,9 @@ public class DownloadMessageUiControllerImpl implements DownloadMessageUiControl
             }
         }
 
-        return !MimeUtils.canAutoOpenMimeType(offlineItem.mimeType) || !offlineItem.hasUserGesture;
+        return !MimeUtils.canAutoOpenMimeType(offlineItem.mimeType)
+                || !offlineItem.hasUserGesture
+                || !offlineItem.allowAutoOpenAfterCompletion;
     }
 
     private void computeNextStepForUpdate(OfflineItem updatedItem) {

@@ -122,7 +122,6 @@ class WebAppUiManager {
       const webapps::AppId& app_id,
       const base::CommandLine& command_line,
       const base::FilePath& current_directory,
-      const std::optional<GURL>& url_handler_launch_url,
       const std::optional<GURL>& protocol_handler_launch_url,
       const std::optional<GURL>& file_launch_url,
       const std::vector<base::FilePath>& launch_files);
@@ -273,6 +272,7 @@ class WebAppUiManager {
       std::unique_ptr<webapps::MlInstallOperationTracker> tracker,
       const GURL& install_url,
       const std::optional<GURL>& manifest_id,
+      const GURL& last_committed_url,
       InstallCallback callback) = 0;
 
   using WebInstallAppLaunchAcceptanceCallback =

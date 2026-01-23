@@ -18,8 +18,8 @@ limitations under the License.
 
 #include <cstdint>
 #include <optional>
-#include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -27,19 +27,20 @@ limitations under the License.
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OwningOpRef.h"
 #include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/PassManager.h"
 #include "xla/autotuning.pb.h"
-#include "xla/backends/gpu/codegen/triton/ir/triton_xla_ops.h"
 #include "xla/codegen/emitter_loc_op_builder.h"
+#include "xla/codegen/tiling/symbolic_tile_analysis.h"
+#include "xla/codegen/xtile/ir/xtile_ops.h"
+#include "xla/hlo/analysis/symbolic_expr.h"
+#include "xla/hlo/ir/hlo_computation.h"
 #include "xla/hlo/ir/hlo_instructions.h"
 #include "xla/hlo/ir/hlo_module.h"
-#include "xla/service/gpu/model/symbolic_tile_analysis.h"
-#include "xla/service/gpu/model/tiled_hlo_computation.h"
-#include "xla/service/gpu/model/tiled_hlo_instruction.h"
+#include "xla/service/gpu/model/block_level_parameters.h"
 #include "xla/service/hlo_module_config.h"
 #include "xla/stream_executor/device_description.h"
 #include "xla/stream_executor/gpu/tma_metadata.h"
@@ -59,7 +60,8 @@ namespace gpu {
 struct TritonWrapperResult {
   int64_t shmem_bytes = 0;
   std::optional<se::ClusterDim> cluster_dim;
-  std::optional<stream_executor::gpu::TmaMetadata> tma_metadata;
+  se::gpu::TmaMetadata tma_metadata;
+  se::ThreadDim thread_dims;
 
   // The captured nvvm.annotations from the lowest level LLVM IR coming from
   // Triton. We need to propagate them because we later create the kernel and
@@ -143,6 +145,28 @@ absl::StatusOr<Tiling> TilingFromAnnotatedFusion(
     const HloFusionInstruction* fusion,
     const SymbolicTileAnalysis& symbolic_tile_analysis,
     const BlockLevelParameters& block_level_parameters);
+
+// This function (or its future equivalent) should emit the MLIR module in the
+// shared dialect between XLA:CPU and XLA:GPU. At the moment it is still
+// emitting GPU specific modules. It is currently exposed only for testing
+// purposes and will only be used to make sure we are properly emitting the
+// shared dialect.
+absl::StatusOr<mlir::OwningOpRef<mlir::ModuleOp>> EmitXTileModule(
+    absl::string_view fn_name,
+    EmitterSpecificConstraintsBuilder emitter_specific_constraints_builder,
+    const HloFusionInstruction* fusion,
+    const BlockLevelParameters& block_level_parameters,
+    mlir::MLIRContext& mlir_context);
+
+// This function lowers the shared dialect module to Triton. It is exposed for
+// testing with the same motivation as EmitXTileModule.
+//
+// The `fusion` instruction should be the one that was used to create the shared
+// dialect module.
+absl::Status LowerXTileToTriton(mlir::ModuleOp xtile_dialect_module,
+                                mlir::MLIRContext& mlir_context,
+                                const HloFusionInstruction& fusion,
+                                const se::DeviceDescription& device_info);
 
 }  // namespace ir_emitter_triton_internal
 }  // namespace gpu

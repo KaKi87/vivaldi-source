@@ -13,6 +13,7 @@
 #include "base/uuid.h"
 #include "components/notes/note_node.h"
 #include "components/notes/notes_model.h"
+#include "crypto/hash.h"
 #include "crypto/obsolete/md5.h"
 
 namespace base {
@@ -38,13 +39,14 @@ class NotesCodec {
   // Encodes the model to a JSON value. This is invoked to encode the contents
   // of the notes model and is currently a convenience to invoking Encode that
   // takes the notes node and other folder node.
-  base::Value Encode(NotesModel* model, const std::string& sync_metadata_str);
+  base::Value::Dict Encode(NotesModel* model,
+                           const std::string& sync_metadata_str);
 
   // Encodes the notes folder returning the JSON value.
-  base::Value Encode(const NoteNode* notes_node,
-                     const NoteNode* other_notes_node,
-                     const NoteNode* trash_notes_node,
-                     const std::string& sync_metadata_str);
+  base::Value::Dict Encode(const NoteNode* notes_node,
+                           const NoteNode* other_notes_node,
+                           const NoteNode* trash_notes_node,
+                           std::string sync_metadata_str);
 
   // Decodes the previously encoded value to the specified nodes as well as
   // setting |max_node_id| to the greatest node id. Returns true on success,
@@ -55,22 +57,12 @@ class NotesCodec {
               NoteNode* other_notes_node,
               NoteNode* trash_notes_node,
               int64_t* max_node_id,
-              const base::Value& value,
+              const base::Value::Dict& value,
               std::string* sync_metadata_str);
 
   // Updates the check-sum with the given string.
   void UpdateChecksum(const std::string& str);
   void UpdateChecksum(const std::u16string& str);
-
-  // Returns the checksum computed during last encoding/decoding call.
-  const std::string& computed_checksum() const { return computed_checksum_; }
-
-  // Returns the checksum that's stored in the file. After a call to Encode,
-  // the computed and stored checksums are the same since the computed checksum
-  // is stored to the file. After a call to decode, the computed checksum can
-  // differ from the stored checksum if the file contents were changed by the
-  // user.
-  const std::string& stored_checksum() const { return stored_checksum_; }
 
   // Returns whether the IDs were reassigned during decoding. Always returns
   // false after encoding.
@@ -89,6 +81,7 @@ class NotesCodec {
   // Names of the various keys written to the Value.
   static const char kVersionKey[];
   static const char kChecksumKey[];
+  static const char kChecksumSHA256Key[];
   static const char kIdKey[];
   static const char kTypeKey[];
   static const char kSubjectKey[];
@@ -110,53 +103,66 @@ class NotesCodec {
  private:
   // Encodes node and all its children into a Value object and returns it.
   // The caller takes ownership of the returned object.
-  base::Value EncodeNode(const NoteNode* node,
-                         const std::vector<const NoteNode*>* extra_nodes);
+  base::Value::Dict EncodeNode(const NoteNode* node,
+                               const std::vector<const NoteNode*>* extra_nodes);
 
   // Helper to perform decoding.
   bool DecodeHelper(NoteNode* notes_node,
                     NoteNode* other_notes_node,
                     NoteNode* trash_notes_node,
-                    const base::Value& value,
+                    const base::Value::Dict& value,
                     std::string* sync_metadata_str);
   void ExtractSpecialNode(NoteNode::Type type,
                           NoteNode* source,
                           NoteNode* target);
 
-  // Reassigns Notes IDs for all nodes.
-  void ReassignIDs(NoteNode* notes_node,
-                   NoteNode* other_node,
-                   NoteNode* trash_node);
-
-  // Helper to recursively reassign IDs.
-  void ReassignIDsHelper(NoteNode* node);
+  // Reassigns note IDs for those that require doing so (if any).
+  void ReassignIDsIfRequired();
 
   // Decodes the supplied node from the supplied value. Child nodes are
   // created appropriately by way of DecodeChildren. If node is NULL a new
   // node is created and added to parent (parent must then be non-NULL),
   // otherwise node is used.
-  bool DecodeNode(const base::Value& value,
+  void DecodeNode(const base::Value::Dict& value,
                   NoteNode* parent,
                   NoteNode* node,
                   NoteNode* child_other_node,
                   NoteNode* child_trash_node);
+
+  // Updates the check-sum with the given contents of the note node/folder.
+  // NOTE: These functions take in individual properties of a note node
+  // instead of taking in a NoteNode for efficiency so that we don't convert
+  // various data-types to UTF16 strings multiple times - once for serializing
+  // and once for computing the check-sum.
+  // The url parameter should be a valid UTF8 string.
+  void UpdateChecksumWithNoteNode(const std::string& id,
+                                  const std::u16string& title,
+                                  const std::string& type,
+                                  const std::u16string& content,
+                                  const std::string& url);
+  void UpdateChecksumWithNoteFolder(const std::string& id,
+                                    const std::u16string& title,
+                                    const std::string& type);
 
   // Initializes/Finalizes the checksum.
   void InitializeChecksum();
   void FinalizeChecksum();
 
   // Whether or not IDs were reassigned by the codec.
-  bool ids_reassigned_;
+  bool ids_reassigned_{false};
+
+  // Nodes with an invalid ID, which require reassignment.
+  std::vector<raw_ptr<NoteNode>> nodes_requiring_id_reassignment_;
+
+  // Mapping from old ID to new IDs if IDs were reassigned. Note that old IDs
+  // may contain duplicates, and therefore the mapping could be ambiguous.
+  std::multimap<int64_t, int64_t> reassigned_ids_per_old_id_;
 
   // Whether or not UUIDs were reassigned by the codec.
-  bool uuids_reassigned_;
-
-  // Whether or not IDs are valid. This is initially true, but set to false
-  // if an id is missing or not unique.
-  bool ids_valid_;
+  bool uuids_reassigned_{false};
 
   // Whether the loaded notes have attachments using the old, deprecated format.
-  bool has_deprecated_attachments_ = false;
+  bool has_deprecated_attachments_{false};
 
   // Contains the id of each of the nodes found in the file. Used to determine
   // if we have duplicates.
@@ -167,14 +173,20 @@ class NotesCodec {
   std::set<base::Uuid> uuids_;
 
   // MD5 context used to compute MD5 hash of all notes data.
-  crypto::obsolete::Md5 md5_context_;
+  crypto::obsolete::Md5 md5_hasher_;
 
-  // Checksums.
+  // SHA context used to compute SHA256 hash of all note data.
+  // Intended to replace MD5 hasher (crbug.com/426243026)
+  crypto::hash::Hasher sha256_hasher_{crypto::hash::kSha256};
+
+  // MD5 checksum computed during last encoding call.
   std::string computed_checksum_;
-  std::string stored_checksum_;
+
+  // SHA256 checksum computed during last encoding call.
+  std::string computed_sha256_checksum_;
 
   // Maximum ID assigned when decoding data.
-  int64_t maximum_id_;
+  int64_t maximum_id_{0};
 };
 
 }  // namespace vivaldi

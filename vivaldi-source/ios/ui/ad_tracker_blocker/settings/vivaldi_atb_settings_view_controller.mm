@@ -8,7 +8,6 @@
 #import "base/apple/foundation_util.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
@@ -317,26 +316,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self reloadExceptionAndSourceSettingsModel];
 }
 
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-
-  ItemType itemType = static_cast<ItemType>(
-      [self.tableViewModel itemTypeForIndexPath:indexPath]);
-
-  if (itemType == ItemTypeStrictBlocking) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(strictBlockingSwitchChanged:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-  return cell;
-}
-
 #pragma mark - Private methods
 
 - (TableViewSwitchItem*)strictBlockingItem {
@@ -352,6 +331,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _strictBlockingItem.on = [self getStrictBlockingEnabled];
     _strictBlockingItem.enabled = YES;
     _strictBlockingItem.accessibilityTraits |= UIAccessibilityTraitButton;
+    _strictBlockingItem.target = self;
+    _strictBlockingItem.selector = @selector(strictBlockingSwitchChanged:);
   }
   return _strictBlockingItem;
 }

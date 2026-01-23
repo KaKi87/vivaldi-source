@@ -27,6 +27,7 @@ def LowerXlaIntrinsicLibPass : Pass<"xla-lower-xla-intrinsic-lib", "mlir::Module
   }];
   let dependentDialects = [
     "mlir::func::FuncDialect",
+    "mlir::vector::VectorDialect",
   ];
   let constructor = "CreateLowerXlaIntrinsicLibPass()";
 }
@@ -201,20 +202,6 @@ def MergePointersToSameSlicePass :
   ];
 
   let constructor = "CreateMergePointersToSameSlicePass()";
-}
-
-def PropagateAliasScopesPass :
-   Pass<"xla-propagate-alias-scopes", "mlir::ModuleOp"> {
-  let summary = "Propagates alias scopes from function args to tensor modifications.";
-
-  let description = [{
-      Propagates alias scopes from function args to tensor modifications.
-  }];
-
-  let dependentDialects = [
-    "mlir::func::FuncDialect",
-    "mlir::LLVM::LLVMDialect",
-  ];
 }
 
 def PropagateSliceIndicesPass :

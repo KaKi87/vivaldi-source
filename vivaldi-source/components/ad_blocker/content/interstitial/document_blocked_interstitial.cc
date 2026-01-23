@@ -129,7 +129,7 @@ void DocumentBlockedInterstitial::CommandReceived(const std::string& command) {
     case security_interstitials::CMD_PROCEED: {
       auto* service = RuleServiceFactory::GetForBrowserContext(
           web_contents()->GetBrowserContext());
-      std::string domain = request_url().host();
+      std::string domain(request_url().host());
       DoAllowDomain(service, adblock_filter::RuleGroup::kAdBlockingRules,
                     domain);
       if (blocking_group_ == adblock_filter::RuleGroup::kTrackingRules) {

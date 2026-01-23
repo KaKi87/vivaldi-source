@@ -67,6 +67,24 @@ void ExternalProcessImporterHost::OnChromiumImportLockDialogEnd(
       ShowChromeWarningDialog();
     }
   } else {
+    // User cancelled the import. Notify all requested items as failed
+    // so the frontend knows this was a cancellation, not a successful import
+    // with 0 items.
+    std::string error_msg =
+        l10n_util::GetStringUTF8(IDS_IMPORTER_LOCK_TITLE) + " - " +
+        l10n_util::GetStringUTF8(IDS_CHROME_IMPORTER_LOCK_TEXT);
+
+    if (items_ & user_data_importer::HISTORY)
+      NotifyImportItemFailed(user_data_importer::HISTORY, error_msg);
+    if (items_ & user_data_importer::FAVORITES)
+      NotifyImportItemFailed(user_data_importer::FAVORITES, error_msg);
+    if (items_ & user_data_importer::PASSWORDS)
+      NotifyImportItemFailed(user_data_importer::PASSWORDS, error_msg);
+    if (items_ & user_data_importer::TABS)
+      NotifyImportItemFailed(user_data_importer::TABS, error_msg);
+    if (items_ & user_data_importer::EXTENSIONS)
+      NotifyImportItemFailed(user_data_importer::EXTENSIONS, error_msg);
+
     NotifyImportEnded();
   }
 }

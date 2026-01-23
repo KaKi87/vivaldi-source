@@ -15,7 +15,7 @@
     // Increment this if you change the data in ways that mean users with
     // existing data should get a new version. Otherwise, existing data may
     // continue to be used and updates made here will not always appear.
-    "kCurrentDataVersion": 10000174
+    "kCurrentDataVersion": 10000175
   },
 
   // The following engines are included in country lists and are added to the
@@ -376,6 +376,16 @@
       "suggest_url": "https://www.startpage.com/suggestions?q={searchTerms}&segment=startpage.vivaldi&partner=vivaldi&format=opensearch",
       "type": "VIVALDI_SEARCH_ENGINE_STARTPAGE_COM",
       "id": 5
+    },
+    "startpage_com_alt": {
+      "name": "Startpage",
+      "keyword": "s",
+      "favicon_url": "https://www.startpage.com/sp/cdn/favicons/favicon--default.ico",
+      "search_url": "https://www.startpage.com/do/search?q={searchTerms}&segment=startpage.vivaldi.1",
+      "suggest_url": "https://www.startpage.com/suggestions?q={searchTerms}&segment=startpage.vivaldi&partner=vivaldi&format=opensearch",
+      "type": "VIVALDI_SEARCH_ENGINE_STARTPAGE_COM",
+      "id": 5,
+      "is_partner": 1
     },
     "wikipedia": {
       "name": "Wikipedia",
@@ -1061,7 +1071,7 @@
       "duckduckgo",
       "ecosia",
       "qwant_gb",
-      "*!startpage_com",
+      "*!startpage_com_alt",
       "wikipedia",
       "google"
     ],
@@ -1273,7 +1283,7 @@
       "yahoo_no",
       "duckduckgo",
       "ecosia",
-      "*!startpage_com",
+      "*!startpage_com_alt",
       "wikipedia_no",
       "google"
     ],
@@ -1301,7 +1311,7 @@
       "yahoo_no",
       "duckduckgo",
       "ecosia",
-      "*!startpage_com",
+      "*!startpage_com_alt",
       "wikipedia_nn",
       "google"
     ],

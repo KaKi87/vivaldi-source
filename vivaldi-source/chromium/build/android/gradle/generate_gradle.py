@@ -813,7 +813,8 @@ def main():
     gn_args = ['--ide=json']
   else:
     gn_args = None
-  _RunGnGen(output_dir, gn_args)
+  if args.all and args.native_targets: # Vivaldi does not need this call
+    _RunGnGen(output_dir, gn_args)
 
   if args.all:
     # Query siso for all __build_config_crbug_908819 targets.

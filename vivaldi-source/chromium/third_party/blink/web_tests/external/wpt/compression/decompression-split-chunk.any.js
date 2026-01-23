@@ -1,10 +1,7 @@
-// META: global=worker
+// META: global=window,worker,shadowrealm
+// META: script=resources/decompression-input.js
 
 'use strict';
-
-const compressedBytesWithDeflate = new Uint8Array([120, 156, 75, 173, 40, 72, 77, 46, 73, 77, 81, 200, 47, 45, 41, 40, 45, 1, 0, 48, 173, 6, 36]);
-const compressedBytesWithGzip = new Uint8Array([31, 139, 8, 0, 0, 0, 0, 0, 0, 3, 75, 173, 40, 72, 77, 46, 73, 77, 81, 200, 47, 45, 41, 40, 45, 1, 0, 176, 1, 57, 179, 15, 0, 0, 0]);
-const expectedChunkValue = new TextEncoder().encode('expected output');
 
 async function decompressArrayBuffer(input, format, chunkSize) {
   const ds = new DecompressionStream(format);
@@ -31,14 +28,11 @@ async function decompressArrayBuffer(input, format, chunkSize) {
   return concatenated;
 }
 
-for (let chunkSize = 1; chunkSize < 16; ++chunkSize) {
-  promise_test(async t => {
-    const decompressedData = await decompressArrayBuffer(compressedBytesWithDeflate, 'deflate', chunkSize);
-    assert_array_equals(decompressedData, expectedChunkValue, "value should match");
-  }, `decompressing splitted chunk into pieces of size ${chunkSize} should work in deflate`);
-
-  promise_test(async t => {
-    const decompressedData = await decompressArrayBuffer(compressedBytesWithGzip, 'gzip', chunkSize);
-    assert_array_equals(decompressedData, expectedChunkValue, "value should match");
-  }, `decompressing splitted chunk into pieces of size ${chunkSize} should work in gzip`);
+for (const [format, bytes] of compressedBytes) {
+  for (let chunkSize = 1; chunkSize < 16; ++chunkSize) {
+    promise_test(async t => {
+      const decompressedData = await decompressArrayBuffer(bytes, format, chunkSize);
+      assert_array_equals(decompressedData, expectedChunkValue, "value should match");
+    }, `decompressing splitted chunk into pieces of size ${chunkSize} should work in ${format}`);
+  }
 }

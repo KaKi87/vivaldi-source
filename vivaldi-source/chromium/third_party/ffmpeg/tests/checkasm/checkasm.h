@@ -90,8 +90,10 @@ void checkasm_check_blackdetect(void);
 void checkasm_check_blend(void);
 void checkasm_check_blockdsp(void);
 void checkasm_check_bswapdsp(void);
+void checkasm_check_cavsdsp(void);
 void checkasm_check_colordetect(void);
 void checkasm_check_colorspace(void);
+void checkasm_check_dcadsp(void);
 void checkasm_check_diracdsp(void);
 void checkasm_check_exrdsp(void);
 void checkasm_check_fdctdsp(void);
@@ -110,8 +112,10 @@ void checkasm_check_hevc_deblock(void);
 void checkasm_check_hevc_idct(void);
 void checkasm_check_hevc_pel(void);
 void checkasm_check_hevc_sao(void);
+void checkasm_check_hpeldsp(void);
 void checkasm_check_huffyuvdsp(void);
 void checkasm_check_idctdsp(void);
+void checkasm_check_idet(void);
 void checkasm_check_jpeg2000dsp(void);
 void checkasm_check_llauddsp(void);
 void checkasm_check_lls(void);
@@ -123,6 +127,7 @@ void checkasm_check_mpegvideoencdsp(void);
 void checkasm_check_nlmeans(void);
 void checkasm_check_opusdsp(void);
 void checkasm_check_pixblockdsp(void);
+void checkasm_check_qpeldsp(void);
 void checkasm_check_sbrdsp(void);
 void checkasm_check_rv34dsp(void);
 void checkasm_check_rv40dsp(void);
@@ -135,6 +140,7 @@ void checkasm_check_sw_rgb(void);
 void checkasm_check_sw_scale(void);
 void checkasm_check_sw_yuv2rgb(void);
 void checkasm_check_sw_yuv2yuv(void);
+void checkasm_check_sw_ops(void);
 void checkasm_check_takdsp(void);
 void checkasm_check_utvideodsp(void);
 void checkasm_check_v210dec(void);
@@ -146,6 +152,7 @@ void checkasm_check_vf_gblur(void);
 void checkasm_check_vf_hflip(void);
 void checkasm_check_vf_threshold(void);
 void checkasm_check_vf_sobel(void);
+void checkasm_check_vp3dsp(void);
 void checkasm_check_vp8dsp(void);
 void checkasm_check_vp9dsp(void);
 void checkasm_check_videodsp(void);
@@ -182,7 +189,7 @@ int double_near_abs_eps_array(const double *a, const double *b, double eps,
 extern AVLFG checkasm_lfg;
 #define rnd() av_lfg_get(&checkasm_lfg)
 
-static av_unused void *func_ref, *func_new;
+av_unused static void *func_ref, *func_new;
 
 extern uint64_t bench_runs;
 
@@ -345,6 +352,22 @@ typedef struct CheckasmPerf {
 #define PERF_STOP(t)  t = AV_READ_TIME() - t
 #endif
 
+#define CALL4(...)\
+    do {\
+        tfunc(__VA_ARGS__); \
+        tfunc(__VA_ARGS__); \
+        tfunc(__VA_ARGS__); \
+        tfunc(__VA_ARGS__); \
+    } while (0)
+
+#define CALL16(...)\
+    do {\
+        CALL4(__VA_ARGS__); \
+        CALL4(__VA_ARGS__); \
+        CALL4(__VA_ARGS__); \
+        CALL4(__VA_ARGS__); \
+    } while (0)
+
 /* Benchmark the function */
 #define bench_new(...)\
     do {\
@@ -355,14 +378,12 @@ typedef struct CheckasmPerf {
             uint64_t tsum = 0;\
             uint64_t ti, tcount = 0;\
             uint64_t t = 0; \
-            const uint64_t truns = bench_runs;\
+            const uint64_t truns = FFMAX(bench_runs >> 3, 1);\
             checkasm_set_signal_handler_state(1);\
             for (ti = 0; ti < truns; ti++) {\
                 PERF_START(t);\
-                tfunc(__VA_ARGS__);\
-                tfunc(__VA_ARGS__);\
-                tfunc(__VA_ARGS__);\
-                tfunc(__VA_ARGS__);\
+                CALL16(__VA_ARGS__);\
+                CALL16(__VA_ARGS__);\
                 PERF_STOP(t);\
                 if (t*tcount <= tsum*4 && ti > 0) {\
                     tsum += t;\
@@ -411,6 +432,13 @@ DECL_CHECKASM_CHECK_FUNC(uint16_t);
 DECL_CHECKASM_CHECK_FUNC(uint32_t);
 DECL_CHECKASM_CHECK_FUNC(int16_t);
 DECL_CHECKASM_CHECK_FUNC(int32_t);
+
+int checkasm_check_float_ulp(const char *file, int line,
+                             const float *buf1, ptrdiff_t stride1,
+                             const float *buf2, ptrdiff_t stride2,
+                             int w, int h, const char *name,
+                             unsigned max_ulp, int align_w, int align_h,
+                             int padding);
 
 #define PASTE(a,b) a ## b
 #define CONCAT(a,b) PASTE(a,b)

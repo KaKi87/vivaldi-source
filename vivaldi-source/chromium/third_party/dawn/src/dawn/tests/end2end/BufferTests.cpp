@@ -435,6 +435,9 @@ TEST_P(BufferMappingTests, MapWrite_Large) {
 
 // Stress test mapping many buffers.
 TEST_P(BufferMappingTests, MapWrite_ManySimultaneous) {
+    // TODO(crbug.com/454861473): Flakily hangs indefinitely on Mac/AMD 5300M.
+    DAWN_SUPPRESS_TEST_IF(IsMacOS() && IsAMD() && IsMetal());
+
     constexpr uint32_t kDataSize = 1000;
     std::vector<uint32_t> myData;
     for (uint32_t i = 0; i < kDataSize; ++i) {
@@ -763,6 +766,10 @@ TEST_P(BufferMappingCallbackTests, EmptySubmissionWriteAndThenMap) {
 
     std::vector<bool> done = {false, false};
 
+    // With Vulkan Queue::WriteBuffers() doesn't encode any commands which need to be waited on so
+    // MapAsync() can happen immediately. On other platforms that isn't the case.
+    bool mapCompletesFirst = IsVulkan();
+
     // 1. submission without using buffer.
     SubmitCommandBuffer({});
     wgpu::Future f1 = queue.OnSubmittedWorkDone(
@@ -770,8 +777,7 @@ TEST_P(BufferMappingCallbackTests, EmptySubmissionWriteAndThenMap) {
             ASSERT_EQ(status, wgpu::QueueWorkDoneStatus::Success);
             done[0] = true;
 
-            // Step 2 callback should be called first, this is the second.
-            const std::vector<bool> kExpected = {true, false};
+            const std::vector<bool> kExpected = {true, mapCompletesFirst};
             EXPECT_EQ(done, kExpected);
         });
 
@@ -785,8 +791,7 @@ TEST_P(BufferMappingCallbackTests, EmptySubmissionWriteAndThenMap) {
                             ASSERT_EQ(status, wgpu::MapAsyncStatus::Success);
                             done[1] = true;
 
-                            // The buffer is not used by step 1, so this callback is called first.
-                            const std::vector<bool> kExpected = {true, true};
+                            const std::vector<bool> kExpected = {!mapCompletesFirst, true};
                             EXPECT_EQ(done, kExpected);
                         });
 
@@ -1064,14 +1069,15 @@ TEST_P(BufferTests, ZeroSizedBuffer) {
 
 // Test that creating a very large buffers fails gracefully.
 TEST_P(BufferTests, CreateBufferOOM) {
-    // TODO(crbug.com/346377856): fails on ANGLE/D3D11, but is likely a Dawn/GL bug that only
-    // repros on Windows for some reason
-    DAWN_TEST_UNSUPPORTED_IF(IsOpenGLES() && IsANGLED3D11());
-
     // TODO(http://crbug.com/dawn/749): Missing support.
     DAWN_TEST_UNSUPPORTED_IF(IsOpenGL());
     DAWN_TEST_UNSUPPORTED_IF(IsAsan());
     DAWN_TEST_UNSUPPORTED_IF(IsTsan());
+
+    // TODO(crbug.com/452924802): Unable to allocate buffer with validation
+    // skipped on WebGPU on WebGPU w/ Metal/Vulkan backends.
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal) && !IsBackendValidationEnabled());
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Vulkan) && !IsBackendValidationEnabled());
 
     wgpu::BufferDescriptor descriptor;
     descriptor.usage = wgpu::BufferUsage::CopyDst;
@@ -1105,10 +1111,6 @@ TEST_P(BufferTests, CreateBufferOOMWithValidationError) {
 
 // Test that a very large buffer mappedAtCreation fails gracefully.
 TEST_P(BufferTests, BufferMappedAtCreationOOM) {
-    // TODO(crbug.com/346377856): fails on ANGLE/D3D11, but is likely a Dawn/GL bug that only
-    // repros on Windows for some reason
-    DAWN_TEST_UNSUPPORTED_IF(IsOpenGLES() && IsANGLED3D11());
-
     // TODO(http://crbug.com/dawn/749): Missing support.
     DAWN_TEST_UNSUPPORTED_IF(IsOpenGL());
     DAWN_TEST_UNSUPPORTED_IF(IsAsan());
@@ -1232,14 +1234,15 @@ TEST_P(BufferTests, CreateErrorBuffer) {
 
 // Test that mapping an OOM buffer fails gracefully
 TEST_P(BufferTests, CreateBufferOOMMapAsync) {
-    // TODO(crbug.com/346377856): fails on ANGLE/D3D11, but is likely a Dawn/GL bug that only
-    // repros on Windows for some reason
-    DAWN_TEST_UNSUPPORTED_IF(IsOpenGLES() && IsANGLED3D11());
-
     // TODO(http://crbug.com/dawn/749): Missing support.
     DAWN_TEST_UNSUPPORTED_IF(IsOpenGL());
     DAWN_TEST_UNSUPPORTED_IF(IsAsan());
     DAWN_TEST_UNSUPPORTED_IF(IsTsan());
+
+    // TODO(crbug.com/452924802): Unable to allocate buffer with validation
+    // skipped on WebGPU on WebGPU w/ Metal/Vulkan backends.
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal) && !IsBackendValidationEnabled());
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Vulkan) && !IsBackendValidationEnabled());
 
     auto RunTest = [this](const wgpu::BufferDescriptor& descriptor) {
         wgpu::Buffer buffer;
@@ -1619,6 +1622,9 @@ TEST_P(BufferMapExtendedUsagesTests, MapWriteIndexBufferAndDraw) {
 // Test that mapping an occlusion QueryResolve buffer then draw with the buffer then mapping again
 // works.
 TEST_P(BufferMapExtendedUsagesTests, MapWriteQueryBufferThenDrawThenMapWrite) {
+    // TODO(crbug.com/440123094): Implement QuerySetWGPU
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOnWebGPU());
+
     constexpr uint64_t kExpectedVal2 = 1;
     constexpr uint64_t kExpectedVal3 = 2;
     constexpr size_t kQueryResolveBufferSize = 3 * sizeof(uint64_t);
@@ -2040,7 +2046,8 @@ DAWN_INSTANTIATE_TEST(BufferMapExtendedUsagesTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 }  // anonymous namespace
 }  // namespace dawn

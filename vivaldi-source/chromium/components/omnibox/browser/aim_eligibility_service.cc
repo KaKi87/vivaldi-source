@@ -12,9 +12,11 @@
 #include "base/base64.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/omnibox/common/omnibox_feature_configs.h"
@@ -22,6 +24,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/search/search.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/accounts_in_cookie_jar_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "google_apis/gaia/google_service_auth_error.h"
@@ -38,6 +41,16 @@
 namespace {
 
 // UMA histograms:
+// Histogram for whether the primary account exists.
+static constexpr char kEligibilityRequestPrimaryAccountExistsHistogramName[] =
+    "Omnibox.AimEligibility.EligibilityRequestPrimaryAccountExists";
+// Histogram for whether the primary account was found in the cookie jar.
+static constexpr char
+    kEligibilityRequestPrimaryAccountInCookieJarHistogramName[] =
+        "Omnibox.AimEligibility.EligibilityRequestPrimaryAccountInCookieJar";
+// Histogram for the eligibility request session index.
+static constexpr char kEligibilityRequestPrimaryAccountIndexHistogramName[] =
+    "Omnibox.AimEligibility.EligibilityRequestPrimaryAccountIndex";
 // Histogram for the eligibility request status.
 static constexpr char kEligibilityRequestStatusHistogramName[] =
     "Omnibox.AimEligibility.EligibilityRequestStatus";
@@ -53,9 +66,15 @@ static constexpr char kEligibilityResponseHistogramPrefix[] =
 // Histogram prefix for changes to the eligibility response.
 static constexpr char kEligibilityResponseChangeHistogramPrefix[] =
     "Omnibox.AimEligibility.EligibilityResponseChange";
+// Histograms for the number of retries for eligibility requests.
+static constexpr char kEligibilityRequestRetriesFailedHistogramName[] =
+    "Omnibox.AimEligibility.EligibilityRequestRetries.Failed";
+static constexpr char kEligibilityRequestRetriesSucceededHistogramName[] =
+    "Omnibox.AimEligibility.EligibilityRequestRetries.Succeeded";
 
 static constexpr char kRequestPath[] = "/async/folae";
 static constexpr char kRequestQuery[] = "async=_fmt:pb";
+static constexpr char kAuthUserQueryKey[] = "authuser";
 
 // Reflects the default value for the `kAIModeSettings` pref; 0 = allowed, 1 =
 // disallowed. Pref value is determined by: `AIModeSettings` policy,
@@ -64,27 +83,41 @@ static constexpr char kRequestQuery[] = "async=_fmt:pb";
 // migrating the existing prefs and the policy's prefs mapping.
 constexpr int kAiModeAllowedDefault = 0;
 
+// The maximum number of retries for eligibility requests.
+constexpr int kMaxRetries = 3;
+
 // The pref name used for storing the eligibility response proto.
 constexpr char kResponsePrefName[] =
     "aim_eligibility_service.aim_eligibility_response";
 
-// Returns the request URL or an empty GURL if a valid URL cannot be created;
-// e.g., Google is not the default search provider.
-GURL GetRequestUrl(const TemplateURLService* template_url_service) {
-  if (!search::DefaultSearchProviderIsGoogle(template_url_service)) {
-    return GURL();
+// Returns a non-empty account info if the primary account exists.
+CoreAccountInfo GetPrimaryAccountInfo(
+    signin::IdentityManager* identity_manager) {
+  if (!identity_manager) {
+    return CoreAccountInfo();
+  }
+  return identity_manager->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+}
+
+// Returns the index of the primary account in the cookie jar or std::nullopt if
+// the primary account does not exist or is not found in the cookie jar.
+std::optional<size_t> GetSessionIndexForPrimaryAccount(
+    signin::IdentityManager* identity_manager) {
+  CoreAccountInfo primary_account_info =
+      GetPrimaryAccountInfo(identity_manager);
+  if (primary_account_info.gaia.empty()) {
+    return std::nullopt;
   }
 
-  GURL base_gurl(
-      template_url_service->search_terms_data().GoogleBaseURLValue());
-  if (!base_gurl.is_valid()) {
-    return GURL();
+  auto accounts_in_cookie_jar = identity_manager->GetAccountsInCookieJar();
+  const auto& accounts = accounts_in_cookie_jar.GetAllAccounts();
+  for (size_t i = 0; i < accounts.size(); ++i) {
+    if (accounts[i].gaia_id == primary_account_info.gaia) {
+      return i;
+    }
   }
 
-  GURL::Replacements replacements;
-  replacements.SetPathStr(kRequestPath);
-  replacements.SetQueryStr(kRequestQuery);
-  return base_gurl.ReplaceComponents(replacements);
+  return std::nullopt;
 }
 
 const net::NetworkTrafficAnnotationTag kRequestTrafficAnnotation =
@@ -199,21 +232,76 @@ bool AimEligibilityService::IsAimAllowedByPolicy(const PrefService* prefs) {
   return prefs->GetInteger(omnibox::kAIModeSettings) == kAiModeAllowedDefault;
 }
 
+// static
+std::string AimEligibilityService::EligibilityResponseSourceToString(
+    EligibilityResponseSource source) {
+  switch (source) {
+    case EligibilityResponseSource::kDefault:
+      return "Default";
+    case EligibilityResponseSource::kPrefs:
+      return "Prefs";
+    case EligibilityResponseSource::kServer:
+      return "Server";
+    case EligibilityResponseSource::kBrowserCache:
+      return "Browser Cache";
+    case EligibilityResponseSource::kUser:
+      return "User";
+  }
+}
+
 AimEligibilityService::AimEligibilityService(
     PrefService& pref_service,
     TemplateURLService* template_url_service,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    signin::IdentityManager* identity_manager)
+    signin::IdentityManager* identity_manager,
+    bool is_off_the_record)
     : pref_service_(pref_service),
       template_url_service_(template_url_service),
       url_loader_factory_(url_loader_factory),
-      identity_manager_(identity_manager) {
-  if (base::FeatureList::IsEnabled(omnibox::kAimEnabled)) {
-    Initialize();
+      identity_manager_(identity_manager),
+      is_off_the_record_(is_off_the_record) {
+  if (!base::FeatureList::IsEnabled(omnibox::kAimEnabled)) {
+    return;
+  }
+
+  if (!template_url_service_) {
+    return;
+  }
+
+  pref_change_registrar_.Init(&pref_service_.get());
+  pref_change_registrar_.Add(
+      kResponsePrefName,
+      base::BindRepeating(&AimEligibilityService::OnEligibilityResponseChanged,
+                          weak_factory_.GetWeakPtr()));
+
+  LoadMostRecentResponse();
+
+  bool startup_request_enabled =
+      base::FeatureList::IsEnabled(omnibox::kAimServerRequestOnStartupEnabled);
+  bool startup_request_delayed_until_network_available_enabled =
+      base::FeatureList::IsEnabled(
+          omnibox::kAimStartupRequestDelayedUntilNetworkAvailableEnabled);
+  bool is_offline = net::NetworkChangeNotifier::IsOffline();
+
+  if (startup_request_enabled &&
+      startup_request_delayed_until_network_available_enabled && is_offline) {
+    net::NetworkChangeNotifier::AddNetworkChangeObserver(this);
+  } else if (startup_request_enabled) {
+    startup_request_sent_ = true;
+    StartServerEligibilityRequest(RequestSource::kStartup);
+  }
+
+  if (identity_manager_) {
+    identity_manager_observation_.Observe(identity_manager_);
   }
 }
 
-AimEligibilityService::~AimEligibilityService() = default;
+AimEligibilityService::~AimEligibilityService() {
+  if (base::FeatureList::IsEnabled(
+          omnibox::kAimStartupRequestDelayedUntilNetworkAvailableEnabled)) {
+    net::NetworkChangeNotifier::RemoveNetworkChangeObserver(this);
+  }
+}
 
 bool AimEligibilityService::IsCountry(const std::string& country) const {
   // Country codes are in lowercase ISO 3166-1 alpha-2 format; e.g., us, br, in.
@@ -234,10 +322,11 @@ AimEligibilityService::RegisterEligibilityChangedCallback(
 }
 
 bool AimEligibilityService::IsServerEligibilityEnabled() const {
-  return base::FeatureList::IsEnabled(omnibox::kAimServerEligibilityEnabled) ||
-         (base::FeatureList::IsEnabled(
-              omnibox::kAimServerEligibilityEnabledEn) &&
-          IsLanguage("en"));
+  return base::FeatureList::IsEnabled(omnibox::kAimServerEligibilityEnabled);
+}
+
+bool AimEligibilityService::IsAimAllowedByDse() const {
+  return search::DefaultSearchProviderIsGoogle(template_url_service_);
 }
 
 bool AimEligibilityService::IsAimLocallyEligible() const {
@@ -247,8 +336,7 @@ bool AimEligibilityService::IsAimLocallyEligible() const {
   }
 
   // Always check Google DSE and Policy requirements.
-  if (!search::DefaultSearchProviderIsGoogle(template_url_service_) ||
-      !IsAimAllowedByPolicy(&pref_service_.get())) {
+  if (!IsAimAllowedByDse() || !IsAimAllowedByPolicy(&pref_service_.get())) {
     return false;
   }
 
@@ -272,78 +360,81 @@ bool AimEligibilityService::IsAimEligible() const {
 }
 
 bool AimEligibilityService::IsPdfUploadEligible() const {
-  if (!IsAimEligible()) {
-    return false;
-  }
-
-  if (IsServerEligibilityEnabled()) {
-    return most_recent_response_.is_pdf_upload_eligible();
-  }
-
-  return true;
+  return IsEligibleByServer(most_recent_response_.is_pdf_upload_eligible());
 }
 
 bool AimEligibilityService::IsDeepSearchEligible() const {
-  if (!IsAimEligible()) {
-    return false;
-  }
-
-  if (IsServerEligibilityEnabled()) {
-    return most_recent_response_.is_deep_search_eligible();
-  }
-
-  return true;
+  return IsEligibleByServer(most_recent_response_.is_deep_search_eligible());
 }
 
 bool AimEligibilityService::IsCreateImagesEligible() const {
-  if (!IsAimEligible()) {
+  if (is_off_the_record_) {
     return false;
   }
+  return IsEligibleByServer(
+      most_recent_response_.is_image_generation_eligible());
+}
 
-  if (IsServerEligibilityEnabled()) {
-    return most_recent_response_.is_image_generation_eligible();
+bool AimEligibilityService::IsCanvasEligible() const {
+  return IsEligibleByServer(most_recent_response_.is_canvas_eligible());
+}
+
+const omnibox::AimEligibilityResponse&
+AimEligibilityService::GetMostRecentResponse() const {
+  return most_recent_response_;
+}
+
+AimEligibilityService::EligibilityResponseSource
+AimEligibilityService::GetMostRecentResponseSource() const {
+  return most_recent_response_source_;
+}
+
+void AimEligibilityService::StartServerEligibilityRequestForDebugging() {
+  StartServerEligibilityRequest(RequestSource::kUser);
+}
+
+bool AimEligibilityService::SetEligibilityResponseForDebugging(
+    const std::string& base64_encoded_response) {
+  std::string response_string;
+  if (!base::Base64Decode(base64_encoded_response, &response_string)) {
+    return false;
   }
-
+  omnibox::AimEligibilityResponse response_proto;
+  if (!ParseResponseString(response_string, &response_proto)) {
+    return false;
+  }
+  UpdateMostRecentResponse(response_proto, EligibilityResponseSource::kUser);
   return true;
 }
 
 // Private methods -------------------------------------------------------------
 
-void AimEligibilityService::Initialize() {
-  // The service should not be initialized if AIM is disabled.
-  CHECK(base::FeatureList::IsEnabled(omnibox::kAimEnabled));
-  // The service should not be initialized twice.
-  CHECK(!initialized_);
+// static
+std::string AimEligibilityService::RequestSourceToString(RequestSource source) {
+  switch (source) {
+    case RequestSource::kStartup:
+      return "Startup";
+    case RequestSource::kCookieChange:
+      return "CookieChange";
+    case RequestSource::kPrimaryAccountChange:
+      return "PrimaryAccountChange";
+    case RequestSource::kNetworkChange:
+      return "NetworkChange";
+    case RequestSource::kUser:
+      return "User";
+  }
+}
 
-  if (!template_url_service_) {
-    return;
+bool AimEligibilityService::IsEligibleByServer(bool server_eligibility) const {
+  if (!IsAimEligible()) {
+    return false;
   }
 
-  if (!template_url_service_->loaded()) {
-    template_url_service_subscription_ =
-        template_url_service_->RegisterOnLoadedCallback(base::BindOnce(
-            &AimEligibilityService::Initialize, weak_factory_.GetWeakPtr()));
-    return;
+  if (IsServerEligibilityEnabled()) {
+    return server_eligibility;
   }
 
-  initialized_ = true;
-
-  pref_change_registrar_.Init(&pref_service_.get());
-  pref_change_registrar_.Add(
-      kResponsePrefName,
-      base::BindRepeating(&AimEligibilityService::OnEligibilityResponseChanged,
-                          weak_factory_.GetWeakPtr()));
-
-  LoadMostRecentResponse();
-
-  if (base::FeatureList::IsEnabled(
-          omnibox::kAimServerRequestOnStartupEnabled)) {
-    StartServerEligibilityRequest(RequestSource::kStartup);
-  }
-
-  if (identity_manager_) {
-    identity_manager_observation_.Observe(identity_manager_);
-  }
+  return true;
 }
 
 void AimEligibilityService::OnPrimaryAccountChanged(
@@ -371,33 +462,50 @@ void AimEligibilityService::OnAccountsInCookieUpdated(
   StartServerEligibilityRequest(RequestSource::kCookieChange);
 }
 
-void AimEligibilityService::OnEligibilityResponseChanged() {
-  CHECK(initialized_);
-
-  LogEligibilityResponseChange();
-
-  if (base::FeatureList::IsEnabled(
-          omnibox::kAimServerEligibilityChangedNotification)) {
-    eligibility_changed_callbacks_.Notify();
+void AimEligibilityService::OnNetworkChanged(
+    net::NetworkChangeNotifier::ConnectionType type) {
+  bool startup_request_enabled =
+      base::FeatureList::IsEnabled(omnibox::kAimServerRequestOnStartupEnabled);
+  bool startup_request_delayed_until_network_available_enabled =
+      base::FeatureList::IsEnabled(
+          omnibox::kAimStartupRequestDelayedUntilNetworkAvailableEnabled);
+  CHECK(startup_request_enabled);
+  CHECK(startup_request_delayed_until_network_available_enabled);
+  bool is_online = !net::NetworkChangeNotifier::IsOffline();
+  if (is_online && !startup_request_sent_) {
+    startup_request_sent_ = true;
+    StartServerEligibilityRequest(RequestSource::kNetworkChange);
   }
 }
 
-void AimEligibilityService::UpdateMostRecentResponse(
-    const omnibox::AimEligibilityResponse& response_proto) {
-  CHECK(initialized_);
+void AimEligibilityService::OnEligibilityResponseChanged() {
+  eligibility_changed_callbacks_.Notify();
+}
 
+void AimEligibilityService::UpdateMostRecentResponse(
+    const omnibox::AimEligibilityResponse& response_proto,
+    EligibilityResponseSource response_source) {
+  // Read the old response from prefs before updating it to log changes below.
+  omnibox::AimEligibilityResponse old_response;
+  GetResponseFromPrefs(&pref_service_.get(), &old_response);
+
+  // Update the in-memory state before updating the prefs. Writing to prefs may
+  // notify subscribers synchronously. This ensures the in-memory state is
+  // correct.
+  most_recent_response_ = response_proto;
+  most_recent_response_source_ = response_source;
+
+  // Update the prefs.
   std::string response_string;
   response_proto.SerializeToString(&response_string);
   std::string encoded_response = base::Base64Encode(response_string);
   pref_service_->SetString(kResponsePrefName, encoded_response);
 
-  most_recent_response_ = response_proto;
-  most_recent_response_source_ = EligibilityResponseSource::kServer;
+  // Log changes.
+  LogEligibilityResponseChanges(old_response, response_proto);
 }
 
 void AimEligibilityService::LoadMostRecentResponse() {
-  CHECK(initialized_);
-
   omnibox::AimEligibilityResponse prefs_response;
   if (!GetResponseFromPrefs(&pref_service_.get(), &prefs_response)) {
     return;
@@ -407,17 +515,68 @@ void AimEligibilityService::LoadMostRecentResponse() {
   most_recent_response_source_ = EligibilityResponseSource::kPrefs;
 }
 
+GURL AimEligibilityService::GetRequestUrl(
+    RequestSource request_source,
+    const TemplateURLService* template_url_service,
+    signin::IdentityManager* identity_manager) {
+  if (!search::DefaultSearchProviderIsGoogle(template_url_service)) {
+    return GURL();
+  }
+
+  GURL base_gurl(
+      template_url_service->search_terms_data().GoogleBaseURLValue());
+  if (!base_gurl.is_valid()) {
+    return GURL();
+  }
+
+  GURL::Replacements replacements;
+  replacements.SetPathStr(kRequestPath);
+  replacements.SetQueryStr(kRequestQuery);
+  GURL url = base_gurl.ReplaceComponents(replacements);
+
+  // Get the index of the primary account in the cookie jar.
+  std::optional<size_t> session_index =
+      GetSessionIndexForPrimaryAccount(identity_manager);
+  // Log whether the primary account exists, if so whether it was found in the
+  // cookie jar, and if so its index in the cookie jar.
+  auto primary_account_info = GetPrimaryAccountInfo(identity_manager);
+  const bool primary_account_exists = !primary_account_info.gaia.empty();
+  LogEligibilityRequestPrimaryAccountExists(primary_account_exists,
+                                            request_source);
+  if (primary_account_exists) {
+    const bool primary_account_in_cookie_jar = session_index.has_value();
+    LogEligibilityRequestPrimaryAccountInCookieJar(
+        primary_account_in_cookie_jar, request_source);
+    if (primary_account_in_cookie_jar) {
+      LogEligibilityRequestPrimaryAccountIndex(*session_index, request_source);
+      // Add authuser=<primary account session index> if applicable.
+      // By default the endpoint uses the first account in the cookie jar to
+      // authenticate the request. When the primary account is not set or found
+      // in the cookie jar, the endpoint should not assume the first account in
+      // the cookie jar is the primary account.
+      // TODO(crbug.com/452304766): Find a way to force the endpoint to treat
+      // these as signed-out sessions.
+      if (base::FeatureList::IsEnabled(
+              omnibox::kAimServerEligibilityForPrimaryAccountEnabled)) {
+        return net::AppendQueryParameter(url, kAuthUserQueryKey,
+                                         base::NumberToString(*session_index));
+      }
+    }
+  }
+
+  return url;
+}
+
 void AimEligibilityService::StartServerEligibilityRequest(
     RequestSource request_source) {
-  CHECK(initialized_);
-
   // URLLoaderFactory may be null in tests.
   if (!url_loader_factory_) {
     return;
   }
 
   // Request URL may be invalid.
-  GURL request_url = GetRequestUrl(template_url_service_.get());
+  GURL request_url = GetRequestUrl(request_source, template_url_service_.get(),
+                                   identity_manager_);
   if (!request_url.is_valid()) {
     return;
   }
@@ -435,6 +594,15 @@ void AimEligibilityService::StartServerEligibilityRequest(
 
   LogEligibilityRequestStatus(EligibilityRequestStatus::kSent, request_source);
 
+  if (base::FeatureList::IsEnabled(
+          omnibox::kAimServerEligibilityCustomRetryPolicyEnabled)) {
+    // Other places in Chrome suggest that DNS and network change related
+    // failures are common on startup and use the retry policy below.
+    loader->SetRetryOptions(
+        kMaxRetries, network::SimpleURLLoader::RETRY_ON_NAME_NOT_RESOLVED |
+                         network::SimpleURLLoader::RETRY_ON_NETWORK_CHANGE);
+  }
+
   loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
       url_loader_factory_.get(),
       base::BindOnce(&AimEligibilityService::OnServerEligibilityResponse,
@@ -445,49 +613,102 @@ void AimEligibilityService::StartServerEligibilityRequest(
 void AimEligibilityService::OnServerEligibilityResponse(
     std::unique_ptr<network::SimpleURLLoader> loader,
     RequestSource request_source,
-    std::unique_ptr<std::string> response_string) {
-  CHECK(initialized_);
-
+    std::optional<std::string> response_string) {
   const int response_code =
       loader->ResponseInfo() && loader->ResponseInfo()->headers
           ? loader->ResponseInfo()->headers->response_code()
           : 0;
+  const bool was_fetched_via_cache =
+      loader->ResponseInfo() ? loader->ResponseInfo()->was_fetched_via_cache
+                             : false;
+  const EligibilityRequestStatus request_status =
+      was_fetched_via_cache ? EligibilityRequestStatus::kSuccessBrowserCache
+                            : EligibilityRequestStatus::kSuccess;
 
+  ProcessServerEligibilityResponse(request_source, response_code,
+                                   request_status, loader->GetNumRetries(),
+                                   std::move(response_string));
+}
+
+void AimEligibilityService::ProcessServerEligibilityResponse(
+    RequestSource request_source,
+    int response_code,
+    EligibilityRequestStatus request_status,
+    int num_retries,
+    std::optional<std::string> response_string) {
   LogEligibilityRequestResponseCode(response_code, request_source);
+
+  const bool custom_retry_policy_enabled = base::FeatureList::IsEnabled(
+      omnibox::kAimServerEligibilityCustomRetryPolicyEnabled);
 
   if (response_code != 200 || !response_string) {
     LogEligibilityRequestStatus(EligibilityRequestStatus::kErrorResponse,
                                 request_source);
+    if (custom_retry_policy_enabled) {
+      base::UmaHistogramExactLinear(
+          kEligibilityRequestRetriesFailedHistogramName, num_retries,
+          kMaxRetries + 1);
+    }
     return;
   }
+
+  if (custom_retry_policy_enabled) {
+    base::UmaHistogramExactLinear(
+        kEligibilityRequestRetriesSucceededHistogramName, num_retries,
+        kMaxRetries + 1);
+  }
+
   omnibox::AimEligibilityResponse response_proto;
   if (!ParseResponseString(*response_string, &response_proto)) {
     LogEligibilityRequestStatus(EligibilityRequestStatus::kFailedToParse,
                                 request_source);
     return;
   }
-  LogEligibilityRequestStatus(EligibilityRequestStatus::kSuccess,
-                              request_source);
 
-  UpdateMostRecentResponse(response_proto);
+  LogEligibilityRequestStatus(request_status, request_source);
+  const EligibilityResponseSource response_source =
+      request_status == EligibilityRequestStatus::kSuccessBrowserCache
+          ? EligibilityResponseSource::kBrowserCache
+          : EligibilityResponseSource::kServer;
+  UpdateMostRecentResponse(response_proto, response_source);
   LogEligibilityResponse(request_source);
 }
 
 std::string AimEligibilityService::GetHistogramNameSlicedByRequestSource(
     const std::string& histogram_name,
     RequestSource request_source) const {
-  auto request_source_suffix = [](RequestSource request_source) {
-    switch (request_source) {
-      case RequestSource::kStartup:
-        return ".Startup";
-      case RequestSource::kCookieChange:
-        return ".CookieChange";
-      case RequestSource::kPrimaryAccountChange:
-        return ".PrimaryAccountChange";
-    }
-    return "";
-  };
-  return base::StrCat({histogram_name, request_source_suffix(request_source)});
+  return base::StrCat(
+      {histogram_name, ".", RequestSourceToString(request_source)});
+}
+
+void AimEligibilityService::LogEligibilityRequestPrimaryAccountExists(
+    bool exists,
+    RequestSource request_source) const {
+  const auto& name = kEligibilityRequestPrimaryAccountExistsHistogramName;
+  const auto& sliced_name =
+      GetHistogramNameSlicedByRequestSource(name, request_source);
+  base::UmaHistogramBoolean(name, exists);
+  base::UmaHistogramBoolean(sliced_name, exists);
+}
+
+void AimEligibilityService::LogEligibilityRequestPrimaryAccountInCookieJar(
+    bool in_cookie_jar,
+    RequestSource request_source) const {
+  const auto& name = kEligibilityRequestPrimaryAccountInCookieJarHistogramName;
+  const auto& sliced_name =
+      GetHistogramNameSlicedByRequestSource(name, request_source);
+  base::UmaHistogramBoolean(name, in_cookie_jar);
+  base::UmaHistogramBoolean(sliced_name, in_cookie_jar);
+}
+
+void AimEligibilityService::LogEligibilityRequestPrimaryAccountIndex(
+    size_t session_index,
+    RequestSource request_source) const {
+  const auto& name = kEligibilityRequestPrimaryAccountIndexHistogramName;
+  const auto& sliced_name =
+      GetHistogramNameSlicedByRequestSource(name, request_source);
+  base::UmaHistogramSparse(name, session_index);
+  base::UmaHistogramSparse(sliced_name, session_index);
 }
 
 void AimEligibilityService::LogEligibilityRequestStatus(
@@ -524,15 +745,15 @@ void AimEligibilityService::LogEligibilityResponse(
   base::UmaHistogramBoolean(
       base::StrCat({sliced_prefix, ".is_pdf_upload_eligible"}),
       most_recent_response_.is_pdf_upload_eligible());
+  base::UmaHistogramSparse(base::StrCat({prefix, ".session_index"}),
+                           most_recent_response_.session_index());
+  base::UmaHistogramSparse(base::StrCat({sliced_prefix, ".session_index"}),
+                           most_recent_response_.session_index());
   base::UmaHistogramBoolean(base::StrCat({prefix, ".is_deep_search_eligible"}),
                             most_recent_response_.is_deep_search_eligible());
   base::UmaHistogramBoolean(
       base::StrCat({sliced_prefix, ".is_deep_search_eligible"}),
       most_recent_response_.is_deep_search_eligible());
-  base::UmaHistogramSparse(base::StrCat({prefix, ".session_index"}),
-                           most_recent_response_.session_index());
-  base::UmaHistogramSparse(base::StrCat({sliced_prefix, ".session_index"}),
-                           most_recent_response_.session_index());
   base::UmaHistogramBoolean(
       base::StrCat({prefix, ".is_image_generation_eligible"}),
       most_recent_response_.is_image_generation_eligible());
@@ -541,29 +762,24 @@ void AimEligibilityService::LogEligibilityResponse(
       most_recent_response_.is_image_generation_eligible());
 }
 
-void AimEligibilityService::LogEligibilityResponseChange() const {
-  // Prefs are updated before `most_recent_response_` is. Compare the prefs with
-  // the previous state of the server response and log changes to each field.
-  omnibox::AimEligibilityResponse prefs_response;
-  if (!GetResponseFromPrefs(&pref_service_.get(), &prefs_response)) {
-    return;
-  }
-
+void AimEligibilityService::LogEligibilityResponseChanges(
+    const omnibox::AimEligibilityResponse& old_response,
+    const omnibox::AimEligibilityResponse& new_response) const {
   const auto& prefix = kEligibilityResponseChangeHistogramPrefix;
   base::UmaHistogramBoolean(
       base::StrCat({prefix, ".is_eligible"}),
-      most_recent_response_.is_eligible() != prefs_response.is_eligible());
+      old_response.is_eligible() != new_response.is_eligible());
   base::UmaHistogramBoolean(base::StrCat({prefix, ".is_pdf_upload_eligible"}),
-                            most_recent_response_.is_pdf_upload_eligible() !=
-                                prefs_response.is_pdf_upload_eligible());
-  base::UmaHistogramBoolean(base::StrCat({prefix, ".is_deep_search_eligible"}),
-                            most_recent_response_.is_deep_search_eligible() !=
-                                prefs_response.is_deep_search_eligible());
+                            old_response.is_pdf_upload_eligible() !=
+                                new_response.is_pdf_upload_eligible());
   base::UmaHistogramBoolean(
       base::StrCat({prefix, ".session_index"}),
-      most_recent_response_.session_index() != prefs_response.session_index());
+      old_response.session_index() != new_response.session_index());
+  base::UmaHistogramBoolean(base::StrCat({prefix, ".is_deep_search_eligible"}),
+                            old_response.is_deep_search_eligible() !=
+                                new_response.is_deep_search_eligible());
   base::UmaHistogramBoolean(
       base::StrCat({prefix, ".is_image_generation_eligible"}),
-      most_recent_response_.is_image_generation_eligible() !=
-          prefs_response.is_image_generation_eligible());
+      old_response.is_image_generation_eligible() !=
+          new_response.is_image_generation_eligible());
 }

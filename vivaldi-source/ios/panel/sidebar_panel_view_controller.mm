@@ -37,6 +37,7 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
 
 @property(nonatomic, strong) UIPageViewController* pageController;
 @property(nonatomic, strong) PanelButtonView* panelButtonView;
+@property(nonatomic, strong) NSLayoutConstraint* panelButtonTopConstraint;
 
 - (void)panelButtonClicked:(NSInteger)index;
 
@@ -70,13 +71,31 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
   self.panelButtonView.delegate = self;
   [self.view addSubview:self.panelButtonView];
   CGSize buttonViewSize = CGSizeMake(panel_icon_size, 0);
-  [self.panelButtonView anchorTop:self.view.topAnchor
+  [self.panelButtonView anchorTop:nil
                           leading:self.view.leadingAnchor
                            bottom:self.view.bottomAnchor
                          trailing:self.pageController.view.leadingAnchor
                           padding:buttonViewPadding
                              size:buttonViewSize];
+  self.panelButtonTopConstraint =
+      [self.panelButtonView.topAnchor
+                constraintEqualToAnchor:self.view.topAnchor];
+  self.panelButtonTopConstraint.active = YES;
 }
+
+- (void)viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+  if (@available(iOS 26, *)) {
+    UIViewLayoutRegion* safeAreaRegion =
+      [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:
+                  UIViewLayoutRegionAdaptivityAxisVertical];
+    NSDirectionalEdgeInsets calculatedInsets =
+      [self.view directionalEdgeInsetsForLayoutRegion:safeAreaRegion];
+    self.panelButtonTopConstraint.constant = calculatedInsets.top;
+    [self.view layoutIfNeeded];
+  }
+}
+
 
 /*
   Setup controllers

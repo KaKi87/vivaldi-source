@@ -17,6 +17,7 @@ import org.chromium.base.JniOnceCallback;
 import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.navigation_controller.UserAgentOverrideOption;
 import org.chromium.content_public.common.ResourceRequestBody;
@@ -77,15 +78,10 @@ public class WebContentsDelegateAndroid {
     }
 
     @CalledByNative
-    public void onUpdateUrl(GURL url) {}
+    public void onUpdateTargetUrl(GURL url) {}
 
     @CalledByNative
     public boolean takeFocus(boolean reverse) {
-        return false;
-    }
-
-    @CalledByNative
-    public boolean preHandleKeyboardEvent(long nativeKeyEvent) {
         return false;
     }
 
@@ -110,23 +106,22 @@ public class WebContentsDelegateAndroid {
     }
 
     /**
-     * Report a form resubmission. The overwriter of this function should eventually call
-     * either of NavigationController.ContinuePendingReload or
-     * NavigationController.CancelPendingReload.
+     * Report a form resubmission. The overwriter of this function should eventually call either of
+     * NavigationController.ContinuePendingReload or NavigationController.CancelPendingReload.
      */
     @CalledByNative
     public void showRepostFormWarningDialog() {}
 
     @CalledByNative
     public void enterFullscreenModeForTab(
-            long requestingFrame,
+            RenderFrameHost renderFrameHost,
             boolean prefersNavigationBar,
             boolean prefersStatusBar,
             long displayId) {}
 
     @CalledByNative
     public void fullscreenStateChangedForTab(
-            long requestingFrame,
+            RenderFrameHost renderFrameHost,
             boolean prefersNavigationBar,
             boolean prefersStatusBar,
             long displayId) {}
@@ -161,19 +156,25 @@ public class WebContentsDelegateAndroid {
         return false;
     }
 
-    /** @return The height of the top controls in physical pixels (not DIPs). */
+    /**
+     * @return The height of the top controls in physical pixels (not DIPs).
+     */
     @CalledByNative
     public int getTopControlsHeight() {
         return 0;
     }
 
-    /** @return The minimum visible height the top controls can have in physical pixels (not DIPs). */
+    /**
+     * @return The minimum visible height the top controls can have in physical pixels (not DIPs).
+     */
     @CalledByNative
     public int getTopControlsMinHeight() {
         return 0;
     }
 
-    /** @return The height of the bottom controls in physical pixels (not DIPs). */
+    /**
+     * @return The height of the bottom controls in physical pixels (not DIPs).
+     */
     @CalledByNative
     public int getBottomControlsHeight() {
         return 0;
@@ -181,20 +182,24 @@ public class WebContentsDelegateAndroid {
 
     /**
      * @return The minimum visible height the bottom controls can have in physical pixels (not
-     *         DIPs).
+     *     DIPs).
      */
     @CalledByNative
     public int getBottomControlsMinHeight() {
         return 0;
     }
 
-    /** @return Whether or not the browser controls height changes should be animated. */
+    /**
+     * @return Whether or not the browser controls height changes should be animated.
+     */
     @CalledByNative
     public boolean shouldAnimateBrowserControlsHeightChanges() {
         return false;
     }
 
-    /** @return Whether or not the browser controls resize Blink's view size. */
+    /**
+     * @return Whether or not the browser controls resize Blink's view size.
+     */
     @CalledByNative
     public boolean controlsResizeView() {
         return false;
@@ -202,7 +207,7 @@ public class WebContentsDelegateAndroid {
 
     /**
      * @return If shown, returns the height of the virtual keyboard in physical pixels. Otherwise,
-     *         returns 0.
+     *     returns 0.
      */
     @CalledByNative
     public int getVirtualKeyboardHeight() {
@@ -225,8 +230,22 @@ public class WebContentsDelegateAndroid {
     public void didBackForwardTransitionAnimationChange() {}
 
     @CalledByNative
-    private boolean maybeCopyContentAreaAsBitmap(JniOnceCallback<@Nullable Bitmap> callback) {
-        boolean result = maybeCopyContentAreaAsBitmap((Callback<@Nullable Bitmap>) callback);
+    private boolean maybeCopyContentAreaAsBitmap(
+            JniOnceCallback<@Nullable ScreenshotResult> callback) {
+        boolean result = maybeCopyContentArea(callback, ScreenshotResult.Destination.BITMAP);
+        if (!result) {
+            // If the method returns false, the callback won't be called, so we need to destroy it
+            // to prevent memory leaks and match the previous behavior of no callback.
+            callback.destroy();
+        }
+        return result;
+    }
+
+    @CalledByNative
+    private boolean maybeCopyContentAreaAsHardwareBuffer(
+            JniOnceCallback<@Nullable ScreenshotResult> callback) {
+        boolean result =
+                maybeCopyContentArea(callback, ScreenshotResult.Destination.HARDWARE_BUFFER);
         if (!result) {
             // If the method returns false, the callback won't be called, so we need to destroy it
             // to prevent memory leaks and match the previous behavior of no callback.
@@ -271,7 +290,7 @@ public class WebContentsDelegateAndroid {
      * @param url The target URL of the prerendering navigation.
      */
     @CalledByNative
-    public @UserAgentOverrideOption int shouldOverrideUserAgentForPrerender2(GURL url) {
+    public @UserAgentOverrideOption int shouldOverrideUserAgentForPreloading(GURL url) {
         // Inherit UA override of the last committed navigation regardless of URL as fallback.
         return UserAgentOverrideOption.INHERIT;
     }
@@ -282,9 +301,12 @@ public class WebContentsDelegateAndroid {
      * @param callback Executed asynchronously with the captured screenshot if this returns true.
      *     Note this callback is guaranteed to not retain a reference to this bitmap once it
      *     returns.
+     * @param destination whether to return the result as a Bitmap or a Hardware Buffer.
      * @return True if a native view such as an NTP is presenting.
      */
-    public boolean maybeCopyContentAreaAsBitmap(Callback<@Nullable Bitmap> callback) {
+    public boolean maybeCopyContentArea(
+            Callback<@Nullable ScreenshotResult> callback,
+            ScreenshotResult.Destination destination) {
         return false;
     }
 

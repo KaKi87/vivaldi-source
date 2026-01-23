@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> のズームレベル</translation>
 <translation id="1921508034244765766">Vivaldi が遅い、クラッシュする、またはデバイスが熱くなる</translation>
 <translation id="1929299157575856072">デフォルトのブロックレベル</translation>
+<translation id="1933618400514506228">セルビア・クロアチア語（<ph name="ORIGIN" />）</translation>
 <translation id="1968240832686794952">画像をバックグラウンドタブで開く</translation>
 <translation id="1986733655397734221">該当なし</translation>
 <translation id="1994506778397655062">新しいバックグラウンドタブで開く</translation>
@@ -106,7 +107,7 @@
 <translation id="233493642829799329">この設定を変更するといくつかのタブにおいて再読み込みが発生する場合があります</translation>
 <translation id="2336309953058658733">ごみ箱を空にする</translation>
 <translation id="2359808026110333948">続ける</translation>
-<translation id="2386793615875593361">１件のアイテムを選択中</translation>
+<translation id="2386793615875593361">1 件のアイテムを選択中</translation>
 <translation id="2387049655823108978">別のデバイスで開かれているタブを同期する</translation>
 <translation id="2388224692799337242">ブラウジングを開始すると、履歴がここに表示されます</translation>
 <translation id="2391028308389203648">トルコ語 (<ph name="ORIGIN" />)</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">プリロードされたブックマークやスピードダイヤルが不要</translation>
 <translation id="3091563570137981919">トラッカーと広告のブロック</translation>
 <translation id="3097968995088564986">追加ボタンを表示する</translation>
-<translation id="3102790820790869053">直近で閉じたタブを検索</translation>
 <translation id="3134385238404760368">直近で開かれたタブはありません</translation>
 <translation id="3142562627629111859">新しいグループ</translation>
 <translation id="3157931365184549694">復元</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">他になにか追加したいものはありますか？</translation>
 <translation id="3842727926262967527">タブバーとアドレスフィールドを表示する場所を選択してください。</translation>
 <translation id="3845564230651302310">新しいブロッカーの設定を適用中です...</translation>
+<translation id="385051799172605136">戻る</translation>
 <translation id="3858860766373142691">名前</translation>
 <translation id="3861379244432690245">ダイレクトマッチを有効にする</translation>
 <translation id="3866249974567520381">説明</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">変更日</translation>
 <translation id="4640946580087069269">メモへコピー</translation>
 <translation id="4643117005422448078">トップサイト</translation>
-<translation id="4654428449690716275">翻訳を提示する前後にバナーを表示しない</translation>
 <translation id="4654578955713250802">広告とトラッカーをブロック</translation>
 <translation id="4655510151391078468">送信したコードと一致しません。
         残り<ph name="ATTEMPTS" />回入力できます。</translation>
@@ -403,7 +403,7 @@
 <translation id="5857090052475505287">新しいフォルダー</translation>
 <translation id="5859825823508296659">ドメインを編集</translation>
 <translation id="5869217094746242845">プライバシーポリシーについてもっと知る</translation>
-<translation id="5871497086027727873">１件のアイテムを移動しました</translation>
+<translation id="5871497086027727873">1 件のアイテムを移動しました</translation>
 <translation id="5881883194519164706">新しい検索エンジン</translation>
 <translation id="5894313460141624172">タブスタック</translation>
 <translation id="5896446121684606536">ニックネームが未入力です。</translation>
@@ -624,7 +624,7 @@
 <translation id="8423076545503792640">エラーのためリクエストが失敗しました。後ほどお試しください。</translation>
 <translation id="8427509694325373907">画像検索 POST パラメータ</translation>
 <translation id="8428213095426709021">設定</translation>
-<translation id="8458397775385147834">１件のアイテムを削除しました</translation>
+<translation id="8458397775385147834">1 件のアイテムを削除しました</translation>
 <translation id="846569642435104154">選択したズームレベルがすべてのページに適用されます</translation>
 <translation id="8466547766474747336">欲しい機能が見当たらない</translation>
 <translation id="8500459200727969761">デフォルトのリストを復元する</translation>
@@ -663,6 +663,7 @@
 <translation id="8948792607467387336">壁紙として選択</translation>
 <translation id="8964449607824577665">現在の暗号化パスワードがない場合、私たちではあなたのデータを復号化できません。このパスワードをリセットすると、現在 Vivaldi サーバーにある同期データがすべて消去されます。</translation>
 <translation id="8965371804397726192">すべてのデータを同期する</translation>
+<translation id="896787570003733070">翻訳の提案前後にバナーを表示しない</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {ブックマークは "{title}"} へ移動されました
           other {ブックマークは "{title}"}}へ移動されました</translation>
@@ -672,7 +673,7 @@
 <translation id="9065203028668620118">編集</translation>
 <translation id="9077265667054763280">ウェブサイトの読み込みが非常に遅い</translation>
 <translation id="9079251484401922158">フィンランド語 (<ph name="ORIGIN" />)</translation>
-<translation id="9083392325882095631">１件のアイテム</translation>
+<translation id="9083392325882095631">1 件のアイテム</translation>
 <translation id="9091665118798175641">フォーム自動入力の情報を同期する</translation>
 <translation id="9097127519290088802">暗号化パスワードが必要です</translation>
 <translation id="9139318394846604261">ショッピング</translation>

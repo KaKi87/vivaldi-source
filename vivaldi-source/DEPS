@@ -1,7 +1,7 @@
 # DO NOT EDIT EXCEPT FOR LOCAL TESTING.
 
 vars = {
-  "upstream_commit_id": "If271721f13fc7a1f5f818a360bedcf59704a266e",
+  "upstream_commit_id": "Ieb9a87a50f1f10ed1921bf39c2fef33e3f1f9b1a",
 
   # The path of the sysroots.json file.
   # This is used by vendor builds like Electron.
@@ -59,7 +59,8 @@ hooks = [
         'chromium/third_party/test_fonts/test_fonts.tar.gz', # Remove after 20240901
         'chromium/third_party/node/node_modules.tar.gz', # TODO: Remove after 20241201, see https://crbug.com/351092787
         'chromium/third_party/tfhub_models', # TODO: Remove after 20241211
-    ],
+        'chromium/tools/clang/crashreports', # TODO: Remove after 20260401
+   ],
   },
   {
     # Ensure that we don't accidentally reference any .pyc files whose
@@ -150,7 +151,7 @@ hooks = [
     # Note: On Win, this should run after win_toolchain, as it may use it.
     'name': 'clang',
     'pattern': '.',
-    'condition': 'checkout_reclient and (checkout_win or checkout_mac)',
+    'condition': 'checkout_remote_toolchain and (checkout_win or checkout_mac)',
     'action': ['python3', "-u", 'chromium/tools/clang/scripts/update.py',
                   "--host-os", "linux",
                   "--output-dir",
@@ -360,17 +361,6 @@ hooks = [
     'action': [ 'python3',
                 'chromium/tools/update_pgo_profiles.py',
                 '--target=android-arm32',
-                'update',
-                '--gs-url-base=chromium-optimization-profiles/pgo_profiles',
-    ],
-  },
-  {
-    'name': 'Fetch PGO profiles for android arm64',
-    'pattern': '.',
-    'condition': 'checkout_pgo_profiles and checkout_android',
-    'action': [ 'python3',
-                'chromium/tools/update_pgo_profiles.py',
-                '--target=android-arm64',
                 'update',
                 '--gs-url-base=chromium-optimization-profiles/pgo_profiles',
     ],

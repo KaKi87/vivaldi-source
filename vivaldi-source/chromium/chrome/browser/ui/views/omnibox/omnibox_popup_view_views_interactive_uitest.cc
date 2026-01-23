@@ -56,10 +56,6 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
 
 IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
                        ClosePopupOnInactiveAreaClick) {
-  if (!base::FeatureList::IsEnabled(
-          features::kCloseOmniboxPopupOnInactiveAreaClick)) {
-    return;
-  }
   auto* const browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   ui::test::EventGenerator event_generator(
       views::GetRootWindow(browser_view->GetWidget()),
@@ -72,5 +68,5 @@ IN_PROC_BROWSER_TEST_F(OmniboxPopupViewViewsTest,
   event_generator.ClickLeftButton();
   EXPECT_TRUE(omnibox_view()->HasFocus());
   EXPECT_FALSE(omnibox_view()->GetText().empty());
-  EXPECT_FALSE(popup_view()->IsOpen());
+  EXPECT_FALSE(controller()->IsPopupOpen());
 }

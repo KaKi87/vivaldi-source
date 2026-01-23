@@ -24,4 +24,14 @@
           それでも問題が解決せんかったら、パフォーマンス向上のために
           このオプションもっかいオンにしてみて。</translation>
 <translation id="7496505986576158197">Vivaldiは<ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" />オープンソースプロジェクトと他の<ph name="BEGIN_LINK_OSS" />オープンソースソフトウェア<ph name="END_LINK_OSS" />のおかげで成り立ってるねん。</translation>
+<translation id="89559930087159128">Vivaldi
+          メニュー &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          ネットワークとインターネット &gt; プロキシ の順に開いて、
+          「設定自動的に検出する」のチェック外してちょうだい。</translation>
 </translationbundle>

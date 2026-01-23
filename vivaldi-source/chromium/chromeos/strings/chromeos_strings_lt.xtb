@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">apelsinai</translation>
 <translation id="1275718070701477396">Pasirinkta</translation>
 <translation id="1290331692326790741">Silpnas signalas</translation>
+<translation id="1292474106138697109">Mokymosi įrankių rodinys</translation>
 <translation id="1300115153046603471">APN yra numatytojo tipo ir <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">Konvertuoti</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989">Vaizdų: <ph name="IMAGE_COUNT" /></translation>
 <translation id="4300272766492248925">Atidaryti programą</translation>
 <translation id="430786093962686457">šifono</translation>
+<translation id="4309762678330556039">Automatiškai kurkite transkribuotus tekstus ir ieškokite garso įrašų. Įrašus galite kurti net neprisijungę prie interneto.</translation>
 <translation id="4310735698903592804">Naujausi „Google“ DI pagrįsti ekrano fonai</translation>
 <translation id="4320904097188876154">neoninės rausvos spalvos</translation>
 <translation id="432961742358282111">Spustelėkite dešiniuoju klavišu arba paspauskite ir palaikykite, kad gautumėte apibrėžtis, vertimus ar konvertuotumėte vienetus. Šią funkciją galite valdyti rodyklės kairėn ar dešinėn klavišais.</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">Daugiau parinkčių</translation>
 <translation id="5600027863942488546">Išbandytas klavišas <ph name="KEY_NAME" /></translation>
 <translation id="5606865426897221650">Tabuliavimo klavišas</translation>
+<translation id="5612205513582918357">Mokymosi įrankiai bendrina jūsų ekraną su <ph name="RECEIVER_NAME" /></translation>
 <translation id="5613201299517339763">Buvote atjungti</translation>
 <translation id="5620281292257375798">Tik vidiniams naudotojams</translation>
 <translation id="5628106863521633649">Pasiekiamos kalbos</translation>
@@ -1227,7 +1230,7 @@
 <translation id="6412715219990689313">Įtaisyta klaviatūra</translation>
 <translation id="6417265370957905582">„Google“ padėjėjas</translation>
 <translation id="6419454453018688975">Įjungti sistemos prieigą prie vietovės</translation>
-<translation id="6423239382391657905">Atidaryti virtualųjį privatųjį tinklą</translation>
+<translation id="6423239382391657905">OpenVPN</translation>
 <translation id="642713342828771202">saulėlydis</translation>
 <translation id="6437513277380808188">TXT</translation>
 <translation id="6439505561246192797">Silpnas (<ph name="SIGNAL_STRENGTH" />)</translation>

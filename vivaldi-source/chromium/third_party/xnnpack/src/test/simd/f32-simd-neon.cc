@@ -48,7 +48,9 @@ class F32SimdNEONTest : public ::testing::Test {
 
 TEST_F(F32SimdNEONTest, SetZero) {
   xnn_storeu_f32(output_.data(), xnn_zero_f32());
-  EXPECT_THAT(output_, testing::Each(testing::Eq(0.0f)));
+  for (size_t k = 0; k < xnn_simd_size_f32; k++) {
+    ASSERT_EQ(output_[k], 0.0f);
+  }
 }
 
 TEST_F(F32SimdNEONTest, Add) {
@@ -195,7 +197,7 @@ TEST_F(F32SimdNEONTest, Round) {
   const xnn_simd_f32_t res = xnn_round_f32(a);
   xnn_storeu_f32(output_.data(), res);
   for (size_t k = 0; k < xnn_simd_size_f32; k++) {
-    ASSERT_EQ(output_[k], std::round(inputs_[k]));
+    ASSERT_EQ(output_[k], std::rint(inputs_[k]));
   }
 
   // Check non-finite values.
@@ -204,7 +206,7 @@ TEST_F(F32SimdNEONTest, Round) {
     const xnn_simd_f32_t a = xnn_loadu_f32(inputs_.data());
     const xnn_simd_f32_t res = xnn_round_f32(a);
     xnn_storeu_f32(output_.data(), res);
-    ASSERT_THAT(output_[0], testing::NanSensitiveFloatEq(std::round(val)));
+    ASSERT_THAT(output_[0], testing::NanSensitiveFloatEq(std::rint(val)));
   }
 }
 

@@ -53,7 +53,7 @@ import org.chromium.ui.resources.AndroidResourceType;
 import org.chromium.ui.resources.ResourceManager;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 
 /**
  * The is the {@link View} displaying the ui compositor results; including webpages and tabswitcher.
@@ -213,6 +213,10 @@ public class CompositorView extends FrameLayout
             Activity activity = mWindowAndroid != null ? mWindowAndroid.getActivity().get() : null;
             boolean isMultiWindow = MultiWindowUtils.getInstance().isInMultiWindowMode(activity);
 
+            // Note(david@vivaldi.com): We do not use the largest measured
+            // height as this would result in rendering issues when edge to edge layout is enabled.
+            // This is a Chromium bug and this fix is only temporarily.
+            if (!EdgeToEdgeUtils.isEdgeToEdgeEverywhereEnabled())
             // If the measured width is the same as the allowed width (i.e. the orientation has
             // not changed) and multi-window mode is off, use the largest measured height seen thus
             // far.  This will prevent surface resizes as a result of showing the keyboard.

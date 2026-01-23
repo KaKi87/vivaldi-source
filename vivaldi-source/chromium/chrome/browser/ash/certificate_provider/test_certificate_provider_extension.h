@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,28 +6,24 @@
 #define CHROME_BROWSER_ASH_CERTIFICATE_PROVIDER_TEST_CERTIFICATE_PROVIDER_EXTENSION_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
-#include "base/callback.h"
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/values.h"
+#include "crypto/keypair.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "net/cert/x509_certificate.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/boringssl/src/include/openssl/base.h"
 
 namespace base {
 class FilePath;
-class Value;
-}
+}  // namespace base
 
 namespace content {
 class BrowserContext;
-}
-
-namespace crypto {
-class RSAPrivateKey;
 }
 
 namespace ash {
@@ -103,13 +99,13 @@ class TestCertificateProviderExtension final {
                               const base::Value& pin,
                               ReplyToJsCallback callback);
 
-  content::BrowserContext* const browser_context_;
+  const raw_ptr<content::BrowserContext> browser_context_;
   const scoped_refptr<net::X509Certificate> certificate_;
-  std::unique_ptr<crypto::RSAPrivateKey> private_key_;
+  crypto::keypair::PrivateKey private_key_;
   int certificate_request_count_ = 0;
   // When non-empty, contains the expected PIN; the implementation will request
   // the PIN on every signature request in this case.
-  absl::optional<std::string> required_pin_;
+  std::optional<std::string> required_pin_;
   // The number of remaining PIN attempts.
   // When equal to zero, signature requests will be failed immediately; when is
   // negative, infinite number of attempts is allowed.

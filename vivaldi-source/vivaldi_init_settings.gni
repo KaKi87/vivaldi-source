@@ -68,7 +68,6 @@ declare_overrides() {
   if (is_android) {
     if (is_official_build) {
       symbol_level = 1
-      use_relr_relocations = false
     } if (is_debug) {
       android_static_analysis = "off"
     } else {

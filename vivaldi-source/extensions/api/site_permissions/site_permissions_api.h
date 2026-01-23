@@ -21,11 +21,12 @@ class SitePermissionsAPI : public BrowserContextKeyedAPI,
   SitePermissionsAPI(const SitePermissionsAPI&) = delete;
   SitePermissionsAPI& operator=(const SitePermissionsAPI&) = delete;
 
-  static SitePermissionsAPI *FromBrowserContext(
+  static SitePermissionsAPI* FromBrowserContext(
       content::BrowserContext* browser_context);
 
   // BrowserContextKeyedAPI implementation.
-  static BrowserContextKeyedAPIFactory<SitePermissionsAPI>* GetFactoryInstance();
+  static BrowserContextKeyedAPIFactory<SitePermissionsAPI>*
+  GetFactoryInstance();
 
   static void SendPermissionChanged(content::BrowserContext* browser_context,
                                     const std::string& origin,

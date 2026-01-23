@@ -52,6 +52,7 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
@@ -66,6 +67,7 @@ import org.chromium.blink_public.web.WebTextInputMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.content.browser.GestureListenerManagerImpl;
+import org.chromium.content.browser.RenderCoordinatesImpl;
 import org.chromium.content.browser.WindowEventObserver;
 import org.chromium.content.browser.WindowEventObserverManager;
 import org.chromium.content.browser.picker.InputDialogContainer;
@@ -86,6 +88,7 @@ import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.base.ime.TextInputAction;
 import org.chromium.ui.base.ime.TextInputType;
+import org.chromium.ui.mojom.ImeTextSpanType;
 import org.chromium.ui.mojom.VirtualKeyboardPolicy;
 import org.chromium.ui.mojom.VirtualKeyboardVisibilityRequest;
 
@@ -186,6 +189,8 @@ public class ImeAdapterImpl
     private boolean mForceShowKeyboardDuringStylusWriting;
 
     private final ArrayDeque<KeyEvent> mKeyDownEvents = new ArrayDeque<>();
+
+    private String[] mSupportedMimeTypes = {};
 
     /**
      * {@ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to the
@@ -344,6 +349,15 @@ public class ImeAdapterImpl
                             DeleteRangeGesture.class);
             outAttrs.setSupportedHandwritingGestures(supportedGestures);
         }
+        // Update whether stylus handwriting should be enabled in editor info.
+        // This prevents the stylus handwriting toolbar from appearing and ensures the
+        // keyboard appears normally on views that do not support stylus handwriting.
+        // The null check for StylusWritingHandler indicates whether the feature is
+        // enabled and supported for this device.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
+                && mWebContents.getStylusWritingHandler() != null) {
+            outAttrs.setStylusHandwritingEnabled(true);
+        }
         return inputConnection;
     }
 
@@ -390,7 +404,9 @@ public class ImeAdapterImpl
                 && Build.VERSION.SDK_INT <= 38) {
             int unicodeChar = event.getUnicodeChar();
             int action = event.getAction();
-            if (action == KeyEvent.ACTION_DOWN && unicodeChar != 0) {
+            if (action == KeyEvent.ACTION_DOWN
+                    && unicodeChar != 0
+                    && (unicodeChar & KeyCharacterMap.COMBINING_ACCENT) == 0) {
                 removeOldKeyDownEvents();
                 mKeyDownEvents.add(new KeyEvent(event));
                 long maxQueueSize = 1000;
@@ -463,6 +479,11 @@ public class ImeAdapterImpl
         // InputMethodService evaluates fullscreen mode even when the new input connection is
         // null. This makes sure IME doesn't enter fullscreen mode or open custom UI.
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN | EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+        if (ContentFeatureMap.isEnabled(ContentFeatureList.ANDROID_MEDIA_INSERTION)) {
+            mSupportedMimeTypes =
+                    ImeAdapterImplJni.get().getSupportedMimeTypes(mNativeImeAdapterAndroid);
+            outAttrs.contentMimeTypes = mSupportedMimeTypes;
+        }
 
         if (!allowKeyboardLearning) {
             outAttrs.imeOptions |= EditorInfoCompat.IME_FLAG_NO_PERSONALIZED_LEARNING;
@@ -586,6 +607,11 @@ public class ImeAdapterImpl
         mWebContents
                 .getStylusWritingHandler()
                 .updateInputState(mLastText, mLastSelectionStart, mLastSelectionEnd);
+    }
+
+    /** Retrieves the supported MIME types of the current input field. */
+    public String[] getSupportedMimeTypes() {
+        return mSupportedMimeTypes;
     }
 
     /**
@@ -724,11 +750,25 @@ public class ImeAdapterImpl
                 } else {
                     SpannableStringBuilder spannable = new SpannableStringBuilder(text);
                     for (ImeTextSpan info : imeTextSpans) {
+                        int flags = 0;
+                        if (info.getType() == ImeTextSpanType.MISSPELLING_SUGGESTION) {
+                            flags = SuggestionSpan.FLAG_MISSPELLED;
+                        } else if (info.getType() == ImeTextSpanType.GRAMMAR_SUGGESTION) {
+                            flags = SuggestionSpan.FLAG_GRAMMAR_ERROR;
+                        }
+
+                        // When we decide to show the system's suggestion menu, then we should use
+                        // FLAG_EASY_CORRECT to tell the IME not to show their custom suggestion
+                        // menu.
+                        if (!info.shouldHideSuggestionMenu()) {
+                            flags = flags | SuggestionSpan.FLAG_EASY_CORRECT;
+                        }
+
                         SuggestionSpan suggestionSpan =
                                 new SuggestionSpan(
                                         ContextUtils.getApplicationContext(),
                                         info.getSuggestions(),
-                                        SuggestionSpan.FLAG_MISSPELLED);
+                                        flags);
 
                         spannable.setSpan(
                                 suggestionSpan,
@@ -1374,23 +1414,39 @@ public class ImeAdapterImpl
             mRestartInputOnNextStateUpdate = true;
         }
 
-        if (mWebContents.getStylusWritingHandler() == null) {
-            return;
-        }
+        View containerView = getContainerView();
+
         // Update edit bounds to stylus writing service.
-        Rect editableNodeBounds = new Rect();
-        if (isEditable) {
-            editableNodeBounds.set(nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip);
+        if (mWebContents.getStylusWritingHandler() != null) {
+            RenderCoordinatesImpl coords = mWebContents.getRenderCoordinates();
+            Rect editableNodeBounds = new Rect();
+            if (isEditable) {
+                editableNodeBounds.set(nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip);
+            }
+            mWebContents
+                    .getStylusWritingHandler()
+                    .onFocusedNodeChanged(
+                            editableNodeBounds,
+                            isEditable,
+                            containerView,
+                            coords.getDeviceScaleFactor(),
+                            coords.getContentOffsetYPixInt());
         }
-        float deviceScale = mWebContents.getRenderCoordinates().getDeviceScaleFactor();
-        mWebContents
-                .getStylusWritingHandler()
-                .onFocusedNodeChanged(
-                        editableNodeBounds,
-                        isEditable,
-                        assumeNonNull(mViewDelegate.getContainerView()),
-                        deviceScale,
-                        mWebContents.getRenderCoordinates().getContentOffsetYPixInt());
+
+        // Request view system keeps focused element on screen.
+        if (ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
+            Rect nodePix = fromCssToDevicePix(nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip);
+            if (!nodePix.isEmpty()) {
+                // TODO(crbug.com/464269649): when Baklava 36.1 support lands in Clank, remove
+                // delegate indirection and inline `requestInputFocusOnScreen()` call.
+                AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
+                if (delegate != null) {
+                    delegate.requestInputFocusOnScreen(containerView, nodePix);
+                }
+                // Do nothing if new 36.1 `requestRectangleOnScreen()` API with request source
+                // parameter is unavailable.
+            }
+        }
     }
 
     @CalledByNative
@@ -1464,6 +1520,18 @@ public class ImeAdapterImpl
         }
         return mCursorAnchorInfoController.onRequestCursorUpdates(
                 immediateRequest, monitorRequest, getContainerView());
+    }
+
+    /**
+     * Sends rich content into the current focused text field
+     *
+     * @param inputContentInfo information about the rich content to be inserted
+     * @return whether the insertion is successful.
+     */
+    boolean commitContent(String dataUrl) {
+        onImeEvent();
+        if (!isValid()) return false;
+        return ImeAdapterImplJni.get().insertMediaFromURL(mNativeImeAdapterAndroid, dataUrl);
     }
 
     /** Lazily creates/returns a StylusWritingImeCallback object. */
@@ -1542,6 +1610,26 @@ public class ImeAdapterImpl
     }
 
     /**
+     * Converts bounds from CSS pixels to device pixels, accounting for page scale, device scale,
+     * and content Y offset.
+     *
+     * @param left left X coordinate in CSS pixels
+     * @param top top Y coordinate in CSS pixels
+     * @param right right X coordinate in CSS pixels
+     * @param bottom bottom Y coordinate in CSS pixels
+     * @return {@link Rect} with the device pixel equivalents of the provided coordinates.
+     */
+    private Rect fromCssToDevicePix(float left, float top, float right, float bottom) {
+        RenderCoordinatesImpl coords = mWebContents.getRenderCoordinates();
+        final int topOffset = coords.getContentOffsetYPixInt();
+        return new Rect(
+                (int) coords.fromLocalCssToPix(left),
+                ((int) coords.fromLocalCssToPix(top)) + topOffset,
+                (int) coords.fromLocalCssToPix(right),
+                ((int) coords.fromLocalCssToPix(bottom)) + topOffset);
+    }
+
+    /**
      * Update the cached CursorAnchorInfo data. This may or may not trigger an update to the
      * platform.
      *
@@ -1549,8 +1637,32 @@ public class ImeAdapterImpl
      *     that no update is needed.
      */
     void updateCursorAnchorInfo(InputCursorAnchorInfo cursorAnchorInfo) {
-        mCursorAnchorInfoController.updateCursorAnchorInfoData(
-                cursorAnchorInfo, getContainerView());
+        View containerView = getContainerView();
+        mCursorAnchorInfoController.updateCursorAnchorInfoData(cursorAnchorInfo, containerView);
+
+        // Request view system keep caret on screen when moved.
+        if (cursorAnchorInfo.insertionMarker != null
+                && ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
+            // Convert caret bounds from CSS pixels to device pixels relative to root view.
+            var caretCss = cursorAnchorInfo.insertionMarker;
+            Rect caretPix =
+                    fromCssToDevicePix(
+                            caretCss.x,
+                            caretCss.y,
+                            caretCss.x + caretCss.width,
+                            caretCss.y + caretCss.height);
+
+            // TODO(crbug.com/464269649): when Baklava 36.1 support lands in Clank, remove delegate
+            // indirection and inline `requestRectangleOnScreen()` call.
+            AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
+            if (delegate != null && delegate.requestTextCursorOnScreen(containerView, caretPix)) {
+                // Action is performed in condition.
+            } else {
+                // Fallback to previous API (where `requestRectangleOnScreen()` calls are assumed
+                // to come from text cursor moves).
+                containerView.requestRectangleOnScreen(caretPix);
+            }
+        }
     }
 
     /**
@@ -1741,6 +1853,11 @@ public class ImeAdapterImpl
         resetAndHideKeyboard();
     }
 
+    void performSpellCheck() {
+        if (!isValid()) return;
+        ImeAdapterImplJni.get().performSpellCheck(mNativeImeAdapterAndroid);
+    }
+
     @NativeMethods
     interface Natives {
         long init(ImeAdapterImpl caller, WebContents webContents);
@@ -1794,6 +1911,8 @@ public class ImeAdapterImpl
                 String text,
                 int newCursorPosition);
 
+        boolean insertMediaFromURL(long nativeImeAdapterAndroid, String url);
+
         void finishComposingText(long nativeImeAdapterAndroid);
 
         void setEditableSelectionOffsets(long nativeImeAdapterAndroid, int start, int end);
@@ -1811,8 +1930,12 @@ public class ImeAdapterImpl
 
         void advanceFocusForIME(long nativeImeAdapterAndroid, int focusType);
 
+        String[] getSupportedMimeTypes(long nativeImeAdapterAndroid);
+
         // Stylus Writing
         void handleStylusWritingGestureAction(
                 long nativeImeAdapterAndroid, int id, ByteBuffer gestureData);
+
+        void performSpellCheck(long nativeImeAdapterAndroid);
     }
 }

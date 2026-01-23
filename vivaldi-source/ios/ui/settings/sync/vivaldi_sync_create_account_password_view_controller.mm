@@ -4,7 +4,6 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_button_item.h"
 #import "ios/chrome/common/string_util.h"
@@ -192,6 +191,9 @@ BOOL subscribeToNewsletter;
   self.termsOfUseSwitch.on = NO;
   self.termsOfUseSwitch.text =
       l10n_util::GetNSString(IDS_VIVALDI_SYNC_TC);
+  self.termsOfUseSwitch.target = self;
+  self.termsOfUseSwitch.selector = @selector(switchAction:);
+  self.termsOfUseSwitch.tag = ItemTypeTOSSwitch;
   self.termsOfUseSwitch.accessibilityIdentifier =
       l10n_util::GetNSString(IDS_VIVALDI_SYNC_TC);
   [model addItem:self.termsOfUseSwitch
@@ -202,6 +204,9 @@ BOOL subscribeToNewsletter;
   self.subscribeToNewsletterSwitch.on = NO;
   self.subscribeToNewsletterSwitch.text =
       l10n_util::GetNSString(IDS_VIVALDI_SUBSCRIBE_NEWSLETTER);
+  self.subscribeToNewsletterSwitch.target = self;
+  self.subscribeToNewsletterSwitch.selector = @selector(switchAction:);
+  self.subscribeToNewsletterSwitch.tag = ItemTypeNewsletterSwitch;
   self.subscribeToNewsletterSwitch.accessibilityIdentifier =
       l10n_util::GetNSString(IDS_VIVALDI_SUBSCRIBE_NEWSLETTER);
   [model addItem:self.subscribeToNewsletterSwitch
@@ -249,7 +254,6 @@ BOOL subscribeToNewsletter;
           initWithType:ItemTypeCreateButton];
   self.createButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_CREATE);
-  self.createButton.textAlignment = NSTextAlignmentNatural;
   self.createButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
   self.createButton.buttonTextColor =
       [UIColor colorNamed:kSolidButtonTextColor];
@@ -317,24 +321,6 @@ heightForHeaderInSection:(NSInteger)section {
       VivaldiTableViewTextEditCell* editCell =
           base::apple::ObjCCast<VivaldiTableViewTextEditCell>(cell);
       editCell.textField.delegate = self;
-      break;
-    }
-    case ItemTypeTOSSwitch: {
-      TableViewSwitchCell* editCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [editCell.switchView addTarget:self
-                              action:@selector(switchAction:)
-                    forControlEvents:UIControlEventValueChanged];
-      editCell.switchView.tag = itemType;
-      break;
-    }
-    case ItemTypeNewsletterSwitch: {
-      TableViewSwitchCell* editCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [editCell.switchView addTarget:self
-                              action:@selector(switchAction:)
-                    forControlEvents:UIControlEventValueChanged];
-      editCell.switchView.tag = itemType;
       break;
     }
     case ItemTypeExternalLinks: {

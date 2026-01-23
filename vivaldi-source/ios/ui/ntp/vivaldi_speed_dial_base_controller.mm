@@ -34,6 +34,7 @@
 #import "ios/ui/ntp/bottom_toolbar/bottom_toolbar_swift.h"
 #import "ios/ui/ntp/bottom_toolbar/vivaldi_ntp_bottom_toolbar_consumer.h"
 #import "ios/ui/ntp/cells/vivaldi_speed_dial_container_cell.h"
+#import "ios/ui/ntp/navigation_bar/vivaldi_custom_navigation_bar_swift.h"
 #import "ios/ui/ntp/nsd/vivaldi_nsd_coordinator.h"
 #import "ios/ui/ntp/top_toolbar/top_toolbar_swift.h"
 #import "ios/ui/ntp/top_toolbar/vivaldi_ntp_top_toolbar_view_consumer.h"
@@ -43,8 +44,8 @@
 #import "ios/ui/ntp/vivaldi_speed_dial_sorting_mode.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_view_controller.h"
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 #import "ios/ui/thumbnail/thumbnail_capturer_swift.h"
 #import "ios/ui/thumbnail/vivaldi_thumbnail_service.h"
 #import "ios/ui/toolbar/vivaldi_toolbar_constants.h"
@@ -85,6 +86,8 @@ CGFloat moreButtonContainerRadius = 4.0f;
 // Opacity for background color for more button container
 CGFloat moreButtonContainerOpacity = 0.6f;
 
+// Top toolbar navigation bar view height.
+CGFloat navigationBarHeight = 44.f;
 // Height for bottom toolbar view.
 CGFloat bottomToolbarHeight = 70.f;
 
@@ -92,6 +95,13 @@ CGFloat bottomToolbarHeight = 70.f;
 // group item.
 // So, toolbar needs 2 or more toolbar items to be visible.
 NSUInteger toolbarVisibleThreshold = 2;
+
+BOOL ShouldUseModernNavigationBar() {
+  if (@available(iOS 26.0, *)) {
+    return YES;
+  }
+  return NO;
+}
 }
 
 @interface VivaldiSpeedDialBaseController ()<UICollectionViewDataSource,
@@ -106,7 +116,9 @@ NSUInteger toolbarVisibleThreshold = 2;
   // Start page settings coordinator.
   VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 }
-
+// Custom navigation bar view for post iOS 26. Default navigation bar height
+// and style breaks our top toolbar.
+@property(nonatomic, strong) VivaldiCustomNavigationBarView* navigationBarView;
 // Collection view that holds the children of speed dial folder.
 @property (weak, nonatomic) UICollectionView *collectionView;
 // Container view for holding the menu items and sort button.
@@ -210,6 +222,7 @@ NSUInteger toolbarVisibleThreshold = 2;
 @implementation VivaldiSpeedDialBaseController
 
 @synthesize profile = _profile;
+@synthesize navigationBarView = _navigationBarView;
 @synthesize speedDialViewController = _speedDialViewController;
 @synthesize collectionView = _collectionView;
 @synthesize topScrollMenuContainer = _topScrollMenuContainer;
@@ -227,6 +240,7 @@ NSUInteger toolbarVisibleThreshold = 2;
 @synthesize descendingSortAction = _descendingSortAction;
 @synthesize backgroundImageView = _backgroundImageView;
 @synthesize bookmarkBarItem = _bookmarkBarItem;
+@synthesize navgationBarHeight = _navgationBarHeight;
 
 #pragma mark - INITIALIZER
 - (instancetype)initWithBrowser:(Browser*)browser
@@ -264,6 +278,12 @@ NSUInteger toolbarVisibleThreshold = 2;
   _topToolbarView = nil;
   _bottomToolbarProvider.consumer = nil;
   _bottomToolbarProvider = nil;
+  if (_menuContainerHeight) {
+    _menuContainerHeight.active = NO;
+    _menuContainerHeight = nil;
+  }
+  [_navigationBarView removeFromSuperview];
+  _navigationBarView = nil;
   _vivaldiThumbnailService = nullptr;
   _startPageSettingsCoordinator = nullptr;
   [self.sharingCoordinator stop];
@@ -286,8 +306,12 @@ NSUInteger toolbarVisibleThreshold = 2;
 
 - (void)viewDidLayoutSubviews {
   [super viewDidLayoutSubviews];
-  self.navgationBarHeight =
-      self.navigationController.navigationBar.frame.size.height;
+  if (!ShouldUseModernNavigationBar()) {
+    UINavigationBar* navBar = self.navigationController.navigationBar;
+    if (navBar) {
+      self.navgationBarHeight = navBar.frame.size.height;
+    }
+  }
 }
 
 -(void)setupNotifications {
@@ -434,49 +458,101 @@ NSUInteger toolbarVisibleThreshold = 2;
 
 /// Set up the header view
 - (void)setUpHeaderView {
-  // Navigation bar customisation
-  self.navigationController.navigationBar.backgroundColor =
-    [UIColor colorNamed:vNTPBackgroundColor];
-  self.navigationController.navigationBar.translucent = NO;
+  if (ShouldUseModernNavigationBar()) {
+    [self.navigationController setNavigationBarHidden:YES animated:NO];
 
-  UINavigationBarAppearance* appearance =
-    [[UINavigationBarAppearance alloc] init];
-  [appearance setBackgroundColor: [UIColor colorNamed:vNTPBackgroundColor]];
+    // Scroll menu
+    VivaldiCustomNavigationBarView* navigationBarView =
+        [VivaldiCustomNavigationBarView new];
+    self.navigationBarView = navigationBarView;
+    navigationBarView.backgroundColor =
+        [UIColor colorNamed:vNTPBackgroundColor];
+    __weak __typeof(self) weakSelf = self;
+    navigationBarView.onBackButtonTapped = ^{
+      __strong __typeof(weakSelf) strongSelf = weakSelf;
+      if (strongSelf && strongSelf.navigationController) {
+        [strongSelf.navigationController popViewControllerAnimated:YES];
+      }
+    };
+    [navigationBarView configureWithTitle:@""
+                          showsBackButton:NO
+                          backButtonTitle:nil];
 
-  NSDictionary* attributes = @{
-    NSFontAttributeName :
-        [UIFont preferredFontForTextStyle:UIFontTextStyleBody]
-  };
+    [self.view addSubview:navigationBarView];
+    [navigationBarView anchorTop:self.view.safeTopAnchor
+                         leading:self.view.leadingAnchor
+                          bottom:nil
+                        trailing:self.view.trailingAnchor
+                            size:CGSizeMake(0, navigationBarHeight)];
 
-  [appearance setTitleTextAttributes:attributes];
-  [[UINavigationBar appearance] setScrollEdgeAppearance:appearance];
-  [[UINavigationBar appearance] setStandardAppearance:appearance];
-  [[UINavigationBar appearance] setCompactAppearance:appearance];
+    UIView* topScrollMenuContainer = [UIView new];
+    _topScrollMenuContainer = topScrollMenuContainer;
+    topScrollMenuContainer.backgroundColor = UIColor.clearColor;
 
-  // Scroll menu
-  UINavigationBar* navBar = self.navigationController.navigationBar;
+    [navigationBarView setCustomContentView:topScrollMenuContainer];
 
-  UIView *topScrollMenuContainer = [UIView new];
-  _topScrollMenuContainer = topScrollMenuContainer;
-  topScrollMenuContainer.backgroundColor = UIColor.clearColor;
+    VivaldiNTPTopToolbarView* topToolbarView = [VivaldiNTPTopToolbarView new];
+    topToolbarView.consumer = self;
+    _topToolbarView = topToolbarView;
 
-  VivaldiNTPTopToolbarView* topToolbarView = [VivaldiNTPTopToolbarView new];
-  topToolbarView.consumer = self;
-  _topToolbarView = topToolbarView;
+    [self.topScrollMenuContainer addSubview:topToolbarView];
+    [topToolbarView anchorTop:self.topScrollMenuContainer.topAnchor
+                      leading:self.topScrollMenuContainer.leadingAnchor
+                       bottom:self.topScrollMenuContainer.bottomAnchor
+                     trailing:nil
+                      padding:topScrollMenuPadding];
 
-  [self.topScrollMenuContainer addSubview:topToolbarView];
-  [topToolbarView anchorTop:self.topScrollMenuContainer.topAnchor
-                              leading:self.topScrollMenuContainer.leadingAnchor
-                               bottom:self.topScrollMenuContainer.bottomAnchor
-                             trailing:nil
-                              padding:topScrollMenuPadding];
+    // Add the top scroll menu menu container as subview on navigation bar
+    [navigationBarView addSubview:topScrollMenuContainer];
+    [topScrollMenuContainer anchorTop:navigationBarView.topAnchor
+                              leading:navigationBarView.safeLeftAnchor
+                               bottom:navigationBarView.bottomAnchor
+                             trailing:navigationBarView.safeRightAnchor];
 
-  // Add the top scroll menu menu container as subview on navigation bar
-  [navBar addSubview:topScrollMenuContainer];
-  [topScrollMenuContainer anchorTop: navBar.topAnchor
-                            leading: navBar.safeLeftAnchor
-                             bottom: navBar.bottomAnchor
-                           trailing: navBar.safeRightAnchor];
+  } else {
+    // Navigation bar customisation
+    self.navigationController.navigationBar.backgroundColor =
+        [UIColor colorNamed:vNTPBackgroundColor];
+    self.navigationController.navigationBar.translucent = NO;
+
+    UINavigationBarAppearance* appearance =
+        [[UINavigationBarAppearance alloc] init];
+    [appearance setBackgroundColor:[UIColor colorNamed:vNTPBackgroundColor]];
+
+    NSDictionary* attributes = @{
+      NSFontAttributeName :
+          [UIFont preferredFontForTextStyle:UIFontTextStyleBody]
+    };
+
+    [appearance setTitleTextAttributes:attributes];
+    [[UINavigationBar appearance] setScrollEdgeAppearance:appearance];
+    [[UINavigationBar appearance] setStandardAppearance:appearance];
+    [[UINavigationBar appearance] setCompactAppearance:appearance];
+
+    // Scroll menu
+    UINavigationBar* navBar = self.navigationController.navigationBar;
+    UIView* topScrollMenuContainer = [UIView new];
+    _topScrollMenuContainer = topScrollMenuContainer;
+    topScrollMenuContainer.backgroundColor = UIColor.clearColor;
+
+    VivaldiNTPTopToolbarView* topToolbarView = [VivaldiNTPTopToolbarView new];
+    topToolbarView.consumer = self;
+    _topToolbarView = topToolbarView;
+
+    [self.topScrollMenuContainer addSubview:topToolbarView];
+    [topToolbarView anchorTop:self.topScrollMenuContainer.topAnchor
+                      leading:self.topScrollMenuContainer.leadingAnchor
+                       bottom:self.topScrollMenuContainer.bottomAnchor
+                     trailing:nil
+                      padding:topScrollMenuPadding];
+
+    // Add the top scroll menu menu container as subview on navigation bar
+    [navBar addSubview:topScrollMenuContainer];
+    [topScrollMenuContainer anchorTop:navBar.topAnchor
+                              leading:navBar.safeLeftAnchor
+                               bottom:navBar.bottomAnchor
+                             trailing:navBar.safeRightAnchor];
+  }
 
   // More button
   UIButton *moreButton = [UIButton new];
@@ -533,12 +609,17 @@ NSUInteger toolbarVisibleThreshold = 2;
     // Adjust the top padding for collection view since it should be shifted
     // a bit bottom when collection view is not hidded but toolbar is not
     // visible either.
-    if (self.toolbarItems.count <= toolbarVisibleThreshold) {
-      self.cvTopConstraint.constant = self.navgationBarHeight;
+    // Modern toolbar is always in the view, hence we only change the visibility
+    // and no need to change constraints.
+    if (ShouldUseModernNavigationBar()) {
+      self.navigationBarView.hidden = YES;
     } else {
-      self.cvTopConstraint.constant = 0;
+      if (self.toolbarItems.count <= toolbarVisibleThreshold) {
+        self.cvTopConstraint.constant = self.navgationBarHeight;
+      } else {
+        self.cvTopConstraint.constant = 0;
+      }
     }
-
   } else {
     [self.topScrollMenuContainer addSubview: _moreButtonContainer];
     [_moreButtonContainer anchorTop:nil
@@ -553,8 +634,11 @@ NSUInteger toolbarVisibleThreshold = 2;
     [_moreButton setViewSize:moreButtonSize];
     [_moreButton centerToView:_moreButtonContainer];
 
-    // Reset collection view padding when toolbar is visivle.
+    // Reset collection view padding and navigation bar when toolbar is visible.
     self.cvTopConstraint.constant = 0;
+    if (ShouldUseModernNavigationBar()) {
+      self.navigationBarView.hidden = NO;
+    }
   }
 
   // More button tint color
@@ -607,9 +691,16 @@ NSUInteger toolbarVisibleThreshold = 2;
                       bottom:self.view.bottomAnchor
                     trailing:self.view.safeRightAnchor];
 
-  self.cvTopConstraint =
-      [_collectionView.topAnchor
-          constraintEqualToAnchor:self.view.safeTopAnchor];
+  if (ShouldUseModernNavigationBar()) {
+    self.cvTopConstraint =
+        [_collectionView.topAnchor
+            constraintEqualToAnchor:self.navigationBarView.bottomAnchor];
+  } else {
+    self.cvTopConstraint =
+        [_collectionView.topAnchor
+            constraintEqualToAnchor:self.view.safeTopAnchor];
+  }
+
   self.cvTopConstraint.active = YES;
 
   if (vivaldi_features::IsTopSitesEnabled()) {
@@ -1050,8 +1141,12 @@ NSUInteger toolbarVisibleThreshold = 2;
 }
 
 - (void)setNavigationBarVisibilityAnimated:(BOOL)animated {
-  [self.navigationController setNavigationBarHidden:[self shouldHideToolbar]
-                                           animated:animated];
+  if (ShouldUseModernNavigationBar()) {
+    [self.navigationController setNavigationBarHidden:YES animated:NO];
+  } else {
+    [self.navigationController setNavigationBarHidden:[self shouldHideToolbar]
+                                             animated:animated];
+  }
 }
 
 /// Returns the navigation bar visibility which contains
@@ -1678,6 +1773,9 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   [self setSelectedMenuItemIndex:self.selectedToolbarItemIndex];
   [self setUpMoreButtonProperties];
   [self resetMoreButtonContextMenuOptions];
+  if (ShouldUseModernNavigationBar() && self.navigationBarView) {
+    [self.navigationBarView setCustomContentView:self.topScrollMenuContainer];
+  }
 
   [self.collectionView performBatchUpdates:^{
     [self.collectionView.collectionViewLayout invalidateLayout];
@@ -1881,10 +1979,13 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
     // Hide the bottom toolbar before navigating.
     [self.bottomToolbarProvider handleToolbarVisibilityWithProgress:1];
 
-    // Make sure navigation bar is not hidden when we navigate down to children
-    // as the back button is required to come back to root.
-    [self.navigationController setNavigationBarHidden:NO
-                                             animated:YES];
+    // Make sure navigation bar is not hidden with legacy toolbar style when
+    // we navigate down to children
+    // as the back button is required to come back to root. For modern style
+    // we have custom navigation bar visible on the child too.
+    [self.navigationController
+        setNavigationBarHidden:ShouldUseModernNavigationBar()
+                      animated:YES];
 
     VivaldiSpeedDialViewController *controller =
       [VivaldiSpeedDialViewController initWithItem:item

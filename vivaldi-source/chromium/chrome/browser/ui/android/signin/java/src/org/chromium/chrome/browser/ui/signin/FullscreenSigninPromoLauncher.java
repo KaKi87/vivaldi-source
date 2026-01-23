@@ -15,6 +15,7 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.SigninPreferencesManager;
+import org.chromium.chrome.browser.ui.signin.fullscreen_signin.FullscreenSigninConfig;
 import org.chromium.components.signin.AccountManagerFacade;
 import org.chromium.components.signin.AccountManagerFacadeProvider;
 import org.chromium.components.signin.AccountUtils;
@@ -56,7 +57,7 @@ public final class FullscreenSigninPromoLauncher {
                 new FullscreenSigninAndHistorySyncConfig.Builder(
                                 context.getString(R.string.signin_fre_title),
                                 context.getString(R.string.signin_fre_subtitle),
-                                context.getString(R.string.signin_fre_dismiss_button),
+                                FullscreenSigninConfig.DISMISS_TEXT_NOT_INITIALIZED,
                                 context.getString(R.string.history_sync_title),
                                 context.getString(R.string.history_sync_subtitle))
                         .build();
@@ -91,20 +92,29 @@ public final class FullscreenSigninPromoLauncher {
         }
 
         final long nextShowTime = prefManager.getSigninPromoNextShowTime();
-        // We just store the next show time for now to ramp up clients for the experiment later.
-        // See crbug.com/408962000.
+        boolean useDate =
+                SigninFeatureMap.isEnabled(SigninFeatures.FULLSCREEN_SIGN_IN_PROMO_USE_DATE);
         if (nextShowTime == 0) {
             prefManager.setSigninPromoNextShowTime(
                     TimeUtils.currentTimeMillis()
                             + TimeUnit.DAYS.toMillis(getDurationBetweenPromoTriggers()));
+            // Don't show if next show time was never recorded in the past.
+            if (useDate) {
+                return false;
+            }
+        }
+        if (useDate && nextShowTime > TimeUtils.currentTimeMillis()) {
+            return false;
         }
 
         final int lastPromoMajorVersion = prefManager.getSigninPromoLastShownVersion();
         if (lastPromoMajorVersion == 0) {
             prefManager.setSigninPromoLastShownVersion(currentMajorVersion);
-            return false;
+            if (!useDate) {
+                return false;
+            }
         }
-        if (currentMajorVersion < lastPromoMajorVersion + 2) {
+        if (!useDate && currentMajorVersion < lastPromoMajorVersion + 2) {
             // Promo can be shown at most once every 2 Chrome major versions.
             return false;
         }

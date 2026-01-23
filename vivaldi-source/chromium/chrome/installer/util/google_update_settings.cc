@@ -29,19 +29,11 @@
 #include "chrome/installer/util/install_util.h"
 #include "chrome/installer/util/installation_state.h"
 
-#include "installer/util/vivaldi_install_util.h"
-#include "app/vivaldi_apptools.h"
-
 using base::win::RegKey;
 using installer::InstallationState;
 
-#if defined(VIVALDI_BUILD)
-const wchar_t GoogleUpdateSettings::kPoliciesKey[] =
-    L"SOFTWARE\\Policies\\Vivaldi\\Update";
-#else
 const wchar_t GoogleUpdateSettings::kPoliciesKey[] =
     L"SOFTWARE\\Policies\\Google\\Update";
-#endif
 const wchar_t GoogleUpdateSettings::kUpdatePolicyValue[] = L"UpdateDefault";
 const wchar_t GoogleUpdateSettings::kDownloadPreferencePolicyValue[] =
     L"DownloadPreference";
@@ -411,20 +403,6 @@ bool GoogleUpdateSettings::GetBrowser(std::wstring* browser) {
 
 bool GoogleUpdateSettings::GetLanguage(std::wstring* language) {
   // Written by Google Update.
-  // Also written by the Vivaldi installer.
-  if (vivaldi::IsVivaldiRunning()) {
-    RegKey vivaldi_key;
-    std::wstring lang;
-    if (vivaldi_key.Open(HKEY_CURRENT_USER,
-        vivaldi::constants::kVivaldiKey,
-        KEY_QUERY_VALUE) == ERROR_SUCCESS &&
-      vivaldi_key.ReadValue(google_update::kRegLangField, &lang) ==
-          ERROR_SUCCESS) {
-      *language = lang;
-      return true;
-    }
-  }
-
   return ReadGoogleUpdateStrKey(google_update::kRegLangField, language);
 }
 
@@ -451,16 +429,9 @@ bool GoogleUpdateSettings::ClearReferral() {
   return ClearGoogleUpdateStrKey(google_update::kRegReferralField);
 }
 
-void GoogleUpdateSettings::UpdateInstallStatus(
-    bool system_install,
-    installer::ArchiveType archive_type,
-    int install_return_code) {
-  DCHECK(archive_type != installer::UNKNOWN_ARCHIVE_TYPE ||
-         install_return_code != 0);
-
+void GoogleUpdateSettings::UpdateInstallStatus() {
   installer::AdditionalParameters additional_parameters;
-  if (UpdateGoogleUpdateApKey(archive_type, install_return_code,
-                              &additional_parameters) &&
+  if (UpdateGoogleUpdateApKey(additional_parameters) &&
       !additional_parameters.Commit()) {
     PLOG(ERROR) << "Failed to write to application's ClientState key "
                 << google_update::kRegApField << " = "
@@ -482,36 +453,14 @@ void GoogleUpdateSettings::SetProgress(bool system_install,
 }
 
 bool GoogleUpdateSettings::UpdateGoogleUpdateApKey(
-    installer::ArchiveType archive_type,
-    int install_return_code,
-    installer::AdditionalParameters* additional_parameters) {
-  DCHECK(archive_type != installer::UNKNOWN_ARCHIVE_TYPE ||
-         install_return_code != 0);
-  bool modified = false;
-
-  if (archive_type == installer::FULL_ARCHIVE_TYPE || !install_return_code) {
-    if (additional_parameters->SetFullSuffix(false)) {
-      VLOG(1) << "Removed incremental installer failure key; "
-                 "switching to channel: "
-              << additional_parameters->value();
-      modified = true;
-    }
-  } else if (archive_type == installer::INCREMENTAL_ARCHIVE_TYPE) {
-    if (additional_parameters->SetFullSuffix(true)) {
-      VLOG(1) << "Incremental installer failed; switching to channel: "
-              << additional_parameters->value();
-      modified = true;
-    } else {
-      VLOG(1) << "Incremental installer failure; already on channel: "
-              << additional_parameters->value();
-    }
-  } else {
-    // It's okay if we don't know the archive type.  In this case, leave the
-    // "-full" suffix as we found it.
-    DCHECK_EQ(installer::UNKNOWN_ARCHIVE_TYPE, archive_type);
+    installer::AdditionalParameters& additional_parameters) {
+  if (additional_parameters.SetFullSuffix(false)) {
+    VLOG(1) << "Removed incremental installer failure key; "
+               "switching to channel: "
+            << additional_parameters.value();
+    return true;
   }
-
-  return modified;
+  return false;
 }
 
 GoogleUpdateSettings::UpdatePolicy GoogleUpdateSettings::GetAppUpdatePolicy(

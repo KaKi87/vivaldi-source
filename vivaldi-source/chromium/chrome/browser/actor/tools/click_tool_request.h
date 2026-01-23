@@ -17,6 +17,8 @@ class ToolRequestVisitorFunctor;
 
 class ClickToolRequest : public PageToolRequest {
  public:
+  static constexpr char kName[] = "Click";
+
   ClickToolRequest(tabs::TabHandle tab_handle,
                    const PageTarget& target,
                    MouseClickType type,
@@ -29,14 +31,17 @@ class ClickToolRequest : public PageToolRequest {
   MouseClickCount GetClickCount() const { return click_count_; }
 
   // ToolRequest
-  std::string JournalEvent() const override;
-  std::optional<ObservationDelayController::PageStabilityConfig>
+  std::string_view Name() const override;
+  ObservationDelayController::PageStabilityConfig
   GetObservationPageStabilityConfig() const override;
 
   // PageToolRequest
   mojom::ToolActionPtr ToMojoToolAction(
       content::RenderFrameHost& frame) const override;
   std::unique_ptr<PageToolRequest> Clone() const override;
+
+  void WillSendToRenderer(
+      content::RenderWidgetHost* render_widget_host) override;
 
  private:
   MouseClickType click_type_;

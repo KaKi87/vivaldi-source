@@ -26,6 +26,7 @@
 
 #include "app/vivaldi_apptools.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "extensions/api/vivaldi_utilities/vivaldi_utilities_api.h"
 #include "ui/vivaldi_browser_window.h"
 
@@ -68,7 +69,9 @@ void CastDialogCoordinator::ShowDialogCentered(
     MediaRouterDialogActivationLocation activation_location) {
 
   if (vivaldi::IsVivaldiRunning()) {
-    Browser* active_browser = BrowserList::GetInstance()->GetLastActive();
+    Browser* active_browser =
+        GetLastActiveBrowserWindowInterfaceWithAnyProfile()
+            ->GetBrowserForMigrationOnly();
     VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(active_browser);
     views::View* anchor_view = window->GetWebView();
     extensions::VivaldiUtilitiesAPI* api =

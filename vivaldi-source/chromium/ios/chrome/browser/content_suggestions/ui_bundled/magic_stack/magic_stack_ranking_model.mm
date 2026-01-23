@@ -17,6 +17,7 @@
 #import "components/commerce/core/commerce_feature_list.h"
 #import "components/commerce/core/price_tracking_utils.h"
 #import "components/commerce/core/shopping_service.h"
+#import "components/ntp_tiles/pref_names.h"
 #import "components/password_manager/core/common/password_manager_pref_names.h"
 #import "components/power_bookmarks/core/power_bookmark_utils.h"
 #import "components/power_bookmarks/core/proto/power_bookmark_meta.pb.h"
@@ -45,8 +46,6 @@
 #import "ios/chrome/browser/content_suggestions/ui_bundled/app_bundle_promo/ui/app_bundle_promo_config.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/shortcuts_config.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/shortcuts_mediator.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_metrics_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_metrics_recorder.h"
@@ -55,24 +54,30 @@
 #import "ios/chrome/browser/content_suggestions/ui_bundled/default_browser/ui/default_browser_config.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_ranking_model_delegate.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_utils.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/price_tracking_promo_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/price_tracking_promo_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/safety_check_magic_stack_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/safety_check_prefs.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/safety_check_state.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/send_tab_to_self/send_tab_promo_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/send_tab_to_self/send_tab_promo_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/set_up_list_config.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/set_up_list_item_view_data.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/set_up_list_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/utils.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/shop_card_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/shop_card_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/tab_resumption_helper_delegate.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/tab_resumption_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/tab_resumption_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/coordinator/price_tracking_promo_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/coordinator/price_tracking_promo_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/ui/price_tracking_promo_item.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/coordinator/safety_check_magic_stack_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/coordinator/safety_check_magic_stack_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/model/safety_check_prefs.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/ui/safety_check_state.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/send_tab_to_self/coordinator/send_tab_promo_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/send_tab_to_self/coordinator/send_tab_promo_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/send_tab_to_self/ui/send_tab_promo_item.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/coordinator/set_up_list_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/public/set_up_list_utils.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/ui/set_up_list_config.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/ui/set_up_list_item_view_data.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/coordinator/shop_card_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/coordinator/shop_card_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/ui/shop_card_item.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shortcuts/coordinator/shortcuts_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shortcuts/coordinator/shortcuts_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shortcuts/ui/shortcuts_config.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/coordinator/tab_resumption_mediator.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/coordinator/tab_resumption_mediator_delegate.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/ui/tab_resumption_item.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/tips/coordinator/tips_magic_stack_mediator.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tips/model/tips_prefs.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/tips/ui/tips_module_state.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
@@ -126,7 +131,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
                                       ShopCardMediatorDelegate,
                                       SetUpListMediatorAudience,
                                       ShortcutsMediatorDelegate,
-                                      TabResumptionHelperDelegate,
+                                      TabResumptionMediatorDelegate,
                                       TipsMagicStackMediatorDelegate>
 // For testing-only
 @property(nonatomic, assign) BOOL hasReceivedMagicStackResponse;
@@ -379,9 +384,9 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
                          withCompletion:completion];
 }
 
-#pragma mark - TabResumptionHelperDelegate
+#pragma mark - TabResumptionMediatorDelegate
 
-- (void)tabResumptionHelperDidReceiveItem {
+- (void)tabResumptionMediatorDidReceiveItem {
   CHECK(IsTabResumptionEnabled());
   if (tab_resumption_prefs::IsTabResumptionDisabled(_prefService)) {
     return;
@@ -390,7 +395,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
   [self showTabResumptionWithItem:_tabResumptionMediator.itemConfig];
 }
 
-- (void)tabResumptionHelperDidReconfigureItem {
+- (void)tabResumptionMediatorDidReconfigureItem {
   if (tab_resumption_prefs::IsTabResumptionDisabled(_prefService)) {
     return;
   }
@@ -439,7 +444,6 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
 // Adds the Safety Check module to `order` based on the current Safety Check
 // state.
 - (void)addSafetyCheckToMagicStackOrder:(NSMutableArray*)order {
-  CHECK(IsSafetyCheckMagicStackEnabled());
   [order addObject:@(int(ContentSuggestionsModuleType::kSafetyCheck))];
 }
 
@@ -462,22 +466,15 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
   options.on_demand_execution = true;
   auto inputContext =
       base::MakeRefCounted<segmentation_platform::InputContext>();
-  // This check has to match check in HomeModulesCardRegistry::CreateAllCards()
-  // so that expected inputs match passed inputs.
-  if (base::FeatureList::IsEnabled(commerce::kPriceTrackingPromo) ||
-      (IsTipsMagicStackEnabled() && _tipsManager)) {
-    inputContext->metadata_args.emplace(
-        segmentation_platform::kIsNewUser,
-        segmentation_platform::processing::ProcessedValue::FromFloat(
-            IsFirstRunRecent(set_up_list::SetUpListDurationPastFirstRun())));
-  }
+  inputContext->metadata_args.emplace(
+      segmentation_platform::kIsNewUser,
+      segmentation_platform::processing::ProcessedValue::FromFloat(
+          IsFirstRunRecent(set_up_list::SetUpListDurationPastFirstRun())));
 
-  if (base::FeatureList::IsEnabled(commerce::kPriceTrackingPromo)) {
-    inputContext->metadata_args.emplace(
-        segmentation_platform::kIsSynced,
-        segmentation_platform::processing::ProcessedValue::FromFloat(
-            _shoppingService->IsShoppingListEligible()));
-  }
+  inputContext->metadata_args.emplace(
+      segmentation_platform::kIsSynced,
+      segmentation_platform::processing::ProcessedValue::FromFloat(
+          _shoppingService->IsShoppingListEligible()));
 
   if (send_tab_to_self::
           IsSendTabIOSPushNotificationsEnabledWithMagicStackCard()) {
@@ -567,8 +564,8 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         segmentation_platform::processing::ProcessedValue::FromFloat(
             [self isLensEnabled]));
 
-    if (base::FeatureList::IsEnabled(
-            segmentation_platform::features::kAppBundlePromoEphemeralCard)) {
+    if (segmentation_platform::features::
+            IsAppBundlePromoEphemeralCardEnabled()) {
       CHECK(_appStoreBundleService);
       inputContext->metadata_args.emplace(
           segmentation_platform::kAppBundleAppsInstalledCount,
@@ -576,8 +573,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
               static_cast<float>(
                   _appStoreBundleService->GetInstalledAppCount())));
     }
-    if (base::FeatureList::IsEnabled(
-            segmentation_platform::features::kDefaultBrowserMagicStackIos)) {
+    if (segmentation_platform::features::IsDefaultBrowserMagicStackEnabled()) {
       inputContext->metadata_args.emplace(
           segmentation_platform::kIsDefaultBrowserChromeIos,
           segmentation_platform::processing::ProcessedValue::FromFloat(
@@ -613,6 +609,9 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
 
   MagicStackModule* card;
 
+  BOOL areTipsCardsEnabled =
+      _prefService->GetBoolean(ntp_tiles::prefs::kTipsHomeModuleEnabled);
+
   for (const std::string& label : result.ordered_labels) {
     if (label == segmentation_platform::kPriceTrackingNotificationPromo) {
       if (IsPriceTrackingPromoCardEnabled(_shoppingService, _authService,
@@ -624,8 +623,7 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
       }
     } else if (segmentation_platform::home_modules::HomeModulesCardRegistry::
                    IsEphemeralTipsModuleLabel(label) &&
-               IsTipsMagicStackEnabled() &&
-               !tips_prefs::IsTipsInMagicStackDisabled(_prefService)) {
+               IsTipsMagicStackEnabled() && areTipsCardsEnabled) {
       TipIdentifier tipIdentifier = TipIdentifierForOutputLabel(label);
 
       if (tipIdentifier != TipIdentifier::kUnknown) {
@@ -654,16 +652,18 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         break;
       }
     } else if (label == segmentation_platform::kAppBundlePromoEphemeralModule) {
-      if (base::FeatureList::IsEnabled(
-              segmentation_platform::features::kAppBundlePromoEphemeralCard)) {
+      if (segmentation_platform::features::
+              IsAppBundlePromoEphemeralCardEnabled() &&
+          areTipsCardsEnabled) {
         _ephemeralCardToShow = ContentSuggestionsModuleType::kAppBundlePromo;
         card = _appBundlePromoMediator.config;
         break;
       }
     } else if (label ==
                segmentation_platform::kDefaultBrowserPromoEphemeralModule) {
-      if (base::FeatureList::IsEnabled(
-              segmentation_platform::features::kDefaultBrowserMagicStackIos)) {
+      if (segmentation_platform::features::
+              IsDefaultBrowserMagicStackEnabled() &&
+          areTipsCardsEnabled) {
         _ephemeralCardToShow = ContentSuggestionsModuleType::kDefaultBrowser;
         card = _defaultBrowserMediator.config;
         break;
@@ -782,10 +782,8 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
     // signal for Start.
     BOOL hasNoFreshnessSignal = shortcutsFreshnessImpressionCount != 0 &&
                                 parcelTrackingFreshnessImpressionCount != 0;
-    if (IsSafetyCheckMagicStackEnabled()) {
       hasNoFreshnessSignal =
           hasNoFreshnessSignal && safetyCheckFreshnessImpressionCount != 0;
-    }
     if (hasNoFreshnessSignal && [self.homeStartDataSource isStartSurface]) {
       options = segmentation_platform::PredictionOptions::ForCached(true);
     } else {
@@ -939,15 +937,15 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         break;
       }
       case ContentSuggestionsModuleType::kAppBundlePromo:
-        if (base::FeatureList::IsEnabled(segmentation_platform::features::
-                                             kAppBundlePromoEphemeralCard) &&
+        if (segmentation_platform::features::
+                IsAppBundlePromoEphemeralCardEnabled() &&
             _appBundlePromoMediator && _appBundlePromoMediator.config) {
           [magicStackOrder addObject:_appBundlePromoMediator.config];
         }
         break;
       case ContentSuggestionsModuleType::kDefaultBrowser:
-        if (base::FeatureList::IsEnabled(segmentation_platform::features::
-                                             kDefaultBrowserMagicStackIos) &&
+        if (segmentation_platform::features::
+                IsDefaultBrowserMagicStackEnabled() &&
             _defaultBrowserMediator) {
           [magicStackOrder addObject:_defaultBrowserMediator.config];
         }
@@ -980,11 +978,8 @@ using segmentation_platform::home_modules::SavePasswordsEphemeralModule;
         // - No current or previous issues, to avoid consistently displaying the
         // "All Safe" state and taking up carousel space for other modules.
         // - Irrelevant modules are hidden and it's not the first ranked module.
-        BOOL disabled =
-            !IsSafetyCheckMagicStackEnabled() ||
-            safety_check_prefs::IsSafetyCheckInMagicStackDisabled(_prefService);
-
-        if (disabled) {
+        if (safety_check_prefs::IsSafetyCheckInMagicStackDisabled(
+                _prefService)) {
           base::UmaHistogramEnumeration(
               kIOSSafetyCheckMagicStackHiddenReason,
               IOSSafetyCheckHiddenReason::kManuallyDisabled);

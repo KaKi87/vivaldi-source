@@ -29,11 +29,19 @@ pkg.depend(
         repo = "infra/chromium",
         ref = "refs/heads/main",
         path = "starlark-libs/chromium-luci",
-        revision = "bf99474620045f94691cfdaf7d6e482147df338b",
+        revision = "b859f278471bfa7328a74494c7d9db377ae3e931",
+    ),
+)
+
+pkg.depend(
+    name = "@chromium-targets",
+    source = pkg.source.local(
+        path = "targets",
     ),
 )
 
 pkg.resources([
+    "autoshard_exceptions.json",
     "dev/chromium-header.textpb",
     "lib/linux-default.json",
     "luci-analysis-dev.cfg",
@@ -42,7 +50,6 @@ pkg.resources([
     "luci-bisection.cfg",
     "milestones.json",
     "settings.json",
-    "targets/autoshard_exceptions.json",
     "templates/build_with_step_summary.template",
     "templates/tree_closure_email.template",
     "testhaus-staging.cfg",

@@ -96,8 +96,7 @@ bool MessageTable::SearchMessages(std::u16string search,
   statement.BindString16(0, search);
 
   while (statement.Step()) {
-    SearchListID searchListId = statement.ColumnInt64(0);
-    out_ids->push_back(searchListId);
+    out_ids->push_back(statement.ColumnInt64(0));
   }
 
   if (!statement.Succeeded()) {
@@ -153,6 +152,21 @@ bool MessageTable::DeleteMessages(SearchListIDs search_list_ids) {
   sql.append(")");
   sql::Statement statement(GetDB().GetUniqueStatement(sql));
   return statement.Run();
+}
+
+bool MessageTable::GetSearchListIds(SearchListIDs* out_ids) {
+  sql::Statement statement(
+      GetDB().GetUniqueStatement("SELECT rowid FROM messages_search_fts"));
+
+  while (statement.Step()) {
+    out_ids->push_back(statement.ColumnInt64(0));
+  }
+
+  if (!statement.Succeeded()) {
+    LOG(ERROR) << "Statement Failed. Error: " << GetDB().GetErrorCode();
+    return false;
+  }
+  return true;
 }
 
 bool MessageTable::UpdateToVersion2() {

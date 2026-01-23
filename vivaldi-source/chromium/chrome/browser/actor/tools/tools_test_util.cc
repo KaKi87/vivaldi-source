@@ -4,19 +4,24 @@
 
 #include "chrome/browser/actor/tools/tools_test_util.h"
 
+#include "base/base64.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/test_timeouts.h"
 #include "chrome/browser/actor/actor_features.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
+#include "chrome/browser/actor/actor_policy_checker.h"
+#include "chrome/browser/actor/actor_tab_data.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/site_policy.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
+#include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/optimization_guide/browser_test_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/zoom/chrome_zoom_level_prefs.h"
+#include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/chrome_test_utils.h"
@@ -54,6 +59,7 @@ MockActorLoginService::~MockActorLoginService() = default;
 
 void MockActorLoginService::GetCredentials(
     tabs::TabInterface* tab,
+    base::WeakPtr<actor_login::ActorLoginQualityLoggerInterface> mqls_logger,
     actor_login::CredentialsOrErrorReply callback) {
   std::move(callback).Run(credentials_);
 }
@@ -61,8 +67,11 @@ void MockActorLoginService::GetCredentials(
 void MockActorLoginService::AttemptLogin(
     tabs::TabInterface* tab,
     const actor_login::Credential& credential,
+    bool should_store_permission,
+    base::WeakPtr<actor_login::ActorLoginQualityLoggerInterface> mqls_logger,
     actor_login::LoginStatusResultOrErrorReply callback) {
   last_credential_used_ = credential;
+  last_permission_was_permanent_ = should_store_permission;
   std::move(callback).Run(login_status_);
 }
 
@@ -85,6 +94,9 @@ const std::optional<actor_login::Credential>&
 MockActorLoginService::last_credential_used() const {
   return last_credential_used_;
 }
+bool MockActorLoginService::last_permission_was_permanent() const {
+  return last_permission_was_permanent_;
+}
 
 ActorToolsTest::ActorToolsTest() {
   scoped_feature_list_.InitWithFeatures(
@@ -98,14 +110,11 @@ ActorToolsTest::~ActorToolsTest() = default;
 void ActorToolsTest::SetUpOnMainThread() {
   InProcessBrowserTest::SetUpOnMainThread();
   host_resolver()->AddRule("*", "127.0.0.1");
-  auto execution_engine = CreateExecutionEngine(browser()->profile());
-  auto event_dispatcher = ui::NewUiEventDispatcher(
-      ActorKeyedService::Get(browser()->profile())->GetActorUiStateManager());
-  auto actor_task = std::make_unique<ActorTask>(browser()->profile(),
-                                                std::move(execution_engine),
-                                                std::move(event_dispatcher));
-  task_id_ = ActorKeyedService::Get(browser()->profile())
-                 ->AddActiveTask(std::move(actor_task));
+
+  auto* actor_service = ActorKeyedService::Get(browser()->profile());
+  actor_service->GetPolicyChecker().SetActOnWebForTesting(
+      ShouldForceActOnWeb());
+  task_id_ = CreateNewTask();
 
   // Optimization guide uses this histogram to signal initialization in tests.
   optimization_guide::RetryForHistogramUntilCountReached(
@@ -175,21 +184,42 @@ std::unique_ptr<ExecutionEngine> ActorToolsTest::CreateExecutionEngine(
   return std::make_unique<ExecutionEngine>(profile);
 }
 
-// static
-std::string ActorToolsGeneralPageStabilityTest::DescribeParam(
-    const testing::TestParamInfo<ParamType>& info) {
-  return DescribeGeneralPageStabilityMode(info.param);
+bool ActorToolsTest::ShouldForceActOnWeb() {
+  return true;
 }
 
-ActorToolsGeneralPageStabilityTest::ActorToolsGeneralPageStabilityTest() {
-  scoped_feature_list_.InitAndEnableFeatureWithParameters(
-      ::features::kGlicActor,
-      {{::features::kActorGeneralPageStabilityMode.name,
-        ::features::kActorGeneralPageStabilityMode.GetName(GetParam())}});
+TaskId ActorToolsTest::CreateNewTask() {
+  auto execution_engine = CreateExecutionEngine(browser()->profile());
+  auto event_dispatcher = ui::NewUiEventDispatcher(
+      ActorKeyedService::Get(browser()->profile())->GetActorUiStateManager());
+  auto actor_task = std::make_unique<ActorTask>(browser()->profile(),
+                                                std::move(execution_engine),
+                                                std::move(event_dispatcher));
+  return ActorKeyedService::Get(browser()->profile())
+      ->AddActiveTask(std::move(actor_task));
 }
 
-ActorToolsGeneralPageStabilityTest::~ActorToolsGeneralPageStabilityTest() =
-    default;
+void ActorToolsTest::SetPageContent(
+    base::OnceClosure quit_closure,
+    optimization_guide::AIPageContentResultOrError page_content) {
+  auto apc = std::move(page_content->proto);
+  auto* tab_data = ActorTabData::From(active_tab());
+  tab_data->DidObserveContent(apc);
+  std::move(quit_closure).Run();
+}
+
+void ActorToolsTest::GetPageApc() {
+  base::RunLoop run_loop;
+  auto options = optimization_guide::ActionableAIPageContentOptions(
+      /*on_critical_path =*/true);
+  options->max_meta_elements = 32;
+  GetAIPageContent(
+      web_contents(), std::move(options),
+      base::BindOnce(&ActorToolsTest::SetPageContent, base::Unretained(this),
+                     run_loop.QuitClosure()));
+
+  run_loop.Run();
+}
 
 gfx::RectF GetBoundingClientRect(content::RenderFrameHost& rfh,
                                  std::string_view query) {
@@ -219,18 +249,6 @@ gfx::RectF GetBoundingClientRect(content::RenderFrameHost& rfh,
           .ExtractDouble();
 
   return gfx::RectF(x, y, width, height);
-}
-
-std::string DescribeGeneralPageStabilityMode(
-    features::ActorGeneralPageStabilityMode mode) {
-  switch (mode) {
-    case features::ActorGeneralPageStabilityMode::kDisabled:
-      return "Disabled";
-    case features::ActorGeneralPageStabilityMode::kNavigateAndHistoryEnabled:
-      return "NavigateAndHistoryEnabled";
-    case features::ActorGeneralPageStabilityMode::kAllEnabled:
-      return "AllEnabled";
-  }
 }
 
 std::string DescribePaintStabilityMode(features::ActorPaintStabilityMode mode) {

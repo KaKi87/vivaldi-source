@@ -35,7 +35,8 @@
           pref="{{prefs.net.network_prediction_options}}"
           selectable-elements="settings-collapse-radio-button"
           on-change="onPreloadingStateChange_">
-        <!-- settings-collapse-radio-button id="preloadingExtended"
+        <if expr="_google_chrome">
+        <settings-collapse-radio-button id="preloadingExtended"
             name="[[networkPredictionOptionsEnum_.EXTENDED]]"
             pref="[[prefs.net.network_prediction_options]]"
             label="$i18n{preloadingPageExtendedPreloadingTitle}"
@@ -71,7 +72,8 @@
               </ul>
             </div>
           </div>
-        </settings-collapse-radio-button -->
+        </settings-collapse-radio-button>
+        </if> <!-- Vivaldi -->
         <settings-collapse-radio-button id="preloadingStandard"
             name="[[networkPredictionOptionsEnum_.STANDARD]]"
             pref="[[prefs.net.network_prediction_options]]"

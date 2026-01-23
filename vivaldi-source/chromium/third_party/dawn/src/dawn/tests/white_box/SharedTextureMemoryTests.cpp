@@ -102,7 +102,6 @@ std::vector<wgpu::FeatureName> SharedTextureMemoryTests::GetRequiredFeatures() {
     const wgpu::FeatureName kOptionalFeatures[] = {
         wgpu::FeatureName::MultiPlanarFormatExtendedUsages,
         wgpu::FeatureName::MultiPlanarRenderTargets,
-        wgpu::FeatureName::TransientAttachments,
         wgpu::FeatureName::Unorm16TextureFormats,
         wgpu::FeatureName::BGRA8UnormStorage,
         wgpu::FeatureName::FlexibleTextureViews,
@@ -2269,6 +2268,10 @@ TEST_P(SharedTextureMemoryTests, RenderThenLoseOrDestroyDeviceBeforeEndAccessThe
 
     // crbug.com/358166479
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan());
+
+    // TODO(crbug.com/462477486): Catches a mutex issue when run with
+    // TSAN/Vulkan/SwiftShader.
+    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsTsan() && IsVulkan() && IsSwiftshader());
 
     auto DoTest = [&](auto DestroyOrLoseDevice) {
         std::vector<wgpu::Device> devices = {CreateDevice(), CreateDevice()};

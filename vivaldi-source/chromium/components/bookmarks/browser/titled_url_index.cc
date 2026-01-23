@@ -223,9 +223,11 @@ std::optional<TitledUrlMatch> TitledUrlIndex::MatchTitledUrlNodeWithQuery(
       [](const auto& ancestor_title) {
         return base::i18n::ToLower(Normalize(std::u16string(ancestor_title)));
       });
+
   // Vivaldi
   const std::u16string lower_description =
       base::i18n::ToLower(Normalize(node->GetTitledUrlNodeDescription()));
+
   // Check if the input approximately matches the node. This is less strict than
   // the following check; it will return false positives. But it's also much
   // faster, so if it returns false, early exit and avoid the expensive
@@ -234,8 +236,10 @@ std::optional<TitledUrlMatch> TitledUrlIndex::MatchTitledUrlNodeWithQuery(
       std::ranges::all_of(query_terms, [&](const auto& word) {
         if (lower_title.find(word) != std::u16string::npos)
           return true;
+
         if (lower_description.find(word) != std::u16string::npos)
           return true;
+
         if (clean_url.find(word) != std::u16string::npos)
           return true;
         for (const auto& ancestor_title : lower_ancestor_titles) {
@@ -534,5 +538,6 @@ TitledUrlIndex::RetrieveNicknameNodesMatchingAnyTerms(
   }
   return prefix_matches;
 }
+// End Vivaldi
 
 }  // namespace bookmarks

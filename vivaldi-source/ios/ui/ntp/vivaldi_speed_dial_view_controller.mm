@@ -14,14 +14,17 @@
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/ntp/bottom_toolbar/bottom_toolbar_swift.h"
 #import "ios/ui/ntp/bottom_toolbar/vivaldi_ntp_bottom_toolbar_consumer.h"
+#import "ios/ui/ntp/navigation_bar/vivaldi_custom_navigation_bar_swift.h"
 #import "ios/ui/ntp/top_toolbar/top_toolbar_swift.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
+#import "ios/ui/ntp/vivaldi_speed_dial_base_controller.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_container_view.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_home_mediator.h"
+#import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
-#import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 namespace {
@@ -29,8 +32,17 @@ namespace {
 CGFloat bottomToolbarHeight = 70.f;
 // Animation start delay for bottom toolbar
 CGFloat animationStartDelay = 0.3;
+// Top toolbar navigation bar view height.
+CGFloat navigationBarHeight = 44.f;
 // Notification Identifier For Background Wallpaper
 NSString* vivaldiWallpaperUpdate = @"VivaldiBackgroundWallpaperUpdate";
+
+BOOL ShouldUseModernNavigationBar() {
+  if (@available(iOS 26.0, *)) {
+    return YES;
+  }
+  return NO;
+}
 }
 
 @interface VivaldiSpeedDialViewController ()<VivaldiSpeedDialContainerDelegate,
@@ -49,6 +61,10 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 @property(nonatomic, strong) UIViewController* bottomToolbarView;
 // The background Image for Speed Dial
 @property(nonatomic, strong) UIImageView* backgroundImageView;
+// Custom navigation bar view.
+@property(nonatomic, strong) VivaldiCustomNavigationBarView* navigationBarView;
+// Top constraint for the content container.
+@property(nonatomic, strong) NSLayoutConstraint* contentTopConstraint;
 // Bookmark Model that holds the bookmark data
 @property(assign,nonatomic) BookmarkModel* bookmarks;
 // FaviconLoader is a keyed service that uses LargeIconService to retrieve
@@ -131,6 +147,12 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   [self setupSpeedDialBackground];
   [self startObservingDeviceOrientationChange];
   [self loadSpeedDialViews];
+  if (ShouldUseModernNavigationBar()) {
+    [self.navigationController setNavigationBarHidden:YES animated:animated];
+    [self refreshNavigationBarDisplay];
+  } else {
+    [self.navigationController setNavigationBarHidden:NO animated:animated];
+  }
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -143,6 +165,10 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
     [self setUpBottomToolbarView];
     [self.bottomToolbarProvider handleToolbarVisibilityWithProgress:0
                                                            animated:YES];
+  }
+
+  if (ShouldUseModernNavigationBar()) {
+    [self refreshNavigationBarDisplay];
   }
 }
 
@@ -157,8 +183,51 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 - (void)setUpUI {
   self.view.backgroundColor =
     [UIColor colorNamed:vNTPSpeedDialContainerbackgroundColor];
+  if (ShouldUseModernNavigationBar()) {
+    [self setUpNavigationBar];
+  }
   [self setupSpeedDialView];
   [self setUpBottomToolbarView];
+}
+
+- (void)setUpNavigationBar {
+  VivaldiCustomNavigationBarView* navigationBarView =
+      [VivaldiCustomNavigationBarView new];
+  _navigationBarView = navigationBarView;
+  navigationBarView.backgroundColor = [UIColor colorNamed:vNTPBackgroundColor];
+
+  __weak __typeof(self) weakSelf = self;
+  navigationBarView.onBackButtonTapped = ^{
+    __strong __typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf.navigationController) {
+      return;
+    }
+    [strongSelf.navigationBarView dismissMenuIfNeeded];
+    [strongSelf.navigationController popViewControllerAnimated:YES];
+  };
+  navigationBarView.onBreadcrumbSelected = ^(NSInteger index) {
+    __strong __typeof(weakSelf) strongSelf = weakSelf;
+    if (!strongSelf.navigationController) {
+      return;
+    }
+    NSArray<UIViewController*>* controllers =
+        strongSelf.navigationController.viewControllers;
+    if (index < 0 || index >= (NSInteger)controllers.count - 1) {
+      return;
+    }
+    UIViewController* target = controllers[index];
+    [strongSelf.navigationBarView dismissMenuIfNeeded];
+    [strongSelf.navigationController popToViewController:target animated:YES];
+  };
+
+  [self.view addSubview:navigationBarView];
+  [navigationBarView anchorTop:self.view.safeTopAnchor
+                       leading:self.view.leadingAnchor
+                        bottom:nil
+                      trailing:self.view.trailingAnchor
+                          size:CGSizeMake(0, navigationBarHeight)];
+
+  [self refreshNavigationBarDisplay];
 }
 
 -(void)setupSpeedDialBackground {
@@ -174,23 +243,101 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 }
 
 /// Set up the speed dial view
--(void)setupSpeedDialView {
+- (void)setupSpeedDialView {
   // The container view to hold the speed dial view
   UIView* bodyContainerView = [UIView new];
   bodyContainerView.backgroundColor = UIColor.clearColor;
   [self.view addSubview:bodyContainerView];
 
-  [bodyContainerView anchorTop: self.view.safeTopAnchor
-                       leading: self.view.safeLeftAnchor
-                        bottom: self.view.safeBottomAnchor
-                      trailing: self.view.safeRightAnchor];
+  if (ShouldUseModernNavigationBar()) {
+    [bodyContainerView anchorTop:nil
+                         leading:self.view.safeLeftAnchor
+                          bottom:self.view.safeBottomAnchor
+                        trailing:self.view.safeRightAnchor];
+    NSLayoutConstraint* topConstraint = [bodyContainerView.topAnchor
+        constraintEqualToAnchor:self.navigationBarView.bottomAnchor];
+    self.contentTopConstraint = topConstraint;
+    topConstraint.active = YES;
+  } else {
+    self.contentTopConstraint = nil;
+    [bodyContainerView fillSuperviewToSafeAreaInset];
+  }
 
   VivaldiSpeedDialContainerView* speedDialContainerView =
-    [VivaldiSpeedDialContainerView new];
+      [VivaldiSpeedDialContainerView new];
   _speedDialContainerView = speedDialContainerView;
   speedDialContainerView.delegate = self;
   [bodyContainerView addSubview:speedDialContainerView];
   [speedDialContainerView fillSuperview];
+}
+
+- (void)refreshNavigationBarDisplay {
+  if (!ShouldUseModernNavigationBar()) {
+    return;
+  }
+
+  if (!self.navigationBarView) {
+    return;
+  }
+
+  NSString* title = self.currentItem ? self.currentItem.title : self.title;
+  NSArray<UIViewController*>* controllers =
+      self.navigationController.viewControllers ?: @[];
+  NSUInteger controllerCount = controllers.count;
+  BOOL showsBackButton = controllerCount > 1;
+
+  NSMutableArray<NavigationBarBreadcrumbItem*>* breadcrumbItems =
+      [NSMutableArray array];
+  NSString* backButtonTitle =
+      l10n_util::GetNSString(IDS_VIVALDI_IOS_NAVIGATION_BACK_BUTTON_TITLE);
+
+  if (controllerCount > 1) {
+    for (NSUInteger index = 0; index < controllerCount - 1; ++index) {
+      UIViewController* controller = controllers[index];
+      NSString* crumbTitle = [self navigationTitleForController:controller];
+      if (!crumbTitle.length) {
+        continue;
+      }
+      NavigationBarBreadcrumbItem* item =
+          [[NavigationBarBreadcrumbItem alloc] initWithTitle:crumbTitle
+                                                       index:(NSInteger)index];
+      [breadcrumbItems addObject:item];
+    }
+
+    // Use the last breadcrumb item as back button title
+    NavigationBarBreadcrumbItem* lastItem = breadcrumbItems.lastObject;
+    if (lastItem.title.length > 0) {
+      backButtonTitle = lastItem.title;
+    }
+  }
+
+  [self.navigationBarView configureWithTitle:title ?: @""
+                             showsBackButton:showsBackButton
+                             backButtonTitle:backButtonTitle];
+  [self.navigationBarView updateBreadcrumbMenuWithItems:breadcrumbItems];
+
+  if (!showsBackButton) {
+    [self.navigationBarView dismissMenuIfNeeded];
+  }
+}
+
+- (NSString*)navigationTitleForController:(UIViewController*)controller {
+  if (!controller) {
+    return @"";
+  }
+  if ([controller isKindOfClass:[VivaldiSpeedDialViewController class]]) {
+    VivaldiSpeedDialViewController* speedDialController =
+        (VivaldiSpeedDialViewController*)controller;
+    if (speedDialController.currentItem &&
+        speedDialController.currentItem.title.length) {
+      return speedDialController.currentItem.title;
+    }
+    return controller.title;
+  }
+  if ([controller isKindOfClass:[VivaldiSpeedDialBaseController class]]) {
+    return controller.title;
+  }
+  return controller.title;
 }
 
 - (void)setUpBottomToolbarView {

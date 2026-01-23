@@ -40,7 +40,12 @@ CGFloat const kOverlayLightOpacity = 0.6;
 
 - (void)layoutSubviews {
   [super layoutSubviews];
-  [self updatePlayerLayerFrame];
+  // Update the frame with disabled implicit animations to avoid glitch
+  // in the player layer frame change triggered when iPad window resized.
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  self.playerLayer.frame = self.bounds;
+  [CATransaction commit];
 }
 
 - (void)setUpUI {

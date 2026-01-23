@@ -83,7 +83,7 @@ void OnGetServiceWorkerPaymentAppsInfo(
 
   for (const auto& app_info : apps) {
     Java_ServiceWorkerPaymentAppBridge_addPaymentAppInfo(
-        env, jappsInfo, app_info.second->scope.host(), app_info.second->name,
+        env, jappsInfo, app_info.second->scope.GetHost(), app_info.second->name,
         app_info.second->icon == nullptr
             ? nullptr
             : gfx::ConvertToJavaBitmap(*app_info.second->icon));
@@ -158,3 +158,5 @@ JNI_ServiceWorkerPaymentAppBridge_GetSourceIdForPaymentAppFromScope(
   return content::PaymentAppProviderUtil::GetSourceIdForPaymentAppFromScope(
       url::GURLAndroid::ToNativeGURL(env, jscope).DeprecatedGetOriginAsURL());
 }
+
+DEFINE_JNI(ServiceWorkerPaymentAppBridge)

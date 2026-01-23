@@ -50,7 +50,7 @@ ResourceType ResourceTypeFromRequest(
   if (request.loader_factory_type ==
       content::ContentBrowserClient::URLLoaderFactoryType::kDownload)
     return ResourceType::kOther;
-  if (request.request.is_fetch_like_api) {
+  if (request.request.is_fetch_like_api && !use_original_destination) {
     // This must be checked before `request.keepalive` check below, because
     // currently Fetch keepAlive is not reported as ping.
     // See https://crbug.com/611453 for more details.
@@ -83,6 +83,7 @@ ResourceType ResourceTypeFromRequest(
     case network::mojom::RequestDestination::kManifest:
     case network::mojom::RequestDestination::kPaintWorklet:
     case network::mojom::RequestDestination::kWebIdentity:
+    case network::mojom::RequestDestination::kEmailVerification:
     case network::mojom::RequestDestination::kDictionary:
     case network::mojom::RequestDestination::kSpeculationRules:
       return ResourceType::kOther;
@@ -100,6 +101,9 @@ ResourceType ResourceTypeFromRequest(
     case network::mojom::RequestDestination::kVideo:
       return ResourceType::kMedia;
     case network::mojom::RequestDestination::kReport:
+      if (use_original_destination) {
+        return ResourceType::kOther;
+      }
       NOTREACHED();
   }
 }
@@ -141,17 +145,14 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
 
   RulesIndex* GetIndex() const { return rule_service_->GetRuleIndex(group_); }
 
-  bool IsExemptFramelessRequest() const {
-    // For requests happening outside of frames, we won't get cached activation
-    // results, so let's just check this directly instead.
-    return !GetFrame() && !block_ping_handling_ &&
-           rule_service_->GetRuleManager()->IsExemptOfFiltering(group_,
-                                                                GetOrigin());
-  }
-
   void HandleBeforeRequest(
       vivaldi::RequestFilter::BeforeRequestCallback callback) && {
     Init();
+    if (IsExemptFramelessRequest()) {
+      std::move(callback).Run(vivaldi::RequestFilter::kAllow, false, GURL());
+      return;
+    }
+
     CHECK(activations_);
     RulesIndex* index = GetIndex();
     content::RenderFrameHost* frame = GetFrame();
@@ -245,10 +246,13 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
       }
     }
 
-    if (request_->navigation_id) {
-      rule_service_->GetStateAndLogsImpl()
-          .GetNavigationTrackerFromNavigationId(*request_->navigation_id)
-          ->OnBlockedByRule(group_, *rule_stub);
+    NavigationTrackerImpl* tracker =
+        request_->navigation_id ? rule_service_->GetStateAndLogsImpl()
+                                      .GetNavigationTrackerFromNavigationId(
+                                          *request_->navigation_id)
+                                : nullptr;
+    if (tracker) {
+      tracker->OnBlockedByRule(group_, *rule_stub);
     }
 
     std::move(callback).Run(vivaldi::RequestFilter::kCancel,
@@ -259,6 +263,12 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
       const net::HttpResponseHeaders* headers,
       vivaldi::RequestFilter::HeadersReceivedCallback callback) && {
     Init();
+    if (IsExemptFramelessRequest()) {
+      std::move(callback).Run(vivaldi::RequestFilter::kAllow, false, GURL(),
+                              vivaldi::RequestFilter::ResponseHeaderChanges());
+      return;
+    }
+
     CHECK(activations_);
     RulesIndex* index = GetIndex();
 
@@ -353,6 +363,14 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
     }
   }
 
+  bool IsExemptFramelessRequest() const {
+    // For requests happening outside of frames, we won't get cached activation
+    // results, so let's just check this directly instead.
+    return !GetFrame() && !block_ping_handling_ &&
+           rule_service_->GetRuleManager()->IsExemptOfFiltering(group_,
+                                                                GetOrigin());
+  }
+
   content::RenderFrameHost* GetFrame() const {
     return content::RenderFrameHost::FromID(request_->render_process_id,
                                             request_->render_frame_id);
@@ -383,12 +401,11 @@ struct CreateHandlerResult {
   std::optional<RequestHandler> handler;
 };
 
-static CreateHandlerResult CreateHandler(
-    base::WeakPtr<RuleServiceImpl> rule_service,
-    RuleGroup group,
-    const vivaldi::FilteredRequestInfo* request,
-    bool allow_blocking_documents,
-    bool block_pings) {
+CreateHandlerResult CreateHandler(base::WeakPtr<RuleServiceImpl> rule_service,
+                                  RuleGroup group,
+                                  const vivaldi::FilteredRequestInfo* request,
+                                  bool allow_blocking_documents,
+                                  bool block_pings) {
   auto destination = request->request.destination;
   // TODO(julien): Add filtering of csp reports
   if (destination == network::mojom::RequestDestination::kReport ||
@@ -420,14 +437,11 @@ static CreateHandlerResult CreateHandler(
     document_origin = request->request.request_initiator.value();
   }
 
-  RequestHandler handler(
-      *rule_service, group, request, allow_blocking_documents, block_pings,
-      is_main_frame, document_origin, resource_type, original_resource_type);
-  if (handler.IsExemptFramelessRequest()) {
-    return {CreateHandlerResult::kIgnore};
-  }
-
-  return {CreateHandlerResult::kHandler, std::move(handler)};
+  return {
+      CreateHandlerResult::kHandler,
+      RequestHandler(*rule_service, group, request, allow_blocking_documents,
+                     block_pings, is_main_frame, document_origin, resource_type,
+                     original_resource_type)};
 }
 
 }  // namespace
@@ -482,11 +496,17 @@ void AdBlockRequestFilter::OnRulesIndexLoaded(RuleGroup group) {
   rule_service_->RemoveObserver(this);
 }
 
-bool AdBlockRequestFilter::WantsExtraHeadersForAnyRequest() const {
+bool AdBlockRequestFilter::HasAnyExtraHeadersListener() const {
   return false;
 }
-
-bool AdBlockRequestFilter::WantsExtraHeadersForRequest(
+bool AdBlockRequestFilter::HasExtraHeadersListenerForRequest(
+    vivaldi::FilteredRequestInfo* request) const {
+  return false;
+}
+bool AdBlockRequestFilter::HasAnySecurityInfoListener() const {
+  return false;
+}
+bool AdBlockRequestFilter::HasSecurityInfoListenerForRequest(
     vivaldi::FilteredRequestInfo* request) const {
   return false;
 }

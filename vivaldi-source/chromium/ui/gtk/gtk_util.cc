@@ -222,6 +222,7 @@ aura::Window* GetAuraTransientParent(GtkWidget* dialog) {
 }
 
 void ClearAuraTransientParent(GtkWidget* dialog, aura::Window* parent) {
+  CHECK(dialog);
   g_object_set_data(G_OBJECT(dialog), kAuraTransientParent, nullptr);
 
   if (!parent || !parent->GetHost()) {
@@ -287,6 +288,15 @@ CairoSurface::CairoSurface(SkBitmap& bitmap)
           bitmap.width(),
           bitmap.height(),
           cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, bitmap.width()))),
+      cairo_(cairo_create(surface_)) {}
+
+CairoSurface::CairoSurface(void* pixels, int width, int height)
+    : surface_(cairo_image_surface_create_for_data(
+          static_cast<unsigned char*>(pixels),
+          CAIRO_FORMAT_ARGB32,
+          width,
+          height,
+          cairo_format_stride_for_width(CAIRO_FORMAT_ARGB32, width))),
       cairo_(cairo_create(surface_)) {}
 
 CairoSurface::CairoSurface(const gfx::Size& size)

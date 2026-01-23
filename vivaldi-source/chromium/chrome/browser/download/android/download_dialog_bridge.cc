@@ -116,7 +116,7 @@ void DownloadDialogBridge::CompleteSelection(DownloadDialogResult result) {
 }
 
 // static
-void JNI_DownloadDialogBridge_SetDownloadAndSaveFileDefaultDirectory(
+static void JNI_DownloadDialogBridge_SetDownloadAndSaveFileDefaultDirectory(
     JNIEnv* env,
     const base::android::JavaParamRef<jobject>& jpref_service,
     std::string& directory) {
@@ -153,3 +153,6 @@ bool DownloadDialogBridge::DownloadWithExternalDownloadManager(
                                              suggested_path.AsUTF8Unsafe()),
       base::android::ConvertUTF8ToJavaString(env, download->GetURL().spec()));
 }
+// End Vivaldi
+
+DEFINE_JNI(DownloadDialogBridge)

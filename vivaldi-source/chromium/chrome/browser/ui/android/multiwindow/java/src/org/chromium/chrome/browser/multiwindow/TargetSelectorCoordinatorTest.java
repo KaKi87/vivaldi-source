@@ -7,12 +7,12 @@ package org.chromium.chrome.browser.multiwindow;
 import static androidx.test.espresso.Espresso.onData;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition;
 import static androidx.test.espresso.matcher.RootMatchers.isDialog;
 import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
-import static androidx.test.espresso.assertion.ViewAssertions.matches;
 
 import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.not;
@@ -85,38 +85,41 @@ public class TargetSelectorCoordinatorTest {
         InstanceInfo[] instances =
                 new InstanceInfo[] {
                     new InstanceInfo(
-                            0,
-                            57,
+                            /* instanceId= */ 0,
+                            /* taskId= */ 57,
                             InstanceInfo.Type.CURRENT,
                             "url0",
                             "title0",
                             /* customTitle= */ null,
-                            1,
-                            0,
-                            false,
-                            0),
+                            /* tabCount= */ 1,
+                            /* incognitoTabCount= */ 0,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false),
                     new InstanceInfo(
-                            1,
-                            58,
+                            /* instanceId= */ 1,
+                            /* taskId= */ 58,
                             InstanceInfo.Type.OTHER,
                             "ur11",
                             "title1",
                             /* customTitle= */ null,
-                            2,
-                            0,
-                            false,
-                            0),
+                            /* tabCount= */ 2,
+                            /* incognitoTabCount= */ 0,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false),
                     new InstanceInfo(
-                            2,
-                            59,
+                            /* instanceId= */ 2,
+                            /* taskId= */ 59,
                             InstanceInfo.Type.OTHER,
                             "url2",
                             "title2",
                             /* customTitle= */ null,
-                            1,
-                            1,
-                            false,
-                            0)
+                            /* tabCount= */ 1,
+                            /* incognitoTabCount= */ 1,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false)
                 };
         final CallbackHelper itemClickCallbackHelper = new CallbackHelper();
         final int itemClickCount = itemClickCallbackHelper.getCallCount();
@@ -152,38 +155,41 @@ public class TargetSelectorCoordinatorTest {
         InstanceInfo[] instances =
                 new InstanceInfo[] {
                     new InstanceInfo(
-                            0,
-                            57,
+                            /* instanceId= */ 0,
+                            /* taskId= */ 57,
                             InstanceInfo.Type.CURRENT,
                             "url0",
                             "title0",
                             /* customTitle= */ null,
-                            1,
-                            0,
-                            false,
-                            0),
+                            /* tabCount= */ 1,
+                            /* incognitoTabCount= */ 0,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false),
                     new InstanceInfo(
-                            1,
-                            58,
+                            /* instanceId= */ 1,
+                            /* taskId= */ 58,
                             InstanceInfo.Type.OTHER,
                             "ur11",
                             "title1",
                             /* customTitle= */ null,
-                            2,
-                            0,
-                            false,
-                            0),
+                            /* tabCount= */ 2,
+                            /* incognitoTabCount= */ 0,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false),
                     new InstanceInfo(
-                            2,
-                            59,
+                            /* instanceId= */ 2,
+                            /* taskId= */ 59,
                             InstanceInfo.Type.OTHER,
                             "url2",
                             "title2",
                             /* customTitle= */ null,
-                            1,
-                            1,
-                            false,
-                            0)
+                            /* tabCount= */ 1,
+                            /* incognitoTabCount= */ 1,
+                            /* isIncognitoSelected= */ false,
+                            /* lastAccessedTime= */ 0,
+                            /* closedByUser= */ false)
                 };
         final CallbackHelper itemClickCallbackHelper = new CallbackHelper();
         final int itemClickCount = itemClickCallbackHelper.getCallCount();

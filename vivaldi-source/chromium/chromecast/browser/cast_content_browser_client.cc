@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chromecast/browser/cast_content_browser_client.h"
 
 #include <stddef.h>
@@ -16,6 +11,7 @@
 
 #include "base/base_switches.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/feature_list.h"
 #include "base/files/scoped_file.h"
 #include "base/functional/bind.h"
@@ -68,6 +64,7 @@
 #include "chromecast/media/common/media_resource_tracker.h"
 #include "chromecast/media/service/mojom/video_geometry_setter.mojom.h"
 #include "chromecast/public/media/media_pipeline_backend.h"
+#include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/prefs/pref_service.h"
 #include "components/url_rewrite/browser/url_request_rewrite_rules_manager.h"
 #include "components/url_rewrite/common/url_loader_throttle.h"
@@ -150,8 +147,13 @@ CastContentBrowserClient::CastContentBrowserClient(
               base::OnTaskRunnerDeleter(nullptr))),
 #endif  // BUILDFLAG(ENABLE_CAST_RENDERER)
       cast_browser_main_parts_(nullptr),
+      os_crypt_async_(std::make_unique<os_crypt_async::OSCryptAsync>(
+          std::vector<
+              std::pair<os_crypt_async::OSCryptAsync::Precedence,
+                        std::unique_ptr<os_crypt_async::KeyProvider>>>{})),
       cast_network_contexts_(
-          std::make_unique<CastNetworkContexts>(GetCorsExemptHeadersList())),
+          std::make_unique<CastNetworkContexts>(GetCorsExemptHeadersList(),
+                                                os_crypt_async_.get())),
       cast_feature_list_creator_(cast_feature_list_creator) {
   std::vector<const base::Feature*> extra_enable_features = {
       &::media::kInternalMediaSession,
@@ -376,9 +378,9 @@ bool CastContentBrowserClient::IsHandledURL(const GURL& url) {
       url::kDataScheme,         url::kFileSystemScheme,
   };
 
-  const std::string& scheme = url.scheme();
+  const std::string& scheme = url.GetScheme();
   for (size_t i = 0; i < std::size(kProtocolList); ++i) {
-    if (scheme == kProtocolList[i]) {
+    if (scheme == UNSAFE_TODO(kProtocolList[i])) {
       return true;
     }
   }
@@ -618,7 +620,7 @@ void CastContentBrowserClient::SelectClientCertificateOnIOThread(
     return;
   } else {
     LOG(ERROR) << "Invalid host for client certificate request: "
-               << requesting_url.host()
+               << requesting_url.GetHost()
                << " with render_process_id: " << render_process_id
                << " and render_frame_id: " << render_frame_id;
   }

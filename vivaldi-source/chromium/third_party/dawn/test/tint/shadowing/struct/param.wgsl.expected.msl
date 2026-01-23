@@ -8,3 +8,8 @@ struct a {
 void f(a a_1) {
   a const b = a_1;
 }
+
+[[max_total_threads_per_threadgroup(1)]]
+kernel void v() {
+  f(a{});
+}

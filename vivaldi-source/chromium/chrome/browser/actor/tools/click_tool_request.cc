@@ -8,7 +8,8 @@
 
 #include "chrome/browser/actor/tools/tool_request_visitor_functor.h"
 #include "chrome/common/actor.mojom.h"
-#include "chrome/common/actor/actor_utils.h"
+#include "content/public/browser/render_widget_host.h"
+#include "third_party/blink/public/common/input/web_mouse_event.h"
 
 namespace actor {
 
@@ -28,8 +29,8 @@ void ClickToolRequest::Apply(ToolRequestVisitorFunctor& f) const {
   f.Apply(*this);
 }
 
-std::string ClickToolRequest::JournalEvent() const {
-  return "Click";
+std::string_view ClickToolRequest::Name() const {
+  return kName;
 }
 
 mojom::ToolActionPtr ClickToolRequest::ToMojoToolAction(
@@ -44,15 +45,20 @@ std::unique_ptr<PageToolRequest> ClickToolRequest::Clone() const {
   return std::make_unique<ClickToolRequest>(*this);
 }
 
-std::optional<ObservationDelayController::PageStabilityConfig>
+ObservationDelayController::PageStabilityConfig
 ClickToolRequest::GetObservationPageStabilityConfig() const {
-  if (UseGeneralPageStabilityAllTools()) {
-    return ObservationDelayController::PageStabilityConfig{
-        .supports_paint_stability = true,
-    };
-  } else {
-    return std::nullopt;
-  }
+  return ObservationDelayController::PageStabilityConfig{
+      .supports_paint_stability = true,
+  };
+}
+
+void ClickToolRequest::WillSendToRenderer(
+    content::RenderWidgetHost* render_widget_host) {
+  blink::WebMouseEvent event = blink::WebMouseEvent();
+  event.SetType(blink::WebInputEvent::Type::kMouseDown);
+
+  // Trigger user interaction notification.
+  render_widget_host->WillSendInputEventToRenderer(event);
 }
 
 }  // namespace actor

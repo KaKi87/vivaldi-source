@@ -11,6 +11,7 @@
 <translation id="1276145862619442150">Gyorshívók</translation>
 <translation id="1281950884873973195">Állat 6</translation>
 <translation id="1411638389238344450">Hivatkozás küldése levélben</translation>
+<translation id="1444961972702494601">Opera beállításfájl nem olvasható</translation>
 <translation id="1454726940098520109">Ne mutassa újra</translation>
 <translation id="1462666970065907900">Biztos be akarod zárni az ablakot?</translation>
 <translation id="1480046233931937785">Készítők</translation>
@@ -26,8 +27,11 @@
 <translation id="1702758681952953055">Ha a hiba továbbra is fennáll, jelentsd be a következő adatokkal:</translation>
 <translation id="1728549374069268714">Beillesztés és felkeresés</translation>
 <translation id="1756026472674246267">Hivatkozás megnyitása új lapon</translation>
+<translation id="1756609631857154536">A jelszófájl (wand) nem létezik</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Kép tulajdonságai...</translation>
+<translation id="1826707182290941822">A Chrome beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Chrome ablakot. Majd Tovább gomb.</translation>
+<translation id="1836997307232631937">A jelszófájl nem olvasható, és valószínűleg sérült</translation>
 <translation id="1919345977826869612">Reklám</translation>
 <translation id="1920297417712412573">Másolás jegyzetbe</translation>
 <translation id="1924750141060565109">Tájkép 15</translation>
@@ -37,7 +41,10 @@
 <translation id="1985669426322966465">Szoftverfrissítés</translation>
 <translation id="2079036669923635404">Kattints ide a Vivaldi <ph name="VERSION" /> verziójára frissítéshez.</translation>
 <translation id="2096375219036704155">A könyvjelző fájl nem található</translation>
+<translation id="2101054359190001133">Az Opera beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Opera ablakot. Majd Tovább gomb.</translation>
 <translation id="2141974047387702305">Hiba lépett fel a frissítése letöltése közben. Ellenőrizd az internetkapcsolatot és próbáld újra.</translation>
+<translation id="2142146492302700970">Az 'encrypted_key' bejegyzés nem található a forrásprofilban</translation>
+<translation id="2209970441698102782">A Local State nem található a forrásprofilnál</translation>
 <translation id="2225863440766607138">Nyomkövető</translation>
 <translation id="2226825946708954262">⚠ Folytatás adatvesztéssel</translation>
 <translation id="2339641773402824483">Frissítések keresése...</translation>
@@ -64,6 +71,7 @@
 <translation id="2989805286512600854">Megnyitás új lapon</translation>
 <translation id="3084011186245865060">Tájkép 6</translation>
 <translation id="3085906383264247940">Opera (Béta)</translation>
+<translation id="3089483810725397237">A jegyzetek fájl nem létezik</translation>
 <translation id="3093931836425623631">A Vivaldi működését a Chromium nyílt forráskódú projekt és egyéb nyílt forráskódú szoftverek teszik lehetővé.</translation>
 <translation id="3119245580849443327">Vivaldi adatvédelmi jelentése</translation>
 <translation id="3126903660515914763">https://vivaldi.com/blog/news/alert-no-google-topics-in-vivaldi/</translation>
@@ -79,8 +87,10 @@
 <translation id="3308738399950580893">Reklámok</translation>
 <translation id="3334610655141903168">(nincs cím)</translation>
 <translation id="3372505110412186107">A Vivaldi <ph name="VERSION" /> a jelenlegi legfrissebb verzió.</translation>
+<translation id="3378346665180477942">Érvénytelen könyvjelző fájl</translation>
 <translation id="3383198080133834965">Naprakész vagy!</translation>
 <translation id="3402602684546832928">Opera könyvjelző fájl kiválasztása</translation>
+<translation id="3427361875526086153">A bejelentkezési adatfájl nem található</translation>
 <translation id="3451317331714872347">Tájkép 8</translation>
 <translation id="3457498675806041407">Kilépés megerősítése</translation>
 <translation id="3470981972195599598">A Vivaldi <ph name="VERSION" /> már telepítve van és a böngésző újraindítását követően aktiválódik.</translation>
@@ -101,6 +111,7 @@
 <translation id="3732157130969736834">Könyvjelző hivatkozás</translation>
 <translation id="3732388226447288666">Állat 2</translation>
 <translation id="3732439195215136813">Állat 5</translation>
+<translation id="3807270291741046903">Nincs DPAPI-kulcs, a dekódolás nem lehetséges</translation>
 <translation id="3821561970091304474">Az előzmények adatbázisfájlja nem nyitható meg</translation>
 <translation id="3822431842304177896">Új elválasztó</translation>
 <translation id="3832132597516774400">Tájkép 5</translation>
@@ -120,10 +131,12 @@
 <translation id="4281844954008187215">Szolgáltatási feltételek</translation>
 <translation id="430967081421617822">Összes</translation>
 <translation id="4324492550286218827">Tájkép 2</translation>
+<translation id="436942009209245676">Local State JSON tartalma nem értelmezhető</translation>
 <translation id="4406101500523955324">Megnyitás privát ablakban</translation>
 <translation id="4420816922321010053">Biztos ki akarsz lépni a Vivaldiból?</translation>
 <translation id="4430019312045809116">Hangerő</translation>
 <translation id="443008484043213881">Eszközök</translation>
+<translation id="4441649773969751521">A Yandex beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Yandex ablakot. Majd Tovább gomb.</translation>
 <translation id="4456211719108566931">Szörny 6</translation>
 <translation id="4459169140545916303">Aktív <ph name="DEVICE_LAST_ACTIVATED_TIME" /> nappal ezelőtt</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
@@ -134,6 +147,7 @@
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Kép megnyitása háttérbeli lapon</translation>
 <translation id="4582480609585453144">Hivatkozás megnyitása háttérbeli lapon</translation>
+<translation id="461909702339733257">Az Edge beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Edge ablakot. Majd Tovább gomb.</translation>
 <translation id="4636708767492582204">Küldés levélben</translation>
 <translation id="4677434526832593569">Állat 8</translation>
 <translation id="4729666228450010210">A Gyorshívó fájlja nem olvasható</translation>
@@ -143,6 +157,7 @@
 <translation id="4881695831933465202">Megnyitás</translation>
 <translation id="498766871928286903"><ph name="TOTAL_SIZE_TO_DOWNLOAD" /> / <ph name="DOWNLOADED" /></translation>
 <translation id="5014281392052865061">Importált Gyorshívó</translation>
+<translation id="5034185370374718631">Az Opera GX beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Opera GX ablakot. Majd Tovább gomb.</translation>
 <translation id="5092656712000637858">Oldal web oldalsávhoz adása</translation>
 <translation id="5106275083540628394">Sikertelen dekódolás: adatvesztés veszélye</translation>
 <translation id="5177818338935286353">Szörny 7</translation>
@@ -162,9 +177,11 @@
 <translation id="5648110075441906505">Kép megnyitása új ablakban</translation>
 <translation id="5648166631817621825">Utolsó 7 nap</translation>
 <translation id="5656371807944747581">Frissítési hiba!</translation>
+<translation id="5707114137287591385">Az importált adatok olvasása sikertelen</translation>
 <translation id="5732584064771442623">Elérhető a Vivaldi <ph name="NEW_VERSION" /> (telepített: <ph name="OLD_VERSION" />). Szeretnéd most letölteni?</translation>
 <translation id="5741670635761443575">Figyelem: A Vivaldiban nincsen Google Topics.</translation>
 <translation id="5770433027661640693">Tájkép 10</translation>
+<translation id="5786053688537975020">Local State nem olvasható a meghajtóról</translation>
 <translation id="5857090052475505287">Új mappa</translation>
 <translation id="588258955323874662">Teljes képernyő</translation>
 <translation id="6040143037577758943">Bezárás</translation>
@@ -184,6 +201,7 @@
 <translation id="6630781781151951863">Tájkép 18</translation>
 <translation id="6635049669875534328">Kiadási megjegyzések:</translation>
 <translation id="6653655836861174026">A Vivaldi profilok segítségével minden Vivaldi-tartalom elkülöníthető. Hozz létre profilokat barátok és családtagok számára, vagy válaszd el a munkát és a szórakozást.</translation>
+<translation id="6693551000972665087">Mester jelszó szükséges, de nem lett megadva</translation>
 <translation id="6693585104974197539">Importálandó Edge profil kiválasztása</translation>
 <translation id="6726279523566323394">Importálandó Brave profil kiválasztása</translation>
 <translation id="6736243959894955139">Cím</translation>
@@ -203,8 +221,10 @@
 <translation id="7319087656340696133">A dekódolási kulcs érvénytelen</translation>
 <translation id="7321500017121629018">Tegnap aktív</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7382439465323652245">Az 'os_crypt' bejegyzés nem található a forrásprofilban</translation>
 <translation id="7421665776469827022">Adat elmentve</translation>
 <translation id="7454640759045234067">Nyomkövető blokkolva</translation>
+<translation id="7508642657131162635">A Brave beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Brave ablakot. Majd Tovább gomb.</translation>
 <translation id="7515032462649518126">Egyéni avatar-kép kiválasztása</translation>
 <translation id="7581266044164103589">A frissítés telepítőjét nem sikerült elindítani. Ellenőrizd, hogy a számítógépben van elegendő memória és lemezterület, és később próbáld újra.</translation>
 <translation id="7658239707568436148">Mégse</translation>
@@ -246,13 +266,16 @@
 <translation id="8774017153185436870">A webhelyek automatikusan lejátszhatnak videókat</translation>
 <translation id="8813277370772331957">Emlékeztessen később</translation>
 <translation id="8837256239226739065">Háttérbeli szolgáltatás-munkavégző vizsgálata</translation>
+<translation id="8861872665418508137">Az Arc beállításai nem érhetők el, míg a böngésző fut. A beállítások Vivaldiba importálásához mentsd el a munkáid és zárj be minden Arc ablakot. Majd Tovább gomb.</translation>
 <translation id="8894900864683381599">Hivatkozás web oldalsávhoz adása</translation>
 <translation id="8912720443398351457">Biztos ki akarsz lépni a Vivaldiból?</translation>
+<translation id="8924818205225323428">Az előzmények fájl nem létezik</translation>
 <translation id="8940028675168378100">Blokkolta: <ph name="BLOCKER_NAME" /></translation>
 <translation id="8947109330183116400">HTML könyvjelző fájl kiválasztása</translation>
 <translation id="9017566390391482291">Vivaldi profil mappa kiválasztása importáláshoz</translation>
 <translation id="9048058608784130603">Függő <ph name="VERSION" /> frissítés</translation>
 <translation id="9048224371732578627">Videók automatikus lejátszásának engedélyezése</translation>
+<translation id="9051519327745317142">Opera beállításfájl nem található</translation>
 <translation id="9065203028668620118">Szerkesztés</translation>
 <translation id="9090254883741610153">Folytatni szeretném</translation>
 <translation id="910680796491389880">Thunderbird</translation>

@@ -11,7 +11,7 @@ int f() {
       } else {
         break;
       }
-      i = (i + int(1));
+      i = asint((asuint(i) + asuint(int(1))));
       {
         uint tint_low_inc = (tint_loop_idx.x - 1u);
         tint_loop_idx.x = tint_low_inc;
@@ -25,6 +25,7 @@ int f() {
 }
 
 [numthreads(1, 1, 1)]
-void unused_entry_point() {
+void main() {
+  f();
 }
 

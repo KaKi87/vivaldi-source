@@ -279,7 +279,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   std::set<const BookmarkNode*> editedNodes;
   editedNodes.insert(_bookmarkNode);
   [self.snackbarCommandsHandler
-      showSnackbarMessage:bookmark_utils_ios::DeleteBookmarksWithUndoToast(
+      showSnackbarMessage:bookmark_utils_ios::DeleteBookmarksWithUndoSnackbar(
             editedNodes, _bookmarkModel, _profile, FROM_HERE)];
   [self.consumer bookmarksEditorShouldClose];
 }
@@ -333,7 +333,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   __weak VivaldiBookmarksEditorMediator* weakSelf = self;
   const GURL url = ConvertUserDataToGURL(item.url);
   GURL blockURL(url);
-  auto faviconLoadedBlock = ^(FaviconAttributes* attributes) {
+  auto faviconLoadedBlock = ^(FaviconAttributes* attributes, bool cached) {
     VivaldiBookmarksEditorMediator* strongSelf = weakSelf;
     if (!strongSelf)
       return;

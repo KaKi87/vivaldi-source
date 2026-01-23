@@ -10,6 +10,7 @@ import static org.chromium.ui.base.LocalizationUtils.isLayoutRtl;
 import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -57,6 +58,7 @@ class KeyboardAccessoryView extends LinearLayout {
     private @Nullable ViewPropertyAnimator mRunningAnimation;
     private boolean mShouldSkipClosingAnimation;
     private boolean mDisableAnimations;
+    private boolean mDisableAnimationsForced;
     private boolean mAllowClicksWhileObscured;
     private boolean mHasStickyLastItem;
     private int mMaxWidth;
@@ -223,8 +225,6 @@ class KeyboardAccessoryView extends LinearLayout {
         if (ChromeFeatureList.isEnabled(
                 ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_REDESIGN)) {
             LinearLayout barContents = findViewById(R.id.accessory_bar_contents);
-            // TODO: crbug.com/385172647 - Figure out if the height needs to be increased even if
-            // there are no suggestions displayed.
             barContents.setMinimumHeight(
                     getResources()
                             .getDimensionPixelSize(R.dimen.keyboard_accessory_height_redesign));
@@ -333,6 +333,10 @@ class KeyboardAccessoryView extends LinearLayout {
      * elevation, rounded corners and wraps its content.
      */
     private void applyUndockedStyle(CoordinatorLayout.LayoutParams params, @Px int offset) {
+        // To provide an experience similar to desktop popup, animations are disabled.
+        mDisableAnimations =
+                ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING);
         params.gravity = Gravity.CENTER | Gravity.TOP;
         params.setMargins(params.leftMargin, offset, params.rightMargin, 0);
         params.width = ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -340,6 +344,14 @@ class KeyboardAccessoryView extends LinearLayout {
         findViewById(R.id.accessory_shadow).setVisibility(View.GONE);
         findViewById(R.id.accessory_bar_contents).setBackground(null);
         setBackgroundResource(R.drawable.keyboard_accessory_shadow_shape);
+        if (ChromeFeatureList.isEnabled(
+                ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_REDESIGN)) {
+            GradientDrawable background = (GradientDrawable) getBackground();
+            background.setCornerRadius(
+                    getResources()
+                            .getDimensionPixelSize(
+                                    R.dimen.keyboard_accessory_corner_radius_redesign));
+        }
         @Px
         int elevation = getResources().getDimensionPixelSize(R.dimen.keyboard_accessory_elevation);
         setElevation(elevation);
@@ -350,6 +362,7 @@ class KeyboardAccessoryView extends LinearLayout {
      * the parent width and has no elevation.
      */
     private void applyDockedStyle(CoordinatorLayout.LayoutParams params, @Px int offset) {
+        mDisableAnimations = false;
         params.gravity = Gravity.BOTTOM;
         params.setMargins(params.leftMargin, 0, params.rightMargin, offset);
         params.width = ViewGroup.LayoutParams.MATCH_PARENT;
@@ -380,11 +393,15 @@ class KeyboardAccessoryView extends LinearLayout {
     }
 
     void disableAnimationsForTesting() {
-        mDisableAnimations = true;
+        mDisableAnimationsForced = true;
     }
 
+    /**
+     * Returns true if animations are disabled by the runtime logic or if the test forced animations
+     * to be disabled.
+     */
     boolean areAnimationsDisabled() {
-        return mDisableAnimations;
+        return mDisableAnimationsForced || mDisableAnimations;
     }
 
     void setAllowClicksWhileObscured(boolean allowClicksWhileObscured) {

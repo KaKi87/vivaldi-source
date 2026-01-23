@@ -360,6 +360,8 @@ public class LayoutManagerImpl
                     // Place the tab strip behind the toolbar scene layer as during tab strip
                     // transition, the toolbar will move up and cover the tab strip.
                     StripLayoutHelperManager.class,
+                    // The Bookmark Bar will appear to move behind the toolbar during animation.
+                    BookmarkBarSceneLayer.class,
                     TopToolbarOverlayCoordinator.class,
                     // StripLayoutHelperManager should be updated before
                     // ScrollingBottomViewSceneLayer Since ScrollingBottomViewSceneLayer change
@@ -368,8 +370,7 @@ public class LayoutManagerImpl
                     ContextualSearchPanel.class,
                     EdgeToEdgeBottomChinSceneLayer.class,
                     StatusIndicatorCoordinator.getSceneOverlayClass(),
-                    ReadAloudMiniPlayerSceneLayer.class,
-                    BookmarkBarSceneLayer.class
+                    ReadAloudMiniPlayerSceneLayer.class
                 };
 
         // Note(david@vivaldi.com): When toolbar is at the bottom we need to change the rendering
@@ -837,15 +838,6 @@ public class LayoutManagerImpl
                         browserControlsManager);
         assumeNonNull(layer);
 
-        // Note(david@vivaldi.com): Because of the StatusIndicator We need to consider the
-        // TopControlsMinHeight here.
-        float offset = mBrowserControlsStateProvider.getTopControlOffset()
-                + mBrowserControlsStateProvider.getTopControlsMinHeightOffset();
-        float offsetPx =
-                mBrowserControlsStateProvider == null
-                        ? 0
-                        : offset; // Vivaldi
-
         for (SceneOverlay overlay : mSceneOverlays) {
             // If the SceneOverlay is not showing, don't bother adding it to the tree.
             if (!overlay.isSceneOverlayTreeShowing()) {
@@ -855,10 +847,7 @@ public class LayoutManagerImpl
 
             SceneOverlayLayer overlayLayer =
                     overlay.getUpdatedSceneOverlayTree(
-                            mCachedWindowViewport,
-                            mCachedVisibleViewport,
-                            resourceManager,
-                            offsetPx * mPxToDp);
+                            mCachedWindowViewport, mCachedVisibleViewport, resourceManager);
             assumeNonNull(overlayLayer);
 
             overlayLayer.setContentTree(layer);

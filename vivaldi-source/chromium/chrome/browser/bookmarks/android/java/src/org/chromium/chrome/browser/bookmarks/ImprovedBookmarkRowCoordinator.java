@@ -31,8 +31,8 @@ import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.url.GURL;
+import org.vivaldi.browser.bookmarks.VivaldiBookmarkUtils;
 import org.vivaldi.browser.common.DirectMatchBridge;
-import org.vivaldi.browser.common.VivaldiBookmarkUtils;
 // End Vivaldi
 
 /** Business logic for the improved bookmark row. */
@@ -314,5 +314,6 @@ public class ImprovedBookmarkRowCoordinator {
             }
         }
         return null;
-    } // End Vivaldi
+    }
+    // End Vivaldi
 }

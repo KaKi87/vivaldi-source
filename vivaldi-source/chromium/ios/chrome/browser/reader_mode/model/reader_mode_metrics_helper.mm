@@ -10,31 +10,11 @@
 #import "components/prefs/scoped_user_pref_update.h"
 #import "components/ukm/ios/ukm_url_recorder.h"
 #import "ios/chrome/browser/reader_mode/model/constants.h"
-#import "ios/chrome/browser/reader_mode/model/reader_mode_prefs.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/web/public/web_state.h"
 #import "services/metrics/public/cpp/ukm_builders.h"
 
 namespace {
-
-// Updates the most recently used timestamp for Reading Mode usage with
-// the current event time.
-void UpdateRecentlyUsedTimestamps(PrefService* prefs) {
-  const base::Time now = base::Time::Now();
-  ScopedListPrefUpdate reader_mode_timestamps_pref_update(
-      prefs, reader_mode_prefs::kReaderModeRecentlyUsedTimestampsPref);
-  reader_mode_timestamps_pref_update->Append(base::TimeToValue(now));
-
-  // Only keep the last 5 timestamps to maintain a small size.
-  constexpr size_t kMaxTimestamps = 5;
-  if (reader_mode_timestamps_pref_update->size() > kMaxTimestamps) {
-    size_t entries_to_erase =
-        reader_mode_timestamps_pref_update->size() - kMaxTimestamps;
-    reader_mode_timestamps_pref_update->erase(
-        reader_mode_timestamps_pref_update->begin(),
-        reader_mode_timestamps_pref_update->begin() + entries_to_erase);
-  }
-}
 
 // Converts dom_distiller::mojom::FontFamily to Reader mode metric type.
 ReaderModeFontFamily ConvertMojomFontFamily(
@@ -108,12 +88,12 @@ ReaderModeMetricsHelper::ReaderModeMetricsHelper(
 }
 
 ReaderModeMetricsHelper::~ReaderModeMetricsHelper() {
-  Flush();
+  Flush(ReaderModeDeactivationReason::kHostTabDestructionDeactivated);
 }
 
 void ReaderModeMetricsHelper::RecordReaderHeuristicCanceled() {
   last_reader_mode_state_ = ReaderModeState::kHeuristicCanceled;
-  Flush();
+  Flush(ReaderModeDeactivationReason::kNavigationDeactivated);
 }
 
 void ReaderModeMetricsHelper::RecordReaderHeuristicTriggered() {
@@ -166,13 +146,14 @@ void ReaderModeMetricsHelper::RecordReaderDistillerTriggered(
 void ReaderModeMetricsHelper::RecordReaderDistillerTimedOut() {
   last_reader_mode_state_ = ReaderModeState::kDistillationTimedOut;
   RecordDistillationTime(std::nullopt);
-  Flush();
+  Flush(ReaderModeDeactivationReason::kDistillationFailureDeactivated);
 }
 
 void ReaderModeMetricsHelper::RecordReaderDistillerCompleted(
     ReaderModeAccessPoint access_point,
     ReaderModeDistillerResult result) {
   last_reader_mode_state_ = ReaderModeState::kDistillationCompleted;
+  reader_mode_distilled_access_point_ = access_point;
 
   CHECK(distiller_timer_);
   RecordDistillationTime(result);
@@ -184,14 +165,23 @@ void ReaderModeMetricsHelper::RecordReaderShown() {
   last_reader_mode_state_.reset();
   base::UmaHistogramEnumeration(kReaderModeStateHistogram,
                                 ReaderModeState::kReaderShown);
-  PrefService* pref_service =
-      ProfileIOS::FromBrowserState(web_state_->GetBrowserState())->GetPrefs();
-  UpdateRecentlyUsedTimestamps(pref_service);
+
+  const ukm::SourceId source_id =
+      ukm::GetSourceIdForWebStateDocument(web_state_);
+  if (reader_mode_distilled_access_point_.has_value() &&
+      source_id != ukm::kInvalidSourceId) {
+    ukm::builders::IOS_ReaderMode_ReaderModeShown_AccessPoint(source_id)
+        .SetAccessPoint(
+            static_cast<int64_t>(reader_mode_distilled_access_point_.value()))
+        .Record(ukm::UkmRecorder::Get());
+  }
+  reader_mode_distilled_access_point_.reset();
 
   reading_timer_ = std::make_unique<base::ElapsedTimer>();
 }
 
-void ReaderModeMetricsHelper::Flush() {
+void ReaderModeMetricsHelper::Flush(ReaderModeDeactivationReason reason) {
+  base::UmaHistogramEnumeration(kReaderModeDeactivationReasonHistogram, reason);
   if (last_reader_mode_state_.has_value()) {
     base::UmaHistogramEnumeration(kReaderModeStateHistogram,
                                   last_reader_mode_state_.value());
@@ -203,6 +193,7 @@ void ReaderModeMetricsHelper::Flush() {
     reading_timer_.reset();
   }
   heuristic_timer_.reset();
+  reader_mode_distilled_access_point_.reset();
 }
 
 void ReaderModeMetricsHelper::OnChangeFontFamily(

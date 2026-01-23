@@ -20,23 +20,12 @@ namespace features {
 // All features in alphabetical order. The features should be documented
 // alongside the definition of their values in the .cc file.
 
-// TODO(crbug.com/40598679): Remove this when the tab dragging
-// interactive_ui_tests pass on Wayland.
-BASE_DECLARE_FEATURE(kAllowWindowDragUsingSystemDragDrop);
-
 BASE_DECLARE_FEATURE(kAllowEyeDropperWGCScreenCapture);
-
-BASE_DECLARE_FEATURE(kCloseOmniboxPopupOnInactiveAreaClick);
 
 BASE_DECLARE_FEATURE(kCreateNewTabGroupAppMenuTopLevel);
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 BASE_DECLARE_FEATURE(kFewerUpdateConfirmations);
-#endif
-
-#if !BUILDFLAG(IS_ANDROID)
-// Feature that manages the transition between old and new browser layout.
-BASE_DECLARE_FEATURE(kDesktopNewTopAreaLayoutFeature);
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -47,6 +36,9 @@ BASE_DECLARE_FEATURE(kDesktopNewTopAreaLayoutFeature);
 BASE_DECLARE_FEATURE(kExtensionsCollapseMainMenu);
 
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+// Controls whether the refreshed infobar is enabled.
+BASE_DECLARE_FEATURE(kInfobarRefresh);
 
 #if BUILDFLAG(IS_WIN)
 BASE_DECLARE_FEATURE(kOfferPinToTaskbarWhenSettingToDefault);
@@ -96,11 +88,10 @@ inline constexpr base::FeatureParam<PreloadTopChromeWebUIMode>::Option
          kPreloadTopChromeWebUIModePreloadOnMakeContentsName}};
 
 inline constexpr base::FeatureParam<PreloadTopChromeWebUIMode>
-    kPreloadTopChromeWebUIMode(
-        &kPreloadTopChromeWebUI,
-        kPreloadTopChromeWebUIModeName,
-        PreloadTopChromeWebUIMode::kPreloadOnWarmup,
-        &kPreloadTopChromeWebUIModeOptions);
+    kPreloadTopChromeWebUIMode(&kPreloadTopChromeWebUI,
+                               kPreloadTopChromeWebUIModeName,
+                               PreloadTopChromeWebUIMode::kPreloadOnWarmup,
+                               &kPreloadTopChromeWebUIModeOptions);
 
 // If smart preload is enabled, the preload WebUI is determined by historical
 // engagement scores and whether a WebUI is currently being shown.
@@ -157,7 +148,15 @@ BASE_DECLARE_FEATURE(kScrimForBrowserWindowModal);
 BASE_DECLARE_FEATURE(kSideBySide);
 
 BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideShowDropTargetDelay);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
+                           kSideBySideShowDropTargetForLinkDelay);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
+                           kSideBySideShowDropTargetForLinkAfterHideDelay);
+BASE_DECLARE_FEATURE_PARAM(
+    base::TimeDelta,
+    kSideBySideShowDropTargetForLinkAfterHideLookbackWindow);
 BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideHideDropTargetDelay);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideShowNudgeDelay);
 
 // Feature params for the width of the multi-contents drop target.
 // If the `kSideBySideDropTargetNudge` feature is enabled, then these only
@@ -165,6 +164,8 @@ BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideHideDropTargetDelay);
 BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetMinWidth);
 BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetMaxWidth);
 BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetTargetWidthPercentage);
+BASE_DECLARE_FEATURE_PARAM(int,
+                           kSideBySideDropTargetForLinkTargetWidthPercentage);
 
 // The size of the edge of the screen where the Split View drop target is hidden
 // will be the max of the width and the percentage times the screen width.
@@ -216,15 +217,29 @@ BASE_DECLARE_FEATURE(kSideBySideKeyboardShortcut);
 
 bool IsSideBySideKeyboardShortcutEnabled();
 
+BASE_DECLARE_FEATURE(kSideBySideFocusClearing);
+
+enum class SidePanelRelativeAlignment {
+  // Shows the toolbar and content height side panels on the same side.
+  kShowPanelsOnSameSide,
+  // Shows the toolbar and content height side panels on opposite sides.
+  kShowPanelsOnOppositeSides,
+};
+BASE_DECLARE_FEATURE_PARAM(SidePanelRelativeAlignment,
+                           kSidePanelRelativeAlignment);
+
+BASE_DECLARE_FEATURE(kAppBrowserUseNewLayout);
+
+BASE_DECLARE_FEATURE(kPopupBrowserUseNewLayout);
+
+BASE_DECLARE_FEATURE(kTabbedBrowserUseNewLayout);
+
 BASE_DECLARE_FEATURE(kTabDuplicateMetrics);
 
 BASE_DECLARE_FEATURE(kTabScrollingButtonPosition);
 
 inline constexpr char kTabScrollingButtonPositionParameterName[] =
     "buttonPosition";
-
-BASE_DECLARE_FEATURE(kSidePanelResizing);
-BASE_DECLARE_FEATURE(kSidePanelSearchCompanion);
 
 BASE_DECLARE_FEATURE(kTabGroupsCollapseFreezing);
 BASE_DECLARE_FEATURE(kTabGroupHoverCards);
@@ -325,11 +340,19 @@ BASE_DECLARE_FEATURE(kTearOffWebAppTabOpensWebAppWindow);
 BASE_DECLARE_FEATURE(kThreeButtonPasswordSaveDialog);
 #endif
 
-bool IsToolbarPinningEnabled();
+// Enables a side panel that occupies the vertical space from the top of the
+// toolbar to the bottom of the browser. This is taller than the default side
+// panel, which occupies the space from the top of the WebContents to the bottom
+// of the browser.
+BASE_DECLARE_FEATURE(kToolbarHeightSidePanel);
 
+// TODO(crbug.com/460764864): Cleanup all the enterprise badging feature flags.
 BASE_DECLARE_FEATURE(kEnterpriseProfileBadgingForMenu);
 BASE_DECLARE_FEATURE(kEnterpriseBadgingForNtpFooter);
+BASE_DECLARE_FEATURE(kEnterpriseBadgingForLocalManagemenetNtpFooter);
+BASE_DECLARE_FEATURE(kEnterpriseBadgingForNtpFooterWithOverThreePolicies);
 BASE_DECLARE_FEATURE(kNTPFooterBadgingPolicies);
+
 BASE_DECLARE_FEATURE(kEnterpriseManagementDisclaimerUsesCustomLabel);
 BASE_DECLARE_FEATURE(kManagedProfileRequiredInterstitial);
 
@@ -392,6 +415,13 @@ BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationPriceTracking);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationAutofillMandatoryReauth);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationClickToCall);
 BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationSharingHub);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationAiMode);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationVirtualCard);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationFilledCardInformation);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationReadingMode);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationSavePayments);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationLensOverlayHomework);
+BASE_DECLARE_FEATURE_PARAM(bool, kPageActionsMigrationBookmarkStar);
 
 // Determines whether the "save password" page action displays different UI if
 // the user has said to never save passwords for that site.
@@ -401,10 +431,6 @@ BASE_DECLARE_FEATURE(kSavePasswordsContextualUi);
 // Add tab group colours when viewing tab groups using the top mac OS menu bar.
 BASE_DECLARE_FEATURE(kShowTabGroupsMacSystemMenu);
 #endif  // BUILDFLAG(IS_MAC)
-
-// Controls whether browser tab loading animations are driven by the compositor
-// vs. a repeating timer.
-BASE_DECLARE_FEATURE(kCompositorLoadingAnimations);
 
 // If enabled, the by date history will show in the side panel.
 BASE_DECLARE_FEATURE(kByDateHistoryInSidePanel);
@@ -429,6 +455,8 @@ bool HasTabSearchToolbarButton();
 BASE_DECLARE_FEATURE(kNewTabAddsToActiveGroup);
 
 bool IsNewTabAddsToActiveGroupEnabled();
+
+bool IsWebUIReloadButtonEnabled();
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 // Controls whether to show a toast for Chrome non milestone update.
@@ -447,6 +475,8 @@ bool IsAndroidAnimatedProgressBarInBrowserEnabled();
 
 // Controls whether the updated What's New page is enabled.
 BASE_DECLARE_FEATURE(kWhatsNewDesktopRefresh);
+
+BASE_DECLARE_FEATURE(kTabGroupsFocusing);
 
 }  // namespace features
 

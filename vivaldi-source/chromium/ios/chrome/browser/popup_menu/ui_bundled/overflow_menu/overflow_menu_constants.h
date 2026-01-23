@@ -58,7 +58,6 @@ enum class ActionType {
   NewTab,
   NewIncognitoTab,
   NewWindow,
-  Follow,
 
   // Vivaldi
   // The order of the actions are important for these and they should be above
@@ -86,6 +85,7 @@ enum class ActionType {
   // TODO(crbug.com/416002705): Rename reference to BWG.
   AskBWG,
   HideToolbars,
+  TabGroup,
 
   // Vivaldi action groups
   vStartPage,

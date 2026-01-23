@@ -49,9 +49,9 @@ namespace {
 
 NSString* const kReadTitle = @"foobar";
 NSString* const kReadURL = @"http://readfoobar.com";
-NSString* kPage1Title = @"Page 1 Title";
+NSString* const kPage1Title = @"Page 1 Title";
 const char kPage1URL[] = "/page1";
-NSString* kPage2Title = @"Page 2 Title";
+NSString* const kPage2Title = @"Page 2 Title";
 const char kPage2URL[] = "/page2";
 constexpr base::TimeDelta kLongPressDuration = base::Seconds(1);
 constexpr base::TimeDelta kSyncActiveTimeout = base::Seconds(5);
@@ -339,8 +339,9 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 // manager.
 - (void)testPromoShownWhenSyncDataNotRemovedWithBookmarksUpload {
   // Add last syncing account to mimic signing out without clearing data.
-  [ChromeEarlGrey setStringValue:[FakeSystemIdentity fakeIdentity1].gaiaID
-                     forUserPref:prefs::kGoogleServicesLastSyncingGaiaId];
+  [ChromeEarlGrey
+      setStringValue:[FakeSystemIdentity fakeIdentity1].gaiaId.ToNSString()
+         forUserPref:prefs::kGoogleServicesLastSyncingGaiaId];
 
   OpenReadingList();
   [SigninEarlGreyUI
@@ -603,6 +604,10 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 // unread items sections should be shown correctly and remain so after a
 // sign-out & sign-in with the same account.
 - (void)testMoveItemThenRefreshSignIn {
+  // TODO(crbug.com/436556292): Re-enable the test on iOS26.
+  if (base::ios::IsRunningOnIOS26OrLater()) {
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
+  }
   // Sign-in with the Reading List Promo.
   FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];

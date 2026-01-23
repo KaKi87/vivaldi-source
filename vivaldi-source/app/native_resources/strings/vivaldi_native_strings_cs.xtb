@@ -36,6 +36,7 @@
 <translation id="1973351931613083086">automatické přehrávání</translation>
 <translation id="1985669426322966465">Aktualizace aplikace</translation>
 <translation id="2079036669923635404">Klepněte sem k aktualizaci Vivaldi na verzi <ph name="VERSION" />.</translation>
+<translation id="2096375219036704155">Soubor záložek nebyl nalezen</translation>
 <translation id="2141974047387702305">Při stahování aktualizačního souboru došlo k chybě. Zkontrolujte své internetové připojení a zkuste to znovu.</translation>
 <translation id="2225863440766607138">Sledovače</translation>
 <translation id="2226825946708954262">⚠ Pokračovat a ztratit údaje</translation>
@@ -98,6 +99,7 @@
 <translation id="3732157130969736834">Přidat odkaz do záložek</translation>
 <translation id="3732388226447288666">Liška ryšavá (Zvířena 2)</translation>
 <translation id="3732439195215136813">Koala (Zvířena 5)</translation>
+<translation id="3821561970091304474">Nelze otevřít soubor pro ukládání historie</translation>
 <translation id="3822431842304177896">Nový oddělovač</translation>
 <translation id="3832132597516774400">Přímořský soumrak (Krajina 5)</translation>
 <translation id="3861977424605124250">Zobrazit při spuštění</translation>
@@ -106,6 +108,7 @@
 <translation id="3921292902397893431">Vejtaha (Příšerka 8)</translation>
 <translation id="3943857333388298514">Vložit</translation>
 <translation id="4005270918754737597">Přeskočit tuto verzi</translation>
+<translation id="4012248391474116967">Soubor záložek neexistuje</translation>
 <translation id="4044951018940382324">Vivaldi</translation>
 <translation id="4064545092083709582">Vivaldi se nedaří odemknout vaše zabezpečené úložiště klíčů. Bez něj ztratíte vaše uložené přihlašovací údaje, zabezpečené cookies a  také přestanou fungovat některé funkcionality jako je synchronizace, pošta, kalendář.
 
@@ -122,12 +125,14 @@
 <translation id="4456211719108566931">Hromádka neštěstí… (Příšerka 6)</translation>
 <translation id="4459169140545916303">Aktivní před <ph name="DEVICE_LAST_ACTIVATED_TIME" /> dny</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
+<translation id="4510781427281143276">Odstranit profil</translation>
 <translation id="4512900838580567989">Otevřít odkaz v novém listu na pozadí</translation>
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Otevřít obrázek v novém listu na pozadí</translation>
 <translation id="4582480609585453144">Otevřít odkaz v listu na pozadí</translation>
 <translation id="4636708767492582204">Odeslat poštou</translation>
 <translation id="4677434526832593569">Vlk (Zvířena 8)</translation>
+<translation id="4729666228450010210">Nelze přečíst soubor rychlé volby</translation>
 <translation id="4736016046474602958">ochranou proti sledování</translation>
 <translation id="474217410105706308">Ztlumit zvuk listu</translation>
 <translation id="4861715717329665002">Automaticky uložené relace</translation>
@@ -179,6 +184,7 @@
 <translation id="6736243959894955139">Adresa</translation>
 <translation id="6892812721183419409">Otevřít odkaz jako <ph name="USER" /></translation>
 <translation id="6896758677409633944">Kopírovat</translation>
+<translation id="6951961820678531655">Opravdu chcete odstranit profil "__1"?</translation>
 <translation id="6960139763942959188">Tento profil je aktuálně uložen nezabezpečeně v nešifrovaném formátu. Vivaldi upgraduje a zabezpečí váš profil bezpečnějším šifrováním. Před pokračováním ukončete Vivaldi a zálohujte si váš profil.</translation>
 <translation id="7013466836883158999">Je možné vytvářet udržitelné produkty bez špehování uživatelů? Jak vypadá budoucnost prohlížení internetu? Podívejte se, jak na tyto otázky odpovídá náš generální ředitel Jon von Tetzchner na Web Summitu 2023.</translation>
 <translation id="7066262000446496119">Kdo používá Vivaldi?</translation>
@@ -186,8 +192,10 @@
 <translation id="7099506190679014195">Povýšení bezpečného úložiště</translation>
 <translation id="7111492742514999492">Větrný mlýn (Krajina 9)</translation>
 <translation id="7113310725918019676">Povolit <ph name="BLOCKED_TYPE" /> z <ph name="DOMAIN" /></translation>
+<translation id="7230790743794586907">Nelze otevřít soubor s údaji přihlášení</translation>
 <translation id="7277237102285741596">https://vivaldi.com/blog/manifest-v3-webrequest-and-ad-blockers/</translation>
 <translation id="7283555985781738399">Režim hosta</translation>
+<translation id="7319087656340696133">Dešifrovací klíč je neplatný</translation>
 <translation id="7321500017121629018">Aktivní včera</translation>
 <translation id="7337881442233988129">Chromium</translation>
 <translation id="7421665776469827022">Uložená data</translation>

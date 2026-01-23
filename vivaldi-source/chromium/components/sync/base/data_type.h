@@ -186,6 +186,9 @@ enum DataType {
   // Information about a contextual task.
   CONTEXTUAL_TASK,
 
+  // Usage metadata for `AUTOFILL_VALUABLE`.
+  AUTOFILL_VALUABLE_METADATA,
+
   // Notes items
   NOTES,
 
@@ -293,6 +296,7 @@ enum class DataTypeForHistograms {
   kAccountSetting = 72,
   kAIThread = 73,
   kContextualTask = 74,
+  kAutofillValuableMetadata = 75,
 
   // Vivaldi
   kNotes = 300,
@@ -424,7 +428,7 @@ constexpr DataTypeSet SharedTypes() {
 // any pending account data or abort, depending on the platform.
 constexpr DataTypeSet TypesRequiringUnsyncedDataCheckOnSignout() {
   static_assert(
-      58 + 1 /* notes */ == GetNumDataTypes(),
+      59 + 1 /* notes */ == GetNumDataTypes(),
       "Add new types to `TypesRequiringUnsyncedDataCheckOnSignout()` if there "
       "should be a warning when the user signs out and the types have unsynced "
       "data. The warning offers the user to either proceed with sign-out "

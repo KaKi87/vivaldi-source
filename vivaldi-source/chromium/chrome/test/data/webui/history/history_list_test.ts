@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type {HistoryAppElement, HistoryEntry, HistoryItemElement, HistoryListElement, HistoryToolbarElement} from 'chrome://history/history.js';
-import {BrowserServiceImpl, CrRouter, ensureLazyLoaded} from 'chrome://history/history.js';
+import {BrowserServiceImpl, CrRouter} from 'chrome://history/history.js';
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {isMac} from 'chrome://resources/js/platform.js';
@@ -72,7 +72,6 @@ suite('HistoryListTest', function() {
     queryManager.queryState = {...queryManager.queryState, incremental: true};
     return Promise.all([
       testService.handler.whenCalled('queryHistory'),
-      ensureLazyLoaded(),
       microtasksFinished(),
       eventToPromise('viewport-filled', element.$.infiniteList),
     ]);
@@ -290,7 +289,7 @@ suite('HistoryListTest', function() {
     assertTrue(item.isCardStart);
     const heading =
         item.shadowRoot.querySelector<HTMLElement>(
-                           '#date-accessed')!.textContent!;
+                           '#date-accessed')!.textContent;
     const title = item.$.link;
 
     // Check that the card title displays the search term somewhere.
@@ -306,7 +305,7 @@ suite('HistoryListTest', function() {
     await finishSetup([]);
     await microtasksFinished();
     assertFalse(element.$.noResults.hidden);
-    assertNotEquals('', element.$.noResults.textContent!.trim());
+    assertNotEquals('', element.$.noResults.textContent.trim());
     assertTrue(element.$.infiniteList.hidden);
 
     testService.handler.setResultFor('queryHistory', Promise.resolve({

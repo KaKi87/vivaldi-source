@@ -28,8 +28,11 @@ class AdBlockRequestFilter : public vivaldi::RequestFilter,
   AdBlockRequestFilter& operator=(const AdBlockRequestFilter&) = delete;
 
   // Implementing vivaldi::RequestFilter
-  bool WantsExtraHeadersForAnyRequest() const override;
-  bool WantsExtraHeadersForRequest(
+  bool HasAnyExtraHeadersListener() const override;
+  bool HasExtraHeadersListenerForRequest(
+      vivaldi::FilteredRequestInfo* request) const override;
+  bool HasAnySecurityInfoListener() const override;
+  bool HasSecurityInfoListenerForRequest(
       vivaldi::FilteredRequestInfo* request) const override;
   bool OnBeforeRequest(content::BrowserContext* browser_context,
                        const vivaldi::FilteredRequestInfo* request,

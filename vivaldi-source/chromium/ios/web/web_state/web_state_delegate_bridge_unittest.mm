@@ -179,8 +179,8 @@ TEST_F(WebStateDelegateBridgeTest, OnAuthRequired) {
 
 // Tests `ShouldAllowCopy` forwarding.
 TEST_F(WebStateDelegateBridgeTest, ShouldAllowCopy) {
-  EXPECT_FALSE([delegate_ copyAllowedRequested]);
-  EXPECT_FALSE([delegate_ webState]);
+  ASSERT_FALSE([delegate_ copyAllowedRequested]);
+  ASSERT_FALSE([delegate_ webState]);
   __block bool callback_called = false;
   bridge_->ShouldAllowCopy(&fake_web_state_, base::BindOnce(^(bool allowed) {
     EXPECT_TRUE(allowed);
@@ -205,8 +205,8 @@ TEST_F(WebStateDelegateBridgeTest, ShouldAllowCopyWithNoDelegateMethod) {
 
 // Tests `ShouldAllowPaste` forwarding.
 TEST_F(WebStateDelegateBridgeTest, ShouldAllowPaste) {
-  EXPECT_FALSE([delegate_ pasteAllowedRequested]);
-  EXPECT_FALSE([delegate_ webState]);
+  ASSERT_FALSE([delegate_ pasteAllowedRequested]);
+  ASSERT_FALSE([delegate_ webState]);
   __block bool callback_called = false;
   bridge_->ShouldAllowPaste(&fake_web_state_, base::BindOnce(^(bool allowed) {
     EXPECT_TRUE(allowed);
@@ -231,8 +231,8 @@ TEST_F(WebStateDelegateBridgeTest, ShouldAllowPasteWithNoDelegateMethod) {
 
 // Tests `ShouldAllowCut` forwarding.
 TEST_F(WebStateDelegateBridgeTest, ShouldAllowCut) {
-  EXPECT_FALSE([delegate_ cutAllowedRequested]);
-  EXPECT_FALSE([delegate_ webState]);
+  ASSERT_FALSE([delegate_ cutAllowedRequested]);
+  ASSERT_FALSE([delegate_ webState]);
   __block bool callback_called = false;
   bridge_->ShouldAllowCut(&fake_web_state_, base::BindOnce(^(bool allowed) {
     EXPECT_TRUE(allowed);
@@ -253,6 +253,15 @@ TEST_F(WebStateDelegateBridgeTest, ShouldAllowCutWithNoDelegateMethod) {
                                            callback_called = true;
                                          }));
   EXPECT_TRUE(callback_called);
+}
+
+// Tests `DidFinishClipboardRead` forwarding.
+TEST_F(WebStateDelegateBridgeTest, DidFinishClipboardRead) {
+  EXPECT_FALSE([delegate_ didFinishClipboardReadRequested]);
+  EXPECT_FALSE([delegate_ webState]);
+  bridge_->DidFinishClipboardRead(&fake_web_state_);
+  EXPECT_TRUE([delegate_ didFinishClipboardReadRequested]);
+  EXPECT_EQ(&fake_web_state_, [delegate_ webState]);
 }
 
 }  // namespace web

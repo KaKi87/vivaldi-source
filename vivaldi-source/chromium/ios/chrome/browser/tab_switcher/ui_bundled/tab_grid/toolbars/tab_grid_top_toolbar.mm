@@ -34,7 +34,7 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_page_control_constants.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 // End Vivaldi
 
 namespace {
@@ -496,7 +496,7 @@ CGFloat HorizontalMargin() {
 
   if (vivaldi::IsVivaldiRunning())
     searchImage = CustomSymbolWithPointSize(
-                      vSearch, kSymbolSearchImagePointSize); // End Vivaldi
+        vSearch, kSymbolSearchImagePointSize);  // End Vivaldi
 
   _searchButton = [self createButtonWithImage:searchImage
                                         title:nil
@@ -597,8 +597,7 @@ CGFloat HorizontalMargin() {
         constraintEqualToAnchor:containerView.leadingAnchor
                        constant:HorizontalMargin()],
     [_pageControl.centerXAnchor
-        constraintEqualToAnchor:containerView.centerXAnchor
-                       constant:HorizontalMargin()],
+        constraintEqualToAnchor:containerView.centerXAnchor],
 
     centeredLabelConstraint,
     [_selectedTabsLabel.leadingAnchor

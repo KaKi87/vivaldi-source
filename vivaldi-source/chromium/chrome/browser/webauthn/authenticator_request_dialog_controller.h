@@ -93,9 +93,6 @@ class AuthenticatorRequestDialogController
   void PasskeyUpgradeSucceeded() override;
   void PasskeyUpgradeFailed() override;
 
-  // Hides the dialog. A subsequent call to SetCurrentStep() will unhide it.
-  void HideDialog();
-
   // Returns whether the UI is in a state at which the |request_| member of
   // AuthenticatorImpl has completed processing. Note that the request callback
   // is only resolved after the UI is dismissed.
@@ -403,8 +400,9 @@ class AuthenticatorRequestDialogController
   // kCableActivate.
   void StartGuidedFlowForTransport(AuthenticatorTransport transport);
 
-  // Starts the flow for adding an unlisted phone by showing a QR code.
-  void StartGuidedFlowForAddPhone();
+  // Starts the hybrid flow. This flow starts with showing a QR code. In some
+  // cases it can also display the user a message to insert a security key.
+  void StartHybridFlow();
 
   // Displays a resident-key warning if needed and then calls
   // |HideDialogAndDispatchToNativeWindowsApi|.

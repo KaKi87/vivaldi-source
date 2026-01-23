@@ -166,7 +166,7 @@ if (is_ios) {
     output_dir = "$root_gen_dir/vivaldi/ios/"
     resource_ids = "//vivaldi/app/gritsettings/resource_ids"
     outputs = [ "grit/vivaldi_ios_native_strings.h" ]
-    foreach(locale, locales_with_pseudolocales+vivaldi_pending_locales + vivaldi_pending_mobile_locales + vivaldi_pending_ios_locales) {
+    foreach(locale, locales_with_pseudolocales+vivaldi_pending_locales + vivaldi_pending_mobile_locales + vivaldi_pending_ios_locales + vivaldi_native_ios_extra_locales) {
       if (locale == "ca-valencia" || locale == "ca@valencia") {
         locale = "ca-valencia"
       }

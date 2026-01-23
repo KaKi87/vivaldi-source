@@ -111,12 +111,16 @@ class AdBlockFunction : public ExtensionFunction,
       adblock_filter::RuleService* rule_service) override;
 
  protected:
-  ~AdBlockFunction() override = default;
+  ~AdBlockFunction() override;
+  // Overriden from ExtensionFunction
+  void OnBrowserContextShutdown() override;
+
   virtual ResponseAction RunWithService(
       adblock_filter::RuleService* rules_service) = 0;
   static ResponseValue ValidationFailure(AdBlockFunction* function);
 
  private:
+  void StopObserving();
   ResponseAction Run() override;
 };
 

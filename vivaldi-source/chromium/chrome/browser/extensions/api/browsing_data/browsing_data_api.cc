@@ -34,6 +34,7 @@
 #include "extensions/common/error_utils.h"
 #include "extensions/common/extension.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 
 using browsing_data::BrowsingDataType;
 using browsing_data::ClearBrowsingDataTab;
@@ -86,10 +87,6 @@ uint64_t MaskForKey(const char* key) {
   if (UNSAFE_TODO(strcmp(
           key, extension_browsing_data_api_constants::kLocalStorageKey)) == 0) {
     return content::BrowsingDataRemover::DATA_TYPE_LOCAL_STORAGE;
-  }
-  if (UNSAFE_TODO(strcmp(
-          key, extension_browsing_data_api_constants::kPasswordsKey)) == 0) {
-    return chrome_browsing_data_remover::DATA_TYPE_PASSWORDS;
   }
   if (UNSAFE_TODO(strcmp(
           key, extension_browsing_data_api_constants::kServiceWorkersKey)) ==
@@ -220,7 +217,7 @@ ExtensionFunction::ResponseAction BrowsingDataSettingsFunction::Run() {
              extension_browsing_data_api_constants::kFormDataKey,
              isDataTypeSelected(BrowsingDataType::FORM_DATA, tab));
   SetDetails(&selected, &permitted,
-             extension_browsing_data_api_constants::kPasswordsKey,
+             extension_browsing_data_api_constants::kPasswordsKeyDeprecated,
              isDataTypeSelected(BrowsingDataType::PASSWORDS, tab));
 
   base::Value::Dict result;
@@ -259,6 +256,15 @@ void BrowsingDataRemoverFunction::OnTaskFinished() {
   Release();  // Balanced in StartRemoving.
 }
 
+void BrowsingDataRemoverFunction::LogUnsupportedDataTypeWarning(
+    const std::string& data_types) {
+  WriteToConsole(
+      blink::mojom::ConsoleMessageLevel::kWarning,
+      base::StringPrintf(
+          extension_browsing_data_api_constants::kUnsupportedDataTypeWarning,
+          data_types.c_str()));
+}
+
 ExtensionFunction::ResponseAction BrowsingDataRemoverFunction::Run() {
   Profile* profile = Profile::FromBrowserContext(browser_context());
   // If we don't have a profile, something's pretty wrong.
@@ -285,6 +291,11 @@ ExtensionFunction::ResponseAction BrowsingDataRemoverFunction::Run() {
           : base::Time::FromMillisecondsSinceUnixEpoch(ms_since_epoch);
 
   EXTENSION_FUNCTION_VALIDATE(GetRemovalMask(&removal_mask_));
+
+  if (IsRemovalDeprecated()) {
+    return RespondNow(
+        Error(extension_browsing_data_api_constants::kDeprecatedDataTypeError));
+  }
 
   const base::Value::List* origins =
       options.FindList(extension_browsing_data_api_constants::kOriginsKey);
@@ -335,6 +346,10 @@ BrowsingDataRemoverFunction::~BrowsingDataRemoverFunction() = default;
 
 bool BrowsingDataRemoverFunction::IsPauseSyncAllowed() {
   return true;
+}
+
+bool BrowsingDataRemoverFunction::IsRemovalDeprecated() {
+  return false;
 }
 
 void BrowsingDataRemoverFunction::StartRemoving() {
@@ -473,12 +488,24 @@ bool BrowsingDataRemoveFunction::GetRemovalMask(uint64_t* removal_mask) {
   if (args().size() <= 1 || !args()[1].is_dict())
     return false;
 
+  std::vector<std::string> unsupported_data_types;
   *removal_mask = 0;
   for (const auto kv : args()[1].GetDict()) {
     if (!kv.second.is_bool())
       return false;
-    if (kv.second.GetBool())
-      *removal_mask |= MaskForKey(kv.first.c_str());
+    if (kv.second.GetBool()) {
+      uint64_t mask = MaskForKey(kv.first.c_str());
+      if (mask == 0) {
+        unsupported_data_types.push_back(kv.first);
+      } else {
+        *removal_mask |= mask;
+      }
+    }
+  }
+
+  if (!unsupported_data_types.empty()) {
+    LogUnsupportedDataTypeWarning(
+        base::JoinString(unsupported_data_types, ", "));
   }
 
   return true;
@@ -492,6 +519,7 @@ bool BrowsingDataRemoveAppcacheFunction::GetRemovalMask(
     uint64_t* removal_mask) {
   // TODO(http://crbug.com/1266606): deprecate and remove this extension api
   *removal_mask = 0;
+  LogUnsupportedDataTypeWarning("appcache");
   return true;
 }
 
@@ -544,13 +572,28 @@ bool BrowsingDataRemovePluginDataFunction::GetRemovalMask(
     uint64_t* removal_mask) {
   // Plugin data is not supported anymore. (crbug.com/1135788)
   *removal_mask = 0;
+  LogUnsupportedDataTypeWarning(
+      extension_browsing_data_api_constants::kPluginDataKeyDeprecated);
   return true;
 }
 
 bool BrowsingDataRemovePasswordsFunction::GetRemovalMask(
     uint64_t* removal_mask) {
-  *removal_mask = chrome_browsing_data_remover::DATA_TYPE_PASSWORDS;
+  // Password deletion is not supported anymore.
+  *removal_mask = 0;
+  LogUnsupportedDataTypeWarning(
+      extension_browsing_data_api_constants::kPasswordsKeyDeprecated);
   return true;
+}
+
+bool BrowsingDataRemovePasswordsFunction::IsRemovalDeprecated() {
+#if !BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(
+          browsing_data::features::kPasswordRemovalExtensionErrorKillSwitch)) {
+    return true;
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
+  return false;
 }
 
 bool BrowsingDataRemoveServiceWorkersFunction::GetRemovalMask(
@@ -568,5 +611,6 @@ bool BrowsingDataRemoveCacheStorageFunction::GetRemovalMask(
 bool BrowsingDataRemoveWebSQLFunction::GetRemovalMask(uint64_t* removal_mask) {
   // TODO(http://crbug.com/420857719): Deprecate and remove this extension api.
   *removal_mask = 0;
+  LogUnsupportedDataTypeWarning("webSQL");
   return true;
 }

@@ -15,11 +15,15 @@ struct ParseResult {
   ~ParseResult();
   ParseResult(ParseResult&& parse_result);
 
+  bool empty() {
+    return request_filter_rules.empty() && cosmetic_rules.empty() &&
+           scriptlet_injection_rules.empty();
+  }
+
   AdBlockMetadata metadata;
   RequestFilterRules request_filter_rules;
   CosmeticRules cosmetic_rules;
   ScriptletInjectionRules scriptlet_injection_rules;
-  FetchResult fetch_result = FetchResult::kSuccess;
   RulesInfo rules_info;
   std::optional<base::Value::Dict> tracker_infos;
 };

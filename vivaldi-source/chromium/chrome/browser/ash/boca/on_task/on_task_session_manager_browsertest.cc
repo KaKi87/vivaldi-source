@@ -184,7 +184,6 @@ class OnTaskSessionManagerBrowserTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-// TODO(https://crbug.com/445300633): Re-enable this test
 IN_PROC_BROWSER_TEST_F(
     OnTaskSessionManagerBrowserTest,
     ShouldEnforceDomainNavRestrictionOnHomepageOnSessionStart) {
@@ -408,11 +407,9 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  auto* const browser_view =
-      BrowserView::GetBrowserViewForBrowser(boca_app_browser);
   // Wait until immersive mode is disabled in pause mode.
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return !browser_view->immersive_mode_controller()->IsEnabled();
+    return !ImmersiveModeController::From(boca_app_browser)->IsEnabled();
   }));
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
             GURL(kChromeBocaAppUntrustedIndexURL));
@@ -423,7 +420,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  EXPECT_TRUE(browser_view->immersive_mode_controller()->IsEnabled());
+  EXPECT_TRUE(ImmersiveModeController::From(boca_app_browser)->IsEnabled());
 
   // Unlock the Boca app to unblock test teardown that involves browser window
   // close.
@@ -461,11 +458,9 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  auto* const browser_view =
-      BrowserView::GetBrowserViewForBrowser(boca_app_browser);
   // Wait until immersive mode is disabled in pause mode.
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return !browser_view->immersive_mode_controller()->IsEnabled();
+    return !ImmersiveModeController::From(boca_app_browser)->IsEnabled();
   }));
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
             GURL(kChromeBocaAppUntrustedIndexURL));
@@ -476,7 +471,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  EXPECT_TRUE(browser_view->immersive_mode_controller()->IsEnabled());
+  EXPECT_TRUE(ImmersiveModeController::From(boca_app_browser)->IsEnabled());
 
   // Unlock the Boca app to unblock test teardown that involves browser window
   // close.
@@ -518,11 +513,9 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  const auto* const browser_view =
-      BrowserView::GetBrowserViewForBrowser(boca_app_browser);
   // Wait until immersive mode is disabled in pause mode.
   ASSERT_TRUE(base::test::RunUntil([&]() {
-    return !browser_view->immersive_mode_controller()->IsEnabled();
+    return !ImmersiveModeController::From(boca_app_browser)->IsEnabled();
   }));
   EXPECT_EQ(tab_strip_model->GetActiveWebContents()->GetVisibleURL(),
             GURL(kChromeBocaAppUntrustedIndexURL));
@@ -533,7 +526,7 @@ IN_PROC_BROWSER_TEST_F(OnTaskSessionManagerBrowserTest,
   ASSERT_TRUE(platform_util::IsBrowserLockedFullscreen(boca_app_browser));
   EXPECT_FALSE(chromeos::wm::CanFloatWindow(
       boca_app_browser->window()->GetNativeWindow()));
-  EXPECT_TRUE(browser_view->immersive_mode_controller()->IsEnabled());
+  EXPECT_TRUE(ImmersiveModeController::From(boca_app_browser)->IsEnabled());
 
   // Unlock the Boca app to unblock test teardown that involves browser window
   // close.

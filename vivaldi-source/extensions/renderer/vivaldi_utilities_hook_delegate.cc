@@ -94,7 +94,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleGetUrlFragments(
 
   if (url.is_valid()) {
     if (url.SchemeIsFile()) {
-      parsed = url::ParseFileURL(std::string_view(url.spec()));
+      parsed = url::ParseFileUrl(std::string_view(url.spec()));
     } else {
       ParseStandardURL(url.spec().c_str(), url.spec().length(), &parsed);
       if (url.host().empty() && parsed.host.end() > 0) {
@@ -162,35 +162,35 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleGetUrlFragments(
   }
 
   if (parsed.scheme.is_valid()) {
-    set_fragment("scheme", url.scheme_piece());
+    set_fragment("scheme", url.scheme());
   }
 
   if (parsed.username.is_valid()) {
-    set_fragment("username", url.username_piece());
+    set_fragment("username", url.username());
   }
 
   if (parsed.password.is_valid()) {
-    set_fragment("password", url.password_piece());
+    set_fragment("password", url.password());
   }
 
   if (parsed.host.is_valid()) {
-    set_fragment("host", url.host_piece());
+    set_fragment("host", url.host());
   }
 
   if (parsed.port.is_valid()) {
-    set_fragment("port", url.port_piece());
+    set_fragment("port", url.port());
   }
 
   if (parsed.path.is_valid()) {
-    set_fragment("path", url.path_piece());
+    set_fragment("path", url.path());
   }
 
   if (parsed.query.is_valid()) {
-    set_fragment("query", url.query_piece());
+    set_fragment("query", url.query());
   }
 
   if (parsed.ref.is_valid()) {
-    set_fragment("ref", url.ref_piece());
+    set_fragment("ref", url.ref());
   }
 
   if (parsed.host.is_valid()) {
@@ -262,7 +262,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleGetVersion(
 namespace {
 
 bool DoesBrowserHandleUrl(const GURL& url) {
-  std::string_view scheme = url.scheme_piece();
+  std::string_view scheme = url.scheme();
   if (URLPattern::IsValidSchemeForExtensions(scheme))
     return true;
   static const std::string_view extra_schemes[] = {
@@ -290,7 +290,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleIsUrlValid(
   GURL url(url_string);
   bool url_valid = url.is_valid();
   bool is_browser_url = DoesBrowserHandleUrl(url);
-  std::string scheme_parsed = url.scheme();
+  std::string scheme_parsed(url.scheme());
 
   // GURL::spec() can only be called when url is valid.
   std::string normalized_url = url.is_valid() ? url.spec() : std::string();

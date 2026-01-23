@@ -95,8 +95,10 @@ bool GetDefaultUserDataDirectory(const InstallConstants& mode,
       return false;
     user_data_dir.resize(size);
   }
+
   if (vivaldi::GetStandaloneInstallDataDirectory(*result))
     return true;
+
   result->swap(user_data_dir);
   if ((*result)[result->length() - 1] != L'\\')
     result->push_back(L'\\');

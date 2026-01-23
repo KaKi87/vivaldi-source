@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> nagyítási szintje</translation>
 <translation id="1921508034244765766">A Vivaldi lassú, összeomlik vagy felmelegíti a készüléket</translation>
 <translation id="1929299157575856072">ALAPÉRTELMEZETT BLOKKOLÁSI SZINT</translation>
+<translation id="1933618400514506228">Szerbhorvát (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Kép megnyitása háttérbeli lapon</translation>
 <translation id="1986733655397734221">Egyik sem</translation>
 <translation id="1994506778397655062">Megnyitás új háttérbeli lapon</translation>
@@ -167,7 +168,6 @@ blokkolva</translation>
 <translation id="309084557304084991">Nem akarok előtelepített könyvjelzőket és Gyorshívókat</translation>
 <translation id="3091563570137981919">Követés- és reklám blokkolása</translation>
 <translation id="3097968995088564986">Hozzáadás gomb megjelenítése</translation>
-<translation id="3102790820790869053">Nemrég megnyitott lap keresése</translation>
 <translation id="3134385238404760368">Nincs nemrég megnyitott lap</translation>
 <translation id="3142562627629111859">Új csoport</translation>
 <translation id="3157931365184549694">Visszaállítás</translation>
@@ -226,6 +226,7 @@ blokkolva</translation>
 <translation id="383723620494271391">Szeretnél még valamit hozzáadni?</translation>
 <translation id="3842727926262967527">Válaszd ki, hol legyen a lapsáv és a címmező.</translation>
 <translation id="3845564230651302310">Új blokkolási beállítások alkalmazása...</translation>
+<translation id="385051799172605136">Vissza</translation>
 <translation id="3858860766373142691">Név</translation>
 <translation id="3861379244432690245">Direct Match bekapcsolása</translation>
 <translation id="3866249974567520381">Leírás</translation>
@@ -495,6 +496,7 @@ blokkolva</translation>
 <translation id="6946395294519639514">A panelekkel a böngésző oldalsávjában könnyedén elérheted a legfontosabb eszközöket.</translation>
 <translation id="6951435330868954105">Alapértelmezett beállítások kezelése</translation>
 <translation id="6951948201878750661">Koppints a szín kiválasztásához</translation>
+<translation id="6954630860045222581">Oldalsáv megjelenítése</translation>
 <translation id="6967884871145366229">Adatvédelmi beállítások kezelése</translation>
 <translation id="6973630695168034713">Mappa</translation>
 <translation id="7000227144065890583">Javasolt URL</translation>
@@ -631,6 +633,7 @@ blokkolva</translation>
 <translation id="851451113245350202">Nemrég bezárt lapok listája</translation>
 <translation id="8515808232153642813">Dekódolás</translation>
 <translation id="8517852590337319813">Aktiváld a fiókodat</translation>
+<translation id="8529159259480052204">Megerősítő értesítések elrejtése</translation>
 <translation id="8546963963006468833">A Vivaldival könnyedén nyithatsz meg linkeket, kereshetsz widgeteket és tölthetsz ki automatikusan jelszavakat más alkalmazásokban.</translation>
 <translation id="8562452229998620586">A mentett jelszavak itt jelennek meg.</translation>
 <translation id="856439694359429369">További beállításhoz egy koppintás, megnyitáshoz kettő.</translation>
@@ -661,6 +664,7 @@ blokkolva</translation>
 <translation id="8948792607467387336">Beállítás háttérképként</translation>
 <translation id="8964449607824577665">Az aktuális titkosítási jelszó nélkül nem tudjuk dekódolni az adataid. A jelszó visszaállításához törölni kell a Vivaldi szervereken lévő összes meglévő szinkronizálási adatot.</translation>
 <translation id="8965371804397726192">Minden adat szinkronizálása</translation>
+<translation id="896787570003733070">A fordítás előtt vagy után ne jelenítsen meg értesítést</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Könyvjelző áthelyezve: "{title}"}
           other {Könyvjelzők áthelyezve: "{title}"}}</translation>

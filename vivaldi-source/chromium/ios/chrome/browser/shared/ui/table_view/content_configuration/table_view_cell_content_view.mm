@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/shared/ui/table_view/content_configuration/table_view_cell_content_view.h"
 
 #import "base/apple/foundation_util.h"
+#import "ios/chrome/browser/shared/ui/table_view/content_configuration/chrome_content_configuration.h"
 #import "ios/chrome/browser/shared/ui/table_view/content_configuration/table_view_cell_content_configuration.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
@@ -15,6 +16,12 @@ namespace {
 // Constant to achieve the 75/25 ratio between the title/subtitle (75) and the
 // trailing label (25).
 constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
+
+constexpr CGFloat kLabelVerticalSpacing = 5;
+
+// The margin for the trailing edge of the content view, when there is an
+// accessory view in the cell.
+constexpr CGFloat kTrailingMarginWithAccessory = 8;
 
 }  // namespace
 
@@ -27,53 +34,67 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
 
 @implementation TableViewCellContentViewLabelContainer {
   UILabel* _topLabel;
+  UILabel* _middleLabel;
   UILabel* _bottomLabel;
 }
 
+// Inits the container with 3 labels, one at the top, one in the middle and one
+// at the bottom.
 - (instancetype)initWithTopLabel:(UILabel*)topLabel
+                     middleLabel:(UILabel*)middleLabel
                      bottomLabel:(UILabel*)bottomLabel {
   self = [super init];
   if (self) {
     _topLabel = topLabel;
+    _middleLabel = middleLabel;
     _bottomLabel = bottomLabel;
 
     self.axis = UILayoutConstraintAxisVertical;
     self.distribution = UIStackViewDistributionFill;
+    self.spacing = kLabelVerticalSpacing;
 
     [self addArrangedSubview:_topLabel];
+    [self addArrangedSubview:_middleLabel];
     [self addArrangedSubview:_bottomLabel];
   }
   return self;
 }
 
 - (CGSize)intrinsicContentSize {
-  // Make sure to have a number of line of 1 for the labels when getting their
-  // intrinsic size. Otherwise, they will choose to use several lines and have a
-  // narrower width.
-  CGFloat numberOfLines = _topLabel.numberOfLines;
-  _topLabel.numberOfLines = 1;
-  CGFloat topLeftWidth = [_topLabel intrinsicContentSize].width;
-  _topLabel.numberOfLines = numberOfLines;
+  CGFloat topWidth = [self maxWidthForLabel:_topLabel];
+  CGFloat middleWidth = [self maxWidthForLabel:_middleLabel];
+  CGFloat bottomWidth = [self maxWidthForLabel:_bottomLabel];
 
-  numberOfLines = _bottomLabel.numberOfLines;
-  _bottomLabel.numberOfLines = 1;
-  CGFloat bottomLeftWidth = [_bottomLabel intrinsicContentSize].width;
-  _bottomLabel.numberOfLines = numberOfLines;
-
-  CGFloat maxWidth = MAX(topLeftWidth, bottomLeftWidth);
+  CGFloat maxWidth = MAX(MAX(topWidth, middleWidth), bottomWidth);
 
   return CGSizeMake(maxWidth, UIViewNoIntrinsicMetric);
 }
 
+#pragma mark - Container Private
+
+// Returns the max width for a `label`.
+- (CGFloat)maxWidthForLabel:(UILabel*)label {
+  // Make sure to have a number of line of 1 for the label when getting its
+  // intrinsic size. Otherwise, it will choose to use several lines and have a
+  // narrower width.
+  CGFloat numberOfLines = label.numberOfLines;
+  label.numberOfLines = 1;
+  CGFloat maxWidth = [label intrinsicContentSize].width;
+  label.numberOfLines = numberOfLines;
+  return maxWidth;
+}
+
 @end
+
+#pragma mark - TableViewCellContentView
 
 @implementation TableViewCellContentView {
   TableViewCellContentConfiguration* _configuration;
 
   // The leading content view.
-  UIView<UIContentView>* _leadingContentView;
+  UIView<ChromeContentView>* _leadingContentView;
   // The trailing content view.
-  UIView<UIContentView>* _trailingContentView;
+  UIView<ChromeContentView>* _trailingContentView;
   // The container for the leading content view.
   UIView* _leadingContentViewContainer;
   // The container for the trailing content view.
@@ -82,6 +103,7 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
   // The labels.
   UILabel* _title;
   UILabel* _subtitle;
+  UILabel* _secondSubtitle;
   UILabel* _trailingLabel;
 
   // The container for the text.
@@ -93,6 +115,9 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
 
   // The main container.
   UIStackView* _mainStack;
+
+  // The constraint for the trailing edge of the main stack.
+  NSLayoutConstraint* _mainStackTrailingConstraint;
 }
 
 - (instancetype)initWithConfiguration:
@@ -108,6 +133,17 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
                        withAction:@selector(updateForContentSizeChange)];
   }
   return self;
+}
+
+- (UIView*)trailingContentViewForTesting {
+  return _trailingContentView;
+}
+
+#pragma mark - ChromeContentView
+
+- (BOOL)hasCustomAccessibilityActivationPoint {
+  return [_leadingContentView hasCustomAccessibilityActivationPoint] ||
+         [_trailingContentView hasCustomAccessibilityActivationPoint];
 }
 
 #pragma mark - UIContentView
@@ -133,7 +169,11 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
 
 // Updates the elements based on a new configuration.
 - (void)applyConfiguration {
-  id<UIContentConfiguration> leadingConfiguration =
+  _mainStackTrailingConstraint.constant = _configuration.hasAccessoryView
+                                              ? kTrailingMarginWithAccessory
+                                              : kTableViewHorizontalSpacing;
+
+  id<ChromeContentConfiguration> leadingConfiguration =
       _configuration.leadingConfiguration;
   BOOL isLeadingImageContentViewCompatible =
       [_leadingContentView
@@ -150,14 +190,14 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
     if (_leadingContentView) {
       _leadingContentView.configuration = leadingConfiguration;
     } else {
-      _leadingContentView = [leadingConfiguration makeContentView];
+      _leadingContentView = [leadingConfiguration makeChromeContentView];
       _leadingContentView.translatesAutoresizingMaskIntoConstraints = NO;
       [_leadingContentViewContainer addSubview:_leadingContentView];
       AddSameConstraints(_leadingContentView, _leadingContentViewContainer);
     }
   }
 
-  id<UIContentConfiguration> trailingConfiguration =
+  id<ChromeContentConfiguration> trailingConfiguration =
       _configuration.trailingConfiguration;
   BOOL isTrailingImageContentViewCompatible =
       [_trailingContentView
@@ -174,32 +214,49 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
     if (_trailingContentView) {
       _trailingContentView.configuration = trailingConfiguration;
     } else {
-      _trailingContentView = [trailingConfiguration makeContentView];
+      _trailingContentView = [trailingConfiguration makeChromeContentView];
       _trailingContentView.translatesAutoresizingMaskIntoConstraints = NO;
       [_trailingContentViewContainer addSubview:_trailingContentView];
       AddSameConstraints(_trailingContentView, _trailingContentViewContainer);
     }
   }
 
-  _title.hidden = !_configuration.title;
   _title.text = _configuration.title;
   _title.textColor =
       _configuration.titleColor ?: [UIColor colorNamed:kTextPrimaryColor];
+  if (_configuration.attributedTitle) {
+    _title.attributedText = _configuration.attributedTitle;
+  }
+  _title.hidden = !_title.text;
   _title.enabled = !_configuration.textDisabled;
+  _title.lineBreakMode = _configuration.titleLineBreakMode;
 
-  _subtitle.hidden = !_configuration.subtitle;
   _subtitle.text = _configuration.subtitle;
   _subtitle.textColor =
       _configuration.subtitleColor ?: [UIColor colorNamed:kTextSecondaryColor];
+  if (_configuration.attributedSubtitle) {
+    _subtitle.attributedText = _configuration.attributedSubtitle;
+  }
+  _subtitle.hidden = !_subtitle.text;
   _subtitle.enabled = !_configuration.textDisabled;
+  _subtitle.lineBreakMode = _configuration.subtitleLineBreakMode;
 
-  _trailingLabel.hidden = !_configuration.trailingText;
+  _secondSubtitle.text = _configuration.secondSubtitle;
+  _secondSubtitle.hidden = !_secondSubtitle.text;
+  _secondSubtitle.textColor = [UIColor colorNamed:kTextSecondaryColor];
+
   _trailingLabel.text = _configuration.trailingText;
   _trailingLabel.textColor = _configuration.trailingTextColor
                                  ?: [UIColor colorNamed:kTextSecondaryColor];
+  if (_configuration.attributedTrailingText) {
+    _trailingLabel.attributedText = _configuration.attributedTrailingText;
+  }
+  _trailingLabel.hidden = !_trailingLabel.text;
   _trailingLabel.enabled = !_configuration.textDisabled;
 
   [self updateNumberOfLines];
+
+  [_titleSubtitleContainer invalidateIntrinsicContentSize];
 }
 
 // Updates the number of lines of the labels based on the accessibility and the
@@ -214,6 +271,10 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
   _subtitle.numberOfLines = accessibilityContentSizeCategory
                                 ? 0
                                 : _configuration.subtitleNumberOfLines;
+  _secondSubtitle.numberOfLines =
+      accessibilityContentSizeCategory
+          ? 0
+          : _configuration.secondSubtitleNumberOfLines;
   _trailingLabel.numberOfLines = accessibilityContentSizeCategory
                                      ? 0
                                      : _configuration.trailingTextNumberOfLines;
@@ -259,6 +320,7 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
 
   _title = [self createTitleLabel];
   _subtitle = [self createSubtitleLabel];
+  _secondSubtitle = [self createSubtitleLabel];
   _trailingLabel = [self createTrailingLabel];
 
   _allTextStack = [self createAllTextStack];
@@ -267,7 +329,8 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
 
   _titleSubtitleContainer = [[TableViewCellContentViewLabelContainer alloc]
       initWithTopLabel:_title
-           bottomLabel:_subtitle];
+           middleLabel:_subtitle
+           bottomLabel:_secondSubtitle];
   _titleSubtitleContainer.translatesAutoresizingMaskIntoConstraints = NO;
 
   // The stack view forces the view to have their leading/trailing anchor equal
@@ -316,12 +379,14 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
       [self.heightAnchor constraintEqualToConstant:kChromeTableViewCellHeight];
   height.priority = UILayoutPriorityDefaultLow;
 
+  _mainStackTrailingConstraint =
+      [self.trailingAnchor constraintEqualToAnchor:_mainStack.trailingAnchor];
+
   [NSLayoutConstraint activateConstraints:@[
     [self.centerYAnchor constraintEqualToAnchor:_mainStack.centerYAnchor],
     [self.leadingAnchor constraintEqualToAnchor:_mainStack.leadingAnchor
                                        constant:-kTableViewHorizontalSpacing],
-    [self.trailingAnchor constraintEqualToAnchor:_mainStack.trailingAnchor
-                                        constant:kTableViewHorizontalSpacing],
+    _mainStackTrailingConstraint,
     [self.heightAnchor
         constraintGreaterThanOrEqualToAnchor:_mainStack.heightAnchor
                                     constant:
@@ -380,6 +445,18 @@ constexpr CGFloat kTitleSubtitleToTrailingWidthRatio = 3;
   stack.spacing = kTableViewHorizontalSpacing;
   stack.translatesAutoresizingMaskIntoConstraints = NO;
   return stack;
+}
+
+#pragma mark - UIAccessibility
+
+- (CGPoint)accessibilityActivationPoint {
+  if ([_trailingContentView hasCustomAccessibilityActivationPoint]) {
+    return _trailingContentView.accessibilityActivationPoint;
+  }
+  if ([_leadingContentView hasCustomAccessibilityActivationPoint]) {
+    return _leadingContentView.accessibilityActivationPoint;
+  }
+  return [super accessibilityActivationPoint];
 }
 
 @end

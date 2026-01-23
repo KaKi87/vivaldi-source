@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "base/location.h"
+#include "base/supports_user_data.h"
 #include "base/uuid.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/notes/note_model_loader.h"
@@ -39,7 +40,8 @@ namespace vivaldi {
 class NoteLoadDetails;
 class NotesStorage;
 
-class NotesModel : public KeyedService {
+class NotesModel : public KeyedService ,
+                   public base::SupportsUserData {
  public:
   struct URLAndTitle {
     GURL url;

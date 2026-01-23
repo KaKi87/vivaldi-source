@@ -78,7 +78,7 @@
     </div>
   </template>
 
-  <template is="dom-if" if="[[showPage_(pageVisibility_.autofill)]]">
+  <template is="dom-if" if="[[showAutofillPage_(pageVisibility_.autofill)]]">
     <div slot="view" id="autofill">
       <template is="dom-if" if="[[renderPlugin_(
           routes_.AUTOFILL, lastRoute_, inSearchMode_)]]">
@@ -112,6 +112,7 @@
     </div>
   </template>
 
+  <if expr="_google_chrome">
   <template is="dom-if" if="[[showAiPage_(pageVisibility_.ai)]]">
     <div slot="view" id="ai">
       <template is="dom-if" if="[[renderPlugin_(
@@ -122,6 +123,7 @@
       </template>
     </div>
   </template>
+  </if>
 
   <template is="dom-if" if="[[showPage_(pageVisibility_.appearance)]]">
     <div slot="view" id="appearance">
@@ -134,7 +136,7 @@
     </div>
   </template>
 
-<!--
+  <if expr="_google_chrome">
   <div slot="view" id="search">
     <template is="dom-if" if="[[renderPlugin_(
         routes_.SEARCH, lastRoute_, inSearchMode_)]]">
@@ -143,7 +145,7 @@
       </settings-search-page-index>
     </template>
   </div>
--->
+  </if>
 
 <if expr="not is_chromeos">
   <template is="dom-if" if="[[showPage_(pageVisibility_.defaultBrowser)]]">
@@ -171,7 +173,8 @@
       <template is="dom-if" if="[[renderPlugin_(
           routes_.LANGUAGES, lastRoute_, inSearchMode_)]]">
 <if expr="is_chromeos">
-        <settings-languages-page-index></settings-languages-page-index>
+        <settings-languages-page-index-cros>
+        </settings-languages-page-index-cros>
 </if>
 <if expr="not is_chromeos">
         <settings-languages-page-index prefs="{{prefs}}"

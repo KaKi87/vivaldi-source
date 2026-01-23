@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="hr">
-<translation id="3830627370375585318">U postavkama vatrozida ili antivirusnog programa omogućite Chromeu da pristupa mreži.</translation>
+<translation id="3830627370375585318">Dopustite Vivaldiju pristup mreži u postavkama Vašeg vatrozida
+          ili antivirusa.</translation>
 <translation id="4932161901409251843">Idite na
           izbornik Vivaldi &gt;
           <ph name="SETTINGS_TITLE" />

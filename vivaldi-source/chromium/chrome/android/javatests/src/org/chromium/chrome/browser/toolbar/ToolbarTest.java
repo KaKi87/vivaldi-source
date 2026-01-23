@@ -10,15 +10,13 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
@@ -56,6 +54,7 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.base.ui.KeyboardUtils;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarSceneLayer;
 import org.chromium.chrome.browser.bookmarks.bar.BookmarkBarSceneLayerJni;
@@ -91,7 +90,6 @@ import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.test.EmbeddedTestServer;
-import org.chromium.ui.KeyboardUtils;
 import org.chromium.ui.base.DeviceFormFactor;
 
 /** Tests for toolbar manager behavior. */
@@ -199,7 +197,7 @@ public class ToolbarTest {
     private void testControlContainerTopMargin(boolean expectBookmarkBar) {
         // Verify bookmark bar (in-)existence.
         final @Nullable var bookmarkBar = mActivity.findViewById(R.id.bookmark_bar);
-        assertThat(bookmarkBar, is(expectBookmarkBar ? notNullValue() : nullValue()));
+        assertThat(bookmarkBar != null).isEqualTo(expectBookmarkBar);
 
         // Verify browser controls manager existence.
         final var browserControlsManager =
@@ -368,8 +366,8 @@ public class ToolbarTest {
 
     @Test
     @MediumTest
-    @DisableFeatures(ChromeFeatureList.TAB_STRIP_LAYOUT_OPTIMIZATION)
     @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
+    @DisabledTest(message = "Flaky, see crbug.com/464502425")
     public void testToggleTabStripVisibility() {
         int tabStripHeightResource =
                 mActivity.getResources().getDimensionPixelSize(R.dimen.tab_strip_height);

@@ -13,13 +13,15 @@
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/logging.h"
+#include "base/metrics/user_metrics.h"
+#include "base/time/time.h"
 #include "chrome/browser/glic/fre/fre_util.h"
 #include "chrome/browser/glic/host/auth_controller.h"
 #include "chrome/common/chrome_features.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/multilogin_parameters.h"
+#include "components/signin/public/base/signin_buildflags.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/set_accounts_in_cookie_result.h"
 #include "content/public/browser/browser_context.h"
@@ -32,7 +34,18 @@
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "url/gurl.h"
 
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+#include "components/signin/public/base/signin_switches.h"
+#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+
 namespace glic {
+
+BASE_FEATURE(kGlicCookieSyncTimeout, base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE_PARAM(base::TimeDelta,
+                   kGlicCookieSyncTimeoutDuration,
+                   &kGlicCookieSyncTimeout,
+                   "glic_cookie_sync_timeout_duration",
+                   GlicCookieSynchronizer::kCookieSyncDefaultTimeout);
 
 namespace {
 
@@ -192,6 +205,18 @@ GlicCookieSynchronizer::GetCookieManagerForPartition() {
   return GetStoragePartition()->GetCookieManagerForBrowserProcess();
 }
 
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+network::mojom::DeviceBoundSessionManager*
+GlicCookieSynchronizer::GetDeviceBoundSessionManagerForPartition() {
+  if (!base::FeatureList::IsEnabled(
+          switches::
+              kEnableOAuthMultiloginStandardCookiesBindingForGlicPartition)) {
+    return nullptr;
+  }
+  return GetStoragePartition()->GetDeviceBoundSessionManager();
+}
+#endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+
 void GlicCookieSynchronizer::CopyCookiesToWebviewStoragePartition(
     OnWebviewAuth callback) {
   CHECK(!callback.is_null());
@@ -200,6 +225,12 @@ void GlicCookieSynchronizer::CopyCookiesToWebviewStoragePartition(
   if (cookie_loader_ || sync_cookies_for_development_task_) {
     // A request is in progress already.
     return;
+  }
+
+  if (base::FeatureList::IsEnabled(kGlicCookieSyncTimeout)) {
+    timeout_.Start(FROM_HERE, kGlicCookieSyncTimeoutDuration.Get(),
+                   base::BindOnce(&GlicCookieSynchronizer::OnTimeout,
+                                  base::Unretained(this)));
   }
 
   if (!GetStoragePartition()) {
@@ -246,13 +277,16 @@ void GlicCookieSynchronizer::BeginCookieSync() {
     CompleteAuth(false);
     return;
   }
+  signin::MultiloginParameters parameters = {
+      gaia::MultiloginMode::MULTILOGIN_UPDATE_COOKIE_ACCOUNTS_ORDER,
+      {primary_account_id}};
+  if (base::FeatureList::IsEnabled(features::kGlicIgnoreOfflineState)) {
+    parameters.wait_on_connectivity = false;
+  }
   cookie_loader_ =
       identity_manager_->GetAccountsCookieMutator()
           ->SetAccountsInCookieForPartition(
-              this,
-              {gaia::MultiloginMode::MULTILOGIN_UPDATE_COOKIE_ACCOUNTS_ORDER,
-               {primary_account_id}},
-              gaia::GaiaSource::kChromeGlic,
+              this, parameters, gaia::GaiaSource::kChromeGlic,
               base::BindOnce(&GlicCookieSynchronizer::OnAuthFinished,
                              GetWeakPtr()));
 }
@@ -272,7 +306,14 @@ void GlicCookieSynchronizer::OnAuthFinished(
   }
 }
 
+void GlicCookieSynchronizer::OnTimeout() {
+  base::RecordAction(
+      base::UserMetricsAction("Glic.CookieSynchronizer.Timeout"));
+  CompleteAuth(/*is_success=*/false);
+}
+
 void GlicCookieSynchronizer::CompleteAuth(bool is_success) {
+  timeout_.Stop();
   cookie_loader_.reset();
 
   std::vector<base::OnceCallback<void(bool)>> callbacks;

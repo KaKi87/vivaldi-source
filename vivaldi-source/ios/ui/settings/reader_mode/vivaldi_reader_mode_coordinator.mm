@@ -48,8 +48,8 @@ const CGSize kPreferredPopoverSize = {420.0, 420.0};
   // Create the mediator
   self.mediator = [[VivaldiReaderModeMediator alloc]
                       initWithBrowser:self.browser];
-  [self.viewProvider setConsumer:self.mediator];
   self.mediator.consumer = self.viewProvider;
+  [self.viewProvider setConsumer:self.mediator];
     // Present the bottom sheet
   [self presentBottomSheet];
 }

@@ -37,6 +37,7 @@ extern const CGFloat vSliderCornerRadius;
 extern NSString* const vBackgroundColor;
 // Color for slider
 extern UIColor* const vSliderColor;
+extern UIColor* const vSliderColoriOS26;
 
 // Color for icons in unselected state
 extern NSString* const vNotSelectedColor;

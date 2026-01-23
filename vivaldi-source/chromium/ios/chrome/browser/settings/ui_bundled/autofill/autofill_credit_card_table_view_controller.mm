@@ -38,10 +38,8 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
@@ -268,6 +266,8 @@ using autofill::autofill_metrics::MandatoryReauthOptInOrOutSource;
       [[TableViewSwitchItem alloc] initWithType:ItemTypeAutofillCardSwitch];
   switchItem.text =
       l10n_util::GetNSString(IDS_AUTOFILL_ENABLE_CREDIT_CARDS_TOGGLE_LABEL);
+  switchItem.target = self;
+  switchItem.selector = @selector(autofillCardSwitchChanged:);
   switchItem.on = [self isAutofillCreditCardEnabled];
   switchItem.accessibilityIdentifier = kAutofillCreditCardSwitchViewId;
   return switchItem;
@@ -282,6 +282,8 @@ using autofill::autofill_metrics::MandatoryReauthOptInOrOutSource;
   cardManagedItem.statusText = l10n_util::GetNSString(IDS_IOS_SETTING_OFF);
   cardManagedItem.accessibilityHint =
       l10n_util::GetNSString(IDS_IOS_TOGGLE_SETTING_MANAGED_ACCESSIBILITY_HINT);
+  cardManagedItem.target = self;
+  cardManagedItem.selector = @selector(didTapManagedUIInfoButton:);
   cardManagedItem.accessibilityIdentifier = kAutofillCreditCardManagedViewId;
   return cardManagedItem;
 }
@@ -300,6 +302,8 @@ using autofill::autofill_metrics::MandatoryReauthOptInOrOutSource;
   switchItem.text = l10n_util::GetNSString(
       IDS_PAYMENTS_AUTOFILL_ENABLE_MANDATORY_REAUTH_TOGGLE_LABEL);
   switchItem.accessibilityIdentifier = kAutofillMandatoryReauthSwitchViewId;
+  switchItem.target = self;
+  switchItem.selector = @selector(mandatoryReauthSwitchChanged:);
   BOOL canAttemptReauth = [self.reauthenticationModule canAttemptReauth];
   switchItem.enabled = canAttemptReauth;
   switchItem.on =
@@ -504,52 +508,6 @@ using autofill::autofill_metrics::MandatoryReauthOptInOrOutSource;
       buttonView.bounds;
   bubbleViewController.popoverPresentationController.permittedArrowDirections =
       UIPopoverArrowDirectionAny;
-}
-
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-
-  switch (static_cast<ItemType>(
-      [self.tableViewModel itemTypeForIndexPath:indexPath])) {
-    case ItemTypeAutofillCardSwitchSubtitle:
-    case ItemTypeCard:
-    case ItemTypeHeader:
-    case ItemTypeMandatoryReauthSwitchSubtitle:
-    case ItemTypeCVCStorageButton:
-    case ItemTypeCVCStorageButtonSubtitle:
-      break;
-    case ItemTypeMandatoryReauthSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                                action:@selector(mandatoryReauthSwitchChanged:)
-                      forControlEvents:UIControlEventValueChanged];
-      break;
-    }
-    case ItemTypeAutofillCardSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                                action:@selector(autofillCardSwitchChanged:)
-                      forControlEvents:UIControlEventValueChanged];
-      break;
-    }
-    case ItemTypeAutofillCardManaged: {
-      TableViewInfoButtonCell* managedCell =
-          base::apple::ObjCCastStrict<TableViewInfoButtonCell>(cell);
-      [managedCell.trailingButton
-                 addTarget:self
-                    action:@selector(didTapManagedUIInfoButton:)
-          forControlEvents:UIControlEventTouchUpInside];
-      break;
-    }
-  }
-
-  return cell;
 }
 
 #pragma mark - Switch Callbacks

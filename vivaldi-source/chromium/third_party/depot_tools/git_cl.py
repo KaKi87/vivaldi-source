@@ -2372,7 +2372,10 @@ class Changelist(object):
         # Fall back on still unique, but less efficient change number.
         return str(self.GetIssue())
 
-    def EnsureAuthenticated(self, force: bool) -> None:
+    def EnsureAuthenticated(self,
+                            *,
+                            force: bool,
+                            skip_reauth_check: bool = False) -> None:
         """Best effort check that user is authenticated with Gerrit server."""
         if settings.GetGerritSkipEnsureAuthenticated():
             # For projects with unusual authentication schemes.
@@ -2397,16 +2400,21 @@ class Changelist(object):
                 })
             return
 
-        if newauth.Enabled():
-            return
-
         # Lazy-loader to identify Gerrit and Git hosts.
         self.GetCodereviewServer()
         git_host = self._GetGitHost()
         assert self._gerrit_server and self._gerrit_host and git_host
 
+        if skip_reauth_check:
+            reauth_context = None
+        else:
+            reauth_context = auth.ReAuthContext(host=self._gerrit_host,
+                                                project=self.GetGerritProject())
+
         bypassable, msg = gerrit_util.ensure_authenticated(
-            git_host, self._gerrit_host)
+            gerrit_host=self._gerrit_host,
+            git_host=git_host,
+            reauth_context=reauth_context)
         if not msg:
             return  # OK
         if bypassable:
@@ -2928,13 +2936,9 @@ class Changelist(object):
         the URL).
         """
         parts = urllib.parse.urlparse(x)
-        if parts.scheme == 'sso':
-            host = parts.netloc
-        else:
-            # This should be http(s)
-            host = parts.netloc.split('.')[0]
-            if host.endswith('-review'):
-                host = host[:-len('-review')]
+        host = parts.netloc.split('.')[0]
+        if host.endswith('-review'):
+            host = host[:-len('-review')]
         repo = parts.path
         if repo.endswith('.git'):
             repo = repo[:-len('.git')]
@@ -4121,7 +4125,7 @@ def get_cl_statuses(changes: List[Changelist],
     # First, sort out authentication issues.
     logging.debug('ensuring credentials exist')
     for cl in changes:
-        cl.EnsureAuthenticated(force=False)
+        cl.EnsureAuthenticated(force=False, skip_reauth_check=True)
 
     def fetch(cl):
         try:
@@ -4145,7 +4149,8 @@ def get_cl_statuses(changes: List[Changelist],
         while True:
             try:
                 cl, status = it.next(timeout=5)
-            except (multiprocessing.TimeoutError, StopIteration):
+            except (multiprocessing.TimeoutError, StopIteration) as e:
+                logging.debug('aborting get_cl_statuses due to %r', e)
                 break
             fetched_cls.add(cl)
             yield cl, status
@@ -5533,14 +5538,20 @@ def CMDupload(parser, args):
 
     cl = Changelist(branchref=options.target_branch)
 
-    # Do a quick RPC to Gerrit to ensure that our authentication is all working
-    # properly. Otherwise `git cl upload` will:
+    # Ensure we're authenticated correctly. Otherwise `git cl upload` will:
     #   * run `git status` (slow for large repos)
     #   * run presubmit tests (likely slow)
     #   * ask the user to edit the CL description (requires thinking)
     #
     # And then attempt to push the change up to Gerrit, which can fail if
     # authentication is not working properly.
+    #
+    # 1. EnsureAuthenticated ensures we have a credential that satisfies ReAuth
+    #    requirement, so our upload is "trusted" for review enforcement.
+    # 2. GetAccountDetails ensures the user's Gerrit account exists. This is
+    #    required on-top of EnsureAuthenticated check, because Gerrit accounts
+    #    exists independently of the OAuth-ed account.
+    cl.EnsureAuthenticated(force=options.force)
     gerrit_util.GetAccountDetails(cl.GetGerritHost())
 
     # Check whether git should be updated.
@@ -6743,7 +6754,9 @@ def RunGitDiffCmd(diff_type,
                   **kwargs):
     """Generates and runs diff command."""
     # Generate diff for the current branch's changes.
-    diff_cmd = ['-c', 'core.quotePath=false', 'diff', '--no-ext-diff']
+    diff_cmd = [
+        '-c', 'core.quotePath=false', 'diff', '--no-ext-diff', '--no-renames'
+    ]
 
     if allow_prefix:
         # explicitly setting --src-prefix and --dst-prefix is necessary in the
@@ -6844,7 +6857,14 @@ def _RunGoogleJavaFormat(opts, paths, top_dir, diffs):
         print('google-java-format not found, skipping java formatting.')
         return 0
 
-    base_cmd = [tool, '--aosp']
+    base_cmd = [tool]
+    # The script now adds --aosp, but this shim is needed for the window where
+    # devs are using depot_tools that is newer than their chromium checkout.
+    # This can be remove after Dec 2025.
+    if os.path.exists(
+            os.path.join(os.path.dirname(tool), 'chromium-overrides.jar')):
+        base_cmd += ['--aosp']
+
     if not opts.diff:
         if opts.dry_run:
             base_cmd += ['--dry-run']
@@ -6927,11 +6947,11 @@ def _RunRustFmt(opts, paths, top_dir, diffs):
     cmd = [rustfmt_tool, f'--config-path={rustfmt_toml_path}']
     if opts.dry_run:
         cmd.append('--check')
-    cmd += paths
-    rustfmt_exitcode = subprocess2.call(cmd)
 
-    if opts.dry_run and rustfmt_exitcode != 0:
-        return 2
+    for paths_batch in _SplitArgsByCmdLineLimit(paths):
+        rustfmt_exitcode = subprocess2.call(cmd + paths_batch, shell=False)
+        if opts.dry_run and rustfmt_exitcode != 0:
+            return 2
 
     return 0
 
@@ -7514,6 +7534,8 @@ def main(argv):
         DieWithError((
             'App Engine is misbehaving and returned HTTP %d, again. Keep faith '
             'and retry or visit go/isgaeup.\n%s') % (e.code, str(e)))
+    except GitPushError as e:
+        DieWithError(str(e))
     return 0
 
 

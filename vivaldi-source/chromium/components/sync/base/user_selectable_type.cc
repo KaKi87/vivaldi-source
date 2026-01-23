@@ -54,7 +54,7 @@ UserSelectableTypeInfo GetUserSelectableTypeInfo(
   // TODO(crbug.com/445840788): In CL #3, map CONTEXTUAL_TASK to an existing
   // selectable type or to a new one. The first option should be trivial, the
   // second requires touching UI code across platforms.
-  static_assert(58 + 1 /* notes */ == syncer::GetNumDataTypes(),
+  static_assert(59 + 1 /* notes */ == syncer::GetNumDataTypes(),
                 "Almost always when adding a new Data, you must tie it to "
                 "a UserSelectableType below (new or existing) so the user can "
                 "disable syncing of that data. Today you must also update the "
@@ -78,6 +78,11 @@ UserSelectableTypeInfo GetUserSelectableTypeInfo(
               kSyncSupportAlwaysSyncingPriorityPreferences)) {
         types.Put(PRIORITY_PREFERENCES);
       }
+      if ((!skip_feature_checks_if_early || base::FeatureList::GetInstance()) &&
+          base::FeatureList::IsEnabled(
+              kSpellcheckSeparateLocalAndAccountDictionaries)) {
+        types.Remove(DICTIONARY);
+      }
       return {kPreferencesTypeName, PREFERENCES, types};
     }
     case UserSelectableType::kPasswords:
@@ -92,10 +97,17 @@ UserSelectableTypeInfo GetUserSelectableTypeInfo(
               {AUTOFILL, AUTOFILL_PROFILE, CONTACT_INFO}};
     case UserSelectableType::kThemes:
       return {kThemesTypeName, THEMES, {THEMES}};
-    case UserSelectableType::kHistory:
-      return {kHistoryTypeName,
-              HISTORY,
-              {HISTORY, HISTORY_DELETE_DIRECTIVES, USER_EVENTS}};
+    case UserSelectableType::kHistory: {
+      DataTypeSet types = {HISTORY, HISTORY_DELETE_DIRECTIVES, USER_EVENTS};
+      // With `kSpellcheckSeparateLocalAndAccountDictionaries` enabled,
+      // `DICTIONARY` is controlled by the History opt-in.
+      if ((!skip_feature_checks_if_early || base::FeatureList::GetInstance()) &&
+          base::FeatureList::IsEnabled(
+              kSpellcheckSeparateLocalAndAccountDictionaries)) {
+        types.Put(DICTIONARY);
+      }
+      return {kHistoryTypeName, HISTORY, types};
+    }
     case UserSelectableType::kExtensions:
       return {
           kExtensionsTypeName, EXTENSIONS, {EXTENSIONS, EXTENSION_SETTINGS}};
@@ -133,9 +145,7 @@ UserSelectableTypeInfo GetUserSelectableTypeInfo(
               {AUTOFILL_WALLET_CREDENTIAL, AUTOFILL_WALLET_DATA,
                AUTOFILL_WALLET_METADATA, AUTOFILL_WALLET_OFFER,
                AUTOFILL_WALLET_USAGE, AUTOFILL_VALUABLE,
-               // ACCOUNT_SETTING currently syncs only Wallet-related settings,
-               // which is why it's linked to `UserSelectableType::kPayments`.
-               ACCOUNT_SETTING}};
+               AUTOFILL_VALUABLE_METADATA}};
     case UserSelectableType::kProductComparison:
       return {
           kProductComparisonTypeName, PRODUCT_COMPARISON, {PRODUCT_COMPARISON}};

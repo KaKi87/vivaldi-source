@@ -56,7 +56,6 @@ using EnabledSuggestions = AssistiveSuggesterSwitch::EnabledSuggestions;
 
 const char kUsEnglishEngineId[] = "xkb:us::eng";
 const char kSpainSpanishEngineId[] = "xkb:es::spa";
-const char kEmojiData[] = "arrow,←;↑;→";
 const TextInputMethod::InputContext empty_context(ui::TEXT_INPUT_TYPE_NONE);
 constexpr size_t kTakeLastNChars = 100;
 
@@ -148,8 +147,6 @@ class AssistiveSuggesterTest : public testing::Test {
             base::BindRepeating(&GetFocusedTabUrl),
             base::BindRepeating(&GetFocusedWindowProperties)));
 
-    histogram_tester_.ExpectUniqueSample("InputMethod.Assistive.UserPref.Emoji",
-                                         true, 1);
     // Emoji is default to true now, so need to set emoji pref false to test
     // IsAssistiveFeatureEnabled correctly.
     profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnabled, false);
@@ -188,18 +185,6 @@ TEST_F(AssistiveSuggesterTest, EmojiSuggestion_EnterprisePrefEnabledFalse) {
   profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnabled, true);
 
   EXPECT_FALSE(assistive_suggester_->IsAssistiveFeatureEnabled());
-}
-
-TEST_F(AssistiveSuggesterTest, EmojiSuggestion_BothPrefsEnabledTrue) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitWithFeatures(
-      /*enabled_features=*/{},
-      /*disabled_features=*/{features::kAssistMultiWord});
-  profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnterpriseAllowed,
-                                   true);
-  profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnabled, true);
-
-  EXPECT_TRUE(assistive_suggester_->IsAssistiveFeatureEnabled());
 }
 
 TEST_F(AssistiveSuggesterTest, EmojiSuggestion_BothPrefsEnabledFalse) {
@@ -1111,8 +1096,6 @@ class AssistiveSuggesterEmojiTest : public testing::Test {
         std::make_unique<FakeSuggesterSwitch>(EnabledSuggestions{
             .emoji_suggestions = true,
         }));
-    assistive_suggester_->get_emoji_suggester_for_testing()
-        ->LoadEmojiMapForTesting(kEmojiData);
 
     // Needed to ensure globals accessed by EmojiSuggester are available.
     chrome_keyboard_controller_client_ =
@@ -1148,20 +1131,6 @@ TEST_F(AssistiveSuggesterEmojiTest, ShouldNotSuggestWhenEmojiDisabled) {
   EXPECT_FALSE(suggestion_handler_->GetShowingSuggestion());
 }
 
-TEST_F(AssistiveSuggesterEmojiTest, ShouldRecordDisabledWhenEmojiDisabled) {
-  profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnterpriseAllowed,
-                                   false);
-  profile_->GetPrefs()->SetBoolean(prefs::kEmojiSuggestionEnabled, false);
-
-  assistive_suggester_->OnActivate(kUsEnglishEngineId);
-  assistive_suggester_->OnFocus(5, empty_context);
-  assistive_suggester_->OnSurroundingTextChanged(u"arrow ", gfx::Range(6));
-
-  histogram_tester_.ExpectTotalCount("InputMethod.Assistive.Disabled", 1);
-  histogram_tester_.ExpectUniqueSample("InputMethod.Assistive.Disabled",
-                                       AssistiveType::kEmoji, 1);
-}
-
 TEST_F(AssistiveSuggesterEmojiTest, ShouldNotSuggestWhenSwitchDisabled) {
   // TODO(b/242472734): Allow enabled suggestions passed without replace.
   assistive_suggester_ = std::make_unique<AssistiveSuggester>(
@@ -1169,62 +1138,12 @@ TEST_F(AssistiveSuggesterEmojiTest, ShouldNotSuggestWhenSwitchDisabled) {
       std::make_unique<FakeSuggesterSwitch>(EnabledSuggestions{
           .emoji_suggestions = false,
       }));
-  assistive_suggester_->get_emoji_suggester_for_testing()
-      ->LoadEmojiMapForTesting(kEmojiData);
   assistive_suggester_->OnActivate(kUsEnglishEngineId);
   assistive_suggester_->OnFocus(5, empty_context);
 
   assistive_suggester_->OnSurroundingTextChanged(u"arrow ", gfx::Range(6));
 
   EXPECT_FALSE(suggestion_handler_->GetShowingSuggestion());
-}
-
-TEST_F(AssistiveSuggesterEmojiTest, ShouldRecordNotAllowedWhenSwitchDisabled) {
-  // TODO(b/242472734): Allow enabled suggestions passed without replace.
-  assistive_suggester_ = std::make_unique<AssistiveSuggester>(
-      suggestion_handler_.get(), profile_.get(),
-      std::make_unique<FakeSuggesterSwitch>(EnabledSuggestions{
-          .emoji_suggestions = false,
-      }));
-  assistive_suggester_->get_emoji_suggester_for_testing()
-      ->LoadEmojiMapForTesting(kEmojiData);
-  assistive_suggester_->OnActivate(kUsEnglishEngineId);
-  assistive_suggester_->OnFocus(5, empty_context);
-
-  assistive_suggester_->OnSurroundingTextChanged(u"arrow ", gfx::Range(6));
-
-  histogram_tester_.ExpectTotalCount("InputMethod.Assistive.NotAllowed", 1);
-  histogram_tester_.ExpectUniqueSample("InputMethod.Assistive.NotAllowed",
-                                       AssistiveType::kEmoji, 1);
-}
-
-TEST_F(AssistiveSuggesterEmojiTest,
-       ShouldRecordDisabledReasonWhenSwitchDisabled) {
-  // TODO(b/242472734): Allow enabled suggestions passed without replace.
-  assistive_suggester_ = std::make_unique<AssistiveSuggester>(
-      suggestion_handler_.get(), profile_.get(),
-      std::make_unique<FakeSuggesterSwitch>(EnabledSuggestions{
-          .emoji_suggestions = false,
-      }));
-  assistive_suggester_->get_emoji_suggester_for_testing()
-      ->LoadEmojiMapForTesting(kEmojiData);
-  assistive_suggester_->OnActivate(kUsEnglishEngineId);
-  assistive_suggester_->OnFocus(5, empty_context);
-
-  assistive_suggester_->OnSurroundingTextChanged(u"arrow ", gfx::Range(6));
-
-  histogram_tester_.ExpectTotalCount("InputMethod.Assistive.Disabled.Emoji", 1);
-  histogram_tester_.ExpectUniqueSample("InputMethod.Assistive.Disabled.Emoji",
-                                       DisabledReason::kUrlOrAppNotAllowed, 1);
-}
-
-TEST_F(AssistiveSuggesterEmojiTest, ShouldReturnPrefixBasedEmojiSuggestions) {
-  assistive_suggester_->OnActivate(kUsEnglishEngineId);
-  assistive_suggester_->OnFocus(5, empty_context);
-  assistive_suggester_->OnSurroundingTextChanged(u"arrow ", gfx::Range(6));
-
-  EXPECT_TRUE(suggestion_handler_->GetShowingSuggestion());
-  EXPECT_EQ(suggestion_handler_->GetSuggestionText(), u"←;↑;→");
 }
 
 }  // namespace ash::input_method

@@ -139,12 +139,23 @@
             "description": "True if the user should be prompted to switch search engines.",
             "type": "boolean"
           },
+          "isQuarantined": {
+            "description": "True if the user is quarantined (seen the prompt recently).",
+            "type": "boolean"
+          },
           "promptType": {
             "description": "Type of the dialog that should be displayed.",
-            "type": "string"
+            "type": "string",
+            "optional": true
           },
           "currentSearchEngine": {
             "$ref": "TemplateURL"
+          },
+          "searchEnginesToPrompt": {
+            "type": "array",
+            "items": {
+              "$ref": "TemplateURL"
+            }
           },
           "partnerSearchEngines": {
             "type": "array",
@@ -357,7 +368,14 @@
         "name": "acknowledgeSwitchPrompt",
         "type": "function",
         "description": "Mark current switch prompt as seen.",
-        "parameters": []
+        "parameters": [
+          {
+            "name": "specialPromptType",
+            "type": "boolean",
+            "description": "Mark switch prompt as seen for a special type (this internally puts a profile to quarantine).",
+            "optional": true
+          }
+        ]
       },
       {
         "name": "setIsActive",

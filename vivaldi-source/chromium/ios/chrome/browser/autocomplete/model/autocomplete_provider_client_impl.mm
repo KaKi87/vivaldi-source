@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #import "ios/chrome/browser/autocomplete/model/autocomplete_provider_client_impl.h"
 
 #import "base/notreached.h"
@@ -35,7 +30,6 @@
 #import "ios/chrome/browser/autocomplete/model/in_memory_url_index_factory.h"
 #import "ios/chrome/browser/autocomplete/model/omnibox_pedal_implementation.h"
 #import "ios/chrome/browser/autocomplete/model/on_device_tail_model_service_factory.h"
-#import "ios/chrome/browser/autocomplete/model/prototype/gemini_prototype_omnibox_service_factory.h"
 #import "ios/chrome/browser/autocomplete/model/provider_state_service_factory.h"
 #import "ios/chrome/browser/autocomplete/model/remote_suggestions_service_factory.h"
 #import "ios/chrome/browser/autocomplete/model/shortcuts_backend_factory.h"
@@ -222,12 +216,6 @@ AutocompleteProviderClientImpl::GetAimEligibilityService() const {
   return IOSChromeAimEligibilityServiceFactory::GetForProfile(profile_);
 }
 
-GeminiPrototypeOmniboxService*
-AutocompleteProviderClientImpl::GetGeminiPrototypeOmniboxService() const {
-  return GeminiPrototypeOmniboxServiceFactory::GetForProfile(
-      ProfileIOS::FromBrowserState(profile_));
-}
-
 std::string AutocompleteProviderClientImpl::GetAcceptLanguages() const {
   return profile_->GetPrefs()->GetString(language::prefs::kAcceptLanguages);
 }
@@ -238,21 +226,19 @@ AutocompleteProviderClientImpl::GetEmbedderRepresentationOfAboutScheme() const {
 }
 
 std::vector<std::u16string> AutocompleteProviderClientImpl::GetBuiltinURLs() {
-  std::vector<std::string> chrome_builtins(
-      kChromeHostURLs, kChromeHostURLs + kNumberOfChromeHostURLs);
-  std::sort(chrome_builtins.begin(), chrome_builtins.end());
-
   std::vector<std::u16string> builtins;
-  for (auto& url : chrome_builtins) {
-    builtins.push_back(base::ASCIIToUTF16(url));
+  builtins.reserve(kChromeHostURLs.size());
+  for (const std::string_view host : kChromeHostURLs) {
+    builtins.push_back(base::UTF8ToUTF16(host));
   }
+  std::sort(builtins.begin(), builtins.end());
   return builtins;
 }
 
 std::vector<std::u16string>
 AutocompleteProviderClientImpl::GetBuiltinsToProvideAsUserTypes() {
-  return {base::ASCIIToUTF16(kChromeUIChromeURLsURL),
-          base::ASCIIToUTF16(kChromeUIVersionURL)};
+  return {base::ASCIIToUTF16(std::string_view(kChromeUIChromeURLsURL)),
+          base::ASCIIToUTF16(std::string_view(kChromeUIVersionURL))};
 }
 
 component_updater::ComponentUpdateService*

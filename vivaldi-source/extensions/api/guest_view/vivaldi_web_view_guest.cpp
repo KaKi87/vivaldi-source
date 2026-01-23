@@ -116,10 +116,12 @@ class TextfieldInputChecker : public views::Textfield {
 // key events we need to use for GetFixedAcceleratorForCommandId and is used
 // for keyboard handling in VivaldiWebViewGuest.
 bool KeyEventIsEditMenuCommand(blink::WebKeyboardEvent event) {
-  const bool control =
-      event.GetModifiers() & (ui::EF_COMMAND_DOWN | ui::EF_CONTROL_DOWN);
-  const bool alt = event.GetModifiers() & (ui::EF_ALT_DOWN | ui::EF_ALTGR_DOWN);
-
+  #if !BUILDFLAG(IS_MAC)
+  const bool control = event.GetModifiers() & blink::WebInputEvent::kControlKey;
+  #elif BUILDFLAG(IS_MAC)
+  const bool control = event.GetModifiers() & blink::WebInputEvent::kMetaKey;
+  #endif //BUILDFLAG(IS_MAC)
+  const bool alt = event.GetModifiers() & (blink::WebInputEvent::kAltKey);
   switch (event.windows_key_code) {
     case ui::VKEY_Z:
     case ui::VKEY_Y:
@@ -940,7 +942,15 @@ bool WebViewGuest::VivaldiCreateWebContents(
         static_cast<content::WebContentsImpl*>(tabstrip_contents)
           ->CancelActiveAndPendingDialogs();
 
-        delete web_view_guest;
+        // VB-118692 - possibly a crashfix
+        std::unique_ptr<GuestViewBase> owned_guest =
+            web_view_guest->GetGuestViewManager()->TransferOwnership(
+                web_view_guest);
+        if (owned_guest) {
+          owned_guest.reset();
+        } else {
+          delete web_view_guest;
+        }
       }
 
       parent_tab_id_ = create_params.FindInt("parent_tab_id");
@@ -996,7 +1006,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
         .Run(std::move(owned_this), std::unique_ptr<content::WebContents>());
     return false;
   }
-  std::string partition_domain = GetOwnerSiteURL().host();
+  std::string partition_domain(GetOwnerSiteURL().host());
   auto partition_config = content::StoragePartitionConfig::Create(
       browser_context(), partition_domain, storage_partition_id,
       !persist_storage /* in_memory */);
@@ -1004,7 +1014,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
   if (GetOwnerSiteURL().SchemeIs(extensions::kExtensionScheme)) {
     auto owner_config =
         extensions::util::GetStoragePartitionConfigForExtensionId(
-            GetOwnerSiteURL().host(), browser_context());
+            GetOwnerSiteURL().GetHost(), browser_context());
     if (browser_context()->IsOffTheRecord()) {
       DCHECK(owner_config.in_memory());
     }
@@ -1218,7 +1228,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
     // of the AppWindow has been muted due to thumbnail capturing, so we also
     // mute the webview webcontents.
     VivaldiBrowserComponentWrapper::GetInstance()
-        ->SetTabAudioMuted(new_contents.get(), true, TabMutedReason::EXTENSION,
+        ->SetTabAudioMuted(new_contents.get(), true, TabMutedReason::kExtension,
               ::vivaldi::kVivaldiAppId);
   }
   // Grant access to the origin of the embedder to the guest process. This

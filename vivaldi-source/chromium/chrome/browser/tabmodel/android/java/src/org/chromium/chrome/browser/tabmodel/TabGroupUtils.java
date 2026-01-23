@@ -354,27 +354,4 @@ public class TabGroupUtils {
         }
         return groupedTabs;
     }
-
-    /**
-     * Vivaldi: Add the selected tab to an existing or new group. In case of a new group we create
-     * an additional NTP, because we do not allow a single tab within a group.
-     * @param tab The tab to be added to a tab group.
-     * @param filter The {@link TabGroupModelFilter} used to find grouped tabs.
-     */
-    public static void createNewTabGroupWithExistingTab(Tab tab, TabGroupModelFilter filter) {
-        List<Tab> tabs = new ArrayList<>();
-        tabs.add(tab);
-        // Create a NTP as background tab that we keep the selection of the current tab.
-        TabCreator tabCreator = filter.getTabModel().getTabCreator();
-        Tab newTab = tabCreator.createNewTab(
-                new LoadUrlParams(
-                        org.chromium.components.embedder_support.util.UrlConstants.NTP_URL),
-                TabLaunchType.FROM_LONGPRESS_BACKGROUND, null);
-        tabs.add(newTab);
-        // Dissolve group when tab is moving elsewhere.
-        if (tabs.size() == 2 && tab.getTabGroupId() != null)
-            filter.getTabUngrouper().ungroupTabs(tabs, false, false);
-        // In any case we always merge our tabs.
-        filter.mergeListOfTabsToGroup(tabs, tab, MergeNotificationType.NOTIFY_IF_NOT_NEW_GROUP);
-    }
 }

@@ -118,6 +118,7 @@ bufferedRendering
 captionSide
 caretAnimation
 caretColor
+caretShape
 clear
 clip
 clipPath
@@ -201,6 +202,7 @@ fontDisplay
 fontFamily
 fontFeatureSettings
 fontKerning
+fontLanguageOverride
 fontOpticalSizing
 fontPalette
 fontSize

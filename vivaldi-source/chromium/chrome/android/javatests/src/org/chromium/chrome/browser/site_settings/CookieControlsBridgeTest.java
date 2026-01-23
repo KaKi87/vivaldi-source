@@ -69,9 +69,7 @@ public class CookieControlsBridgeTest {
                 @CookieBlocking3pcdStatus int blockingStatus,
                 long expiration) {
             mCookieControlsVisible = controlsState != CookieControlsState.HIDDEN;
-            mThirdPartyCookiesBlocked =
-                    controlsState == CookieControlsState.BLOCKED3PC
-                            || controlsState == CookieControlsState.ACTIVE_TP;
+            mThirdPartyCookiesBlocked = controlsState == CookieControlsState.BLOCKED3PC;
             mEnforcement = enforcement;
             mExpiration = expiration;
             mHelper.notifyCalled();
@@ -311,9 +309,11 @@ public class CookieControlsBridgeTest {
         assertEquals(CookieControlsEnforcement.NO_ENFORCEMENT, mEnforcement);
 
         // Make new incognito page now
-        Tab incognitoTab = mActivityTestRule.loadUrlInNewTab(url, true);
+        WebPageStation webPage =
+                mInitialPage.openNewIncognitoTabOrWindowFast().loadWebPageProgrammatically(url);
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
+                    Tab incognitoTab = webPage.getActivity().getActivityTab();
                     mCookieControlsBridge =
                             new CookieControlsBridge(
                                     mCallbackHandler,

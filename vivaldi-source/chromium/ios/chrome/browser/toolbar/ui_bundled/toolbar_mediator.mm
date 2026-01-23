@@ -33,9 +33,9 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_setting_prefs.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "prefs/vivaldi_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -85,9 +85,6 @@ using vivaldi::IsVivaldiRunning;
   BOOL _isNTP;
   /// Last trait collection of the toolbars.
   UITraitCollection* _toolbarTraitCollection;
-  /// Preferred toolbar to contain the omnibox.
-  ToolbarType _preferredOmniboxPosition;
-
   /// Whether SafariSwitcher should be checked on FRE.
   BOOL _shouldCheckSafariSwitcherOnFRE;
   /// Whether the NTP was shown in FRE.
@@ -196,6 +193,7 @@ using vivaldi::IsVivaldiRunning;
   _isNTP = YES;
   if (IsBottomOmniboxAvailable()) {
     [self updateOmniboxPosition];
+    [self.omniboxConsumer setIsNTP:_isNTP];
   }
 }
 
@@ -283,6 +281,7 @@ using vivaldi::IsVivaldiRunning;
       [self checkSafariSwitcherOnFRE];
     }
     [self updateOmniboxPosition];
+    [self.omniboxConsumer setIsNTP:_isNTP];
   }
 }
 
@@ -311,13 +310,31 @@ using vivaldi::IsVivaldiRunning;
     return [self steadyStateOmniboxPositionInCurrentState];
   } // End Vivaldi
 
-  BOOL followSteadyState =
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
-  if (_locationBarFocused && !followSteadyState) {
-    return ToolbarType::kPrimary;
-  } else {
-    return [self steadyStateOmniboxPositionInCurrentState];
+  ToolbarType steadyState = [self steadyStateOmniboxPositionInCurrentState];
+
+  if (!_locationBarFocused) {
+    return steadyState;
   }
+
+  if (omnibox::ForceBottomOmniboxInEditState()) {
+    if (IsCompactHeight(_toolbarTraitCollection)) {
+      return ToolbarType::kPrimary;
+    }
+
+    return ToolbarType::kSecondary;
+  }
+
+  if (omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition()) {
+    // When viewing the NTP in portrait orientation, deviate from the standard
+    // steady-state behavior and apply the preferred omnibox position.
+    if (_isNTP && !IsCompactHeight(_toolbarTraitCollection)) {
+      return _preferredOmniboxPosition;
+    }
+
+    return steadyState;
+  }
+
+  return ToolbarType::kPrimary;
 }
 
 /// Updates the omnibox position to the correct toolbar.
@@ -329,6 +346,7 @@ using vivaldi::IsVivaldiRunning;
 
   [self.omniboxConsumer setKeyboardAttachedBottomOmniboxHeight:
                             self.delegate.keyboardAttachedBottomOmniboxHeight];
+  [self.omniboxConsumer setPreferredOmniboxPosition:_preferredOmniboxPosition];
 
   self.omniboxPosition = [self omniboxPositionInCurrentState];
   self.steadyStateOmniboxPosition =
@@ -359,14 +377,6 @@ using vivaldi::IsVivaldiRunning;
         self.deviceSwitcherResultDispatcher->GetCachedClassificationResult();
     if (result.status == segmentation_platform::PredictionStatus::kSucceeded) {
       if (omnibox::IsSafariSwitcher(result)) {
-        std::string featureParam = base::GetFieldTrialParamValueByFeature(
-            kBottomOmniboxDefaultSetting, kBottomOmniboxDefaultSettingParam);
-        if (featureParam == kBottomOmniboxDefaultSettingParamSafariSwitcher) {
-          PrefService* localState = GetApplicationContext()->GetLocalState();
-          localState->SetDefaultPrefValue(omnibox::kIsOmniboxInBottomPosition,
-                                          base::Value(YES));
-          localState->SetBoolean(prefs::kBottomOmniboxByDefault, YES);
-        }
         base::UmaHistogramEnumeration(
             kOmniboxDeviceSwitcherResultAtFRE,
             OmniboxDeviceSwitcherResult::kBottomOmnibox);
@@ -381,22 +391,22 @@ using vivaldi::IsVivaldiRunning;
   }
 }
 
-/// Returns whether user is a safari switcher at startup.
+/// Records user is a safari switcher at startup.
 /// Used to set the default omnibox position to bottom for `IsNewUser`
 /// that are not in FRE. If bottom omnibox is already default
 /// `bottomOmniboxIsDefault`, still log the status as bottom as the user was
 /// classified as safari switcher in a previous session.
-- (BOOL)isSafariSwitcherAtStartup:(BOOL)bottomOmniboxIsDefault {
+- (void)recordSafariSwitcherMetrics:(BOOL)bottomOmniboxIsDefault {
   if (!omnibox::IsNewUser()) {
     base::UmaHistogramEnumeration(kOmniboxDeviceSwitcherResultAtStartup,
                                   OmniboxDeviceSwitcherResult::kNotNewUser);
-    return NO;
+    return;
   }
 
   if (bottomOmniboxIsDefault) {
     base::UmaHistogramEnumeration(kOmniboxDeviceSwitcherResultAtStartup,
                                   OmniboxDeviceSwitcherResult::kBottomOmnibox);
-    return YES;
+    return;
   }
 
   segmentation_platform::ClassificationResult result =
@@ -404,17 +414,16 @@ using vivaldi::IsVivaldiRunning;
   if (result.status != segmentation_platform::PredictionStatus::kSucceeded) {
     base::UmaHistogramEnumeration(kOmniboxDeviceSwitcherResultAtStartup,
                                   OmniboxDeviceSwitcherResult::kUnavailable);
-    return NO;
+    return;
   }
 
   if (omnibox::IsSafariSwitcher(result)) {
     base::UmaHistogramEnumeration(kOmniboxDeviceSwitcherResultAtStartup,
                                   OmniboxDeviceSwitcherResult::kBottomOmnibox);
-    return YES;
+    return;
   }
   base::UmaHistogramEnumeration(kOmniboxDeviceSwitcherResultAtStartup,
                                 OmniboxDeviceSwitcherResult::kTopOmnibox);
-  return NO;
 }
 
 /// Updates the default setting for bottom omnibox.
@@ -434,20 +443,7 @@ using vivaldi::IsVivaldiRunning;
         localState->GetBoolean(prefs::kBottomOmniboxByDefault);
   }
 
-  std::string featureParam = base::GetFieldTrialParamValueByFeature(
-      kBottomOmniboxDefaultSetting, kBottomOmniboxDefaultSettingParam);
-  if (featureParam == kBottomOmniboxDefaultSettingParamBottom) {
-    bottomOmniboxEnabledByDefault = YES;
-  } else if (featureParam == kBottomOmniboxDefaultSettingParamTop) {
-    bottomOmniboxEnabledByDefault = NO;
-  }
-
-  // Call `isSafariSwitcherAtStartup` in all cases to collect metrics on the
-  // device switcher result availability.
-  if ([self isSafariSwitcherAtStartup:bottomOmniboxEnabledByDefault] &&
-      featureParam == kBottomOmniboxDefaultSettingParamSafariSwitcher) {
-    bottomOmniboxEnabledByDefault = YES;
-  }
+  [self recordSafariSwitcherMetrics:bottomOmniboxEnabledByDefault];
 
   // Make sure that users who have already seen the bottom omnibox by default
   // keep it.

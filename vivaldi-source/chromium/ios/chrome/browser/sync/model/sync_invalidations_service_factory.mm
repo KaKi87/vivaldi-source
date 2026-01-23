@@ -21,6 +21,7 @@
 // static
 syncer::SyncInvalidationsService*
 SyncInvalidationsServiceFactory::GetForProfile(ProfileIOS* profile) {
+
 #if defined(VIVALDI_BUILD)
   if (vivaldi::IsVivaldiRunning())
     return static_cast<syncer::SyncInvalidationsService*>(
@@ -37,10 +38,12 @@ SyncInvalidationsServiceFactory::GetForProfile(ProfileIOS* profile) {
 // static
 SyncInvalidationsServiceFactory*
 SyncInvalidationsServiceFactory::GetInstance() {
+
 #if defined(VIVALDI_BUILD)
   if (vivaldi::IsVivaldiRunning())
     return vivaldi::VivaldiSyncInvalidationsServiceFactory::GetInstance();
 #endif
+
   static base::NoDestructor<SyncInvalidationsServiceFactory> instance;
   return instance.get();
 }

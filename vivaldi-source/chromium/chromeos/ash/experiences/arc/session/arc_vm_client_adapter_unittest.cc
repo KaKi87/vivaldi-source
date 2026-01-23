@@ -21,12 +21,12 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/contains.h"
-#include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/posix/eintr_wrapper.h"
 #include "base/posix/safe_strerror.h"
 #include "base/process/process_metrics.h"
 #include "base/run_loop.h"
@@ -82,7 +82,6 @@ StartParams GetPopulatedStartParams() {
   params.lcd_density = 240;
   params.play_store_auto_update =
       StartParams::PlayStoreAutoUpdate::AUTO_UPDATE_ON;
-  params.arc_custom_tabs_experiment = true;
   params.num_cores_disabled = 2;
   return params;
 }
@@ -2769,22 +2768,6 @@ TEST_F(ArcVmClientAdapterTest, LazyWebViewInitDisabled) {
 
   const auto& request = GetTestConciergeClient()->start_arc_vm_request();
   EXPECT_FALSE(request.enable_web_view_zygote_lazy_init());
-}
-
-TEST_F(ArcVmClientAdapterTest, ArcCustomTabsExperimentFalse) {
-  StartParams start_params(GetPopulatedStartParams());
-  start_params.arc_custom_tabs_experiment = false;
-  StartMiniArcWithParams(true, std::move(start_params));
-  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_FALSE(request.mini_instance_request().arc_custom_tabs_experiment());
-}
-
-TEST_F(ArcVmClientAdapterTest, ArcCustomTabsExperimentTrue) {
-  StartParams start_params(GetPopulatedStartParams());
-  start_params.arc_custom_tabs_experiment = true;
-  StartMiniArcWithParams(true, std::move(start_params));
-  const auto& request = GetTestConciergeClient()->start_arc_vm_request();
-  EXPECT_TRUE(request.mini_instance_request().arc_custom_tabs_experiment());
 }
 
 TEST_F(ArcVmClientAdapterTest, StartMiniArc_ArcSignedIn) {

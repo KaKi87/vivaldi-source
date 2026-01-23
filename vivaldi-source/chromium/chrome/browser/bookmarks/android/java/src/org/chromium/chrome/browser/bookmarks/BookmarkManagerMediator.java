@@ -91,6 +91,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -351,23 +352,11 @@ public class BookmarkManagerMediator // Vivaldi
                 public void onBookmarkRowDisplayPrefChanged(
                         @BookmarkRowDisplayPref int displayPref) {
                     refresh();
-
-                    if (AccessibilityState.isTouchExplorationEnabled()) {
-                        mRecyclerView.announceForAccessibility(
-                                mBookmarkUiPrefs.getViewOptionsAccessibilityAnnouncementText(
-                                        mContext, displayPref));
-                    }
                 }
 
                 @Override
                 public void onBookmarkRowSortOrderChanged(@BookmarkRowSortOrder int sortOrder) {
                     refresh();
-
-                    if (AccessibilityState.isTouchExplorationEnabled()) {
-                        mRecyclerView.announceForAccessibility(
-                                mBookmarkUiPrefs.getSortOrderAccessibilityAnnouncementText(
-                                        mContext, sortOrder));
-                    }
                 }
             };
 
@@ -623,6 +612,9 @@ public class BookmarkManagerMediator // Vivaldi
         mBookmarkUndoController.destroy();
         mBookmarkQueryHandler.destroy();
         mCallbackController.destroy();
+        if (mBatchUploadCardCoordinator != null) {
+            mBatchUploadCardCoordinator.destroy();
+        }
 
         mBookmarkUiPrefs.removeObserver(mBookmarkUiPrefsObserver);
 
@@ -1506,7 +1498,7 @@ public class BookmarkManagerMediator // Vivaldi
             // Vivaldi
             if (!ChromeApplicationImpl.isVivaldi()) // End Vivaldi
             imageRes = R.drawable.reading_list_empty_state_illustration;
-        } else if (ChromeApplicationImpl.isVivaldi()) {
+        } else if (ChromeApplicationImpl.isVivaldi() && searchFromReadingList()) {
             titleRes = R.string.reading_list_manager_empty_state;
             subtitleRes = R.string.reading_list_manager_save_page_to_read_later;
         }
@@ -1662,7 +1654,7 @@ public class BookmarkManagerMediator // Vivaldi
         ModelList listItems =
                 createListMenuModelList(entry, model.get(BookmarkManagerProperties.LOCATION));
         ListMenu.Delegate delegate =
-                item -> {
+                (item, view) -> {
                     int textId = item.get(ListMenuItemProperties.TITLE_ID);
                     if (textId == R.string.bookmark_item_select) {
                         mSelectionDelegate.toggleSelectionForItem(bookmarkId);
@@ -1922,8 +1914,6 @@ public class BookmarkManagerMediator // Vivaldi
 
     // The shopping filter should only be visible if the shopping feature is enabled and
     // there's at least one price-tracked bookmark available.
-    // TODO(crbug.com/40279892): Make this method private when price-tracking utils are mocked
-    // properly.
     @VisibleForTesting
     void updateShoppingFilterVisible() {
         if (!CommerceFeatureUtils.isShoppingListEligible(mShoppingService)) {
@@ -1994,7 +1984,6 @@ public class BookmarkManagerMediator // Vivaldi
     /* package */ void simulateSignInForTesting() {
         mBookmarkUiObserver.onFolderStateSet(getCurrentFolderId());
     }
-
 
     /* package */ Deque<BookmarkUiState> getStateStackForTesting() {
         return mStateStack;
@@ -2151,6 +2140,28 @@ public class BookmarkManagerMediator // Vivaldi
             }
        }
        return entries;
+    }
+
+    /**
+     * Check stack to see if this state is search state and it is started from the reading list folder
+     *
+     * @return true if the user is initiating a search from within the reading list folder
+     *
+     */
+    private boolean searchFromReadingList() {
+        Iterator<BookmarkUiState> it = mStateStack.descendingIterator();
+        BookmarkUiState state = null;
+        BookmarkUiState parentState = null;
+        if (mStateStack.size() >= 2) {
+            if (state == null)
+                state = it.next(); // top item
+            parentState = it.next(); // parent
+            if (state.mUiMode == BookmarkUiMode.SEARCHING &&
+                    mBookmarkModel.isReadingListFolder(parentState.mFolder)) {
+                return true;
+            }
+        }
+        return false;
     }
     // End Vivaldi
 }

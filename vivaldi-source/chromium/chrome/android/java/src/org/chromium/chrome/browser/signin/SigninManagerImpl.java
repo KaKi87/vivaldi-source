@@ -165,6 +165,7 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
                 && (mAccountManagerFacade.didAccountFetchSucceed()
                         || !accountsPromise.getResult().isEmpty())) {
             seedThenReloadAllAccountsFromSystem(
+                    mAccountManagerFacade.getAccounts().getResult(),
                     CoreAccountInfo.getIdFrom(
                             identityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN)));
         }
@@ -200,12 +201,13 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         @Nullable CoreAccountInfo primaryAccountInfo =
                 mIdentityManager.getPrimaryAccountInfo(ConsentLevel.SIGNIN);
         if (primaryAccountInfo == null) {
-            seedThenReloadAllAccountsFromSystem(null);
+            seedThenReloadAllAccountsFromSystem(accounts, null);
             return;
         }
         if (AccountUtils.findAccountByGaiaId(accounts, primaryAccountInfo.getGaiaId()) != null) {
             // The primary account is still on the device, reseed accounts.
-            seedThenReloadAllAccountsFromSystem(CoreAccountInfo.getIdFrom(primaryAccountInfo));
+            seedThenReloadAllAccountsFromSystem(
+                    accounts, CoreAccountInfo.getIdFrom(primaryAccountInfo));
             return;
         }
         if (isOperationInProgress()) {
@@ -401,7 +403,9 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
         }
         if (!SigninFeatureMap.isEnabled(
                 SigninFeatures.MAKE_ACCOUNTS_AVAILABLE_IN_IDENTITY_MANAGER)) {
-            seedThenReloadAllAccountsFromSystem(mSignInState.mCoreAccountInfo.getId());
+            seedThenReloadAllAccountsFromSystem(
+                    mAccountManagerFacade.getAccounts().getResult(),
+                    mSignInState.mCoreAccountInfo.getId());
         }
         notifySignInAllowedChanged();
 
@@ -600,7 +604,11 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
 
         Log.d(TAG, "Signin flow aborted.");
         notifySignInAllowedChanged();
-        seedThenReloadAllAccountsFromSystem(null);
+        if (!SigninFeatureMap.isEnabled(
+                SigninFeatures.MAKE_ACCOUNTS_AVAILABLE_IN_IDENTITY_MANAGER)) {
+            seedThenReloadAllAccountsFromSystem(
+                    mAccountManagerFacade.getAccounts().getResult(), null);
+        }
     }
 
     @VisibleForTesting
@@ -616,10 +624,13 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
                                 SigninPreferencesManager.SigninPromoAccessPointId.NTP),
                         0);
         SignOutCallback signOutCallback = mSignOutState.mSignOutCallback;
-        if (mAccountManagerFacade.getAccounts().isFulfilled()) {
+        if (mAccountManagerFacade.getAccounts().isFulfilled()
+                && !SigninFeatureMap.isEnabled(
+                        SigninFeatures.MAKE_ACCOUNTS_AVAILABLE_IN_IDENTITY_MANAGER)) {
             // We don't reload the accounts if they are not yet available.
             // They will be seeded in onCoreAccountInfosChanged() when they become available.
-            seedThenReloadAllAccountsFromSystem(null);
+            seedThenReloadAllAccountsFromSystem(
+                    mAccountManagerFacade.getAccounts().getResult(), null);
         }
         mSignOutState = null;
 
@@ -636,38 +647,35 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
             @Nullable CoreAccountInfo account, final Callback<Boolean> callback) {
         if (account == null) throw new IllegalArgumentException("Account shouldn't be null!");
 
-        if (SigninFeatureMap.isEnabled(
-                SigninFeatures.USE_HOSTED_DOMAIN_FOR_MANAGEMENT_CHECK_ON_SIGNIN)) {
-            Callback<Integer> finderCallback =
-                    (outcome) -> {
-                        boolean isManaged =
-                                outcome == AccountManagedStatusFinderOutcome.ENTERPRISE
-                                        || outcome
-                                                == AccountManagedStatusFinderOutcome
-                                                        .ENTERPRISE_GOOGLE_DOT_COM;
-                        callback.onResult(isManaged);
-                    };
-            AccountManagedStatusFinder finder =
-                    new AccountManagedStatusFinder(
-                            getIdentityManager(), account, finderCallback, MANAGED_STATUS_TIMEOUT);
-            if (finder.getOutcome() != AccountManagedStatusFinderOutcome.PENDING) {
-                finderCallback.onResult(finder.getOutcome());
-            }
-            // `destroy` for `finder` will be called automatically when the outcome is decided (or
-            // when the timeout is reached).
-        } else {
-            SigninManagerImplJni.get()
-                    .isAccountManaged(mNativeSigninManagerAndroid, account, callback);
+        Callback<Integer> finderCallback =
+                (outcome) -> {
+                    boolean isManaged =
+                            outcome == AccountManagedStatusFinderOutcome.ENTERPRISE
+                                    || outcome
+                                            == AccountManagedStatusFinderOutcome
+                                                    .ENTERPRISE_GOOGLE_DOT_COM;
+                    callback.onResult(isManaged);
+                };
+        AccountManagedStatusFinder finder =
+                new AccountManagedStatusFinder(
+                        getIdentityManager(), account, finderCallback, MANAGED_STATUS_TIMEOUT);
+        if (finder.getOutcome() != AccountManagedStatusFinderOutcome.PENDING) {
+            finderCallback.onResult(finder.getOutcome());
         }
+        // `destroy` for `finder` will be called automatically when the outcome is decided (or
+        // when the timeout is reached).
     }
 
-    private void seedThenReloadAllAccountsFromSystem(@Nullable CoreAccountId primaryAccountId) {
-        if (!mAccountManagerFacade.getAccounts().isFulfilled()) {
-            throw new IllegalStateException("Account information should be available when seeding");
+    private void seedThenReloadAllAccountsFromSystem(
+            List<AccountInfo> accounts, @Nullable CoreAccountId primaryAccountId) {
+        if (primaryAccountId != null
+                && AccountUtils.findAccountByAccountId(accounts, primaryAccountId) == null) {
+            throw new IllegalStateException(
+                    "Primary account should exist in the list of accounts when seeding");
         }
         mIdentityMutator.seedAccountsThenReloadAllAccountsWithPrimaryAccount(
-                mAccountManagerFacade.getAccounts().getResult(), primaryAccountId);
-        mIdentityManager.refreshAccountInfoIfStale(mAccountManagerFacade.getAccounts().getResult());
+                accounts, primaryAccountId);
+        mIdentityManager.refreshAccountInfoIfStale(accounts);
         // Should be called after re-seeding accounts to make sure that we get the new email.
         maybeUpdateLegacyPrimaryAccountEmail();
     }
@@ -870,11 +878,6 @@ class SigninManagerImpl implements SigninManager, AccountsChangeObserver {
                 @JniType("base::RepeatingClosure") Runnable callback);
 
         void stopApplyingCloudPolicy(long nativeSigninManagerAndroid);
-
-        void isAccountManaged(
-                long nativeSigninManagerAndroid,
-                CoreAccountInfo account,
-                Callback<Boolean> callback);
 
         @Nullable String getManagementDomain(long nativeSigninManagerAndroid);
 

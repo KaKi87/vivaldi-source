@@ -48,6 +48,7 @@
 #include "components/download/public/common/download_features.h"
 #include "components/enterprise/browser/identifiers/profile_id_service.h"
 #include "components/enterprise/common/proto/connectors.pb.h"
+#include "components/enterprise/connectors/core/cloud_content_scanning/common.h"
 #include "components/enterprise/connectors/core/reporting_constants.h"
 #include "components/enterprise/obfuscation/core/utils.h"
 #include "components/policy/core/common/cloud/mock_cloud_policy_client.h"
@@ -404,9 +405,9 @@ class DownloadDeepScanningBrowserTestBase
   void AuthorizeForDeepScanning() {
     static_cast<safe_browsing::CloudBinaryUploadService*>(
         CloudBinaryUploadServiceFactory::GetForProfile(browser()->profile()))
-        ->SetAuthForTesting(
-            "dm_token",
-            /*auth_check_result=*/BinaryUploadService::Result::SUCCESS);
+        ->SetAuthForTesting("dm_token",
+                            /*auth_check_result=*/enterprise_connectors::
+                                ScanRequestUploadResult::SUCCESS);
   }
 
   bool connectors_machine_scope() const { return connectors_machine_scope_; }
@@ -944,8 +945,9 @@ IN_PROC_BROWSER_TEST_P(DownloadDeepScanningBrowserTest,
   EXPECT_EQ(item->GetState(), download::DownloadItem::IN_PROGRESS);
 
   // UMAs for this request should only be recorded once.
-  histograms.ExpectUniqueSample("SafeBrowsingBinaryUploadRequest.Result",
-                                BinaryUploadService::Result::SUCCESS, 1);
+  histograms.ExpectUniqueSample(
+      "SafeBrowsingBinaryUploadRequest.Result",
+      enterprise_connectors::ScanRequestUploadResult::SUCCESS, 1);
   histograms.ExpectUniqueSample("SafeBrowsingBinaryUploadRequest.DlpResult",
                                 true, 1);
   histograms.ExpectUniqueSample("SafeBrowsingBinaryUploadRequest.MalwareResult",
@@ -1056,7 +1058,7 @@ IN_PROC_BROWSER_TEST_P(DownloadRestrictionsDeepScanningBrowserTest,
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1115,7 +1117,7 @@ class AllowlistedUrlDeepScanningBrowserTest
     DownloadDeepScanningBrowserTestBase::SetUpOnMainThread();
 
     base::Value::List domain_list;
-    domain_list.Append(embedded_test_server()->base_url().host_piece());
+    domain_list.Append(embedded_test_server()->base_url().host());
     browser()->profile()->GetPrefs()->SetList(
         prefs::kSafeBrowsingAllowlistDomains, std::move(domain_list));
   }
@@ -1370,7 +1372,7 @@ IN_PROC_BROWSER_TEST_P(SavePackageDeepScanningBrowserTest, Blocked) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1481,7 +1483,7 @@ IN_PROC_BROWSER_TEST_P(SavePackageDeepScanningBrowserTest, KeepAfterWarning) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1563,7 +1565,7 @@ IN_PROC_BROWSER_TEST_P(SavePackageDeepScanningBrowserTest, KeepAfterWarning) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1676,7 +1678,7 @@ IN_PROC_BROWSER_TEST_P(SavePackageDeepScanningBrowserTest,
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1795,7 +1797,7 @@ IN_PROC_BROWSER_TEST_P(SavePackageDeepScanningBrowserTest, OpenNow) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -1985,7 +1987,7 @@ IN_PROC_BROWSER_TEST_P(FileSystemAccessDeepScanningBrowserTest, BlockedWrite) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());
@@ -2148,7 +2150,7 @@ IN_PROC_BROWSER_TEST_P(FileSystemAccessDeepScanningBrowserTest, WarnedWrite) {
 
     ::chrome::cros::reporting::proto::UrlInfo referrers;
     referrers.set_url(url.spec());
-    referrers.set_ip(embedded_test_server()->base_url().host_piece());
+    referrers.set_ip(embedded_test_server()->base_url().host());
     *expected_event.add_referrers() = referrers;
 
     expected_event.set_profile_identifier(GetProfileIdentifier());

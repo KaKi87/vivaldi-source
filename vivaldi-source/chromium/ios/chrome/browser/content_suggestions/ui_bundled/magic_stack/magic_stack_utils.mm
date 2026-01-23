@@ -16,7 +16,7 @@
 #import "components/variations/service/variations_service_utils.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_utils.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/price_tracking_promo_prefs.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/price_tracking_promo/model/price_tracking_promo_prefs.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_client_id.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_settings_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -43,13 +43,11 @@ bool IsPriceTrackingPromoCardEnabled(commerce::ShoppingService* service,
                                      PrefService* pref_service) {
   id<SystemIdentity> identity =
       auth_service->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
-  return base::FeatureList::IsEnabled(commerce::kPriceTrackingPromo) &&
-         GetApplicationContext()->GetApplicationLocaleStorage()->Get() ==
+  return GetApplicationContext()->GetApplicationLocaleStorage()->Get() ==
              "en-US" &&
          !push_notification_settings::
              GetMobileNotificationPermissionStatusForClient(
-                 PushNotificationClientId::kCommerce,
-                 GaiaId(identity.gaiaID)) &&
+                 PushNotificationClientId::kCommerce, identity.gaiaId) &&
          !pref_service->GetBoolean(kPriceTrackingPromoDisabled) &&
          (service->IsShoppingListEligible() ||
           (base::GetFieldTrialParamByFeatureAsString(

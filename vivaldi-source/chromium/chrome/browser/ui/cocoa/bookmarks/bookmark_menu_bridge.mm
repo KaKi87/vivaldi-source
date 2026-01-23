@@ -144,6 +144,7 @@ void BookmarkMenuBridge::BuildRootMenu(bool recurse) {
     [menu_root_ addItem:[NSMenuItem separatorItem]];
   }
   } // Vivaldi
+
   if (HasContent(managed_folder)) {
     // Most users never see this node, so the image is only loaded if needed.
     ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();

@@ -25,10 +25,13 @@
 #include "components/adverse_adblocking/vivaldi_subresource_filter_throttle_manager.h"
 #include "components/content_injection/frame_injection_helper.h"
 #include "components/content_injection/mojom/content_injection.mojom.h"
+#include "content/public/browser/site_instance.h"
 #include "extraparts/vivaldi_browser_main_extra_parts.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "components/navigation_throttle/follower_tab_throttle.h"
+#include "components/navigation_throttle/pinned_tab_throttle.h"
 #include "extensions/helper/vivaldi_frame_host_service_impl.h"
 #endif
 
@@ -64,6 +67,10 @@ void VivaldiContentBrowserClient::CreateThrottlesForNavigation(
     content::NavigationThrottleRegistry& registry) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   content::NavigationHandle* handle = &registry.GetNavigationHandle();
+  if (handle->IsInMainFrame()) {
+    registry.AddThrottle(std::make_unique<PinnedTabsThrottle>(registry));
+    registry.AddThrottle(std::make_unique<FollowerTabThrottle>(registry));
+  }
 
   ChromeContentBrowserClient::CreateThrottlesForNavigation(registry);
 

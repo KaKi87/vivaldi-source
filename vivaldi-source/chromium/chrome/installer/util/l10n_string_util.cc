@@ -4,11 +4,6 @@
 //
 // This file defines utility functions for fetching localized resources.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/installer/util/l10n_string_util.h"
 
 #include <windows.h>
@@ -22,6 +17,7 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/buffer_iterator.h"
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
@@ -42,25 +38,8 @@
 #include "chrome/installer/util/google_update_settings.h"
 #include "chrome/installer/util/installer_util_strings.h"
 
-#include "installer/win/vivaldi_install_l10n.h"
-
 namespace {
 
-#if defined(VIVALDI_BUILD)
-const base::win::i18n::LanguageSelector& GetLanguageSelector() {
-  const base::win::i18n::LanguageSelector* selector =
-      vivaldi::GetInstallerLanguageSelector();
-  if (selector)
-    return *selector;
-
-  // This happens during tests - feed them the offset for the English.
-  constexpr base::win::i18n::LanguageSelector::LangToOffset pairs[] = {
-      {L"en-us", IDS_L10N_OFFSET_EN_US}};
-  static base::NoDestructor<base::win::i18n::LanguageSelector> english_selector(
-      std::vector<std::wstring>({L"en-us"}), pairs);
-  return *english_selector;
-}
-#else
 constexpr base::win::i18n::LanguageSelector::LangToOffset
     kLanguageOffsetPairs[] = {
 #define HANDLE_LANGUAGE(l_, o_) {L## #l_, o_},
@@ -81,7 +60,6 @@ const base::win::i18n::LanguageSelector& GetLanguageSelector() {
       GetPreferredLanguageFromGoogleUpdate(), kLanguageOffsetPairs);
   return *instance;
 }
-#endif  // !defined(VIVALDI_BUILD)
 
 installer::TranslationDelegate* g_translation_delegate = nullptr;
 
@@ -125,7 +103,8 @@ std::wstring GetLocalizedString(int base_message_id) {
         // The bundle is a sequence of ATLSTRINGRESOURCEIMAGE structures, which
         // are each a DWORD length followed by that many wide characters.
         bundle_size = ::SizeofResource(CURRENT_MODULE(), bundle_handle);
-        base::BufferIterator<const uint8_t> iterator(bundle_data, bundle_size);
+        base::BufferIterator<const uint8_t> UNSAFE_TODO(
+            iterator(bundle_data, bundle_size));
         // Scan forward in the bundle past all preceding messages.
         for (int index = message_id & 0xF; index; --index) {
           if (const auto* length = iterator.Object<const WORD>(); length) {
@@ -210,10 +189,6 @@ std::wstring GetCurrentTranslation() {
 }
 
 int GetBaseMessageIdForMode(int base_message_id) {
-#if !defined(DO_MODE_STRINGS)
-  // This ID has no per-mode variants.
-  return base_message_id;
-#else
 // Generate the constants holding the mode-specific resource ID arrays.
 #define HANDLE_MODE_STRING(id, ...)                                   \
   static constexpr int k##id##Strings[] = {__VA_ARGS__};              \
@@ -240,9 +215,8 @@ int GetBaseMessageIdForMode(int base_message_id) {
   }
 
   // Return the variant of |base_message_id| for the current mode.
-  return mode_strings[install_static::InstallDetails::Get()
-                          .install_mode_index()];
-#endif
+  return UNSAFE_TODO(
+      mode_strings)[install_static::InstallDetails::Get().install_mode_index()];
 }
 
 }  // namespace installer

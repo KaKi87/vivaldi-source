@@ -58,8 +58,11 @@ class RequestFilter {
 
   int priority() { return priority_; }
 
-  virtual bool WantsExtraHeadersForAnyRequest() const = 0;
-  virtual bool WantsExtraHeadersForRequest(
+  virtual bool HasAnyExtraHeadersListener() const = 0;
+  virtual bool HasExtraHeadersListenerForRequest(
+      FilteredRequestInfo* request) const = 0;
+  virtual bool HasAnySecurityInfoListener() const = 0;
+  virtual bool HasSecurityInfoListenerForRequest(
       FilteredRequestInfo* request) const = 0;
 
   using BeforeRequestCallback = base::OnceCallback<

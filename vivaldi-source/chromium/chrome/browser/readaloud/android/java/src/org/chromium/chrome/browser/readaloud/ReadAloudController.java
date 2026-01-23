@@ -808,14 +808,6 @@ public class ReadAloudController
                             }
                         }
 
-                        @Override
-                        public void webContentsWillSwap(Tab tab) {
-                            // When restoring a tab from Recent Tabs, the tab's native WebContents
-                            // is destroyed and replaced by a different one. We must remove the old
-                            // WebContents' translation observers before it is destroyed.
-                            removeTranslationObservers(tab);
-                        }
-
                         private void maybeAddTranslationObserver(Tab tab) {
                             if (isURLReadAloudSupported(tab.getUrl())) {
                                 mCurrentTabTranslationObserver.observeTab(tab);
@@ -2065,8 +2057,6 @@ public class ReadAloudController
     }
 
     /**
-     * TODO(crbug.com/305737581): finish implementation.
-     *
      * @param content Selected word and surrounding content
      * @param beginOffset index of where the selected word starts within the content
      * @param endOffset index of where the selected word ends within the content

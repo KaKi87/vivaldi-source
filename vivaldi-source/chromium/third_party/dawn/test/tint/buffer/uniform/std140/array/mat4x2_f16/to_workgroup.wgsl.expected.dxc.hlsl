@@ -16,10 +16,10 @@ vector<float16_t, 2> tint_bitcast_to_f16(uint src) {
 }
 
 matrix<float16_t, 4, 2> v_2(uint start_byte_offset) {
-  vector<float16_t, 2> v_3 = tint_bitcast_to_f16(u[(start_byte_offset / 16u)][((start_byte_offset % 16u) / 4u)]);
-  vector<float16_t, 2> v_4 = tint_bitcast_to_f16(u[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) % 16u) / 4u)]);
-  vector<float16_t, 2> v_5 = tint_bitcast_to_f16(u[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) % 16u) / 4u)]);
-  return matrix<float16_t, 4, 2>(v_3, v_4, v_5, tint_bitcast_to_f16(u[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) % 16u) / 4u)]));
+  vector<float16_t, 2> v_3 = tint_bitcast_to_f16(u[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)]);
+  vector<float16_t, 2> v_4 = tint_bitcast_to_f16(u[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]);
+  vector<float16_t, 2> v_5 = tint_bitcast_to_f16(u[((8u + start_byte_offset) / 16u)][(((8u + start_byte_offset) & 15u) >> 2u)]);
+  return matrix<float16_t, 4, 2>(v_3, v_4, v_5, tint_bitcast_to_f16(u[((12u + start_byte_offset) / 16u)][(((12u + start_byte_offset) & 15u) >> 2u)]));
 }
 
 typedef matrix<float16_t, 4, 2> ary_ret[4];
@@ -65,7 +65,7 @@ void f_inner(uint tint_local_index) {
   w = v_12;
   w[1u] = v_2(32u);
   w[1u][0u] = tint_bitcast_to_f16(u[0u].y).yx;
-  w[1u][0u].x = float16_t(f16tof32(u[0u].y));
+  w[1u][0u].x = tint_bitcast_to_f16(u[0u].y).x;
 }
 
 [numthreads(1, 1, 1)]

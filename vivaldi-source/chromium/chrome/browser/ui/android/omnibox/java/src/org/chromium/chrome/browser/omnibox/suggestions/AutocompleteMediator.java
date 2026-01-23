@@ -18,7 +18,6 @@ import androidx.annotation.Px;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ActivityState;
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
@@ -28,6 +27,7 @@ import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.PauseResumeWithNativeObserver;
 import org.chromium.chrome.browser.lifecycle.TopResumedActivityChangedObserver;
@@ -37,28 +37,26 @@ import org.chromium.chrome.browser.omnibox.OmniboxMetrics;
 import org.chromium.chrome.browser.omnibox.OmniboxMetrics.RefineActionUsage;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
-import org.chromium.chrome.browser.omnibox.navattach.NavigationAttachmentsCoordinator;
-import org.chromium.chrome.browser.omnibox.navattach.NavigationFulfillmentType;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentModelList.FuseboxAttachmentChangeListener;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController.OnSuggestionsReceivedListener;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteCoordinator.OmniboxSuggestionsVisualStateObserver;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteDelegate.AutocompleteLoadCallback;
 import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionFactoryImpl;
+import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionInSuggest;
 import org.chromium.chrome.browser.omnibox.suggestions.basic.BasicSuggestionProcessor.BookmarkState;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
-import org.chromium.chrome.browser.tab.TabSelectionType;
-import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelUtils;
-import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
+import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.AutocompleteResult;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.omnibox.OmniboxSuggestionType;
@@ -92,6 +90,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                 OmniboxSuggestionsDropdownScrollListener,
                 TopResumedActivityChangedObserver,
                 PauseResumeWithNativeObserver,
+                FuseboxAttachmentChangeListener,
                 SuggestionHost {
 
     private static final int SCHEDULE_FOR_IMMEDIATE_EXECUTION = -1;
@@ -99,6 +98,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     // Delay triggering the omnibox results upon key press to allow the location bar to repaint
     // with the new characters.
     /* Vivaldi */ public static final long OMNIBOX_SUGGESTION_START_DELAY_MS = 30;
+    // Delay recording ZPS suppression to allow subsequent suggestion updates to arrive.
+    private static final long ZPS_SUPPRESSION_METRIC_DEBOUNCE_MS = 100;
 
     private final Context mContext;
     private final AutocompleteDelegate mDelegate;
@@ -110,9 +111,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     private final DropdownItemViewInfoListBuilder mDropdownViewInfoListBuilder;
     private final DropdownItemViewInfoListManager mDropdownViewInfoListManager;
-    private final Callback<Tab> mBringTabToFrontCallback;
     private final Callback<String> mBringTabGroupToFrontCallback;
-    private final Supplier<TabWindowManager> mTabWindowManagerSupplier;
     private final OmniboxActionDelegate mOmniboxActionDelegate;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
     private final SuggestionsListAnimationDriver mAnimationDriver;
@@ -124,6 +123,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private final boolean mForcePhoneStyleOmnibox;
     private final Callback<@ControlsPosition Integer> mToolbarPositionChangedCallback =
             this::onToolbarPositionChanged;
+    private final Callback<@AutocompleteRequestType Integer> mOnAutocompleteRequestTypeChanged =
+            this::onAutocompleteRequestTypeChanged;
 
     private @Nullable AutocompleteController mAutocomplete;
     /* Vivaldi */ public  @Nullable AutocompleteResult mAutocompleteResult;
@@ -165,6 +166,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private boolean mIsExecutingAutocompleteAction;
     // Whether user scrolled the suggestions list.
     private boolean mSuggestionsListScrolled;
+    // The value of the last ZPS suppress metric recorded for the current ZPS session.
+    // The value is reset to null for each new ZPS session.
+    private @Nullable Boolean mLastRecordedZpsSuppressionValue;
+    // Runnable to record the ZPS suppression metric. Used to debounce rapid updates.
+    private @Nullable Runnable mRecordZpsSuppressionRunnable;
 
     /**
      * The text shown in the URL bar (user text + inline autocomplete) after the most recent set of
@@ -186,7 +192,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     // Observer watching for changes to the visual state of the omnibox suggestions.
     private @Nullable OmniboxSuggestionsVisualStateObserver mOmniboxSuggestionsVisualStateObserver;
-    private final NavigationAttachmentsCoordinator mNavigationAttachmentsCoordinator;
+    private final FuseboxCoordinator mFuseboxCoordinator;
 
     AutocompleteMediator(
             Context context,
@@ -198,16 +204,14 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             Supplier<@Nullable Tab> activityTabSupplier,
             @Nullable Supplier<ShareDelegate> shareDelegateSupplier,
             LocationBarDataProvider locationBarDataProvider,
-            Callback<Tab> bringTabToFrontCallback,
             Callback<String> bringTabGroupToFrontCallback,
-            Supplier<TabWindowManager> tabWindowManagerSupplier,
             BookmarkState bookmarkState,
             OmniboxActionDelegate omniboxActionDelegate,
             ActivityLifecycleDispatcher lifecycleDispatcher,
             OmniboxSuggestionsDropdownEmbedder embedder,
             WindowAndroid windowAndroid,
             DeferredIMEWindowInsetApplicationCallback deferredIMEWindowInsetApplicationCallback,
-            NavigationAttachmentsCoordinator navigationAttachmentsCoordinator,
+            FuseboxCoordinator fuseboxCoordinator,
             boolean forcePhoneStyleOmnibox) {
         mContext = context;
         mDelegate = delegate;
@@ -216,10 +220,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
         mHandler = handler;
         mDataProvider = locationBarDataProvider;
-        mBringTabToFrontCallback = bringTabToFrontCallback;
         mBringTabGroupToFrontCallback = bringTabGroupToFrontCallback;
-        mTabWindowManagerSupplier = tabWindowManagerSupplier;
-        mNavigationAttachmentsCoordinator = navigationAttachmentsCoordinator;
+        mFuseboxCoordinator = fuseboxCoordinator;
         mSuggestionModels = mListPropertyModel.get(SuggestionListProperties.SUGGESTION_MODELS);
         mOmniboxActionDelegate = omniboxActionDelegate;
         mWindowAndroid = windowAndroid;
@@ -244,6 +246,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                 .setDialerAvailable(!pm.queryIntentActivities(dialIntent, 0).isEmpty());
 
         mAnimationDriver = initializeAnimationDriver();
+
+        mFuseboxCoordinator.addAttachmentChangeListener(this);
+        mFuseboxCoordinator
+                .getAutocompleteRequestTypeSupplier()
+                .addSyncObserver(mOnAutocompleteRequestTypeChanged);
 
         mDataProvider
                 .getToolbarPositionSupplier()
@@ -284,6 +291,10 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         if (mNativeInitialized) {
             OmniboxActionFactoryImpl.get().destroyNativeFactory();
         }
+        mFuseboxCoordinator.removeAttachmentChangeListener(this);
+        mFuseboxCoordinator
+                .getAutocompleteRequestTypeSupplier()
+                .removeObserver(mOnAutocompleteRequestTypeChanged);
         mHandler.removeCallbacksAndMessages(null);
         mDropdownViewInfoListBuilder.destroy();
         mLifecycleDispatcher.unregister(this);
@@ -376,6 +387,17 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * <p>Note: the only supported page context right now is the ANDROID_SEARCH_WIDGET.
      */
     void startCachedZeroSuggest() {
+        boolean disableZps =
+                ChromeFeatureList.sOmniboxAutofocusOnIncognitoNtpNoZeroSuggest.getValue();
+
+        // Do not show zero suggest results when omnibox autofocus is active on the Incognito NTP.
+        // This suppresses all zero suggest requests before they are made, because it is unknown if
+        // any zero suggest results would have been shown.
+        if (disableZps && isOmniboxAutofocusOnIncognitoNtpActive()) {
+            recordZeroSuggestSuppressionMetric(true);
+            return;
+        }
+
         maybeServeCachedResult();
         postAutocompleteRequest(this::startZeroSuggest, SCHEDULE_FOR_IMMEDIATE_EXECUTION);
     }
@@ -453,7 +475,13 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
         if (activated) {
             initAutocompleteInput();
-            mDeferredIMEWindowInsetApplicationCallback.attach(mWindowAndroid);
+
+            // Do not attach IME observer when omnibox autofocus feature enabled and Incognito NTP
+            // visible.
+            if (!isOmniboxAutofocusOnIncognitoNtpActive()) {
+                mDeferredIMEWindowInsetApplicationCallback.attach(mWindowAndroid);
+            }
+
             dismissDeleteDialog(DialogDismissalCause.DISMISSED_BY_NATIVE);
             mRefineActionUsage = RefineActionUsage.NOT_USED;
             mOmniboxFocusResultedInNavigation = false;
@@ -480,11 +508,14 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                     text, /* isOnFocusContext= */ OmniboxFeatures.shouldRetainOmniboxOnFocus());
             } // End Vivaldi
         } else {
+            mFuseboxCoordinator.notifyOmniboxSessionEnded(mOmniboxFocusResultedInNavigation);
             mDeferredIMEWindowInsetApplicationCallback.detach();
             stopMeasuringSuggestionRequestToUiModelTime();
             cancelAutocompleteRequests();
             OmniboxMetrics.recordOmniboxFocusResultedInNavigation(
-                    mOmniboxFocusResultedInNavigation);
+                    mAutocompleteInput.getRequestType(),
+                    mOmniboxFocusResultedInNavigation,
+                    mFuseboxCoordinator.getAttachmentsCount() > 0);
             OmniboxMetrics.recordRefineActionUsage(mRefineActionUsage);
             OmniboxMetrics.recordSuggestionsListScrolled(
                     mAutocompleteInput.getPageClassification(), mSuggestionsListScrolled);
@@ -577,12 +608,21 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                 switchToTabGroup(suggestion);
                 return;
             } else {
-                if (maybeSwitchToTab(suggestion)) {
-                    // This bypasses the execution flow that captures histograms for all other
-                    // cases.
-                    recordMetrics(
-                            suggestion, null, matchIndex, WindowOpenDisposition.SWITCH_TO_TAB);
-                    return;
+                var actions = suggestion.getActions();
+                if (!actions.isEmpty()) {
+                    var action = actions.get(0);
+                    if (action instanceof OmniboxActionInSuggest omniboxActionInSuggest) {
+                        if (mOmniboxActionDelegate.switchToTab(omniboxActionInSuggest.tabId, url)) {
+                            // This bypasses the execution flow that captures histograms for all
+                            // other cases.
+                            recordMetrics(
+                                    suggestion,
+                                    null,
+                                    matchIndex,
+                                    WindowOpenDisposition.SWITCH_TO_TAB);
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -595,7 +635,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                                 url,
                                 mLastActionUpTimestamp,
                                 /* openInNewTab= */ false,
-                                true);
+                                /* openInNewWindow= */ false);
 
         // Note: Action will be reset when load is initiated.
         if (mAutocomplete != null) {
@@ -634,7 +674,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     public void onOmniboxActionClicked(OmniboxAction action, int position) {
         var match = getSuggestionAt(position);
         if (match != null) {
-            recordMetrics(match, action, position, WindowOpenDisposition.CURRENT_TAB);
+            recordMetrics(match, action, position, action.disposition);
         }
         action.execute(mOmniboxActionDelegate);
         finishInteraction();
@@ -670,43 +710,6 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         }
     }
 
-    @Override
-    public void onSwitchToTab(AutocompleteMatch match, int matchIndex) {
-        if (maybeSwitchToTab(match)) {
-            recordMetrics(match, null, matchIndex, WindowOpenDisposition.SWITCH_TO_TAB);
-        } else {
-            onSuggestionClicked(match, matchIndex, match.getUrl());
-        }
-    }
-
-    @VisibleForTesting
-    public boolean maybeSwitchToTab(AutocompleteMatch match) {
-        Tab tab = mAutocomplete != null ? mAutocomplete.getMatchingTabForSuggestion(match) : null;
-        TabWindowManager tabWindowManager = mTabWindowManagerSupplier.get();
-        if (tab == null || tabWindowManager == null) return false;
-
-        // When invoked directly from a browser, we want to trigger switch to tab animation.
-        // If invoked from other activities, ex. searchActivity, we do not need to trigger the
-        // animation since Android will show the animation for switching apps.
-        WindowAndroid windowAndroid = tab.getWindowAndroid();
-        if (windowAndroid == null) return false;
-        if (windowAndroid.getActivityState() == ActivityState.STOPPED
-                || windowAndroid.getActivityState() == ActivityState.DESTROYED) {
-            mBringTabToFrontCallback.onResult(tab);
-            return true;
-        }
-
-        TabModel tabModel = tabWindowManager.getTabModelForTab(tab);
-        if (tabModel == null) return false;
-
-        int tabIndex = TabModelUtils.getTabIndexById(tabModel, tab.getId());
-        // In the event the user deleted the tab as part during the interaction with the
-        // Omnibox, reject the switch to tab action.
-        if (tabIndex == TabModel.INVALID_TAB_INDEX) return false;
-        tabModel.setIndex(tabIndex, TabSelectionType.FROM_OMNIBOX);
-        return true;
-    }
-
     @VisibleForTesting
     public void switchToTabGroup(AutocompleteMatch match) {
         mBringTabGroupToFrontCallback.onResult(assumeNonNull(match.getTabGroupUuid()));
@@ -721,21 +724,33 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     }
 
     /**
-     * Triggered when the user long presses the omnibox suggestion.
+     * Triggered when the user long presses the omnibox suggestion. A delete confirmation dialog
+     * will be shown.
      *
      * @param suggestion The suggestion selected.
      * @param titleText The title to display in the delete dialog.
      */
     @Override
-    public void onDeleteMatch(AutocompleteMatch suggestion, String titleText) {
+    public void confirmDeleteMatch(AutocompleteMatch suggestion, String titleText) {
         showDeleteDialog(
                 suggestion,
                 titleText,
                 () -> {
-                    if (mAutocomplete != null) {
-                        mAutocomplete.deleteMatch(suggestion);
-                    }
+                    RecordUserAction.record("MobileOmniboxRemoveSuggestion.LongPress");
+                    deleteMatch(suggestion);
                 });
+    }
+
+    /**
+     * Triggered when the user clicks on the remove button to delete the suggestion immediately.
+     *
+     * @param suggestion The suggestion selected.
+     */
+    @Override
+    public void deleteMatch(AutocompleteMatch suggestion) {
+        if (mAutocomplete != null) {
+            mAutocomplete.deleteMatch(suggestion);
+        }
     }
 
     /**
@@ -920,6 +935,13 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                     mAutocomplete.resetSession();
                 }
                 mNewOmniboxEditSessionTimestamp = SystemClock.elapsedRealtime();
+            } else {
+                // Start a new ZPS session by resetting values.
+                mLastRecordedZpsSuppressionValue = null;
+                if (mRecordZpsSuppressionRunnable != null) {
+                    mHandler.removeCallbacks(mRecordZpsSuppressionRunnable);
+                    mRecordZpsSuppressionRunnable = null;
+                }
             }
         }
 
@@ -981,14 +1003,31 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         measureSuggestionRequestToUiModelTime(isFinal);
     }
 
+    public void onAutocompleteRequestTypeChanged(@AutocompleteRequestType int type) {
+        if (mOmniboxFocused) {
+            mAutocompleteInput.setRequestType(type);
+            mAutocompleteInput.setPageClassification(mDataProvider.getPageClassification(false));
+            onTextChanged(
+                    mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
+                    /* isOnFocusContext= */ false);
+        }
+    }
+
     /**
      * Load the url corresponding to the typed omnibox text.
      *
      * @param eventTime The timestamp the load was triggered by the user.
      * @param openInNewTab Whether the URL will be loaded in a new tab. If {@code true}, the URL
      *     will be loaded in a new tab. If {@code false}, The URL will be loaded in the current tab.
+     * @param openInNewWindow Whether the URL will be loaded in a new window. If {@code true}, the
+     *     URL will be loaded in a new window. If {@code false}, The URL will be loaded in the
+     *     current window.
      */
-    /* Vivaldi */ public void loadTypedOmniboxText(long eventTime, boolean openInNewTab) {
+    /* Vivaldi */ public void loadTypedOmniboxText(long eventTime, boolean openInNewTab, boolean openInNewWindow) {
+        assert !openInNewTab || !openInNewWindow
+                : "Unable to determine if the URL should be loaded in a new tab in the current"
+                        + " window or in a new window.";
+
         final String urlText = mUrlBarEditingTextProvider.getTextWithAutocomplete();
         cancelAutocompleteRequests();
 
@@ -997,26 +1036,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             // For Hub Search, default behavior kicks off search by pressing enter, do not return.
         }
 
-        if (mNavigationAttachmentsCoordinator
-                .getNavigationFulfillmentTypeSupplier()
-                .get()
-                .equals(NavigationFulfillmentType.AI_MODE)) {
-            AutocompleteMatch suggestionMatch = getSuggestionMatchForUrlText(urlText);
-            if (suggestionMatch == null) return;
-            loadUrlForOmniboxMatch(
-                    0,
-                    suggestionMatch,
-                    mNavigationAttachmentsCoordinator.getAimUrl(urlText),
-                    eventTime,
-                    /* openInNewTab= */ false,
-                    /* shouldUpdateSuggestionUrl= */ false);
-            return;
-        }
-
         if (mAutocomplete != null) {
-            findMatchAndLoadUrl(urlText, eventTime, openInNewTab);
+            findMatchAndLoadUrl(urlText, eventTime, openInNewTab, openInNewWindow);
         } else {
-            mDeferredLoadAction = () -> findMatchAndLoadUrl(urlText, eventTime, openInNewTab);
+            mDeferredLoadAction =
+                    () -> findMatchAndLoadUrl(urlText, eventTime, openInNewTab, openInNewWindow);
         }
     }
 
@@ -1027,13 +1051,22 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * @param inputStart The timestamp the load was triggered by the user.
      * @param openInNewTab Whether the URL will be loaded in a new tab. If {@code true}, the URL
      *     will be loaded in a new tab. If {@code false}, The URL will be loaded in the current tab.
+     * @param openInNewWindow Whether the URL will be loaded in a new window. If {@code true}, the
+     *     URL will be loaded in a new window. If {@code false}, The URL will be loaded in the
+     *     current window.
      */
-    private void findMatchAndLoadUrl(String urlText, long inputStart, boolean openInNewTab) {
+    private void findMatchAndLoadUrl(
+            String urlText, long inputStart, boolean openInNewTab, boolean openInNewWindow) {
         AutocompleteMatch suggestionMatch = getSuggestionMatchForUrlText(urlText);
 
         if (suggestionMatch == null) return;
         loadUrlForOmniboxMatch(
-                0, suggestionMatch, suggestionMatch.getUrl(), inputStart, openInNewTab, true);
+                0,
+                suggestionMatch,
+                suggestionMatch.getUrl(),
+                inputStart,
+                openInNewTab,
+                openInNewWindow);
     }
 
     private @Nullable AutocompleteMatch getSuggestionMatchForUrlText(String urlText) {
@@ -1063,8 +1096,9 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * @param openInNewTab Whether the suggestion will be loaded in a new tab. If {@code true}, the
      *     suggestion will be loaded in a new tab. If {@code false}, the suggestion will be loaded
      *     in the current tab.
-     * @param shouldUpdateSuggestionUrl Whether the suggestion url should be updated with additional
-     *     query formulation stats param.
+     * @param openInNewWindow Whether the URL will be loaded in a new window. If {@code true}, the
+     *     URL will be loaded in a new window. If {@code false}, The URL will be loaded in the
+     *     current window.
      */
     /* Vivaldi */ public void loadUrlForOmniboxMatch(
             int matchIndex,
@@ -1072,7 +1106,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             GURL url,
             long inputStart,
             boolean openInNewTab,
-            boolean shouldUpdateSuggestionUrl) {
+            boolean openInNewWindow) {
         try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.loadUrlFromOmniboxMatch")) {
             OmniboxMetrics.recordFocusToOpenTime(System.currentTimeMillis() - mUrlFocusTime);
 
@@ -1080,9 +1114,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             mDeferredLoadAction = null;
 
             mOmniboxFocusResultedInNavigation = true;
-            if (shouldUpdateSuggestionUrl) {
-                url = updateSuggestionUrlIfNeeded(suggestion, url);
-            }
+
+            url = updateSuggestionUrlIfNeeded(suggestion, url);
 
             // loadUrl modifies AutocompleteController's state clearing the native
             // AutocompleteResults needed by onSuggestionsSelected. Therefore,
@@ -1105,34 +1138,63 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                 mDelegate.maybeShowDefaultBrowserPromo();
             }
 
-            // Kick off an action to clear focus and dismiss the suggestions list.
-            // This normally happens when the target site loads and focus is moved to the
-            // webcontents. On Android T we occasionally observe focus events to be lost, resulting
-            // with Suggestions list obscuring the view.
-            var autocompleteLoadCallback =
-                    new AutocompleteLoadCallback() {
-                        @Override
-                        public void onLoadUrl(LoadUrlParams params, LoadUrlResult loadUrlResult) {
-                            if (loadUrlResult.navigationHandle != null) {
-                                if (mAutocomplete != null) {
-                                    mAutocomplete.createNavigationObserver(
-                                            loadUrlResult.navigationHandle, suggestion);
-                                }
-                            }
-                        }
+            final int finalTransition = transition;
+            Callback<GURL> onUrlReady =
+                    (finalUrl) -> {
+                        finishLoadUrlForOmniboxMatch(
+                                suggestion,
+                                finalUrl,
+                                inputStart,
+                                openInNewTab,
+                                openInNewWindow,
+                                finalTransition);
                     };
 
-            mDelegate.loadUrl(
-                    new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)
-                            .setInputStartTimestamp(inputStart)
-                            .setPostData(suggestion.getPostData())
-                            .setOpenInNewTab(openInNewTab)
-                            .setExtraHeaders(suggestion.getExtraHeaders())
-                            .setAutocompleteLoadCallback(autocompleteLoadCallback)
-                            .build());
-
-            mHandler.post(this::finishInteraction);
+            switch (mFuseboxCoordinator.getAutocompleteRequestTypeSupplier().get()) {
+                case AutocompleteRequestType.AI_MODE ->
+                        mFuseboxCoordinator.getAimUrl(url, onUrlReady);
+                case AutocompleteRequestType.IMAGE_GENERATION ->
+                        mFuseboxCoordinator.getImageGenerationUrl(url, onUrlReady);
+                default -> onUrlReady.onResult(url);
+            }
         }
+    }
+
+    private void finishLoadUrlForOmniboxMatch(
+            AutocompleteMatch suggestion,
+            GURL url,
+            long inputStart,
+            boolean openInNewTab,
+            boolean openInNewWindow,
+            int transition) {
+        // Kick off an action to clear focus and dismiss the suggestions list.
+        // This normally happens when the target site loads and focus is moved to the
+        // webcontents. On Android T we occasionally observe focus events to be lost, resulting
+        // with Suggestions list obscuring the view.
+        var autocompleteLoadCallback =
+                new AutocompleteLoadCallback() {
+                    @Override
+                    public void onLoadUrl(LoadUrlParams params, LoadUrlResult loadUrlResult) {
+                        if (loadUrlResult.navigationHandle != null) {
+                            if (mAutocomplete != null) {
+                                mAutocomplete.createNavigationObserver(
+                                        loadUrlResult.navigationHandle, suggestion);
+                            }
+                        }
+                    }
+                };
+
+        mDelegate.loadUrl(
+                new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)
+                        .setInputStartTimestamp(inputStart)
+                        .setPostData(suggestion.getPostData())
+                        .setOpenInNewTab(openInNewTab)
+                        .setOpenInNewWindow(openInNewWindow)
+                        .setExtraHeaders(suggestion.getExtraHeaders())
+                        .setAutocompleteLoadCallback(autocompleteLoadCallback)
+                        .build());
+
+        mHandler.post(this::finishInteraction);
     }
 
     /**
@@ -1144,7 +1206,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         postAutocompleteRequest(
                 () -> {
                     if (mAutocomplete != null) {
-                        mAutocomplete.startPrefetch(mAutocompleteInput, webContents);
+                        final AutocompleteInput input = new AutocompleteInput();
+                        input.setPageClassification(mDataProvider.getPageClassification(true));
+                        input.setPageUrl(mDataProvider.getCurrentGurl());
+                        input.setPageTitle(mDataProvider.getTitle());
+                        mAutocomplete.startPrefetch(input, webContents);
                     }
                 },
                 SCHEDULE_FOR_IMMEDIATE_EXECUTION);
@@ -1238,7 +1304,10 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      */
     @VisibleForTesting
     void initAutocompleteInput() {
-        mAutocompleteInput.setPageClassification(mDataProvider.getPageClassification(false));
+        mAutocompleteInput.setPageClassification(
+                mDataProvider.getPageClassification(/* prefetch= */ false));
+        mAutocompleteInput.setRequestType(
+                mFuseboxCoordinator.getAutocompleteRequestTypeSupplier().get());
         mAutocompleteInput.setPageUrl(mDataProvider.getCurrentGurl());
         mAutocompleteInput.setPageTitle(mDataProvider.getTitle());
 
@@ -1400,8 +1469,9 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     /** Cancel any pending autocomplete actions. */
     private void cancelAutocompleteRequests() {
         stopMeasuringSuggestionRequestToUiModelTime();
-        if (mCurrentAutocompleteRequest != null)
+        if (mCurrentAutocompleteRequest != null) {
             mHandler.removeCallbacks(mCurrentAutocompleteRequest);
+        }
         mCurrentAutocompleteRequest = null;
     }
 
@@ -1527,6 +1597,33 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         return mAnimationDriver;
     }
 
+    /**
+     * @see FuseboxAttachmentChangeListener#onAttachmentListChanged()
+     */
+    @Override
+    public void onAttachmentListChanged() {
+        if (!isActive()) return;
+
+        mAutocompleteInput.setHasAttachments(mFuseboxCoordinator.getAttachmentsCount() > 0);
+        // Re-request ZPS in the event of attachments being removed/replaced.
+        onTextChanged(
+                mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
+                /* isOnFocusContext= */ false);
+    }
+
+    /**
+     * @see FuseboxAttachmentChangeListener#onAttachmentUploadStatusChanged()
+     */
+    @Override
+    public void onAttachmentUploadStatusChanged() {
+        if (!isActive()) return;
+
+        // Re-request ZPS in the event of new attachments being uploaded.
+        onTextChanged(
+                mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
+                /* isOnFocusContext= */ false);
+    }
+
     @Override
     public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
         mActivityWindowFocused = isTopResumedActivity;
@@ -1599,6 +1696,43 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         mAutocomplete.startZeroSuggest(input);
     }
 
+    /**
+     * Returns whether the Omnibox Autofocus on Incognito NTP feature is enabled and the Incognito
+     * NTP is currently visible.
+     *
+     * @return True if the feature is enabled and Incognito NTP is visible, false otherwise.
+     */
+    private boolean isOmniboxAutofocusOnIncognitoNtpActive() {
+        return ChromeFeatureList.sOmniboxAutofocusOnIncognitoNtp.isEnabled()
+                && mDataProvider.getNewTabPageDelegate().isIncognitoNewTabPageCurrentlyVisible();
+    }
+
+    /**
+     * Records metric about zero-prefix suggestions suppression on the Incognito NTP.
+     *
+     * @param suppressed Whether zero-prefix suggestions were suppressed.
+     */
+    private void recordZeroSuggestSuppressionMetric(boolean suppressed) {
+        // Do not record if a metric has already been recorded for current ZPS session.
+        if (mLastRecordedZpsSuppressionValue != null) {
+            return;
+        }
+
+        // Cancel any pending recording to reset the debounce timer.
+        if (mRecordZpsSuppressionRunnable != null) {
+            mHandler.removeCallbacks(mRecordZpsSuppressionRunnable);
+        }
+
+        mRecordZpsSuppressionRunnable =
+                () -> {
+                    OmniboxMetrics.recordZeroSuggestSuppressedOnIncognitoNtp(suppressed);
+                    mLastRecordedZpsSuppressionValue = suppressed;
+                    mRecordZpsSuppressionRunnable = null;
+                };
+
+        mHandler.postDelayed(mRecordZpsSuppressionRunnable, ZPS_SUPPRESSION_METRIC_DEBOUNCE_MS);
+    }
+
     /** Vivaldi - Callback to return the Native initialization complete status to
      *  SearchEngineSuggestionAdapter **/
     public void onNativeInitializationCompleted(Callback<Boolean> callback) {
@@ -1613,9 +1747,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     /** Vivaldi **/
     private boolean shouldFocusAddressBarOnNewTab() {
         if (mDataProvider.getTab() != null) {
-            if (VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                        VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false))
-                return true;
+            return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                    VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false);
         }
         return false;
     }

@@ -41,6 +41,7 @@ public class FakeSyncServiceImpl implements SyncService {
     private boolean mRequiresClientUpgrade;
     private boolean mHasUnrecoverableError;
     private boolean mRequiresUpmBackendUpgrade;
+    private boolean mBookmarksLimitExceeded;
     private GoogleServiceAuthError mAuthError =
             new GoogleServiceAuthError(GoogleServiceAuthErrorState.NONE);
     private Set<Integer> mTypesWithUnsyncedData = Set.of();
@@ -77,12 +78,6 @@ public class FakeSyncServiceImpl implements SyncService {
                     mAuthError = authError;
                     notifySyncStateChanged();
                 });
-    }
-
-    @Override
-    public boolean hasUnrecoverableError() {
-        ThreadUtils.assertOnUiThread();
-        return mHasUnrecoverableError;
     }
 
     @AnyThread
@@ -170,12 +165,6 @@ public class FakeSyncServiceImpl implements SyncService {
         return mEncryptEverythingEnabled;
     }
 
-    @Override
-    public boolean requiresClientUpgrade() {
-        ThreadUtils.assertOnUiThread();
-        return mRequiresClientUpgrade;
-    }
-
     @AnyThread
     public void setRequiresClientUpgrade(boolean requiresClientUpgrade) {
         ThreadUtils.runOnUiThreadBlocking(
@@ -198,6 +187,15 @@ public class FakeSyncServiceImpl implements SyncService {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mRequiresUpmBackendUpgrade = requiresUpmBackendUpgrade;
+                    notifySyncStateChanged();
+                });
+    }
+
+    @AnyThread
+    public void setBookmarksLimitExceeded(boolean bookmarksLimitExceeded) {
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mBookmarksLimitExceeded = bookmarksLimitExceeded;
                     notifySyncStateChanged();
                 });
     }
@@ -364,6 +362,9 @@ public class FakeSyncServiceImpl implements SyncService {
         if (mRequiresUpmBackendUpgrade) {
             return UserActionableError.NEEDS_UPM_BACKEND_UPGRADE;
         }
+        if (mBookmarksLimitExceeded) {
+            return UserActionableError.BOOKMARKS_LIMIT_EXCEEDED;
+        }
         return UserActionableError.NONE;
     }
 
@@ -390,6 +391,14 @@ public class FakeSyncServiceImpl implements SyncService {
     @Override
     public void markPassphrasePromptMutedForCurrentProductVersion() {
         mDelegate.markPassphrasePromptMutedForCurrentProductVersion();
+    }
+
+    @Override
+    public void acknowledgeBookmarksLimitExceededError() {
+        if (mBookmarksLimitExceeded) {
+            mBookmarksLimitExceeded = false;
+            notifySyncStateChanged();
+        }
     }
 
     @Override

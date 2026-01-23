@@ -86,7 +86,6 @@ public class TabUndoBarController extends UndoBarController {
                         if (BuildConfig.IS_VIVALDI) {
                             boolean show = VivaldiPreferences.getSharedPreferencesManager()
                                     .readBoolean("show_undo_tab_close", false);
-                            if (!VivaldiUtils.sOverrideCanShowUndo) return true;
                             return showingUndoBar && !show;
                         }
                         // When closure(s) happen and we are trying to show the undo bar, check

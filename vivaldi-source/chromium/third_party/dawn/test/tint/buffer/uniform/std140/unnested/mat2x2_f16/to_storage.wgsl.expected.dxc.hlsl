@@ -17,8 +17,8 @@ void v_2(uint offset, matrix<float16_t, 2, 2> obj) {
 }
 
 matrix<float16_t, 2, 2> v_3(uint start_byte_offset) {
-  vector<float16_t, 2> v_4 = tint_bitcast_to_f16(u[(start_byte_offset / 16u)][((start_byte_offset % 16u) / 4u)]);
-  return matrix<float16_t, 2, 2>(v_4, tint_bitcast_to_f16(u[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) % 16u) / 4u)]));
+  vector<float16_t, 2> v_4 = tint_bitcast_to_f16(u[(start_byte_offset / 16u)][((start_byte_offset & 15u) >> 2u)]);
+  return matrix<float16_t, 2, 2>(v_4, tint_bitcast_to_f16(u[((4u + start_byte_offset) / 16u)][(((4u + start_byte_offset) & 15u) >> 2u)]));
 }
 
 [numthreads(1, 1, 1)]
@@ -26,6 +26,6 @@ void f() {
   v_2(0u, v_3(0u));
   s.Store<vector<float16_t, 2> >(4u, tint_bitcast_to_f16(u[0u].x));
   s.Store<vector<float16_t, 2> >(4u, tint_bitcast_to_f16(u[0u].x).yx);
-  s.Store<float16_t>(2u, float16_t(f16tof32(u[0u].y)));
+  s.Store<float16_t>(2u, tint_bitcast_to_f16(u[0u].y).x);
 }
 

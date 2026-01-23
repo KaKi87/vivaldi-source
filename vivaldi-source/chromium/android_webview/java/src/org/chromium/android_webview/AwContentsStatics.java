@@ -20,10 +20,12 @@ import org.chromium.android_webview.common.ProductionSupportedFlagList;
 import org.chromium.android_webview.safe_browsing.AwSafeBrowsingSafeModeAction;
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackUtils;
+import org.chromium.base.SelectionActionMenuClientWrapper;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.net.TrafficStatsTag;
 import org.chromium.net.TrafficStatsUid;
 
@@ -46,6 +48,8 @@ public class AwContentsStatics {
 
     private static volatile int sDefaultTrafficStatsTag = TrafficStatsTag.UNSET_TAG;
     private static volatile int sDefaultTrafficStatsUid = TrafficStatsUid.UNSET_UID;
+
+    private static @Nullable SelectionActionMenuClientWrapper sSelectionActionMenuClient;
 
     /** Return the client certificate lookup table. */
     public static ClientCertLookupTable getClientCertLookupTable() {
@@ -192,12 +196,31 @@ public class AwContentsStatics {
         return header;
     }
 
+    // Note that this can be called before browser process initialization.
     public static void setDefaultTrafficStatsTag(int tag) {
         sDefaultTrafficStatsTag = tag;
     }
 
+    // Note that this can be called before browser process initialization.
     public static void setDefaultTrafficStatsUid(int uid) {
         sDefaultTrafficStatsUid = uid;
+    }
+
+    public static void setRendererLibraryPrefetchMode(int mode) {
+        AwContentsStaticsJni.get().setRendererLibraryPrefetchMode(mode);
+    }
+
+    public static int getRendererLibraryPrefetchMode() {
+        return AwContentsStaticsJni.get().getRendererLibraryPrefetchMode();
+    }
+
+    public static void setSelectionActionMenuClient(
+            @Nullable SelectionActionMenuClientWrapper client) {
+        sSelectionActionMenuClient = client;
+    }
+
+    public static @Nullable SelectionActionMenuClientWrapper getSelectionActionMenuClient() {
+        return sSelectionActionMenuClient;
     }
 
     @CalledByNative
@@ -240,6 +263,10 @@ public class AwContentsStatics {
 
         @JniType("std::string")
         String getVariationsHeader();
+
+        void setRendererLibraryPrefetchMode(int mode);
+
+        int getRendererLibraryPrefetchMode();
 
         void forceVariationIdsForTesting( // IN-TEST
                 @JniType("std::vector<std::string>") List<String> variationIds,

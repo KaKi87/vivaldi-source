@@ -22,12 +22,15 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "extensions/browser/extension_creator.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/manifest_handlers/chrome_url_overrides_handler.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "extensions/test/result_catcher.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 using content::WebContents;
 
@@ -77,8 +80,9 @@ class ExtensionOverrideTest : public ExtensionApiTest {
     GURL gurl = web_contents->GetController().GetLastCommittedEntry()->GetURL();
     if (!gurl.SchemeIs(kExtensionScheme))
       return testing::AssertionFailure() << gurl;
-    if (gurl.host_piece() != extension_id)
+    if (gurl.host() != extension_id) {
       return testing::AssertionFailure() << gurl;
+    }
     return testing::AssertionSuccess();
   }
 
@@ -281,14 +285,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(contents->GetRenderWidgetHostView()->HasFocus());
 }
 
-// Times out consistently on Win, http://crbug.com/45173.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_OverrideHistory DISABLED_OverrideHistory
-#else
-#define MAYBE_OverrideHistory OverrideHistory
-#endif  // BUILDFLAG(IS_WIN)
-
-IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, MAYBE_OverrideHistory) {
+IN_PROC_BROWSER_TEST_F(ExtensionOverrideTest, OverrideHistory) {
   ASSERT_TRUE(RunExtensionTest("override/history")) << message_;
   {
     ResultCatcher catcher;

@@ -22,6 +22,7 @@
 #include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/password_manager/account_password_store_factory.h"
@@ -30,7 +31,6 @@
 #include "chrome/browser/password_manager/password_change/password_change_hats.h"
 #include "chrome/browser/password_manager/password_change_service_factory.h"
 #include "chrome/browser/password_manager/profile_password_store_factory.h"
-#include "chrome/browser/promos/promos_types.h"
 #include "chrome/browser/signin/signin_promo_util.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/autofill/bubble_manager.h"
@@ -52,6 +52,8 @@
 #include "chrome/browser/ui/passwords/password_dialog_prompts.h"
 #include "chrome/browser/ui/passwords/passwords_leak_dialog_delegate.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/browser/ui/promos/ios_promo_trigger_service.h"
+#include "chrome/browser/ui/promos/ios_promo_trigger_service_factory.h"
 #include "chrome/browser/ui/promos/ios_promos_utils.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/singleton_tabs.h"
@@ -70,6 +72,8 @@
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/save_password_progress_logger.h"
 #include "components/browsing_data/content/browsing_data_helper.h"
+#include "components/desktop_to_mobile_promos/features.h"
+#include "components/desktop_to_mobile_promos/promos_types.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "components/password_manager/core/browser/browser_save_password_progress_logger.h"
@@ -105,6 +109,8 @@
 #elif BUILDFLAG(IS_MAC)
 #include "chrome/browser/password_manager/password_manager_util_mac.h"
 #endif
+
+#include "app/vivaldi_apptools.h"
 
 using password_manager::MovePasswordToAccountStoreHelper;
 using password_manager::PasswordFormManagerForUI;
@@ -331,8 +337,9 @@ void ManagePasswordsUIController::OnHideManualFallbackForSaving() {
           password_manager::ui::SAVE_CONFIRMATION_STATE) {
     return;
   }
-  // Don't hide the fallback if the bubble is open.
-  if (IsShowingBubble()) {
+  // Don't hide the fallback if the bubble is open or in the bubble manager
+  // queue.
+  if (IsShowingBubble() || BubbleManagerHasPasswordBubbleInQueue()) {
     return;
   }
 
@@ -503,6 +510,9 @@ void ManagePasswordsUIController::OnPasswordAutofilled(
 
 void ManagePasswordsUIController::OnCredentialLeak(
     password_manager::LeakedPasswordDetails details) {
+  if (passwords_data_.client()->IsActorTaskActive()) {
+    return;
+  }
   // Existing dialog shouldn't be closed.
   if (dialog_controller_) {
     return;
@@ -510,13 +520,14 @@ void ManagePasswordsUIController::OnCredentialLeak(
 
   // Hide the manage passwords bubble if currently shown.
   if (IsShowingBubble()) {
-    HideBubble();
+    HideBubble(/*initiated_by_bubble_manager=*/false);
   } else {
     ClearPopUpFlagForBubble();
   }
 
   if (password_manager::IsPasswordChangeSupported(details.leak_type) &&
-      !password_manager::IsPasswordSavedAsBackup(details.leak_type)) {
+      !password_manager::IsPasswordSavedAsBackup(details.leak_type) &&
+      !details.credentials.IsLikelySignupForm()) {
     auto* password_change_service = GetPasswordChangeService(web_contents());
     CHECK(password_change_service);
 
@@ -525,8 +536,12 @@ void ManagePasswordsUIController::OnCredentialLeak(
       return;
     }
 
+    base::UmaHistogramBoolean(
+        "PasswordManager.PasswordChange.UserHasPasswordSavedOnAPCLaunch",
+        !GetCurrentForms().empty());
+
     password_change_service->OfferPasswordChangeUi(
-        details.origin, details.username, details.password, web_contents());
+        std::move(details.credentials), web_contents());
     UpdateBubbleAndIconVisibility();
     return;
   }
@@ -913,7 +928,7 @@ void ManagePasswordsUIController::OnBubbleHidden() {
           autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
     if (auto* manager =
             autofill::BubbleManager::GetForWebContents(web_contents())) {
-      manager->OnBubbleHiddenByController(*this);
+      manager->OnBubbleHiddenByController(*this, /*show_next_bubble=*/true);
     }
   }
 }
@@ -1195,7 +1210,18 @@ void ManagePasswordsUIController::MaybeShowIOSPasswordPromo() {
     return;
   }
 
-  ios_promos_utils::VerifyIOSPromoEligibility(IOSPromoType::kPassword, browser);
+  if (MobilePromoOnDesktopTypeEnabled(
+          MobilePromoOnDesktopPromoType::kAutofillPromo)) {
+    IOSPromoTriggerService* service =
+        IOSPromoTriggerServiceFactory::GetForProfile(browser->GetProfile());
+    if (service) {
+      service->NotifyPromoShouldBeShown(
+          desktop_to_mobile_promos::PromoType::kPassword);
+    }
+  } else {
+    ios_promos_utils::VerifyIOSPromoEligibility(
+        desktop_to_mobile_promos::PromoType::kPassword, browser);
+  }
 }
 
 void ManagePasswordsUIController::RelaunchChrome() {
@@ -1232,11 +1258,18 @@ void ManagePasswordsUIController::UpdateBubbleAndIconVisibility() {
     passwords_data_.OnInactive();
   }
 
+  // If Actor is operating on the tab, suppress all popups.
+  if (passwords_data_.client()->IsActorTaskActive()) {
+    ClearPopUpFlagForBubble();
+  }
+
   Browser* browser = chrome::FindBrowserWithTab(web_contents());
   if (!browser) {
     return;
   }
-  if (IsPageActionMigrated(PageActionIconType::kManagePasswords)) {
+  // TODO: Temporary workaround for VB-123442; remove with fixup whenapplying real fix
+  // Remember to remove the Vivaldi include
+  if (!vivaldi::IsVivaldiRunning() && IsPageActionMigrated(PageActionIconType::kManagePasswords)) {
     tabs::TabInterface* const tab_interface = browser->GetActiveTabInterface();
     auto* const tab_features = tab_interface->GetTabFeatures();
     CHECK(tab_features);
@@ -1345,7 +1378,8 @@ void ManagePasswordsUIController::PrimaryPageChanged(content::Page& page) {
 
   // Keep the state if the bubble is currently open or the fallback for saving
   // should be still available.
-  if (IsShowingBubble() || save_fallback_timer_.IsRunning()) {
+  if (IsShowingBubble() || save_fallback_timer_.IsRunning() ||
+      BubbleManagerHasPasswordBubbleInQueue()) {
     return;
   }
 
@@ -1365,7 +1399,7 @@ void ManagePasswordsUIController::OnVisibilityChanged(
   }
 
   if (visibility == content::Visibility::HIDDEN) {
-    HideBubble();
+    HideBubble(/*initiated_by_bubble_manager=*/false);
   }
 }
 
@@ -1411,7 +1445,7 @@ void ManagePasswordsUIController::ClearPopUpFlagForBubble() {
 }
 
 void ManagePasswordsUIController::DestroyPopups() {
-  HideBubble();
+  HideBubble(/*initiated_by_bubble_manager=*/false);
   if (dialog_controller_ && dialog_controller_->IsShowingAccountChooser()) {
     dialog_controller_.reset();
     passwords_data_.TransitionToState(password_manager::ui::MANAGE_STATE);
@@ -1429,7 +1463,7 @@ void ManagePasswordsUIController::WebContentsDestroyed() {
   if (account_password_store) {
     account_password_store->RemoveObserver(this);
   }
-  HideBubble();
+  HideBubble(/*initiated_by_bubble_manager=*/false);
   web_contents()->RemoveUserData(UserDataKey());
   // `this` is now destroyed - do not add code here.
 }
@@ -1490,13 +1524,28 @@ bool ManagePasswordsUIController::IsPasswordChangeOngoing() const {
   return GetPasswordChangeDelegate();
 }
 
+bool ManagePasswordsUIController::BubbleManagerHasPasswordBubbleInQueue()
+    const {
+  if (!base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
+    return false;
+  }
+
+  if (auto* manager =
+          autofill::BubbleManager::GetForWebContents(web_contents())) {
+    return manager->HasPendingBubbleOfSameType(GetBubbleType());
+  }
+
+  return false;
+}
+
 void ManagePasswordsUIController::ShowBubble() {
   if (TabDialogs* tab_dialogs = TabDialogs::FromWebContents(web_contents())) {
     tab_dialogs->ShowManagePasswordsBubble(user_action_);
   }
 }
 
-void ManagePasswordsUIController::HideBubble() {
+void ManagePasswordsUIController::HideBubble(bool initiated_by_bubble_manager) {
   is_mouse_hovered_ = false;
   if (TabDialogs* tab_dialogs = TabDialogs::FromWebContents(web_contents())) {
     tab_dialogs->HideManagePasswordsBubble();
@@ -1515,6 +1564,10 @@ bool ManagePasswordsUIController::IsShowingBubble() const {
 base::WeakPtr<autofill::BubbleControllerBase>
 ManagePasswordsUIController::GetBubbleControllerBaseWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
+}
+
+bool ManagePasswordsUIController::CanBeReshown() const {
+  return GetState() != password_manager::ui::AUTO_SIGNIN_STATE;
 }
 
 void ManagePasswordsUIController::OnMouseEntered() {
@@ -1540,7 +1593,7 @@ void ManagePasswordsUIController::QueueOrShowBubble(bool user_action) {
           autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
     if (auto* manager =
             autofill::BubbleManager::GetForWebContents(web_contents())) {
-      CHECK(!manager->HasPendingBubbleOfSameType(GetBubbleType()));
+      CHECK(!manager->HasConflictingPendingBubble(GetBubbleType()));
       manager->RequestShowController(*this, user_action);
     }
     return;

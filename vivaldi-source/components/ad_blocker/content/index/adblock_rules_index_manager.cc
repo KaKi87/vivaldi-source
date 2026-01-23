@@ -20,7 +20,8 @@ namespace adblock_filter {
 
 namespace {
 
-const base::FilePath::StringViewType kIndexFileName = FILE_PATH_LITERAL("Index");
+const base::FilePath::StringViewType kIndexFileName =
+    FILE_PATH_LITERAL("Index");
 
 constexpr int kMaxIndexReadFailAllowed = 10;
 
@@ -166,11 +167,11 @@ void RulesIndexManager::OnRuleSourceUpdated(
   if (group != group_ || rule_source.is_fetching)
     return;
 
-  // If the last fetch failed, either we won't have anything to read, or
-  // the rules won't have changed, so skip reading. `kFileUnsupported` results
-  // from a successful fetch with no valid rules.
-  if (rule_source.last_fetch_result == FetchResult::kSuccess ||
-      rule_source.last_fetch_result == FetchResult::kFileUnsupported) {
+  // If the last read of the source failed, either we won't have anything to
+  // read, or the rules won't have changed, so skip reading. `kFileUnsupported`
+  // results from a successful fetch with no valid rules.
+  if (rule_source.last_read_result == ReadResult::kSuccess ||
+      rule_source.last_read_result == ReadResult::kFileUnsupported) {
     const auto& old_source = rule_sources_.find(rule_source.core.id());
 
     if (old_source == rule_sources_.end() ||
@@ -202,7 +203,7 @@ void RulesIndexManager::OnRuleSourceDeleted(uint32_t source_id,
 }
 
 void RulesIndexManager::ReadRules(const ActiveRuleSource& rule_source) {
-  if (rule_source.last_fetch_result == FetchResult::kFileUnsupported) {
+  if (rule_source.last_read_result == ReadResult::kFileUnsupported) {
     // We know there is no valid rules here. No point in trying.
     // Keep any rules buffer around for the index currently in use, they'll be
     // cleared once the new index is ready.

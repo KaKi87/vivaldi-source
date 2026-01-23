@@ -38,7 +38,6 @@ class FullscreenController;
 @class KeyCommandsProvider;
 @class NewTabPageCoordinator;
 @protocol OmniboxCommands;
-class PagePlaceholderBrowserAgent;
 @protocol PopupMenuCommands;
 @class PopupMenuCoordinator;
 @class SafeAreaProvider;
@@ -77,7 +76,6 @@ typedef struct {
   id<FindInPageCommands> findInPageCommandsHandler;
   LayoutGuideCenter* layoutGuideCenter;
   BOOL isOffTheRecord;
-  raw_ptr<PagePlaceholderBrowserAgent> pagePlaceholderBrowserAgent;
   raw_ptr<UrlLoadingBrowserAgent> urlLoadingBrowserAgent;
   id<VoiceSearchController> voiceSearchController;
   raw_ptr<TabUsageRecorderBrowserAgent> tabUsageRecorderBrowserAgent;
@@ -160,6 +158,13 @@ typedef struct {
 
 // Shows the voice search UI.
 - (void)startVoiceSearch;
+
+// Dismisses all presented views, excluding the omnibox if `dismissOmnibox` is
+// NO, then calls `completion`. if `dismissPresentedViewController` is NO, the
+// view controller presented by the BVC will not be dismissed.
+- (void)clearPresentedStateWithCompletion:(ProceduralBlock)completion
+                           dismissOmnibox:(BOOL)dismissOmnibox
+           dismissPresentedViewController:(BOOL)dismissPresentedViewController;
 
 // Vivaldi
 // Profile of this BVC.

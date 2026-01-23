@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/tab_switcher/tab_strip/coordinator/tab_strip_coordinator.h"
 
 #import "base/check_op.h"
+#import "base/functional/callback_helpers.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/uuid.h"
 #import "components/collaboration/public/collaboration_flow_entry_point.h"
@@ -152,9 +153,8 @@ constexpr CGFloat kFacePileAvatarSize = 16;
                                  shareKitService:shareKitService
                             collaborationService:collaborationService
                                    faviconLoader:faviconLoader];
-  self.mediator.webStateList = self.browser->GetWebStateList();
-  self.mediator.profile = profile;
   self.mediator.browser = self.browser;
+  self.mediator.profile = profile;
   self.mediator.tabStripHandler = HandlerForProtocol(
       self.browser->GetCommandDispatcher(), TabStripCommands);
   self.mediator.URLLoader = UrlLoadingBrowserAgent::FromBrowser(self.browser);

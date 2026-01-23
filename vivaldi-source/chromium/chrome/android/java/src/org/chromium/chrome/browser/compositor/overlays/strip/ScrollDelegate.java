@@ -188,9 +188,7 @@ public class ScrollDelegate {
             float rightMargin,
             float cachedTabWidth,
             float tabOverlapWidth,
-            float groupTitleOverlapWidth,
-            boolean showTabsAsFavIcon, // Vivaldi
-            boolean showXButtonForBackgroundTabs) { // Vivaldi
+            float groupTitleOverlapWidth) {
         // TODO(crbug.com/376525967): Pull overlap width from utils constant instead of passing in.
         // 1. Compute the width of the available space for all tabs.
         float stripWidth = width - leftMargin - rightMargin;
@@ -209,7 +207,8 @@ public class ScrollDelegate {
                 boolean useRealWidth =
                         tab.isCollapsed()
                                 || ChromeFeatureList.sTabletTabStripAnimation.isEnabled()
-                                || tab.getIsPinned();
+                                || tab.getIsPinned()
+                                || tab.isShownAsFavicon(); // Vivaldi
                 float tabWidth = useRealWidth ? tab.getWidth() : cachedTabWidth;
 
                 totalViewWidth += (tabWidth - tabOverlapWidth);
@@ -220,14 +219,6 @@ public class ScrollDelegate {
 
         for (int i = 0; i < stripViews.length; i++) {
             totalViewWidth += stripViews[i].getTrailingMargin();
-        }
-
-        // Note(david@vivaldi.com): Subtract the offset here in regards to our settings. This
-        // applies only when tab is shown as favicon.
-        if (showTabsAsFavIcon) {
-            totalViewWidth = !showXButtonForBackgroundTabs
-                    ? totalViewWidth - ((stripViews.length - 1) * 20)
-                    : totalViewWidth;
         }
 
         // 3. Correct fencepost error in totalViewWidth;

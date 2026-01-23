@@ -1114,7 +1114,8 @@ DAWN_INSTANTIATE_TEST(StorageTextureTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 class BGRA8UnormStorageTextureTests : public StorageTextureTests {
   public:
@@ -1179,7 +1180,8 @@ DAWN_INSTANTIATE_TEST(BGRA8UnormStorageTextureTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 class R8UnormStorageTextureTests : public StorageTextureTests {
   public:
@@ -1244,7 +1246,8 @@ DAWN_INSTANTIATE_TEST(R8UnormStorageTextureTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 class StorageTextureZeroInitTests : public StorageTextureTests {
   public:
@@ -1327,7 +1330,8 @@ DAWN_INSTANTIATE_TEST(StorageTextureZeroInitTests,
                       OpenGLBackend({"nonzero_clear_resources_on_creation_for_testing"}),
                       OpenGLESBackend({"nonzero_clear_resources_on_creation_for_testing"}),
                       MetalBackend({"nonzero_clear_resources_on_creation_for_testing"}),
-                      VulkanBackend({"nonzero_clear_resources_on_creation_for_testing"}));
+                      VulkanBackend({"nonzero_clear_resources_on_creation_for_testing"}),
+                      WebGPUBackend({"nonzero_clear_resources_on_creation_for_testing"}));
 
 class ReadWriteStorageTextureTests : public StorageTextureTests {
   protected:
@@ -1766,8 +1770,7 @@ TEST_P(ReadWriteStorageTextureTests, ReadMipLevel0WriteMipLevel1) {
 TEST_P(ReadWriteStorageTextureTests, ReadMipLevel2AsBothTextureBindingAndStorageBinding) {
     // This asserts in TextureVK.cpp, see https://crbug.com/392121643
     DAWN_SUPPRESS_TEST_IF(IsVulkan());
-    // https://crbug.com/392121648
-    DAWN_SUPPRESS_TEST_IF(IsANGLED3D11());
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Vulkan));
 
     wgpu::ShaderModule csModule = utils::CreateShaderModule(device, R"(
         @binding(0) @group(0) var<storage, read_write> buf : array<vec4u>;
@@ -2080,7 +2083,8 @@ DAWN_INSTANTIATE_TEST(ReadWriteStorageTextureTests,
                       OpenGLBackend(),
                       OpenGLESBackend(),
                       MetalBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 class Tier1StorageValidationTests : public StorageTextureTests {
   public:
@@ -2140,7 +2144,8 @@ DAWN_INSTANTIATE_TEST(Tier1StorageValidationTests,
                       OpenGLBackend(),
                       OpenGLESBackend(),
                       MetalBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 class Tier2StorageValidationTests : public ReadWriteStorageTextureTests {
   public:
@@ -2172,6 +2177,7 @@ DAWN_INSTANTIATE_TEST(Tier2StorageValidationTests,
                       MetalBackend(),
                       OpenGLBackend(),
                       OpenGLESBackend(),
-                      VulkanBackend());
+                      VulkanBackend(),
+                      WebGPUBackend());
 }  // anonymous namespace
 }  // namespace dawn

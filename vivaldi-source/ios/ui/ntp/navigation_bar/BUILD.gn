@@ -1,0 +1,21 @@
+# Copyright 2025 Vivaldi Technologies AS. All rights reserved.
+
+import("//build/config/apple/swift_source_set.gni")
+
+swift_source_set("vivaldi_custom_navigation_bar_swift") {
+  bridge_header = "vivaldi_custom_navigation_bar_swift_bridge.h"
+  sources = [
+    "vivaldi_custom_navigation_bar_view.swift",
+  ]
+
+  deps = [
+    "//ios/chrome/common/ui/colors:colors",
+    "//vivaldi/app:vivaldi_ios_native_strings",
+    "//vivaldi/ios/ui/helpers:helpers_swift",
+    "//vivaldi/ios/ui/helpers",
+  ]
+
+  frameworks = [
+    "UIKit.framework",
+  ]
+}

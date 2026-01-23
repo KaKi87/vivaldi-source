@@ -24,6 +24,7 @@
 #import "ios/chrome/browser/omnibox/ui/omnibox_focus_delegate.h"
 #import "ios/chrome/browser/omnibox/ui/omnibox_text_input.h"
 #import "ios/chrome/browser/omnibox/ui/omnibox_text_input_delegate.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/pasteboard_util.h"
 #import "ios/chrome/common/NSString+Chromium.h"
 #import "net/base/apple/url_conversions.h"
@@ -151,16 +152,30 @@ const char kOmniboxFocusResultedInNavigation[] =
     _omniboxTextModel->KillFocus();
   }
 
-  [self.textInput exitPreEditState];
+  // Skip exit pre edit here to avoid resizing the multiline omnibox on exit.
+  // Exiting pre edit also shows the selections handle when animating the
+  // defocus (crbug.com/458055336).
+  BOOL skipExitPreEdit =
+      (IsMultilineBrowserOmniboxEnabled() &&
+       _presentationContext == OmniboxPresentationContext::kLocationBar) ||
+      (IsComposeboxIOSEnabled() &&
+       _presentationContext == OmniboxPresentationContext::kComposebox);
+  ;
+  if (!skipExitPreEdit) {
+    [self.textInput exitPreEditState];
+  }
 
   // The controller looks at the current pre-edit state, so the call to
   // OnKillFocus() must come after exiting pre-edit.
   [self.focusDelegate omniboxDidResignFirstResponder];
 
-  // Blow away any in-progress edits.
-  [self revertAll];
-
-  DCHECK(![self.textInput hasAutocompleteText]);
+  // Composebox is destroyed on endEditing, skip revert to avoid resizing on
+  // revert.
+  if (_presentationContext != OmniboxPresentationContext::kComposebox) {
+    // Blow away any in-progress edits.
+    [self revertAll];
+    DCHECK(![self.textInput hasAutocompleteText]);
+  }
   _suggestionsListScrolled = NO;
 }
 
@@ -254,6 +269,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 
 - (void)getInfoForCurrentText:(AutocompleteMatch*)match
        alternateNavigationURL:(GURL*)alternateNavigationURL {
+  if (!_omniboxTextModel || !_omniboxClient) {
+    return;
+  }
   DCHECK(match);
 
   BOOL foundMatch = [self.omniboxAutocompleteController
@@ -278,6 +296,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 }
 
 - (void)setUserText:(const std::u16string&)text {
+  if (!_omniboxTextModel || !_omniboxClient) {
+    return;
+  }
   [self setInputInProgress:YES];
   _omniboxTextModel->UpdateUserText(text);
   [self getInfoForCurrentText:&_omniboxTextModel->current_match
@@ -286,6 +307,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 }
 
 - (AutocompleteMatch)currentMatch:(GURL*)alternateNavURL {
+  if (!_omniboxTextModel) {
+    return AutocompleteMatch();
+  }
   // If we have a valid match use it. Otherwise get one for the current text.
   AutocompleteMatch match = _omniboxTextModel->current_match;
   if (!match.destination_url.is_valid()) {
@@ -321,6 +345,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 - (void)onPopupDataChanged:(const std::u16string&)inlineAutocompletion
             additionalText:(const std::u16string&)additionalText
                   newMatch:(const AutocompleteMatch&)newMatch {
+  if (!_omniboxTextModel) {
+    return;
+  }
   _omniboxTextModel->current_match = newMatch;
   _omniboxTextModel->inline_autocompletion = inlineAutocompletion;
 
@@ -339,6 +366,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 }
 
 - (bool)resetDisplayTexts {
+  if (!_omniboxTextModel) {
+    return false;
+  }
   const std::u16string old_display_text = _omniboxTextModel->url_for_editing;
   if (_omniboxClient) {
     _omniboxTextModel->url_for_editing = _omniboxClient->GetFormattedFullURL();
@@ -357,6 +387,17 @@ const char kOmniboxFocusResultedInNavigation[] =
          (!_omniboxTextModel->HasFocus() ||
           (!_omniboxTextModel->user_input_in_progress &&
            !_omniboxAutocompleteController.hasSuggestions));
+}
+
+- (void)removePreEditText {
+  if (self.textInput.isPreEditing) {
+    [self.textInput setText:@""];
+    [self setUserText:u""];
+    [self onTextChanged];
+    // Ensure the pre-edit state is exited after the text is cleared, preventing
+    // stale text from influencing height changes (crbug.com/466997176).
+    [self.textInput exitPreEditState];
+  }
 }
 
 #pragma mark - Autocomplete events
@@ -392,7 +433,7 @@ const char kOmniboxFocusResultedInNavigation[] =
 
   if (self.textInput.userText.length) {
     // If the omnibox is not empty, start autocomplete.
-      [self updateInput];
+    [self updateInput];
   } else {
     [self.omniboxAutocompleteController closeOmniboxPopup];
   }
@@ -410,7 +451,9 @@ const char kOmniboxFocusResultedInNavigation[] =
     // Calling `setText:` does not trigger `textDidChange:` so it must be called
     // explicitly.
     [textInput clearAutocompleteText];
+    textInput.clearingPreEditText = YES;
     [textInput exitPreEditState];
+    textInput.clearingPreEditText = NO;
     [textInput setText:@""];
     [self textDidChangeWithUserEvent:YES];
   }
@@ -423,8 +466,8 @@ const char kOmniboxFocusResultedInNavigation[] =
   RecordAction(base::UserMetricsAction("MobileOmniboxUse"));
   RecordAction(base::UserMetricsAction("IOS.Omnibox.AcceptDefaultSuggestion"));
 
-    // The omnibox edit model doesn't support accepting input with no text.
-    // Delegate the call to the client instead.
+  // The omnibox edit model doesn't support accepting input with no text.
+  // Delegate the call to the client instead.
   if (_omniboxClient && !self.textInput.text.length) {
     _omniboxClient->OnThumbnailOnlyAccept();
   } else {
@@ -433,7 +476,10 @@ const char kOmniboxFocusResultedInNavigation[] =
                                   timestamp:base::TimeTicks()];
   }
 
-  [self revertAll];
+  // Composebox UI is destroyed on accept, skip revert to avoid UI resizing.
+  if (_presentationContext != OmniboxPresentationContext::kComposebox) {
+    [self revertAll];
+  }
 }
 
 - (void)prepareForScribble {
@@ -645,6 +691,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 }
 
 - (void)onCopy {
+  if (!_omniboxTextModel || !_omniboxClient) {
+    return;
+  }
   NSString* selectedText = nil;
   NSInteger startLocation = 0;
   id<OmniboxTextInput> textInput = self.textInput;
@@ -928,6 +977,9 @@ const char kOmniboxFocusResultedInNavigation[] =
 /// Notifes the client and asks the autocomplete controller to start with a new
 /// updated input on user input in progress change.
 - (void)updateInput {
+  if (!_omniboxTextModel) {
+    return;
+  }
   BOOL changeToUserInputInProgress =
       _omniboxTextModel->SetInputInProgressNoNotify(true);
 

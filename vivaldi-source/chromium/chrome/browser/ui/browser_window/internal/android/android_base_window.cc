@@ -141,7 +141,7 @@ void AndroidBaseWindow::Restore() {
 void AndroidBaseWindow::SetBounds(const gfx::Rect& bounds) {
   Java_AndroidBaseWindow_setBounds(AttachCurrentThread(),
                                    java_android_base_window_, bounds.x(),
-                                   bounds.y(), bounds.width(), bounds.height());
+                                   bounds.y(), bounds.right(), bounds.bottom());
 }
 
 void AndroidBaseWindow::FlashFrame(bool flash) {
@@ -157,3 +157,5 @@ void AndroidBaseWindow::SetZOrderLevel(ui::ZOrderLevel order) {
   // Per documentation of |ui::ZOrderLevel|, Android ZOrderLevel should always
   // be |ui::ZOrderLevel::kNormal|.
 }
+
+DEFINE_JNI(AndroidBaseWindow)

@@ -13,7 +13,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 // End Vivaldi
 
 namespace {
@@ -71,7 +71,8 @@ NSString* const kPrintActivityType = @"com.google.chrome.printActivity";
 - (UIImage*)activityImage {
 
   if (vivaldi::IsVivaldiRunning())
-    return [UIImage imageNamed:vPrint]; // End Vivaldi
+    return CustomSymbolWithPointSize(vPrint,
+                                      kSymbolActionPointSize);  // End Vivaldi
 
   return DefaultSymbolWithPointSize(kPrinterSymbol, kSymbolActionPointSize);
 }

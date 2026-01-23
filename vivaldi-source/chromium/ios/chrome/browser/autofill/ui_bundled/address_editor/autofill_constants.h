@@ -33,13 +33,12 @@ enum class SaveAddressContext {
   kAddingManualAddress
 };
 
-// `AutofillProfileEditTableViewController` and
+// `AutofillProfileEditTableViewHelper` and
 // `AutofillSettingsProfileEditTableViewController` both create the same view
 // using the below section identifiers and item types. Identifier for section
 // for autofill profile edit views.
 typedef NS_ENUM(NSInteger, AutofillProfileDetailsSectionIdentifier) {
-  AutofillProfileDetailsSectionIdentifierFields = kSectionIdentifierEnumZero,
-  AutofillProfileDetailsSectionIdentifierName,
+  AutofillProfileDetailsSectionIdentifierName = kSectionIdentifierEnumZero,
   AutofillProfileDetailsSectionIdentifierAddress,
   AutofillProfileDetailsSectionIdentifierPhoneEmail,
   AutofillProfileDetailsSectionIdentifierButton,

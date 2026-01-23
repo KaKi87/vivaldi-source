@@ -14,6 +14,7 @@
 
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
@@ -162,15 +163,13 @@ class TabAndroid : public tabs::TabInterface,
 
   void SetWindowSessionID(SessionID window_id);
 
-  std::unique_ptr<content::WebContents> SwapWebContents(
-      std::unique_ptr<content::WebContents> new_contents,
-      bool did_start_load,
-      bool did_finish_load);
-
   bool IsCustomTab() const;
   bool IsHidden() const;
 
   bool IsTrustedWebActivity() const;
+
+  // Set the media state of the tab. This is called by MediaStateObserver.
+  void SetMediaState(int media_state);
 
   // Observers -----------------------------------------------------------------
 
@@ -181,6 +180,7 @@ class TabAndroid : public tabs::TabInterface,
   // Methods called from Java via JNI -----------------------------------------
 
   void Destroy(JNIEnv* env);
+  bool HasParentCollection(JNIEnv* env);
   void InitWebContents(
       JNIEnv* env,
       jboolean incognito,
@@ -313,12 +313,17 @@ class TabAndroid : public tabs::TabInterface,
   base::WeakPtrFactory<TabAndroid> weak_ptr_factory_{this};
 
  public:
-  // Vivaldi: This will exchange the webcontents.
+  // Vivaldi: Wrapper to call |SwapWebContents| with new webcontents.
   void ChangeWebContents(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& j_new_web_contents,
-      jboolean did_start_load,
-      jboolean did_finish_load);
+      const base::android::JavaParamRef<jobject>& j_new_web_contents) {
+        SwapWebContents(content::WebContents::FromJavaWebContents
+            (j_new_web_contents)->Clone());
+      }
+
+  // Vivaldi: This will swap the webcontents.
+  std::unique_ptr<content::WebContents> SwapWebContents(
+      std::unique_ptr<content::WebContents> new_contents);
 };
 
 namespace jni_zero {

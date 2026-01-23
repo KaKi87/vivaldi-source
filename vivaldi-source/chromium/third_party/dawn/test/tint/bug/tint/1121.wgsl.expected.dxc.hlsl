@@ -71,11 +71,11 @@ void main_inner(uint3 GlobalInvocationID) {
           } else {
             break;
           }
-          int2 tilePixel0Idx = int2((x * TILE_SIZE), (y * TILE_SIZE));
+          int2 tilePixel0Idx = int2(asint((asuint(x) * asuint(TILE_SIZE))), asint((asuint(y) * asuint(TILE_SIZE))));
           float2 v_13 = (2.0f * float2(tilePixel0Idx));
           float2 floorCoord = ((v_13 / asfloat(uniforms[10u]).xy) - (1.0f).xx);
           int2 v_14 = tilePixel0Idx;
-          float2 v_15 = (2.0f * float2((v_14 + int2((TILE_SIZE).xx))));
+          float2 v_15 = (2.0f * float2(asint((asuint(v_14) + asuint(int2((TILE_SIZE).xx))))));
           float2 ceilCoord = ((v_15 / asfloat(uniforms[10u]).xy) - (1.0f).xx);
           float2 viewFloorCoord = float2((((-(viewNear) * floorCoord.x) - (M[2u].x * viewNear)) / M[0u].x), (((-(viewNear) * floorCoord.y) - (M[2u].y * viewNear)) / M[1u].y));
           float2 viewCeilCoord = float2((((-(viewNear) * ceilCoord.x) - (M[2u].x * viewNear)) / M[0u].x), (((-(viewNear) * ceilCoord.y) - (M[2u].y * viewNear)) / M[1u].y));
@@ -92,19 +92,19 @@ void main_inner(uint3 GlobalInvocationID) {
                 break;
               }
               float4 p = (0.0f).xxxx;
-              uint v_16 = min(i, 5u);
+              uint v_16 = i;
               if ((frustumPlanes[v_16].x > 0.0f)) {
                 p.x = boxMax.x;
               } else {
                 p.x = boxMin.x;
               }
-              uint v_17 = min(i, 5u);
+              uint v_17 = i;
               if ((frustumPlanes[v_17].y > 0.0f)) {
                 p.y = boxMax.y;
               } else {
                 p.y = boxMin.y;
               }
-              uint v_18 = min(i, 5u);
+              uint v_18 = i;
               if ((frustumPlanes[v_18].z > 0.0f)) {
                 p.z = boxMax.z;
               } else {
@@ -113,7 +113,7 @@ void main_inner(uint3 GlobalInvocationID) {
               p.w = 1.0f;
               float v_19 = dp;
               float4 v_20 = p;
-              uint v_21 = min(i, 5u);
+              uint v_21 = i;
               dp = (v_19 + min(0.0f, dot(v_20, frustumPlanes[v_21])));
               {
                 i = (i + 1u);
@@ -122,7 +122,7 @@ void main_inner(uint3 GlobalInvocationID) {
             }
           }
           if ((dp >= 0.0f)) {
-            uint tileId = uint((x + (y * TILE_COUNT_X)));
+            uint tileId = uint(asint((asuint(x) + asuint(asint((asuint(y) * asuint(TILE_COUNT_X)))))));
             bool v_22 = false;
             if ((tileId < 0u)) {
               v_22 = true;
@@ -131,7 +131,7 @@ void main_inner(uint3 GlobalInvocationID) {
             }
             if (v_22) {
               {
-                x = (x + int(1));
+                x = asint((asuint(x) + asuint(int(1))));
               }
               continue;
             }
@@ -140,20 +140,20 @@ void main_inner(uint3 GlobalInvocationID) {
             uint offset = v_23;
             if ((offset >= config[1u].x)) {
               {
-                x = (x + int(1));
+                x = asint((asuint(x) + asuint(int(1))));
               }
               continue;
             }
             tileLightId.Store(((4u + (min(tileId, 3u) * 260u)) + (min(offset, 63u) * 4u)), GlobalInvocationID.x);
           }
           {
-            x = (x + int(1));
+            x = asint((asuint(x) + asuint(int(1))));
           }
           continue;
         }
       }
       {
-        y = (y + int(1));
+        y = asint((asuint(y) + asuint(int(1))));
       }
       continue;
     }

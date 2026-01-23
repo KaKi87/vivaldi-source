@@ -47,6 +47,7 @@
 #import "ios/chrome/browser/shared/model/paths/paths_internal.h"
 #import "ios/chrome/browser/shared/model/prefs/browser_prefs.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/features.h"
 #import "ios/chrome/browser/shared/model/profile/profile_dependency_manager_ios.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_settings_service_factory.h"
 #import "ios/web/public/thread/web_thread.h"
@@ -329,6 +330,11 @@ ProfileIOSImpl::~ProfileIOSImpl() {
   // Notify the callback of the profile destruction before destroying anything.
   NotifyProfileDestroyed();
 
+  if (base::FeatureList::IsEnabled(kDestroyOTRProfileEarly)) {
+    // Destroy OTR profile first.
+    DestroyOffTheRecordProfile();
+  }
+
   ProfileDependencyManagerIOS::GetInstance()->DestroyProfileServices(this);
   // Warning: the order for shutting down the Profile's objects is important
   // because of interdependencies. Ideally the order for shutting down the
@@ -347,7 +353,9 @@ ProfileIOSImpl::~ProfileIOSImpl() {
     user_cloud_policy_manager_->Shutdown();
   }
 
-  DestroyOffTheRecordProfile();
+  if (!base::FeatureList::IsEnabled(kDestroyOTRProfileEarly)) {
+    DestroyOffTheRecordProfile();
+  }
 }
 
 ProfileIOS* ProfileIOSImpl::GetOriginalProfile() {

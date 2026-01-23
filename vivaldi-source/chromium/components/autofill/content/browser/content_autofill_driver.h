@@ -25,7 +25,7 @@
 #include "content/public/browser/render_widget_host.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 
 #include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 
@@ -166,11 +166,13 @@ class ContentAutofillDriver : public AutofillDriver,
   LocalFrameToken GetFrameToken() const override;
   std::optional<LocalFrameToken> Resolve(FrameToken query) override;
   ContentAutofillDriver* GetParent() override;
+  bool IsActive() const override;
+  bool IsEmbedded() const override;
   ContentAutofillClient& GetAutofillClient() override;
   AutofillManager& GetAutofillManager() override;
   ukm::SourceId GetPageUkmSourceId() const override;
-  bool IsActive() const override;
-  bool HasSharedAutofillPermission() const override;
+  bool IsPolicyControlledFeatureAutofillEnabled() const override;
+  bool IsPolicyControlledFeatureManualTextEnabled() const override;
   bool CanShowAutofillUi() const override;
   std::optional<net::IsolationInfo> GetIsolationInfo() override;
 
@@ -235,8 +237,8 @@ class ContentAutofillDriver : public AutofillDriver,
   void DispatchEmailVerifiedEvent(
       FieldGlobalId field_id,
       const std::string& presentation_token) override;
-  void ExtractForm(FormGlobalId form,
-                   BrowserFormHandler final_handler) override;
+  void ExtractFormWithField(FieldGlobalId field_id,
+                            BrowserFormHandler final_handler) override;
   void RendererShouldAcceptDataListSuggestion(
       const FieldGlobalId& field_id,
       const std::u16string& value) override;
@@ -283,8 +285,7 @@ class ContentAutofillDriver : public AutofillDriver,
                           AutofillSuggestionTriggerSource trigger_source,
                           const std::optional<PasswordSuggestionRequest>&
                               password_request) override;
-  void DidAutofillForm(const FormData& form,
-                       base::TimeTicks timestamp) override;
+  void DidAutofillForm(const FormData& form) override;
   void FocusOnFormField(const FormData& form,
                         FieldRendererId field_id) override;
   void FormsSeen(const std::vector<FormData>& updated_forms,
@@ -297,7 +298,8 @@ class ContentAutofillDriver : public AutofillDriver,
       const std::u16string& old_value) override;
   void SelectControlSelectionChanged(const FormData& form,
                                      FieldRendererId field_id) override;
-  void SelectFieldOptionsDidChange(const FormData& form) override;
+  void SelectFieldOptionsDidChange(const FormData& form,
+                                   FieldRendererId field_id) override;
   void CaretMovedInFormField(const FormData& form,
                              FieldRendererId field_id,
                              const gfx::Rect& caret_bounds) override;

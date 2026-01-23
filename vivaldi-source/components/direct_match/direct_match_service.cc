@@ -31,15 +31,16 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/datasource/vivaldi_image_store.h"
 #include "content/public/browser/storage_partition.h"
-
-using vivaldi_image_store::kDirectMatchImageDirectory;
 #else
 #include "ios/chrome/browser/shared/model/paths/paths.h"
+#include "components/datasource/vivaldi_image_store_constants.h"
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/common/chrome_paths.h"
 #endif
+
+using vivaldi_image_store::kDirectMatchImageDirectory;
 
 namespace direct_match {
 constexpr auto kBlockerExtensionIds = base::MakeFixedFlatSet<std::string_view>({
@@ -53,10 +54,6 @@ constexpr auto kBlockerExtensionIds = base::MakeFixedFlatSet<std::string_view>({
 });
 
 namespace {
-#if BUILDFLAG(IS_IOS)
-constexpr std::string_view kDirectMatchImageDirectory =
-    "VivaldiDirectMatchIcons";
-#endif  // BUILDFLAG(IS_IOS)
 
 constexpr float kIncrementConstant = 0.28;
 constexpr int kMaxRequestSize = 2 * 1024 * 1024;

@@ -11,7 +11,7 @@ if len(branch) > 1 and branch[0] == "releases":
   print(branch[1])
 elif len(branch) > 1 and branch[0] in [ "snapshot" ]:
   print(branch[0])
-elif branch == "main":
+elif len(branch) == 1 and branch[0] == "main":
   print("snapshot")
 else:
   print("normal")

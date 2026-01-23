@@ -34,9 +34,13 @@ class SearchEnginesPromptManager {
                     TemplateURLService* template_url_service,
                     adblock_filter::RuleServiceCore* rule_service) const;
 
+  // Returns vector of TemplateURL, that we should prompt for.
+  std::vector<TemplateURL*> GetSearchEnginesToPrompt(
+      TemplateURLService* template_url_service) const;
+
   // Returns vector of TemplateURL, that are partner search engine for the
   // profile's locale.
-  std::vector<TemplateURL*> GetPartnerSearchEnginesToPrompt(
+  std::vector<TemplateURL*> GetPartnerSearchEngines(
       country_codes::CountryId country_id,
       const std::string_view application_locale,
       PrefService& prefs,
@@ -44,6 +48,9 @@ class SearchEnginesPromptManager {
   void MarkCurrentPromptAsSeen(PrefService* prefs) const;
   void PutProfileToQuarantine(PrefService* prefs) const;
 
+  // Returns true if the profile is currently in the quarantine (should NOT see
+  // any of the search engine prompts).
+  bool IsQuarantined(PrefService* prefs) const;
   int GetCurrentVersion() const;
   std::string GetDialogType() const;
   int GetSearchEnginesDataVersionRequired() const;
@@ -53,8 +60,6 @@ class SearchEnginesPromptManager {
 
  private:
   bool IsInExcludeList(const SearchEngineType& type, const GURL& url) const;
-
-  bool IsQuarantined(PrefService* prefs) const;
 
   std::unique_ptr<ParsedSearchEnginesPrompt> prompt_;
 };

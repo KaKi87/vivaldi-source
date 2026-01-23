@@ -7,33 +7,19 @@ locale.  The strings in this file are specific to iOS.
 
 <grit base_dir="." latest_public_release="0" current_release="1" source_lang_id="en" enc_check="möl">
   <outputs>
-    <output filename="ios_strings_af.pak" type="data_package" lang="af" />
-    <output filename="ios_strings_az.pak" type="data_package" lang="az" />
-    <output filename="ios_strings_be.pak" type="data_package" lang="be" />
     <output filename="ios_strings_ca-valencia.pak" type="data_package" lang="ca@valencia" />
     <output filename="ios_strings_de-CH.pak" type="data_package" lang="de-CH" />
     <output filename="ios_strings_eo.pak" type="data_package" lang="eo" />
     <output filename="ios_strings_es-PE.pak" type="data_package" lang="es-PE" />
-    <output filename="ios_strings_et.pak" type="data_package" lang="et" />
-    <output filename="ios_strings_eu.pak" type="data_package" lang="eu" />
     <output filename="ios_strings_fy.pak" type="data_package" lang="fy" />
     <output filename="ios_strings_gd.pak" type="data_package" lang="gd" />
-    <output filename="ios_strings_gl.pak" type="data_package" lang="gl" />
-    <output filename="ios_strings_hy.pak" type="data_package" lang="hy" />
     <output filename="ios_strings_io.pak" type="data_package" lang="io" />
-    <output filename="ios_strings_is.pak" type="data_package" lang="is" />
     <output filename="ios_strings_ja-KS.pak" type="data_package" lang="ja-KS" />
     <output filename="ios_strings_jbo.pak" type="data_package" lang="jbo" />
-    <output filename="ios_strings_ka.pak" type="data_package" lang="ka" />
     <output filename="ios_strings_kab.pak" type="data_package" lang="kab" />
     <output filename="ios_strings_kmr.pak" type="data_package" lang="kmr" />
-    <output filename="ios_strings_mk.pak" type="data_package" lang="mk" />
     <output filename="ios_strings_nn.pak" type="data_package" lang="nn" />
-    <output filename="ios_strings_pa.pak" type="data_package" lang="pa" />
     <output filename="ios_strings_sc.pak" type="data_package" lang="sc" />
-    <output filename="ios_strings_sl.pak" type="data_package" lang="sl" />
-    <output filename="ios_strings_sq.pak" type="data_package" lang="sq" />
-    <output filename="ios_strings_sr-Latn.pak" type="data_package" lang="sr-Latn" />
   </outputs>
   <translations>
     <file path="strings/vivaldi_ios_strings_af.xtb" lang="af" />
@@ -403,6 +389,17 @@ locale.  The strings in this file are specific to iOS.
         Passwords from Vivaldi Password Manager
       </message>
       <!-- END PASSWORD MANAGER -->
+      <!-- START INCOGNITO SETTINGS -->
+      <message name="IDS_IOS_INCOGNITO_LOCK_SETTING_NAME" desc="Name of the Setting to protect Incognito tabs with either soft lock or biometric authentication, e.g. Face ID or Touch ID. [iOS only]">
+          Hide Private tabs
+      </message>
+      <message name="IDS_IOS_INCOGNITO_REAUTH_CONTINUE_IN_INCOGNITO" desc="Button that unlocks Incognito content, behind the blurred lock screen, with a tap. [iOS only]">
+        Continue in Private mode
+      </message>
+      <message name="IDS_IOS_INCOGNITO_REAUTH_CLOSE_INCOGNITO_TABS" desc="Button to close all Incognito tabs on a screen that blocks Incognito tabs until unlocked. [iOS only]">
+        Close Private tabs
+      </message>
+      <!-- END INCOGNITO SETTINGS -->
     </messages>
   </release>
 </grit>

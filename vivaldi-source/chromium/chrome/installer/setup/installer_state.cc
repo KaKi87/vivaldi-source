@@ -24,9 +24,6 @@
 #include "chrome/installer/util/work_item.h"
 #include "chrome/installer/util/work_item_list.h"
 
-#include "chrome/installer/util/registry_util.h"
-#include "installer/util/vivaldi_setup_util.h"
-
 namespace installer {
 
 namespace {
@@ -169,9 +166,6 @@ void InstallerState::Clear() {
 }
 
 void InstallerState::SetStage(InstallerStage stage) const {
-  // Do not write Chrome-specific registry update keys.
-  if (kVivaldi)
-    return;
   GoogleUpdateSettings::SetProgress(system_install(), state_key_,
                                     progress_calculator_.Calculate(stage));
 }
@@ -180,10 +174,6 @@ void InstallerState::WriteInstallerResult(
     InstallStatus status,
     int string_resource_id,
     const std::wstring* const launch_cmd) const {
-  // For Vivaldi skip updating the registry with info only relevant to
-  // Google-specific updates.
-  if (!kVivaldi) {
-    // clang-format off
   // Use a no-rollback list since this is a best-effort deal.
   std::unique_ptr<WorkItemList> install_list(WorkItem::CreateWorkItemList());
   install_list->set_log_message("Write Installer Result");
@@ -195,26 +185,10 @@ void InstallerState::WriteInstallerResult(
       system_install, install_static::GetClientStateKeyPath(), status,
       string_resource_id, launch_cmd, install_list.get());
   install_list->Do();
-    // clang-format on
-  }
-  if (kVivaldi && operation_ != UNINSTALL && string_resource_id != 0) {
-    vivaldi::ShowInstallerResultMessage(string_resource_id);
-  }
 }
 
 bool InstallerState::RequiresActiveSetup() const {
   return system_install();
-}
-
-// See vivaldi::GetOrGenerateToastActivatorCLSID
-// Delete Software\Vivaldi\ToastActivatorCLSID\<target_path().vivaldi.exe>
-void InstallerState::ClearToastActivatorTargetExe() const {
-  base::FilePath target_exe = target_path().Append(installer::kChromeExe);
-  VLOG(1) << "Deleting kVivaldiToastActivatorCLSID: " << target_exe;
-  installer::DeleteRegistryValue(HKEY_CURRENT_USER,
-                      vivaldi::constants::kVivaldiToastActivatorCLSID,
-                      WorkItem::kWow64Default,
-                      target_exe.value());
 }
 
 }  // namespace installer

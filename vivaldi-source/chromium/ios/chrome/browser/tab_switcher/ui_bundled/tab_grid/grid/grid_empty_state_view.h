@@ -12,7 +12,7 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_paging.h"
 
 // Vivaldi
-#import "ios/chrome/browser/recent_tabs/ui_bundled/sessions_sync_user_state.h"
+#import "ios/chrome/browser/recent_tabs/ui/sessions_sync_user_state.h"
 
 @protocol VivaldiTabGridEmptyStateViewDelegate;
 // End Vivaldi

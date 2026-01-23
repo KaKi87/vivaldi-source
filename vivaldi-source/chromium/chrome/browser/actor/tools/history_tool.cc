@@ -6,17 +6,22 @@
 
 #include "base/time/time.h"
 #include "chrome/browser/actor/actor_task.h"
+#include "chrome/browser/actor/site_policy.h"
 #include "chrome/browser/actor/tools/observation_delay_controller.h"
 #include "chrome/browser/actor/tools/tool_callbacks.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/common/actor.mojom.h"
 #include "chrome/common/actor/action_result.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
 #include "third_party/abseil-cpp/absl/strings/str_format.h"
+
+namespace actor {
 
 namespace {
 
@@ -24,9 +29,13 @@ namespace {
 constexpr base::TimeDelta kPendingNavigationPollingInterval =
     base::Milliseconds(100);
 
-}  // namespace
+mojom::ActionResultPtr UrlCheckToActionResult(MayActOnUrlBlockReason reason) {
+  return reason == MayActOnUrlBlockReason::kAllowed
+             ? MakeOkResult()
+             : MakeResult(mojom::ActionResultCode::kUrlBlocked);
+}
 
-namespace actor {
+}  // namespace
 
 using ::content::NavigationController;
 using ::content::NavigationHandle;
@@ -44,8 +53,25 @@ HistoryTool::HistoryTool(TaskId task_id,
 
 HistoryTool::~HistoryTool() = default;
 
-void HistoryTool::Validate(ValidateCallback callback) {
-  PostResponseTask(std::move(callback), MakeOkResult());
+void HistoryTool::Validate(ToolCallback callback) {
+  // Get the navigation entry that would be navigated to.
+  int offset = direction_ == HistoryToolRequest::Direction::kBack ? -1 : 1;
+  content::NavigationEntry* entry =
+      web_contents()->GetController().GetEntryAtOffset(offset);
+
+  // If there is no entry, the navigation will fail at the time of use, so
+  // we can pass validation for now.
+  if (!entry) {
+    PostResponseTask(std::move(callback), MakeOkResult());
+    return;
+  }
+
+  validated_entry_id_ = entry->GetUniqueID();
+
+  // Check if the destination URL is blocked.
+  tool_delegate().IsAcceptableNavigationDestination(
+      entry->GetURL(),
+      base::BindOnce(&UrlCheckToActionResult).Then(std::move(callback)));
 }
 
 mojom::ActionResultPtr HistoryTool::TimeOfUseValidation(
@@ -60,13 +86,23 @@ mojom::ActionResultPtr HistoryTool::TimeOfUseValidation(
              !controller.CanGoForward()) {
     result = MakeResult(mojom::ActionResultCode::kHistoryNoForwardEntries);
   } else {
-    result = MakeOkResult();
+    // Ensure the entry being navigated to is the same as when it was
+    // validated.
+    int offset = direction_ == HistoryToolRequest::Direction::kBack ? -1 : 1;
+    content::NavigationEntry* entry =
+        web_contents()->GetController().GetEntryAtOffset(offset);
+    if (!entry || entry->GetUniqueID() != validated_entry_id_) {
+      result =
+          MakeResult(mojom::ActionResultCode::kHistoryNavigationEntryChanged);
+    } else {
+      result = MakeOkResult();
+    }
   }
 
   return result;
 }
 
-void HistoryTool::Invoke(InvokeCallback callback) {
+void HistoryTool::Invoke(ToolCallback callback) {
   CHECK(web_contents());
   CHECK(!IsInvokeInProgress());
   CHECK(pending_navigations_.empty());
@@ -111,14 +147,14 @@ std::string HistoryTool::JournalEvent() const {
 }
 
 std::unique_ptr<ObservationDelayController> HistoryTool::GetObservationDelayer(
-    std::optional<ObservationDelayController::PageStabilityConfig>
-        page_stability_config) const {
+    ObservationDelayController::PageStabilityConfig page_stability_config) {
   return std::make_unique<ObservationDelayController>(
-      *web_contents()->GetPrimaryMainFrame(), task_id(), page_stability_config);
+      *web_contents()->GetPrimaryMainFrame(), task_id(), journal(),
+      page_stability_config);
 }
 
 void HistoryTool::UpdateTaskBeforeInvoke(ActorTask& task,
-                                         InvokeCallback callback) const {
+                                         ToolCallback callback) const {
   task.AddTab(tab_handle_, std::move(callback));
 }
 
@@ -174,9 +210,11 @@ void HistoryTool::DidFinishNavigation(NavigationHandle* navigation_handle) {
 
     if (!navigation_handle->HasCommitted()) {
       result = MakeResult(mojom::ActionResultCode::kHistoryFailedBeforeCommit,
+                          /*requires_page_stabilization=*/false,
                           details_msg(navigation_handle));
     } else if (navigation_handle->IsErrorPage()) {
       result = MakeResult(mojom::ActionResultCode::kHistoryErrorPage,
+                          /*requires_page_stabilization=*/false,
                           details_msg(navigation_handle));
     } else {
       result = MakeOkResult();

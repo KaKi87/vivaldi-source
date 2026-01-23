@@ -23,11 +23,15 @@ class TeacherScreenPresenter {
   virtual ~TeacherScreenPresenter() = default;
 
   virtual void Start(std::string_view receiver_id,
+                     std::string_view receiver_name,
                      ::boca::UserIdentity teacher_identity,
+                     const bool is_session_active,
                      base::OnceCallback<void(bool)> success_cb,
                      base::OnceClosure disconnected_cb) = 0;
 
   virtual void Stop(base::OnceCallback<void(bool)> success_cb) = 0;
+
+  virtual bool IsPresenting() = 0;
 
  protected:
   TeacherScreenPresenter() = default;

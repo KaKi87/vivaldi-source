@@ -18,6 +18,7 @@
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "chromeos/ash/components/boca/boca_metrics_util.h"
 #include "chromeos/ash/components/boca/boca_request.h"
 #include "chromeos/ash/components/boca/proto/receiver.pb.h"
 #include "chromeos/ash/components/boca/proto/roster.pb.h"
@@ -38,11 +39,11 @@ std::unique_ptr<google_apis::RequestSender> CreateSender(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     signin::IdentityManager* identity_manager,
     const net::NetworkTrafficAnnotationTag& traffic_annotation) {
-  std::vector<std::string> scopes = {kSchoolToolsAuthScope};
   auto auth_service = std::make_unique<google_apis::AuthService>(
       identity_manager,
       identity_manager->GetPrimaryAccountId(signin::ConsentLevel::kSignin),
-      url_loader_factory, scopes);
+      url_loader_factory,
+      signin::OAuthConsumerId::kChromeOsBocaSchoolToolsAuth);
   return std::make_unique<google_apis::RequestSender>(
       std::move(auth_service), url_loader_factory,
       base::ThreadPool::CreateSequencedTaskRunner(
@@ -66,19 +67,31 @@ TeacherScreenPresenterImpl::TeacherScreenPresenterImpl(
       url_loader_factory_(url_loader_factory),
       identity_manager_(identity_manager) {}
 
-TeacherScreenPresenterImpl::~TeacherScreenPresenterImpl() = default;
+TeacherScreenPresenterImpl::~TeacherScreenPresenterImpl() {
+  if (start_success_cb_) {
+    std::move(start_success_cb_).Run(false);
+  }
+}
 
 void TeacherScreenPresenterImpl::Start(
     std::string_view receiver_id,
+    std::string_view receiver_name,
     ::boca::UserIdentity teacher_identity,
+    const bool is_session_active,
     base::OnceCallback<void(bool)> success_cb,
     base::OnceClosure disconnected_cb) {
-  if (receiver_id_.has_value()) {
+  if (IsPresenting()) {
     LOG(ERROR) << "[Boca] Trying to start more than one screen sharing";
+    RecordPresentOwnScreenResult(/* failure */ false, is_session_active);
+    RecordPresentOwnScreenFailureReason(
+        BocaPresentOwnScreenFailureReason::kTeacherScreenShareActive,
+        is_session_active);
     std::move(success_cb).Run(false);
     return;
   }
   receiver_id_ = receiver_id;
+  receiver_name_ = receiver_name;
+  is_session_active_ = is_session_active;
   start_success_cb_ = std::move(success_cb);
   disconnected_cb_ = std::move(disconnected_cb);
 
@@ -105,6 +118,13 @@ void TeacherScreenPresenterImpl::Stop(
     std::move(success_cb).Run(false);
     return;
   }
+  notification_handler_.HandleScreenShareEndedNotification(
+      message_center::MessageCenter::Get());
+
+  if (!IsPresenting()) {
+    std::move(success_cb).Run(true);
+    return;
+  }
   // No need to update server, receiver will do automatically on CRD session
   // termination.
   shared_crd_session_->TerminateSession();
@@ -112,10 +132,18 @@ void TeacherScreenPresenterImpl::Stop(
   Reset();
 }
 
+bool TeacherScreenPresenterImpl::IsPresenting() {
+  return receiver_id_.has_value();
+}
+
 void TeacherScreenPresenterImpl::OnGetReceiverResponse(
     ::boca::UserIdentity teacher_identity,
     std::optional<::boca::KioskReceiver> receiver) {
   if (!receiver) {
+    RecordPresentOwnScreenResult(/* failure */ false, is_session_active_);
+    RecordPresentOwnScreenFailureReason(
+        BocaPresentOwnScreenFailureReason::kGetReceiverRequestFailed,
+        is_session_active_);
     std::move(start_success_cb_).Run(false);
     Reset();
     return;
@@ -157,15 +185,26 @@ void TeacherScreenPresenterImpl::OnStartReceiverResponse(
     return;
   }
   if (!connection_id) {
+    RecordPresentOwnScreenResult(/* failure */ false, is_session_active_);
+    RecordPresentOwnScreenFailureReason(
+        BocaPresentOwnScreenFailureReason::kStartKioskConnectionRequestFailed,
+        is_session_active_);
     std::move(start_success_cb_).Run(false);
     Reset();
     return;
   }
+  RecordPresentOwnScreenResult(/* success */ true, is_session_active_);
+  notification_handler_.HandleScreenShareStartedNotification(
+      message_center::MessageCenter::Get(), receiver_name_.value());
   std::move(start_success_cb_).Run(true);
 }
 
 void TeacherScreenPresenterImpl::OnCrdSessionFinished() {
   if (start_success_cb_) {
+    RecordPresentOwnScreenResult(/* failure */ false, is_session_active_);
+    RecordPresentOwnScreenFailureReason(
+        BocaPresentOwnScreenFailureReason::kGetCrdConnectionCodeFailed,
+        is_session_active_);
     std::move(start_success_cb_).Run(false);
   } else if (disconnected_cb_) {
     std::move(disconnected_cb_).Run();
@@ -175,7 +214,6 @@ void TeacherScreenPresenterImpl::OnCrdSessionFinished() {
 
 void TeacherScreenPresenterImpl::Reset() {
   receiver_id_.reset();
-  start_success_cb_.Reset();
   disconnected_cb_.Reset();
 }
 

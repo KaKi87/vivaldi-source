@@ -72,6 +72,12 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
   /// Whether the pasteboard currently has strings.
   BOOL _pasteboardHasStrings;
   OmniboxPresentationContext _presentationContext;
+  /// Whether to force disable the return key.
+  BOOL _forceDisableReturnKey;
+  // The default and custom placeholder texts to be shown when there is no other
+  // text present.
+  NSString* _customPlaceholderText;
+  NSString* _defaultPlaceholderText;
 }
 
 @synthesize omniboxTextInputDelegate = _omniboxTextInputDelegate;
@@ -164,6 +170,14 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
 
 - (void)dealloc {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)setAllowsReturnKeyWithEmptyText:(BOOL)allowsReturnKeyWithEmptyText {
+  if (_allowsReturnKeyWithEmptyText == allowsReturnKeyWithEmptyText) {
+    return;
+  }
+  _allowsReturnKeyWithEmptyText = allowsReturnKeyWithEmptyText;
+  [self reloadInputViews];
 }
 
 - (void)setText:(NSAttributedString*)text
@@ -507,6 +521,9 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
 - (BOOL)hasText {
   // Returns YES when `allowsReturnKeyWithEmptyText` to enable the 'Go' key in
   // the keyboard.
+  if (_forceDisableReturnKey) {
+    return NO;
+  }
   return self.allowsReturnKeyWithEmptyText || [super hasText];
 }
 
@@ -795,6 +812,9 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
       return ([self isPreEditing] || [self hasAutocompleteText] ||
               [self hasAdditionalText]);
     case kReturnKey: {
+      if (_forceDisableReturnKey) {
+        return NO;
+      }
       NSString* trimmedText =
           [self.text stringByTrimmingCharactersInSet:
                          [NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -883,6 +903,15 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
 }
 
 #pragma mark - Private methods
+
+- (void)updatePlaceholder {
+  if (_customPlaceholderText) {
+    [self setPlaceholder:_customPlaceholderText];
+    return;
+  }
+
+  [self setPlaceholder:_defaultPlaceholderText];
+}
 
 #pragma mark Font
 
@@ -980,7 +1009,13 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
 /// `self.attributedAdditionalText`.
 - (void)setTextInternal:(NSAttributedString*)text
      autocompleteLength:(NSUInteger)autocompleteLength {
+  if (autocompleteLength > text.length) {
+    DUMP_WILL_BE_NOTREACHED() << "autocomplete length: " << autocompleteLength
+                              << " text length: " << text.length;
+    autocompleteLength = text.length;
+  }
   _autocompleteTextLength = autocompleteLength;
+
   // Extract substrings for the permanent text and the autocomplete text.  The
   // former needs to retain any text attributes from the original string.
   NSUInteger beginningOfAutocomplete = text.length - autocompleteLength;
@@ -1042,15 +1077,22 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
       UITextPosition* endOfUserText =
           [self positionFromPosition:self.beginningOfDocument
                               offset:beginningOfAutocomplete];
-      // Move the cursor to the beginning of the field before setting the
-      // position to the end of the user input so if the text is very wide, the
-      // user sees the beginning of the text instead of the end.
-      self.selectedTextRange =
-          [self textRangeFromPosition:self.beginningOfDocument
-                           toPosition:self.beginningOfDocument];
-      // Preserve the cursor position at the end of the user input.
-      self.selectedTextRange = [self textRangeFromPosition:endOfUserText
-                                                toPosition:endOfUserText];
+      if (endOfUserText) {
+        // Move the cursor to the beginning of the field before setting the
+        // position to the end of the user input so if the text is very wide,
+        // the user sees the beginning of the text instead of the end.
+        self.selectedTextRange =
+            [self textRangeFromPosition:self.beginningOfDocument
+                             toPosition:self.beginningOfDocument];
+        // Preserve the cursor position at the end of the user input.
+        self.selectedTextRange = [self textRangeFromPosition:endOfUserText
+                                                  toPosition:endOfUserText];
+      } else {
+        DUMP_WILL_BE_NOTREACHED()
+            << "autocomplete length: " << autocompleteLength
+            << " text length: " << text.length
+            << " has endOfUserText: " << !!endOfUserText;
+      }
     }
   }
 
@@ -1103,6 +1145,21 @@ NSString* const kOmniboxFadeAnimationKey = @"OmniboxFadeAnimation";
 
 - (UIResponder<UITextInput>*)scribbleInput {
   return self;
+}
+
+- (void)forceDisableReturnKey:(BOOL)forceDisable {
+  _forceDisableReturnKey = forceDisable;
+  [self reloadInputViews];
+}
+
+- (void)setDefaultPlaceholderText:(NSString*)defaultPlaceholderText {
+  _defaultPlaceholderText = [defaultPlaceholderText copy];
+  [self updatePlaceholder];
+}
+
+- (void)setCustomPlaceholderText:(NSString*)customPlaceholderText {
+  _customPlaceholderText = [customPlaceholderText copy];
+  [self updatePlaceholder];
 }
 
 #pragma mark - UITextFieldDelegate

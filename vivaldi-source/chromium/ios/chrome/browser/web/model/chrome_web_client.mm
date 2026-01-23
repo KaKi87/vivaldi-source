@@ -11,7 +11,6 @@
 #import "base/apple/bundle_locations.h"
 #import "base/command_line.h"
 #import "base/feature_list.h"
-#import "base/files/file_util.h"
 #import "base/ios/ios_util.h"
 #import "base/ios/ns_error_util.h"
 #import "base/metrics/histogram_functions.h"
@@ -46,8 +45,8 @@
 #import "ios/chrome/browser/enterprise/connectors/ios_enterprise_interstitial.h"
 #import "ios/chrome/browser/enterprise/connectors/reporting/ios_reporting_event_router_factory.h"
 #import "ios/chrome/browser/flags/chrome_switches.h"
-#import "ios/chrome/browser/follow/model/follow_java_script_feature.h"
 #import "ios/chrome/browser/https_upgrades/model/https_upgrade_service_factory.h"
+#import "ios/chrome/browser/intelligence/proto_wrappers/page_context_extractor_java_script_feature.h"
 #import "ios/chrome/browser/link_to_text/model/link_to_text_java_script_feature.h"
 #import "ios/chrome/browser/ntp/model/browser_policy_new_tab_page_rewriter.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
@@ -79,6 +78,7 @@
 #import "ios/chrome/browser/supervised_user/model/supervised_user_url_filter_tab_helper.h"
 #import "ios/chrome/browser/web/model/browser_about_rewriter.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_java_script_feature.h"
+#import "ios/chrome/browser/web/model/choose_file/choose_file_tab_helper.h"
 #import "ios/chrome/browser/web/model/chrome_main_parts.h"
 #import "ios/chrome/browser/web/model/error_page_util.h"
 #import "ios/chrome/browser/web/model/features.h"
@@ -125,6 +125,7 @@
 // Vivaldi
 #import "ios/website_dark_mode/website_dark_mode_java_script_feature.h"
 #import "ios/reader_mode/vivaldi_reader_mode_java_script_feature.h"
+#import "ios/search/vivaldi_add_search_engine_java_script_feature.h"
 // End Vivaldi
 
 namespace {
@@ -147,23 +148,23 @@ NSString* GetSafeBrowsingErrorPageHTML(web::WebState* web_state,
   switch (static_cast<SafeBrowsingErrorCode>(error_code)) {
     case SafeBrowsingErrorCode::kUnsafeResource: {
       page = SafeBrowsingBlockingPage::Create(*resource);
-        ProfileIOS* profile =
-            ProfileIOS::FromBrowserState(web_state->GetBrowserState());
-        PrefService* prefs = profile->GetPrefs();
-        enterprise_connectors::ReportingEventRouter* router =
-            enterprise_connectors::IOSReportingEventRouterFactory::
-                GetForProfile(profile);
-        if (router) {
-          google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>
-              referrer_chain;
-          router->OnSecurityInterstitialShown(
-              resource->url,
-              safe_browsing::GetThreatTypeStringForInterstitial(
-                  resource->threat_type),
-              /*net_error_code=*/0,
-              prefs->GetBoolean(prefs::kSafeBrowsingProceedAnywayDisabled),
-              referrer_chain);
-        }
+      ProfileIOS* profile =
+          ProfileIOS::FromBrowserState(web_state->GetBrowserState());
+      PrefService* prefs = profile->GetPrefs();
+      enterprise_connectors::ReportingEventRouter* router =
+          enterprise_connectors::IOSReportingEventRouterFactory::GetForProfile(
+              profile);
+      if (router) {
+        google::protobuf::RepeatedPtrField<safe_browsing::ReferrerChainEntry>
+            referrer_chain;
+        router->OnSecurityInterstitialShown(
+            resource->url,
+            safe_browsing::GetThreatTypeStringForInterstitial(
+                resource->threat_type),
+            /*net_error_code=*/0,
+            prefs->GetBoolean(prefs::kSafeBrowsingProceedAnywayDisabled),
+            referrer_chain);
+      }
       break;
     }
     case SafeBrowsingErrorCode::kEnterpriseBlock:
@@ -431,7 +432,7 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
       password_manager::PasswordManagerJavaScriptFeature::GetInstance());
 
   if (base::FeatureList::IsEnabled(kIOSPasskeyShim)) {
-    features.push_back(PasskeyJavaScriptFeature::GetInstance());
+    features.push_back(webauthn::PasskeyJavaScriptFeature::GetInstance());
   }
 
   features.push_back(LinkToTextJavaScriptFeature::GetInstance());
@@ -447,12 +448,14 @@ std::vector<web::JavaScriptFeature*> ChromeWebClient::GetJavaScriptFeatures(
       language::LanguageDetectionJavaScriptFeature::GetInstance());
   features.push_back(translate::TranslateJavaScriptFeature::GetInstance());
   features.push_back(WebPerformanceMetricsJavaScriptFeature::GetInstance());
-  features.push_back(FollowJavaScriptFeature::GetInstance());
   features.push_back(ChooseFileJavaScriptFeature::GetInstance());
+  features.push_back(PageContextExtractorJavaScriptFeature::GetInstance());
 
   // Vivaldi
   features.push_back(WebsiteDarkModeJavaScriptFeature::GetInstance());
   features.push_back(VivaldiReaderModeJavaScriptFeature::GetInstance());
+  features.push_back(
+      vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance());
   // End Vivaldi
 
   features.push_back(
@@ -601,7 +604,7 @@ void ChromeWebClient::CleanupNativeRestoreURLs(web::WebState* web_state) const {
     // The WKWebView URL underneath a forced-offline page is chrome://offline,
     // which has an embedded entry URL. Apply that entryURL to the virtualURL
     // here.
-    if (item->GetVirtualURL().host() == kChromeUIOfflineHost) {
+    if (item->GetVirtualURL().GetHost() == kChromeUIOfflineHost) {
       item->SetVirtualURL(
           reading_list::EntryURLForOfflineURL(item->GetVirtualURL()));
     }
@@ -652,3 +655,32 @@ void ChromeWebClient::BuildEditMenu(web::WebState* web_state,
     tab_helper->BuildEditMenu(builder);
   }
 }
+
+bool ChromeWebClient::CanRunOpenPanel(web::WebState* source) const
+    API_AVAILABLE(ios(18.4)) {
+  return base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu);
+}
+
+void ChromeWebClient::RunOpenPanel(
+    web::WebState* source,
+    WKOpenPanelParameters* parameters,
+    WKFrameInfo* frame,
+    base::OnceCallback<void(NSArray<NSURL*>*)> completion) const
+    API_AVAILABLE(ios(18.4)) {
+  CHECK(base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu));
+  ChooseFileTabHelper* tab_helper = ChooseFileTabHelper::FromWebState(source);
+  CHECK(tab_helper);
+  tab_helper->RunOpenPanel(parameters, frame, std::move(completion));
+}
+
+
+// Vivaldi
+void ChromeWebClient::BuildSelectionlessEditMenu(
+    web::WebState* web_state,
+    id<UIMenuBuilder> builder) const {
+  EditMenuTabHelper* tab_helper = EditMenuTabHelper::FromWebState(web_state);
+  if (tab_helper) {
+    tab_helper->BuildSelectionlessEditMenu(builder);
+  }
+}
+// End Vivaldi

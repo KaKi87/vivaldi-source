@@ -6,6 +6,8 @@
 #define IOS_CHROME_BROWSER_TOOLBAR_UI_BUNDLED_TOOLBAR_COORDINATOR_H_
 
 #import "base/ios/block_types.h"
+#import "ios/chrome/browser/composebox/public/composebox_animation_base.h"
+#import "ios/chrome/browser/omnibox/model/omnibox_position/omnibox_state_provider.h"
 #import "ios/chrome/browser/popup_menu/ui_bundled/public/popup_menu_ui_updating.h"
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 #import "ios/chrome/browser/toolbar/ui_bundled/public/fakebox_focuser.h"
@@ -27,9 +29,11 @@
 /// which one specifically send the call.
 @interface ToolbarCoordinator
     : ChromeCoordinator <FakeboxFocuser,
+                         OmniboxStateProvider,
                          PopupMenuUIUpdating,
                          SideSwipeToolbarSnapshotProviding,
-                         ToolbarCoordinating>
+                         ToolbarCoordinating,
+                         ComposeboxAnimationBase>
 
 // Redefined as readwrite to be able to set it after the BVC is created.
 @property(weak, nonatomic, readwrite) UIViewController* baseViewController;
@@ -41,6 +45,11 @@
     popupPresenterDelegate;
 /// Delegate that handles the toolbars height.
 @property(nonatomic, weak) id<ToolbarHeightDelegate> toolbarHeightDelegate;
+/// Temporary storing the keyboard height here. Used when updating the bottom
+/// omnibox size while editing.
+@property(nonatomic, assign) CGFloat keyboardHeight;
+/// Returns the toolbar type containing the omnibox.
+@property(nonatomic, assign, readonly) ToolbarType omniboxPosition;
 
 /// Initializes this coordinator with its `browser` and a nil base view
 /// controller.
@@ -72,6 +81,8 @@
 /// transition to the expanded location bar state of the view controller.
 - (void)transitionToLocationBarFocusedState:(BOOL)focused
                                  completion:(ProceduralBlock)completion;
+/// Whether the omnibox is currently in edit state.
+- (BOOL)inEditState;
 /// Whether the omnibox is currently the first responder.
 - (BOOL)isOmniboxFirstResponder;
 /// Whether the omnibox popup is currently presented.
@@ -92,6 +103,8 @@
 - (CGFloat)collapsedSecondaryToolbarHeight;
 /// The maximum height of the secondary toolbar.
 - (CGFloat)expandedSecondaryToolbarHeight;
+/// The height necessary to display only the location bar.
+- (CGFloat)locationBarCompactDisplayHeight;
 
 // Vivaldi
 // Used to pass the location bar steady view related updates from location bar

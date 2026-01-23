@@ -36,10 +36,9 @@ import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
 
-import java.util.Optional;
-
 // Vivaldi
 import android.view.Display;
+import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.omnibox.OmniboxSuggestionsDropdownEmbedderImpl;
 import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
@@ -50,7 +49,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 @NullMarked
 public class OmniboxSuggestionsContainer extends FrameLayout {
     private OmniboxSuggestionsDropdown mDropdown;
-    private Optional<OmniboxSuggestionsDropdownEmbedder> mEmbedder = Optional.empty();
+    private @Nullable OmniboxSuggestionsDropdownEmbedder mEmbedder;
     private @Nullable Callback<Integer> mHeightChangeListener;
     private OmniboxAlignment mOmniboxAlignment = OmniboxAlignment.UNSPECIFIED;
 
@@ -58,6 +57,9 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
     private int mLastBroadcastedListViewMaxHeight;
     private final Callback<OmniboxAlignment> mOmniboxAlignmentObserver =
             this::onOmniboxAlignmentChanged;
+
+    // Vivaldi
+    private int mLastRecordedDropdownHeight;
 
     public OmniboxSuggestionsContainer(@NonNull Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -71,7 +73,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        boolean isTablet = mEmbedder.map(e -> e.isTablet()).orElse(false);
+        boolean isTablet = mEmbedder != null && mEmbedder.isTablet();
 
         try (TraceEvent tracing = TraceEvent.scoped("OmniboxSuggestionsList.Measure");
                 TimingMetric metric = OmniboxMetrics.recordSuggestionListMeasureTime();
@@ -102,21 +104,21 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
             // Note(nagamani@vivaldi.com):  Return the calculated margin value to properly anchor
             // the search engine suggestion layout
-            if (mEmbedder.isPresent()) {
+            if (mEmbedder != null) {
                 // Inform the embedder about the controls height.
                 View controlView =
-                        ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder.get()).mAnchorView;
-                ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder.get())
+                        ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder).mAnchorView;
+                ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder)
                         .setControlsHeight(
                                 OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
                                         getContext(), controlView,
                                         OmniboxSuggestionsDropdownEmbedderImpl.CalculationType
                                                 .COMBINED));
                 if (OmniboxSuggestionsDropdown.mSearchEngineSuggestionCallback != null) {
-                    final SearchEngineSuggestionView.LayoutMargins layoutMargins =
+                    @SuppressLint("DrawAllocation") final SearchEngineSuggestionView.LayoutMargins layoutMargins =
                             new SearchEngineSuggestionView.LayoutMargins(0, 0, 0, 0);
-                    layoutMargins.leftMargin = mEmbedder.get().getCurrentAlignment().left;
-                    layoutMargins.topMargin = mEmbedder.get().getCurrentAlignment().top;
+                    layoutMargins.leftMargin = mEmbedder.getCurrentAlignment().left;
+                    layoutMargins.topMargin = mEmbedder.getCurrentAlignment().top;
                     layoutMargins.bottomMargin =
                             OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
                                     getContext(), controlView,
@@ -137,6 +139,15 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
     @Override
     @SuppressLint("ClickableViewAccessibility")
     public boolean onTouchEvent(MotionEvent event) {
+        // Propagate touch events, to make possible touch elements behind this container. Omnibox
+        // autofocus feature prevents the Scrim to be shown as a result tab content is covered by
+        // this transparent container.
+        boolean shouldPassThroughUnhandledTouchEvents =
+                mEmbedder != null && mEmbedder.shouldPassThroughUnhandledTouchEvents();
+        if (shouldPassThroughUnhandledTouchEvents) {
+            return false;
+        }
+
         // Swallow all touch events, especially if these were not consumed by the Dropdown.
         // This ensures that touching the blank areas of the container does not dismiss the
         // Omnibox.
@@ -151,33 +162,9 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         // under the anchor view.
         ViewGroup.LayoutParams layoutParams = getLayoutParams();
         if (layoutParams != null && layoutParams instanceof ViewGroup.MarginLayoutParams) {
-            if(mEmbedder.isPresent()) {
-                View controlView =
-                        ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder.get()).mAnchorView;
-                // Note(david@vivaldi.com): We consider the bottomMargin when we can anchor to the
-                // bottom.
-                if (mDropdown.shouldAnchorToBottom()) {
-                    int margin = OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
-                            getContext(), controlView,
-                            OmniboxSuggestionsDropdownEmbedderImpl.CalculationType.COMBINED);
-                    ((ViewGroup.MarginLayoutParams) layoutParams).bottomMargin = margin;
-                    if (!mEmbedder.get().isTablet()) {
-                        Display display = ((WindowManager) getContext().getSystemService(
-                                                   Context.WINDOW_SERVICE))
-                                                  .getDefaultDisplay();
-                        if (display != null) this.setMinimumHeight(display.getHeight());
-                    } else {
-                        if (mDropdown.getAdapter() != null && mDropdown.getAdapter().getItemCount() > 1) // ref. VAB-8487
-                            margin = 0;
-                        ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = margin;
-                    }
-                } else
-                    ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = topMargin
-                            + OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
-                                    getContext(), controlView,
-                                    OmniboxSuggestionsDropdownEmbedderImpl.CalculationType
-                                            .SEARCH_ENGINE_SUGGESTION);
-            }
+            if (!BuildConfig.IS_VIVALDI)
+            ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = topMargin;
+            else vivaldiOmniboxAlignmentCalculation(layoutParams, topMargin); // Vivaldi
         }
     }
 
@@ -201,10 +188,12 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                         mHeightChangeListener.onResult(availableViewportHeight);
                         mLastBroadcastedListViewMaxHeight = availableViewportHeight;
 
-                        // Vivaldi - Note(nagamani@vivaldi.com): Scroll to the first element for the
+                        // Vivaldi - Note(nagamani@vivaldi.com): Scroll to the last element for the
                         // suggestions to be clearly visible after viewport height changes when reverse
                         // search suggestion is enabled.
-                        if (mDropdown.shouldReverseSuggestionsList()) mDropdown.scrollToPosition(0);
+                        if (mDropdown.shouldReverseSuggestionsList()) {
+                            mDropdown.smoothScrollToPosition(mDropdown.getEndScrollPosition());
+                        }
                     });
         }
     }
@@ -232,7 +221,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         // Don't reset the current value of `mOmniboxAlignment`, and don't read the value from newly
         // installed embedder to ensure the `onOmniboxAlignmentChanged` does the right thing when we
         // install our observers.
-        mEmbedder = Optional.of(embedder);
+        mEmbedder = embedder;
     }
 
     /**
@@ -250,19 +239,17 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
     }
 
     private void installAlignmentObserver() {
-        mEmbedder.ifPresent(
-                e -> {
-                    e.onAttachedToWindow();
-                    mOmniboxAlignment = e.addAlignmentObserver(mOmniboxAlignmentObserver);
-                });
+        if (mEmbedder != null) {
+            mEmbedder.onAttachedToWindow();
+            mOmniboxAlignment = mEmbedder.addAlignmentObserver(mOmniboxAlignmentObserver);
+        }
     }
 
     private void removeAlignmentObserver() {
-        mEmbedder.ifPresent(
-                e -> {
-                    e.onDetachedFromWindow();
-                    e.removeAlignmentObserver(mOmniboxAlignmentObserver);
-                });
+        if (mEmbedder != null) {
+            mEmbedder.onDetachedFromWindow();
+            mEmbedder.removeAlignmentObserver(mOmniboxAlignmentObserver);
+        }
 
         if (!OmniboxFeatures.shouldPreWarmRecyclerViewPool()) {
             mDropdown.getRecycledViewPool().clear();
@@ -330,5 +317,40 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
     @VisibleForTesting
     void setSuggestionsDropdownForTest(OmniboxSuggestionsDropdown dropdown) {
         mDropdown = dropdown;
+    }
+
+    private void vivaldiOmniboxAlignmentCalculation(ViewGroup.LayoutParams layoutParams, int topMargin) {
+        if (mEmbedder != null) {
+            View controlView =
+                    ((OmniboxSuggestionsDropdownEmbedderImpl) mEmbedder).mAnchorView;
+            if (mDropdown.shouldAnchorToBottom()) {
+                int margin = OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
+                        getContext(), controlView,
+                        OmniboxSuggestionsDropdownEmbedderImpl.CalculationType.COMBINED);
+                ((ViewGroup.MarginLayoutParams) layoutParams).topMargin =
+                        mOmniboxAlignment.height - mDropdown.getMeasuredHeight();
+                ((ViewGroup.MarginLayoutParams) layoutParams).bottomMargin = margin;
+                mLastRecordedDropdownHeight = mDropdown.getMeasuredHeight();
+                if (mEmbedder.isTablet()) {
+                    if (mDropdown.getAdapter() != null
+                            && mDropdown.getAdapter().getItemCount() > 1) // ref. VAB-8487
+                        margin = 0;
+                    ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = margin;
+                }
+            } else
+                ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = topMargin
+                        + OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(
+                        getContext(), controlView,
+                        OmniboxSuggestionsDropdownEmbedderImpl.CalculationType
+                                .SEARCH_ENGINE_SUGGESTION);
+        }
+        post(() -> {
+            // Vivaldi: Request layout change if the dropdown height has been updated during the
+            // alignment process.
+            if (mLastRecordedDropdownHeight != mDropdown.getMeasuredHeight()) {
+                mLastRecordedDropdownHeight = mDropdown.getMeasuredHeight();
+                requestLayout();
+            }
+        });
     }
 }

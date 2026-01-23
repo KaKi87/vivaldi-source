@@ -89,16 +89,29 @@ namespace vivaldi_features {
 
 // Names of the features MUST be globally unique, thus prefix those with
 // 'Vivaldi'.
+BASE_FEATURE(kDnDTiling, "VivaldiDnDTiling", base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kDoubleClickMenu,
              "VivaldiDoubleClickMenu",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCssMods, "VivaldiCssMods", base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kChromePages,
              "VivaldiChromePages",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kDesktopBackgroundImage,
+             "DesktopBackgroundImage",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kFollowerTab,
+             "VivaldiFollowerTab",
+             FeatureDefaults()
+                 .WithDesktop(BuildTypeDefaults()
+                                  .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
+                                  .Snapshot(base::FEATURE_DISABLED_BY_DEFAULT))
+                 .Get());
 
 BASE_FEATURE(kInternalPageReaderMode,
              "VivaldiInternalPageReaderMode",
@@ -108,19 +121,23 @@ BASE_FEATURE(kLocationOverride,
              "VivaldiLocationOverride",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kNewAboutPage,
-             "VivaldiNewAboutPage",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 BASE_FEATURE(
     kNewPrivacyReport,
     "VivaldiNewPrivacyReport",
     FeatureDefaults()
-        .WithAndroid(BuildTypeDefaults()
-                         .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
-                         .Snapshot(base::FEATURE_ENABLED_BY_DEFAULT)) // Disabled only for final on Android
-        .WithDesktop(BuildTypeDefaults(base::FEATURE_ENABLED_BY_DEFAULT)) // Enabled for all on desktop
+        .WithAndroid(
+            BuildTypeDefaults()
+                .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
+                .Snapshot(
+                    base::FEATURE_ENABLED_BY_DEFAULT))  // Disabled only for
+                                                        // final on Android
+        .WithDesktop(BuildTypeDefaults(
+            base::FEATURE_ENABLED_BY_DEFAULT))  // Enabled for all on desktop
         .Get());
+
+BASE_FEATURE(kOpenLinkTiled,
+             "VivaldiOpenLinkTiled",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kShowTopSites,
              "VivaldiShowTopSites",
@@ -137,10 +154,6 @@ BASE_FEATURE(kShowNewSpeedDialDialog,
 bool IsNewSpeedDialDialogEnabled() {
   return base::FeatureList::IsEnabled(kShowNewSpeedDialDialog);
 }
-
-BASE_FEATURE(kSpeeddialWidgets,
-             "VivaldiSpeeddialWidgets",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kViewMarkdownAsHTML,
              "VivaldiViewMarkdownAsHTML",
@@ -161,6 +174,22 @@ bool IsAddCustomSearchEngineEnabled() {
 BASE_FEATURE(kNoteEditor,
              "VivaldiNewNoteEditor",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(
+    kRestrictPinnedTab,
+    "VivaldiRestrictPinnedTabs",
+    FeatureDefaults()
+        .WithDesktop(BuildTypeDefaults(
+            base::FEATURE_ENABLED_BY_DEFAULT))  // Enabled for all on desktop
+        .Get());
+
+BASE_FEATURE(kTabsAutoHide,
+             "VivaldiTabsAutoHide",
+             FeatureDefaults()
+                 .WithDesktop(BuildTypeDefaults()
+                                  .Sopranos(base::FEATURE_ENABLED_BY_DEFAULT)
+                                  .Snapshot(base::FEATURE_DISABLED_BY_DEFAULT))
+                 .Get());
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 BASE_FEATURE(kCinemaMode,

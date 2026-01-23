@@ -51,6 +51,12 @@ jobs:
           {
             pool: "linux-x86-n2-16",
             container: "us-docker.pkg.dev/ml-oss-artifacts-published/ml-public-container/ml-build:latest",
+            name: "XLA Linux x86 CPU Bzlmod",
+            repo: "openxla/xla",
+          },
+          {
+            pool: "linux-x86-n2-16",
+            container: "us-docker.pkg.dev/ml-oss-artifacts-published/ml-public-container/ml-build:latest",
             name: "XLA Linux X86 GPU ONEAPI",
             repo: "openxla/xla",
           },
@@ -70,6 +76,12 @@ jobs:
             pool: "linux-x86-n2-16",
             container: "gcr.io/tensorflow-sigs/build:latest-python3.11",
             name: "JAX Linux x86 CPU",
+            repo: "jax-ml/jax",
+          },
+          {
+            pool: "windows-x86-n2-16",
+            container: null,
+            name: "JAX Windows x86 CPU",
             repo: "jax-ml/jax",
           },
           {
@@ -115,4 +127,9 @@ jobs:
           halt-dispatch-input: ${{ inputs.halt-for-connection }}
       - name: "Run build.py"
         working-directory: ${{ matrix.job_info.repo }}
-        run: $GITHUB_WORKSPACE/openxla/xla/build_tools/ci/build.py --build="${{ matrix.job_info.name }}_github_actions"
+        run: |
+          if [[ "${{ matrix.job_info.pool }}" == *windows* ]]; then
+            python $GITHUB_WORKSPACE\\openxla\\xla\\build_tools\\ci\\build.py --build="${{ matrix.job_info.name }}_github_actions"
+          else
+            $GITHUB_WORKSPACE/openxla/xla/build_tools/ci/build.py --build="${{ matrix.job_info.name }}_github_actions"
+          fi

@@ -43,6 +43,10 @@
 
 #include "content/browser/renderer_host/vivaldi_overscroll_controller.h"
 
+namespace viz {
+struct CopyOutputBitmapWithMetadata;
+}
+
 namespace content {
 class CrossProcessFrameConnector;
 class RenderWidgetHost;
@@ -92,7 +96,8 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   void CopyFromSurface(
       const gfx::Rect& src_rect,
       const gfx::Size& output_size,
-      base::OnceCallback<void(const SkBitmap&)> callback) override;
+      base::OnceCallback<void(const viz::CopyOutputBitmapWithMetadata&)>
+          callback) override;
   void EnsureSurfaceSynchronizedForWebTest() override;
   void Hide() override;
   bool IsShowing() override;
@@ -142,6 +147,7 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   // Since the URL of content rendered by this class is not displayed in
   // the URL bar, this method does not need an implementation.
   void ResetFallbackToFirstNavigationSurface() override {}
+  void OnUnconfirmedTapConvertedToTap() override;
 
   void TransformPointToRootSurface(gfx::PointF* point) override;
   gfx::Rect GetBoundsInRootWindow() override;

@@ -18,6 +18,7 @@ extern NSString* const vVivaldiFirstRunUrl;
 extern NSString* const vVivaldiPrivacyAndSecurity;
 extern NSString* const vVivaldiRecoverUsernameUrl;
 extern NSString* const vVivaldiRecoverPasswordUrl;
+extern NSString* const vVivaldiProfileUrl;
 extern NSString* const vVivaldiDirectMatchLearnMoreUrl;
 
 extern const char vVivaldiSyncStatusUrl[];

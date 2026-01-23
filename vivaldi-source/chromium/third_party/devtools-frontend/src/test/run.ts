@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as childProcess from 'child_process';
-import * as fs from 'fs';
 import * as glob from 'glob';
-import * as path from 'path';
+import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import yargs from 'yargs';
 import unparse from 'yargs-unparser';
 
@@ -19,41 +19,44 @@ import {
   SOURCE_ROOT,
 } from './conductor/paths.js';
 
-const options = commandLineArgs(yargs(process.argv.slice(2)))
-                    .options('skip-ninja', {
-                      type: 'boolean',
-                      default: false,
-                      desc: 'Skip rebuilding',
-                    })
-                    .options('debug-driver', {
-                      type: 'boolean',
-                      hidden: true,
-                      desc: 'Debug the driver part of tests',
-                    })
-                    .options('verbose', {
-                      alias: 'v',
-                      type: 'count',
-                      desc: 'Increases the log level',
-                    })
-                    .options('bail', {
-                      type: 'boolean',
-                      alias: 'b',
-                      desc: 'Bail after first test failure',
-                    })
-                    .options('auto-watch', {
-                      type: 'boolean',
-                      default: false,
-                      desc: 'watch changes to files and run tests automatically on file change (only for unit tests)'
-                    })
-                    .positional('tests', {
-                      type: 'string',
-                      desc: 'Path to the test suite, starting from out/Target/gen directory.',
-                      normalize: true,
-                      default: ['front_end', 'test/e2e', 'test/e2e_non_hosted'].map(
-                          f => path.relative(process.cwd(), path.join(SOURCE_ROOT, f))),
-                    })
-                    .strict()
-                    .parseSync();
+const options =
+    commandLineArgs(yargs(process.argv.slice(2)))
+        .options('skip-ninja', {
+          type: 'boolean',
+          default: false,
+          desc: 'Skip rebuilding',
+        })
+        .options('debug-driver', {
+          type: 'boolean',
+          hidden: true,
+          desc: 'Debug the driver part of tests',
+        })
+        .options('verbose', {
+          alias: 'v',
+          type: 'count',
+          desc: 'Increases the log level',
+        })
+        .options('bail', {
+          type: 'boolean',
+          alias: 'b',
+          desc: 'Bail after first test failure',
+        })
+        .options('auto-watch', {
+          type: 'boolean',
+          default: false,
+          desc: 'watch changes to files and run tests automatically on file change (only for unit tests)'
+        })
+        .options(
+            'node-unit-tests',
+            {type: 'boolean', default: false, desc: 'whether to run unit tests in node (experimental)'})
+        .positional('tests', {
+          type: 'string',
+          desc: 'Path to the test suite, starting from out/Target/gen directory.',
+          normalize: true,
+          default: ['front_end', 'test/e2e'].map(f => path.relative(process.cwd(), path.join(SOURCE_ROOT, f))),
+        })
+        .strict()
+        .parseSync();
 
 const CONSUMED_OPTIONS = ['tests', 'skip-ninja', 'debug-driver', 'verbose', 'v', 'watch'];
 
@@ -162,16 +165,14 @@ class Tests {
   }
 }
 
-class MochaTests extends Tests {
+class MochaFrontendTests extends Tests {
   override run(tests: PathPair[]) {
     return super.run(
         tests,
         [
           MOCHA_BIN_PATH,
           '--config',
-          path.join(this.suite.buildPath, 'mocharc.js'),
-          '-u',
-          path.join(this.suite.buildPath, '..', 'conductor', 'mocha-interface.js'),
+          path.join(this.suite.buildPath, '..', 'test', 'unit', 'mocharc.js'),
         ],
         /* positionalTestArgs= */ false,  // Mocha interprets positional arguments as test files itself. Work around
                                           // that by passing the tests as dashed args instead.
@@ -179,14 +180,14 @@ class MochaTests extends Tests {
   }
 }
 
-class NonHostedMochaTests extends Tests {
+class MochaTests extends Tests {
   override run(tests: PathPair[]) {
     const args = [
       MOCHA_BIN_PATH,
       '--config',
       path.join(this.suite.buildPath, 'mocharc.js'),
       '-u',
-      path.join(this.suite.buildPath, 'conductor', 'mocha-interface.js'),
+      path.join(this.suite.buildPath, '..', 'e2e', 'conductor', 'mocha-interface.js'),
     ];
 
     if (options['debug']) {
@@ -230,8 +231,6 @@ class ScriptsMochaTests extends Tests {
     return super.run(
         tests.map(test => ScriptPathPair.getFromPair(test)),
         [
-          '--experimental-strip-types',
-          '--no-warnings=ExperimentalWarning',
           MOCHA_BIN_PATH,
           // Some test require spinning up a TypeScript
           // typechecking service which take some time on
@@ -260,14 +259,16 @@ class KarmaTests extends Tests {
   }
 }
 
-// TODO(333423685)
-// - watch
+/**
+ * TODO(333423685)
+ * - watch
+ **/
 function main() {
   const tests: string[] = typeof options['tests'] === 'string' ? [options['tests']] : options['tests'];
   const testKinds = [
-    new KarmaTests(path.join(GEN_DIR, 'front_end'), path.join(GEN_DIR, 'inspector_overlay')),
+    new (options['node-unit-tests'] ? MochaFrontendTests : KarmaTests)(
+        path.join(GEN_DIR, 'front_end'), path.join(GEN_DIR, 'inspector_overlay'), path.join(GEN_DIR, 'mcp')),
     new MochaTests(path.join(GEN_DIR, 'test/e2e')),
-    new NonHostedMochaTests(path.join(GEN_DIR, 'test/e2e_non_hosted')),
     new MochaTests(path.join(GEN_DIR, 'test/perf')),
     new ScriptsMochaTests(path.join(SOURCE_ROOT, 'scripts/eslint_rules/tests')),
     new ScriptsMochaTests(path.join(SOURCE_ROOT, 'scripts/stylelint_rules/tests')),
@@ -282,7 +283,6 @@ function main() {
           'chrome',
           'third_party/devtools-frontend/src/test:test',
           'third_party/devtools-frontend/src/scripts/hosted_mode:hosted_mode',
-          'third_party/devtools-frontend/src/scripts/component_server:component_server',
         ] :
         [];
     const {status} = ninja('inherit', ...targets);
@@ -292,10 +292,21 @@ function main() {
   }
 
   const suites = new Map<MochaTests, PathPair[]>();
-  const testFiles = tests.flatMap(t => {
-    const globbed = glob.glob.sync(t);
-    return globbed.length > 0 ? globbed : t;
-  });
+  const testFiles = tests
+                        .map(t => {
+                          // The builders will use e2e_non_hosted path until we
+                          // have no branch that contains the path. After that
+                          // we can update the builders to use the new path.
+                          // In the mean time the runner will accept both e2e
+                          // and e2e_non_hosted paths and transform the
+                          // e2e_non_hosted path internally to e2e. After we
+                          // update infra I can come in and remove this.
+                          return t.replace('e2e_non_hosted', 'e2e');
+                        })
+                        .flatMap(t => {
+                          const globbed = glob.glob.sync(t);
+                          return globbed.length > 0 ? globbed : t;
+                        });
   for (const t of testFiles) {
     const repoPath = PathPair.get(t);
     if (!repoPath) {

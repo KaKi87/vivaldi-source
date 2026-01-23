@@ -12,7 +12,6 @@
 
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
@@ -52,7 +51,7 @@
 #include "ui/gfx/image/image_skia_rep_default.h"
 
 #if BUILDFLAG(IS_WIN)
-#include "ui/gfx/icon_util.h"
+#include "ui/gfx/win/icon_util.h"
 #endif
 
 #if BUILDFLAG(IS_MAC)
@@ -403,9 +402,9 @@ base::FilePath GetOsIntegrationResourcesDirectoryForApp(
     return app_data_dir.AppendASCII(GenerateApplicationNameFromAppId(app_id));
   }
 
-  std::string host(url.host());
-  std::string scheme(url.has_scheme() ? url.scheme() : "http");
-  std::string port(url.has_port() ? url.port() : "80");
+  std::string host(url.GetHost());
+  std::string scheme(url.has_scheme() ? url.GetScheme() : "http");
+  std::string port(url.has_port() ? url.GetPort() : "80");
   std::string scheme_port(scheme + "_" + port);
 
 #if BUILDFLAG(IS_WIN)

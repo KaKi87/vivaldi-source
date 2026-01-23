@@ -116,8 +116,8 @@ void OrganizedRulesManager::OnRuleSourceUpdated(
   // If the last fetch failed, either we won't have anything to read, or
   // the rules won't have changed, so skip reading. `kFileUnsupported` results
   // from a successful fetch with no valid rules.
-  if (rule_source.last_fetch_result == FetchResult::kSuccess ||
-      rule_source.last_fetch_result == FetchResult::kFileUnsupported) {
+  if (rule_source.last_read_result == ReadResult::kSuccess ||
+      rule_source.last_read_result == ReadResult::kFileUnsupported) {
     const auto& old_source = rule_sources_.find(rule_source.core.id());
 
     if (old_source == rule_sources_.end() ||
@@ -160,7 +160,7 @@ void OrganizedRulesManager::OnExceptionListChanged(
 
 void OrganizedRulesManager::ReadCompiledRules(
     const ActiveRuleSource& rule_source) {
-  if (rule_source.last_fetch_result == FetchResult::kFileUnsupported) {
+  if (rule_source.last_read_result == ReadResult::kFileUnsupported) {
     // We know there is no valid rules here. No point in trying.
     // Keep any rules buffer around for the index currently in use, they'll be
     // cleared once the new index is ready.

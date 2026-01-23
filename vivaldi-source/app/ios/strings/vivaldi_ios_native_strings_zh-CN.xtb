@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">缩放级别为 <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi 运行缓慢、崩溃或设备发热</translation>
 <translation id="1929299157575856072">默认拦截级别</translation>
+<translation id="1933618400514506228">塞尔维亚-克罗地亚语 (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">在后台标签中打开图片</translation>
 <translation id="1986733655397734221">这些都没有</translation>
 <translation id="1994506778397655062">在新建后台标签页打开图片</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">我不需要预加载的书签和快速拨号</translation>
 <translation id="3091563570137981919">拦截跟踪器和广告</translation>
 <translation id="3097968995088564986">显示添加按钮</translation>
-<translation id="3102790820790869053">搜索最近的标签页</translation>
 <translation id="3134385238404760368">没有最近的标签</translation>
 <translation id="3142562627629111859">新建组</translation>
 <translation id="3157931365184549694">还原</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">您还有什么要补充的吗？</translation>
 <translation id="3842727926262967527">选择您希望放置标签栏和地址字段的位置。</translation>
 <translation id="3845564230651302310">正在应用新的拦截器设置...</translation>
+<translation id="385051799172605136">返回</translation>
 <translation id="3858860766373142691">名称</translation>
 <translation id="3861379244432690245">启用直接匹配</translation>
 <translation id="3866249974567520381">描述</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">编辑日期</translation>
 <translation id="4640946580087069269">复制到笔记</translation>
 <translation id="4643117005422448078">常用站点</translation>
-<translation id="4654428449690716275">在提供翻译之前或之后不要显示横幅</translation>
 <translation id="4654578955713250802">拦截广告和跟踪器</translation>
 <translation id="4655510151391078468">此代码与我们发送的代码不符。
         您还可重试 <ph name="ATTEMPTS" /> 次。</translation>
@@ -496,6 +496,7 @@
 <translation id="6946395294519639514">您可以使用面板在浏览器的侧边栏中轻松访问常用工具。</translation>
 <translation id="6951435330868954105">管理默认设置</translation>
 <translation id="6951948201878750661">点击选择此颜色</translation>
+<translation id="6954630860045222581">显示面板</translation>
 <translation id="6967884871145366229">管理隐私设置</translation>
 <translation id="6973630695168034713">文件夹</translation>
 <translation id="7000227144065890583">建议 URL</translation>
@@ -663,6 +664,7 @@
 <translation id="8948792607467387336">选用为壁纸</translation>
 <translation id="8964449607824577665">如果没有您当前的加密密码，我们将无法解密您的数据。重置此密码需要删除 Vivaldi 服务器上的全部已同步数据。</translation>
 <translation id="8965371804397726192">开始同步所有数据</translation>
+<translation id="896787570003733070">在提供翻译之前或之后不要显示横幅</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {个已书签移入 "{title}"}
           other {个书签已移入 "{title}"}}</translation>

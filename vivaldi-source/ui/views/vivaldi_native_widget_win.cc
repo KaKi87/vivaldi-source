@@ -33,9 +33,12 @@ class VivaldiDesktopNativeWidgetWin : public views::DesktopNativeWidgetAura {
   void OnHostWorkspaceChanged(aura::WindowTreeHost* host) override {
     views::DesktopNativeWidgetAura::OnHostWorkspaceChanged(host);
 
-    chrome::SaveWindowWorkspace(window_->browser(), GetWorkspace());
-    chrome::SaveWindowVisibleOnAllWorkspaces(
-        window_->browser(), window_->IsVisibleOnAllWorkspaces());
+    // Browser* might be gone on exit.
+    if (window_->browser()) {
+      chrome::SaveWindowWorkspace(window_->browser(), GetWorkspace());
+      chrome::SaveWindowVisibleOnAllWorkspaces(
+          window_->browser(), window_->IsVisibleOnAllWorkspaces());
+    }
   }
 
  private:

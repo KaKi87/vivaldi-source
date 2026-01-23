@@ -20,11 +20,9 @@ import org.chromium.chrome.browser.night_mode.R;
 import org.chromium.chrome.browser.night_mode.WebContentsDarkModeController;
 import org.chromium.chrome.browser.night_mode.WebContentsDarkModeMessageController;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.components.browser_ui.settings.CustomDividerFragment;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
-
 
 /** Fragment to manage the theme user settings. */
 @NullMarked
@@ -33,6 +31,9 @@ public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
     static final String PREF_UI_THEME_PREF = "ui_theme_pref";
 
     public static final String KEY_THEME_SETTINGS_ENTRY = "theme_settings_entry";
+
+    // private boolean mWebContentsDarkModeEnabled; // Disabled Vivaldi // VB-110934
+
     private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     @Override
@@ -42,11 +43,10 @@ public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
 
         // Note(nagamani@vivaldi.com): Theme Settings is loaded using VivaldiThemePreference.java.
         /*
-        ChromeSharedPreferences sharedPreferencesManager =
-            ChromeSharedPreferences.getInstance();
-        RadioButtonGroupThemePreference
-        radioButtonGroupThemePreference = (RadioButtonGroupThemePreference)
-        findPreference(PREF_UI_THEME_PREF); mWebContentsDarkModeEnabled =
+        SharedPreferencesManager sharedPreferencesManager = ChromeSharedPreferences.getInstance();
+        RadioButtonGroupThemePreference radioButtonGroupThemePreference =
+                (RadioButtonGroupThemePreference) findPreference(PREF_UI_THEME_PREF);
+        mWebContentsDarkModeEnabled =
                 WebContentsDarkModeController.isGlobalUserSettingsEnabled(getProfile());
         radioButtonGroupThemePreference.initialize(
                 NightModeUtils.getThemeSetting(), mWebContentsDarkModeEnabled);
@@ -98,5 +98,10 @@ public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
     @Override
     public @AnimationType int getAnimationType() {
         return AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "ui_theme";
     }
 }

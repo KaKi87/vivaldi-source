@@ -39,6 +39,7 @@ class MockSyncServiceObserver : public SyncServiceObserver {
   MockSyncServiceObserver() = default;
 
   MOCK_METHOD(void, OnStateChanged, (SyncService*), (override));
+  MOCK_METHOD(void, OnSyncShutdown, (SyncService*), (override));
 };
 
 }  // namespace
@@ -461,7 +462,7 @@ TEST_F(SyncServiceImplStartupTest, ResetSyncViaDashboard) {
   ASSERT_EQ(SyncService::TransportState::ACTIVE,
             sync_service()->GetTransportState());
 
-  // Mimic sync reset via the https://chrome.google.com/sync dashboard.
+  // Mimic sync reset via the https://chrome.google.com/data dashboard.
   // Sync-the-feature should be disabled. On desktop, the sync service will
   // immediately start up again in transport mode. On mobile the account is
   // removed and transport is disabled. InitialSyncFeatureSetupComplete is reset
@@ -962,7 +963,8 @@ TEST_F(SyncServiceImplStartupWithDetermineAccountTypeTest,
             sync_service()->GetTransportState());
 
   // Now provide the information that this is a managed account.
-  account_info.hosted_domain = "managed.com";
+  account_info =
+      AccountInfo::Builder(account_info).SetHostedDomain("managed.com").Build();
   sync_service_impl_bundle_.identity_test_env()->UpdateAccountInfoForAccount(
       account_info);
   ASSERT_EQ(account_info.IsManaged(), signin::Tribool::kTrue);

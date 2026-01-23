@@ -4,6 +4,9 @@
 
 #include "chrome/browser/safe_browsing/notification_telemetry/notification_telemetry_service.h"
 
+#include <optional>
+#include <string>
+
 #include "base/check.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
@@ -198,7 +201,39 @@ void NotificationTelemetryService::OnAddServiceWorkerBehavior(bool success) {
     empty_db_found_count_ = 0;
   }
 }
+std::vector<GURL> NotificationTelemetryService::NormalizeURLs(
+    std::vector<GURL> urls) {
+  std::vector<GURL> normalized_urls;
+  normalized_urls.reserve(urls.size());
 
+  for (const auto& url : urls) {
+    if (!url.is_valid()) {
+      // Skip invalid URLs.
+      continue;
+    }
+    if (!url.has_query()) {
+      // No query, add as is.
+      normalized_urls.push_back(url);
+      continue;
+    }
+    std::string new_query;
+    net::QueryIterator query_iterator(url);
+
+    while (!query_iterator.IsAtEnd()) {
+      if (!new_query.empty()) {
+        new_query += "&";
+      }
+      // Append only the key, strip the value.
+      new_query += query_iterator.GetKey();
+      query_iterator.Advance();
+    }
+
+    GURL::Replacements replacements;
+    replacements.SetQueryStr(new_query);
+    normalized_urls.push_back(url.ReplaceComponents(replacements));
+  }
+  return normalized_urls;
+}
 void NotificationTelemetryService::OnPushEventFinished(
     const GURL& script_url,
     const std::optional<std::vector<GURL>>& requested_urls) {
@@ -208,10 +243,16 @@ void NotificationTelemetryService::OnPushEventFinished(
   if (!base::FeatureList::IsEnabled(safe_browsing::kNotificationTelemetrySwb)) {
     return;
   }
+  std::vector<GURL> normalized_requested_urls =
+      NormalizeURLs(requested_urls.value());
+  // Remove duplicate URLs.
+  base::flat_set<GURL> requested_urls_set(normalized_requested_urls.begin(),
+                                          normalized_requested_urls.end());
   // Store the network request.
   if (telemetry_store_) {
     telemetry_store_->AddServiceWorkerPushBehavior(
-        script_url, requested_urls.value(),
+        script_url,
+        std::vector<GURL>(requested_urls_set.begin(), requested_urls_set.end()),
         base::BindOnce(
             &NotificationTelemetryService::OnAddServiceWorkerBehavior,
             weak_factory_.GetWeakPtr()));
@@ -344,7 +385,7 @@ void NotificationTelemetryService::OnNewNotificationServiceWorkerSubscription(
 }
 
 void NotificationTelemetryService::UploadComplete(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   // Take ownership of the loader in this scope.
   std::unique_ptr<network::SimpleURLLoader> url_loader(std::move(url_loader_));
   int response_code = 0;
@@ -396,6 +437,13 @@ void NotificationTelemetryService::OnGetServiceWorkerBehaviors(
       report->set_page_url(entry.scope_url());
     }
   }
+  // Each message value is a ServiceWorkerBehavior that has potentially been
+  // merged from other ServiceWorkerBehaviors with the same script url. In these
+  // cases, there may be duplicate requested URLs. So, we dedupe those requested
+  // URLs.
+  for (auto& [key, value] : messages) {
+    DedupeRequestedURLs(value);
+  }
   std::string serialized_report;
   if (report->SerializeToString(&serialized_report)) {
     // Log report size to enable server-side capacity planning.
@@ -407,6 +455,15 @@ void NotificationTelemetryService::OnGetServiceWorkerBehaviors(
   }
   // Whether we've sent a report or not, clear the database to avoid build up.
   telemetry_store_->DeleteAll(base::DoNothing());
+}
+
+void NotificationTelemetryService::DedupeRequestedURLs(
+    CSBRR::ServiceWorkerBehavior* service_worker_behavior) {
+  base::flat_set<std::string> requested_urls_set(
+      service_worker_behavior->requested_urls().begin(),
+      service_worker_behavior->requested_urls().end());
+  service_worker_behavior->mutable_requested_urls()->Assign(
+      requested_urls_set.begin(), requested_urls_set.end());
 }
 
 void NotificationTelemetryService::MaybeUploadReport() {

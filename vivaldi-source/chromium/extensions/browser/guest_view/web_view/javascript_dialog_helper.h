@@ -9,7 +9,6 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-
 #include "content/public/browser/javascript_dialog_manager.h"
 
 namespace extensions {
@@ -18,7 +17,6 @@ class WebViewGuest;
 
 class JavaScriptDialogHelper : public content::JavaScriptDialogManager {
  public:
-
   explicit JavaScriptDialogHelper(WebViewGuest* guest);
 
   JavaScriptDialogHelper(const JavaScriptDialogHelper&) = delete;

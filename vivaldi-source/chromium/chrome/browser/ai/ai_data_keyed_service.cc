@@ -14,7 +14,6 @@
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/functional/concurrent_callbacks.h"
 #include "base/functional/concurrent_closures.h"
@@ -51,6 +50,7 @@
 #include "components/optimization_guide/proto/features/model_prototyping.pb.h"
 #include "components/site_engagement/content/site_engagement_service.h"
 #include "components/tabs/public/tab_interface.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host_view.h"
@@ -89,11 +89,11 @@ constexpr size_t kPdfUploadLimitBytes = 128 * kBytesPerMegabyte;
 
 void OnGotAIPageContentForModelPrototyping(
     AiDataKeyedService::AiDataCallback continue_callback,
-    std::optional<optimization_guide::AIPageContentResult> page_content) {
+    optimization_guide::AIPageContentResultOrError page_content) {
   TRACE_EVENT("browser", "OnGotAIPageContentForModelPrototyping");
 
   AiDataKeyedService::BrowserData data;
-  if (page_content) {
+  if (page_content.has_value()) {
     *data.mutable_page_context()->mutable_annotated_page_content() =
         std::move(page_content->proto);
     std::move(continue_callback).Run(std::move(data));
@@ -105,12 +105,12 @@ void OnGotAIPageContentForModelPrototyping(
 
 void OnGotAIPageContentWithActionableElementsForModelPrototyping(
     AiDataKeyedService::AiDataCallback continue_callback,
-    std::optional<optimization_guide::AIPageContentResult> page_content) {
+    optimization_guide::AIPageContentResultOrError page_content) {
   TRACE_EVENT("browser",
               "OnGotAIPageContentWithActionableElementsForModelPrototyping");
 
   AiDataKeyedService::BrowserData data;
-  if (page_content) {
+  if (page_content.has_value()) {
     *data.mutable_action_annotated_page_content() =
         std::move(page_content->proto);
     std::move(continue_callback).Run(std::move(data));
@@ -525,13 +525,14 @@ void OnEncodePng(AiDataKeyedService::AiDataCallback continue_callback,
 
 void OnGetTabScreenshotForModelPrototyping(
     AiDataKeyedService::AiDataCallback continue_callback,
-    const SkBitmap& bitmap) {
+    const viz::CopyOutputBitmapWithMetadata& result) {
   TRACE_EVENT0("browser", "OnGetTabScreenshotForModelPrototyping");
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
        base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
-      base::BindOnce(&EncodePngOnBackgroundThread, base::OwnedRef(bitmap)),
+      base::BindOnce(&EncodePngOnBackgroundThread,
+                     base::OwnedRef(result.bitmap)),
       base::BindOnce(&OnEncodePng, std::move(continue_callback)));
 }
 
@@ -544,7 +545,7 @@ void GetTabScreenshotForModelPrototyping(
   if (!view) {
     return std::move(continue_callback).Run(std::nullopt);
   }
-  SkBitmap empty;
+  viz::CopyOutputBitmapWithMetadata empty;
   view->CopyFromSurface(
       gfx::Rect(),  // Copy entire surface area.
       gfx::Size(),  // Result contains device-level detail.

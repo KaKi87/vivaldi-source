@@ -2,15 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as childProcess from 'child_process';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import yargs from 'yargs';
 import {hideBin} from 'yargs/helpers';
 
 import {asArray, commandLineArgs, DiffBehaviors} from './commandline.js';
 import {defaultChromePath, SOURCE_ROOT} from './paths.js';
+import {shardFilter} from './sharding.js';
 
 const argv = yargs(hideBin(process.argv)).parseSync()['_'] as string[];
 
@@ -18,7 +19,6 @@ const options = commandLineArgs(yargs(argv)).parseSync();
 
 export const enum ServerType {
   HOSTED_MODE = 'hosted-mode',
-  COMPONENT_DOCS = 'component-docs',
 }
 
 interface Config {
@@ -37,6 +37,9 @@ interface Config {
   retries: number;
   configureChrome: (executablePath: string) => void;
   cpuThrottle: number;
+  shardCount: number;
+  shardNumber: number;
+  shardBias: number;
 }
 
 function sliceArrayFromElement(array: string[], element: string) {
@@ -122,16 +125,21 @@ export const TestConfig: Config = {
   retries: options['retries'],
   configureChrome,
   cpuThrottle: options['cpu-throttle'],
+  shardCount: options['shard-count'],
+  shardNumber: options['shard-number'],
+  shardBias: options['shard-bias'],
 };
 
-export function loadTests(testDirectory: string) {
-  const tests = fs.readFileSync(path.join(testDirectory, 'tests.txt'))
+export function loadTests(testDirectory: string, filename = 'tests.txt') {
+  const tests = fs.readFileSync(path.join(testDirectory, filename))
                     .toString()
                     .split('\n')
                     .map(t => t.trim())
                     .filter(t => t.length > 0)
                     .map(t => path.normalize(path.join(testDirectory, t)))
-                    .filter(t => TestConfig.tests.some((spec: string) => t.startsWith(spec)));
+                    .filter(t => TestConfig.tests.some((spec: string) => t.startsWith(spec)))
+                    .filter(t => shardFilter(TestConfig, t));
+
   if (TestConfig.shuffle) {
     for (let i = tests.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));

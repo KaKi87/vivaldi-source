@@ -9,6 +9,7 @@ you sync Chrome. This script finds and runs the executable.
 """
 
 import gclient_paths
+import glob
 import os
 import subprocess
 import sys
@@ -29,11 +30,9 @@ def FindGoogleJavaFormat():
         cipd_path = os.path.join(primary_solution_path, 'third_party',
                                  'google-java-format', 'cipd',
                                  'google-java-format.jar')
+
         # Check that the .jar exists, since it is conditionally downloaded via
         # DEPS conditions.
-        # TODO(b/345761161): Remove old os.path.exists(path + '.jar') check,
-        # when third_party/google-java-format
-        #     -> third_party/google-java-format/cipd is fully rolled out.
         if os.path.exists(bin_path) and (os.path.exists(bin_path + '.jar')
                                          or os.path.exists(cipd_path)):
             return bin_path

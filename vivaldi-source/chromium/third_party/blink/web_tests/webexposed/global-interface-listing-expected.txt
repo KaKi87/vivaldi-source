@@ -122,6 +122,7 @@ interface AnimationTrigger
     attribute @@toStringTag
     method addAnimation
     method constructor
+    method getAnimations
     method removeAnimation
 interface AsyncDisposableStack
     attribute @@toStringTag
@@ -371,13 +372,6 @@ interface AuthenticatorResponse
     attribute @@toStringTag
     getter clientDataJSON
     method constructor
-interface AutomationDelegate
-    attribute @@toStringTag
-    method clearContext
-    method constructor
-    method provideContext
-    method registerTool
-    method unregisterTool
 interface BackForwardCacheRestoration : PerformanceEntry
     attribute @@toStringTag
     getter pageshowEventEnd
@@ -587,9 +581,6 @@ interface CSSColorValue
     static method parse
     attribute @@toStringTag
     method constructor
-    method toHSL
-    method toHWB
-    method toRGB
 interface CSSConditionRule : CSSGroupingRule
     attribute @@toStringTag
     getter conditionText
@@ -1002,7 +993,7 @@ interface CSSPropertyRule : CSSRule
     getter name
     getter syntax
     method constructor
-interface CSSPseudoElement : EventTarget
+interface CSSPseudoElement
     attribute @@toStringTag
     getter element
     getter parent
@@ -1319,7 +1310,6 @@ interface CanvasRenderingContext2D
     method roundRect
     method save
     method scale
-    method setHitTestRegions
     method setLineDash
     method setTransform
     method stroke
@@ -1513,10 +1503,6 @@ interface CookieChangeEvent : Event
     getter changed
     getter deleted
     method constructor
-interface CookieDeprecationLabel
-    attribute @@toStringTag
-    method constructor
-    method getValue
 interface CookieStore : EventTarget
     attribute @@toStringTag
     getter onchange
@@ -2513,7 +2499,6 @@ interface Element : Node
     getter computedRole
     getter containerTiming
     getter containerTimingIgnore
-    getter containerTimingNesting
     getter currentCSSZoom
     getter currentPatch
     getter elementTiming
@@ -2608,6 +2593,7 @@ interface Element : Node
     method setHTMLUnsafe
     method setPointerCapture
     method startViewTransition
+    method streamAppendHTMLUnsafe
     method toggleAttribute
     method webkitMatchesSelector
     method webkitRequestFullScreen
@@ -2669,7 +2655,6 @@ interface Element : Node
     setter className
     setter containerTiming
     setter containerTimingIgnore
-    setter containerTimingNesting
     setter elementTiming
     setter headingOffset
     setter headingReset
@@ -2852,6 +2837,7 @@ interface Event
     getter currentTarget
     getter defaultPrevented
     getter eventPhase
+    getter pseudoTarget
     getter returnValue
     getter srcElement
     getter target
@@ -3079,6 +3065,8 @@ interface FontFaceSetLoadEvent : Event
 interface FormControlRange : AbstractRange
     attribute @@toStringTag
     method constructor
+    method getBoundingClientRect
+    method getClientRects
     method setFormControlRange
     method toString
 interface FormData
@@ -3205,6 +3193,7 @@ interface GPUComputePassEncoder
     method popDebugGroup
     method pushDebugGroup
     method setBindGroup
+    method setImmediates
     method setPipeline
     method writeTimestamp
     setter label
@@ -3285,6 +3274,7 @@ interface GPUQueue
     attribute @@toStringTag
     getter label
     method constructor
+    method copyElementImageToTexture
     method copyExternalImageToTexture
     method onSubmittedWorkDone
     method submit
@@ -3309,6 +3299,7 @@ interface GPURenderBundleEncoder
     method popDebugGroup
     method pushDebugGroup
     method setBindGroup
+    method setImmediates
     method setIndexBuffer
     method setPipeline
     method setVertexBuffer
@@ -3332,6 +3323,7 @@ interface GPURenderPassEncoder
     method pushDebugGroup
     method setBindGroup
     method setBlendConstant
+    method setImmediates
     method setIndexBuffer
     method setPipeline
     method setScissorRect
@@ -3391,6 +3383,7 @@ interface GPUSupportedLimits
     getter maxComputeWorkgroupsPerDimension
     getter maxDynamicStorageBuffersPerPipelineLayout
     getter maxDynamicUniformBuffersPerPipelineLayout
+    getter maxImmediateSize
     getter maxInterStageShaderVariables
     getter maxSampledTexturesPerShaderStage
     getter maxSamplersPerShaderStage
@@ -3473,6 +3466,14 @@ interface GamepadHapticActuator
     method constructor
     method playEffect
     method reset
+interface GamepadRawInputChangeEvent : GamepadEvent
+    attribute @@toStringTag
+    getter axesChanged
+    getter buttonsPressed
+    getter buttonsReleased
+    getter buttonsValueChanged
+    getter touchesChanged
+    method constructor
 interface GamepadTouch
     attribute @@toStringTag
     getter position
@@ -3697,6 +3698,9 @@ interface HTMLBodyElement : HTMLElement
     getter onblur
     getter onerror
     getter onfocus
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter onhashchange
     getter onlanguagechange
     getter onload
@@ -3728,6 +3732,9 @@ interface HTMLBodyElement : HTMLElement
     setter onblur
     setter onerror
     setter onfocus
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter onhashchange
     setter onlanguagechange
     setter onload
@@ -3796,6 +3803,7 @@ interface HTMLCanvasElement : HTMLElement
     method configureHighDynamicRange
     method constructor
     method getContext
+    method getElementTransform
     method toBlob
     method toDataURL
     method transferControlToOffscreen
@@ -4259,6 +4267,9 @@ interface HTMLFrameSetElement : HTMLElement
     getter onblur
     getter onerror
     getter onfocus
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter onhashchange
     getter onlanguagechange
     getter onload
@@ -4286,6 +4297,9 @@ interface HTMLFrameSetElement : HTMLElement
     setter onblur
     setter onerror
     setter onfocus
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter onhashchange
     setter onlanguagechange
     setter onload
@@ -4305,18 +4319,28 @@ interface HTMLFrameSetElement : HTMLElement
     setter onunhandledrejection
     setter onunload
     setter rows
-interface HTMLGeolocationElement : HTMLPermissionElement
+interface HTMLGeolocationElement : HTMLElement
     attribute @@toStringTag
+    getter accuracymode
     getter autolocate
     getter error
+    getter initialPermissionStatus
+    getter invalidReason
+    getter isValid
     getter onlocation
+    getter onpromptaction
+    getter onpromptdismiss
+    getter onvalidationstatuschange
+    getter permissionStatus
     getter position
-    getter precise
     getter watch
     method constructor
+    setter accuracymode
     setter autolocate
     setter onlocation
-    setter precise
+    setter onpromptaction
+    setter onpromptdismiss
+    setter onvalidationstatuschange
     setter watch
 interface HTMLHRElement : HTMLElement
     attribute @@toStringTag
@@ -4560,6 +4584,11 @@ interface HTMLInputElement : HTMLElement
     setter valueAsNumber
     setter webkitdirectory
     setter width
+interface HTMLInstallElement : HTMLPermissionElement
+    attribute @@toStringTag
+    getter manifest
+    method constructor
+    setter manifest
 interface HTMLLIElement : HTMLElement
     attribute @@toStringTag
     getter type
@@ -4922,18 +4951,14 @@ interface HTMLPermissionElement : HTMLElement
     getter initialPermissionStatus
     getter invalidReason
     getter isValid
-    getter ondismiss
     getter onpromptaction
     getter onpromptdismiss
-    getter onresolve
     getter onvalidationstatuschange
     getter permissionStatus
     getter type
     method constructor
-    setter ondismiss
     setter onpromptaction
     setter onpromptdismiss
-    setter onresolve
     setter onvalidationstatuschange
     setter type
 interface HTMLPictureElement : HTMLElement
@@ -4970,12 +4995,14 @@ interface HTMLScriptElement : HTMLElement
     getter event
     getter fetchPriority
     getter htmlFor
+    getter innerText
     getter integrity
     getter noModule
     getter referrerPolicy
     getter signature
     getter src
     getter text
+    getter textContent
     getter type
     method constructor
     setter async
@@ -4987,12 +5014,14 @@ interface HTMLScriptElement : HTMLElement
     setter event
     setter fetchPriority
     setter htmlFor
+    setter innerText
     setter integrity
     setter noModule
     setter referrerPolicy
     setter signature
     setter src
     setter text
+    setter textContent
     setter type
 interface HTMLSelectElement : HTMLElement
     attribute @@toStringTag
@@ -5302,6 +5331,21 @@ interface HTMLUListElement : HTMLElement
 interface HTMLUnknownElement : HTMLElement
     attribute @@toStringTag
     method constructor
+interface HTMLUserMediaElement : HTMLElement
+    attribute @@toStringTag
+    getter initialPermissionStatus
+    getter invalidReason
+    getter isValid
+    getter onpromptaction
+    getter onpromptdismiss
+    getter onvalidationstatuschange
+    getter permissionStatus
+    getter type
+    method constructor
+    setter onpromptaction
+    setter onpromptdismiss
+    setter onvalidationstatuschange
+    setter type
 interface HTMLVideoElement : HTMLMediaElement
     attribute @@toStringTag
     getter disablePictureInPicture
@@ -5554,6 +5598,7 @@ interface IdentityCredential : Credential
 interface IdentityCredentialError : DOMException
     attribute @@toStringTag
     getter code
+    getter error
     getter url
     method constructor
 interface IdentityProvider
@@ -6517,6 +6562,13 @@ interface MimeTypeArray
     method constructor
     method item
     method namedItem
+interface ModelContext
+    attribute @@toStringTag
+    method clearContext
+    method constructor
+    method provideContext
+    method registerTool
+    method unregisterTool
 interface Mojo
     static method bindInterface
     static method createDataPipe
@@ -6754,8 +6806,8 @@ interface Navigator
     getter clipboard
     getter connection
     getter contacts
-    getter cookieDeprecationLabel
     getter cookieEnabled
+    getter cpuPerformance
     getter credentials
     getter deprecatedRunAdAuctionEnforcesKAnonymity
     getter deviceMemory
@@ -6778,6 +6830,8 @@ interface Navigator
     getter mediaDevices
     getter mediaSession
     getter mimeTypes
+    getter modelContext
+    getter modelContextTesting
     getter onLine
     getter pdfViewerEnabled
     getter permissions
@@ -6837,6 +6891,8 @@ interface Navigator
     method updateAdInterestGroups
     method vibrate
     method webkitGetUserMedia
+    setter modelContext
+    setter modelContextTesting
 interface NavigatorLogin
     attribute @@toStringTag
     method constructor
@@ -7187,15 +7243,12 @@ interface OrientationSensor : Sensor
     method constructor
     method populateMatrix
 interface Origin
-    static method fromURL
-    static method parse
+    static method from
     attribute @@toStringTag
     getter opaque
     method constructor
     method isSameOrigin
     method isSameSite
-    method toJSON
-    method toString
 interface OscillatorNode : AudioScheduledSourceNode
     attribute @@toStringTag
     getter detune
@@ -7380,6 +7433,7 @@ interface PerformanceContainerTiming : PerformanceEntry
     getter identifier
     getter intersectionRect
     getter lastPaintedElement
+    getter rootElement
     getter size
     method constructor
     method toJSON
@@ -7414,6 +7468,7 @@ interface PerformanceEventTiming : PerformanceEntry
     getter processingEnd
     getter processingStart
     getter target
+    getter targetSelector
     method constructor
     method toJSON
 interface PerformanceLongAnimationFrameTiming : PerformanceEntry
@@ -8329,27 +8384,56 @@ interface RouteMap
 interface RtcReceivedPacket
     attribute @@toStringTag
     getter data
+    getter receiveTime
     method constructor
 interface RtcTransport
     attribute @@toStringTag
+    getter fingerprint
+    getter fingerprintDigestAlgorithm
     getter onicecandidate
+    getter onwritablechange
+    method addRemoteCandidate
     method constructor
     method getReceivedPackets
     method sendPackets
+    method setRemoteDtlsParameters
+    method writable
     setter onicecandidate
+    setter onwritablechange
+interface RtcTransportIceCandidate
+    attribute @@toStringTag
+    getter address
+    getter password
+    getter port
+    getter type
+    getter usernameFragment
+    method constructor
+    method toJSON
+interface RtcTransportIceEvent : Event
+    attribute @@toStringTag
+    getter candidate
+    method constructor
 interface SVGAElement : SVGGraphicsElement
     attribute @@toStringTag
     getter download
     getter href
+    getter hreflang
     getter interestForElement
+    getter ping
+    getter referrerPolicy
     getter rel
     getter relList
     getter target
+    getter type
     method constructor
     setter download
+    setter hreflang
     setter interestForElement
+    setter ping
+    setter referrerPolicy
     setter rel
     setter relList
+    setter type
 interface SVGAngle
     attribute @@toStringTag
     attribute SVG_ANGLETYPE_DEG
@@ -9399,7 +9483,7 @@ interface SVGStyleElement : SVGElement
 interface SVGSwitchElement : SVGGraphicsElement
     attribute @@toStringTag
     method constructor
-interface SVGSymbolElement : SVGElement
+interface SVGSymbolElement : SVGGraphicsElement
     attribute @@toStringTag
     getter preserveAspectRatio
     getter viewBox
@@ -9766,6 +9850,7 @@ interface ShadowRoot : DocumentFragment
     method getSelection
     method setHTML
     method setHTMLUnsafe
+    method streamAppendHTMLUnsafe
     setter adoptedStyleSheets
     setter fullscreenElement
     setter innerHTML
@@ -10810,6 +10895,7 @@ interface ViewTransition
     getter updateCallbackDone
     method constructor
     method skipTransition
+    method waitUntil
 interface ViewTransitionTypeSet
     attribute @@toStringTag
     getter size
@@ -11613,7 +11699,6 @@ interface WebGL2RenderingContext
     method samplerParameterf
     method samplerParameteri
     method scissor
-    method setHitTestRegions
     method shaderSource
     method stencilFunc
     method stencilFuncSeparate
@@ -12118,7 +12203,6 @@ interface WebGLRenderingContext
     method renderbufferStorage
     method sampleCoverage
     method scissor
-    method setHitTestRegions
     method shaderSource
     method stencilFunc
     method stencilFuncSeparate
@@ -12548,6 +12632,15 @@ interface XRCompositionLayer : XRLayer
     setter chromaticAberrationCorrection
     setter forceMonoPresentation
     setter opacity
+interface XRCubeLayer : XRCompositionLayer
+    attribute @@toStringTag
+    getter onredraw
+    getter orientation
+    getter space
+    method constructor
+    setter onredraw
+    setter orientation
+    setter space
 interface XRCylinderLayer : XRCompositionLayer
     attribute @@toStringTag
     getter aspectRatio
@@ -12810,6 +12903,7 @@ interface XRSession : EventTarget
     getter onsqueezeend
     getter onsqueezestart
     getter onvisibilitychange
+    getter onvisibilitymaskchange
     getter preferredReflectionFormat
     getter renderState
     getter supportedFrameRates
@@ -12837,6 +12931,7 @@ interface XRSession : EventTarget
     setter onsqueezeend
     setter onsqueezestart
     setter onvisibilitychange
+    setter onvisibilitymaskchange
 interface XRSessionEvent : Event
     attribute @@toStringTag
     getter session
@@ -12868,6 +12963,7 @@ interface XRView
     attribute @@toStringTag
     getter camera
     getter eye
+    getter index
     getter isFirstPersonObserver
     getter projectionMatrix
     getter recommendedViewportScale
@@ -12885,11 +12981,20 @@ interface XRViewport
     getter x
     getter y
     method constructor
+interface XRVisibilityMaskChangeEvent : Event
+    attribute @@toStringTag
+    getter eye
+    getter index
+    getter indices
+    getter session
+    getter vertices
+    method constructor
 interface XRWebGLBinding
     attribute @@toStringTag
     getter nativeProjectionScaleFactor
     getter usesDepthValues
     method constructor
+    method createCubeLayer
     method createCylinderLayer
     method createEquirectLayer
     method createProjectionLayer
@@ -13225,6 +13330,17 @@ namespace GPUTextureUsage
     attribute RENDER_ATTACHMENT
     attribute STORAGE_BINDING
     attribute TEXTURE_BINDING
+namespace Temporal
+    attribute @@toStringTag
+    attribute Now
+    method Duration
+    method Instant
+    method PlainDate
+    method PlainDateTime
+    method PlainMonthDay
+    method PlainTime
+    method PlainYearMonth
+    method ZonedDateTime
 namespace console
     attribute @@toStringTag
     getter memory
@@ -13264,7 +13380,6 @@ namespace console
     attribute propertyNamesInGlobal
     attribute testRunner
     attribute textInputController
-    getter automationDelegate
     getter caches
     getter clientInformation
     getter closed
@@ -13342,6 +13457,9 @@ namespace console
     getter onerror
     getter onfocus
     getter onformdata
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter ongotpointercapture
     getter onhashchange
     getter oninput
@@ -13487,8 +13605,6 @@ namespace console
     method moveBy
     method moveTo
     method open
-    method popinContextType
-    method popinContextTypesSupported
     method postMessage
     method print
     method prompt
@@ -13498,6 +13614,7 @@ namespace console
     method reportError
     method requestAnimationFrame
     method requestIdleCallback
+    method requestResize
     method resizeBy
     method resizeTo
     method restore
@@ -13516,7 +13633,6 @@ namespace console
     method webkitRequestAnimationFrame
     method webkitRequestFileSystem
     method webkitResolveLocalFileSystemURL
-    setter automationDelegate
     setter clientInformation
     setter devicePixelRatio
     setter event
@@ -13575,6 +13691,9 @@ namespace console
     setter onerror
     setter onfocus
     setter onformdata
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter ongotpointercapture
     setter onhashchange
     setter oninput

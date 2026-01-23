@@ -92,7 +92,7 @@ fate-mov-frag-overlap: CMD = framemd5 -i $(TARGET_SAMPLES)/mov/frag_overlap.mp4
 
 fate-mov-mp4-frag-flush: CMD = md5 -f lavfi -i color=blue,format=rgb24,trim=duration=0.04 -f lavfi -i anullsrc,aformat=s16,atrim=duration=2 -c:v png -c:a pcm_s16le -movflags +empty_moov+hybrid_fragmented -frag_duration 1000000 -frag_interleave 1 -bitexact -f mp4
 fate-mov-mp4-frag-flush: CMP = oneline
-fate-mov-mp4-frag-flush: REF = c9d0236bde4a0b24a01f6a032fd72e04
+fate-mov-mp4-frag-flush: REF = 48d833e4773f7542f65dadb446f8bf61
 FATE_MOV_FFMPEG-$(call ALLYES, LAVFI_INDEV COLOR_FILTER FORMAT_FILTER TRIM_FILTER \
                                ANULLSRC_FILTER AFORMAT_FILTER ATRIM_FILTER        \
                                WRAPPED_AVFRAME_DECODER PCM_S16LE_DECODER PCM_S16BE_DECODER \
@@ -158,6 +158,27 @@ FATE_MOV_FFMPEG_FFPROBE_SAMPLES-$(call TRANSCODE, TTML SUBRIP, MP4 MOV, SRT_DEMU
 fate-mov-mp4-ttml-stpp: CMD = transcode srt $(TARGET_SAMPLES)/sub/SubRip_capability_tester.srt mp4 "-map 0:s -c:s ttml -time_base:s 1:1000" "-map 0 -c copy" "-of json -show_entries packet:stream=index,codec_type,codec_tag_string,codec_tag,codec_name,time_base,start_time,duration_ts,duration,nb_frames,nb_read_packets:stream_tags"
 fate-mov-mp4-ttml-dfxp: CMD = transcode srt $(TARGET_SAMPLES)/sub/SubRip_capability_tester.srt mp4 "-map 0:s -c:s ttml -time_base:s 1:1000 -tag:s dfxp -strict unofficial" "-map 0 -c copy" "-of json -show_entries packet:stream=index,codec_type,codec_tag_string,codec_tag,codec_name,time_base,start_time,duration_ts,duration,nb_frames,nb_read_packets:stream_tags"
 
+FATE_MOV_FFMPEG_FFPROBE_SAMPLES-$(call TRANSCODE, TTML SUBRIP, MP4 MOV, LAVFI_INDEV SMPTEHDBARS_FILTER SRT_DEMUXER MPEG2VIDEO_ENCODER TTML_MUXER RAWVIDEO_MUXER) += fate-mov-mp4-fragmented-ttml-stpp
+fate-mov-mp4-fragmented-ttml-stpp: CMD = transcode srt $(TARGET_SAMPLES)/sub/SubRip_capability_tester.srt mp4 \
+  "-map 1:v -map 0:s \
+   -c:v mpeg2video -b:v 2M -g 48 -sc_threshold 1000000000 \
+   -c:s ttml -time_base:s 1:1000 \
+   -movflags +cmaf" \
+  "-map 0:s -c copy" \
+  "-select_streams s -of csv -show_packets -show_data_hash crc32" \
+  "-f lavfi -i smptehdbars=duration=24.5245:size=320x180:rate=24000/1001,format=yuv420p" \
+  "" "" "data"
+
+FATE_MOV_FFMPEG_FFPROBE_SAMPLES-$(call TRANSCODE, TTML SUBRIP, ISMV MOV, LAVFI_INDEV SMPTEHDBARS_FILTER SRT_DEMUXER MPEG2VIDEO_ENCODER TTML_MUXER RAWVIDEO_MUXER) += fate-mov-mp4-fragmented-ttml-dfxp
+fate-mov-mp4-fragmented-ttml-dfxp: CMD = transcode srt $(TARGET_SAMPLES)/sub/SubRip_capability_tester.srt ismv \
+  "-map 1:v -map 0:s \
+   -c:v mpeg2video -b:v 2M -g 48 -sc_threshold 1000000000 \
+   -c:s ttml -tag:s dfxp -time_base:s 1:1000" \
+  "-map 0:s -c copy" \
+  "-select_streams s -of csv -show_packets -show_data_hash crc32" \
+  "-f lavfi -i smptehdbars=duration=24.5245:size=320x180:rate=24000/1001,format=yuv420p" \
+  "" "" "data"
+
 # avif demuxing - still image with 1 item.
 FATE_MOV_FFMPEG_SAMPLES-$(call FRAMECRC, MOV, AV1, AV1_PARSER) \
                            += fate-mov-avif-demux-still-image-1-item
@@ -188,7 +209,7 @@ fate-mov-heic-demux-clap-irot-imir: CMD = stream_demux mov $(TARGET_SAMPLES)/hei
 FATE_MOV_FFMPEG_FFPROBE_SAMPLES-$(call FRAMECRC, MOV, HEVC MJPEG, HEVC_PARSER) \
                            += fate-mov-heic-demux-still-image-multiple-thumb
 fate-mov-heic-demux-still-image-multiple-thumb: CMD = stream_demux mov $(TARGET_SAMPLES)/heif/P1001091.HIF "" "-c:v copy -map 0" \
-  "-show_entries stream=index,id:stream_disposition"
+  "-show_entries stream=index,id:stream_disposition:stream_side_data_list:frame=stream_index:frame_side_data_list:frame_tags"
 
 # heic demuxing - still image with multiple items in a grid.
 FATE_MOV_FFMPEG_FFPROBE_SAMPLES-$(call FRAMECRC, MOV, HEVC, HEVC_PARSER) \

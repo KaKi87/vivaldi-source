@@ -23,7 +23,7 @@
 #include "components/version_info/version_info.h"
 #include "extensions/browser/event_router.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "update/update_service_factory.h"
+#include "update/vivaldi_update_service_factory.h"
 #include "v8/include/v8-version-string.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -41,8 +41,8 @@ namespace auto_update = extensions::vivaldi::auto_update;
 namespace OnUpdateProgress = auto_update::OnUpdateProgress;
 
 using auto_update::UpdateOperationStatusEnum;
-using update::UpdateService;
-using update::UpdateServiceFactory;
+using update::VivaldiUpdateService;
+using update::VivaldiUpdateServiceFactory;
 
 namespace extensions {
 
@@ -62,7 +62,7 @@ std::string GetVersionString(const base::Version& version) {
 }  // namespace
 
 UpdateEventRouter::UpdateEventRouter(Profile* profile,
-                                     UpdateService* update_service)
+                                     VivaldiUpdateService* update_service)
     : profile_(profile) {
   DCHECK(profile);
   update_service_observation_.Observe(update_service);
@@ -92,7 +92,7 @@ UpdateOperationStatusEnum ToUpdateStatus(const AutoUpdateStatus& status) {
   }
 }
 
-void UpdateEventRouter::OnUpdateProgress(UpdateService* service,
+void UpdateEventRouter::OnUpdateProgress(VivaldiUpdateService* service,
                                          const AutoUpdateStatus& status,
                                          const std::string& reason,
                                          const int progress) {
@@ -159,7 +159,7 @@ void AutoUpdateAPI::OnListenerAdded(const EventListenerInfo& details) {
   Profile* profile = Profile::FromBrowserContext(browser_context_);
 
   update_event_router_ = std::make_unique<UpdateEventRouter>(
-      profile, UpdateServiceFactory::GetForProfile(profile));
+      profile, VivaldiUpdateServiceFactory::GetForProfile(profile));
 
   EventRouter::Get(browser_context_)->UnregisterObserver(this);
 }

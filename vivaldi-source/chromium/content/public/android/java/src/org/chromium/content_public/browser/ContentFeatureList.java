@@ -6,10 +6,12 @@ package org.chromium.content_public.browser;
 
 import org.chromium.base.MutableBooleanParamWithSafeDefault;
 import org.chromium.base.MutableFlagWithSafeDefault;
+import org.chromium.base.MutableIntParamWithSafeDefault;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.cached_flags.CachedFlag;
 import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.common.ContentFeatures;
+import org.chromium.ui.accessibility.AccessibilityFeatures;
 
 import java.util.List;
 
@@ -25,25 +27,31 @@ public class ContentFeatureList {
     public static final String ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE =
             "AccessibilityDeprecateTypeAnnounce";
 
-    public static final String ACCESSIBILITY_INCLUDE_LONG_CLICK_ACTION =
-            "AccessibilityIncludeLongClickAction";
+    public static final String ACCESSIBILITY_IMPROVE_LIVE_REGION_ANNOUNCE =
+            "AccessibilityImproveLiveRegionAnnounce";
 
     public static final String ACCESSIBILITY_PAGE_ZOOM_V2 = "AccessibilityPageZoomV2";
 
     public static final String ACCESSIBILITY_POPULATE_SUPPLEMENTAL_DESCRIPTION_API =
             "AccessibilityPopulateSupplementalDescriptionApi";
 
+    public static final String ACCESSIBILITY_SEQUENTIAL_FOCUS = "AccessibilitySequentialFocus";
+
+    public static final String ACCESSIBILITY_SET_SELECTABLE_ON_ALL_NODES_WITH_TEXT =
+            "AccessibilitySetSelectableOnAllNodesWithText";
+
     public static final String ACCESSIBILITY_UNIFIED_SNAPSHOTS = "AccessibilityUnifiedSnapshots";
     public static final String ACCESSIBILITY_MANAGE_BROADCAST_RECEIVER_ON_BACKGROUND =
             "AccessibilityManageBroadcastReceiverOnBackground";
 
     public static final String ANDROID_CAPTURE_KEY_EVENTS = "AndroidCaptureKeyEvents";
+    public static final String ANDROID_CARET_BROWSING = "AndroidCaretBrowsing";
 
     public static final String ANDROID_DEV_TOOLS_FRONTEND = "AndroidDevToolsFrontend";
 
-    public static final String ANDROID_OPEN_PDF_INLINE = "AndroidOpenPdfInline";
+    public static final String ANDROID_MEDIA_INSERTION = "AndroidMediaInsertion";
 
-    public static final String DESKTOP_UA_ON_CONNECTED_DISPLAY = "DesktopUAOnConnectedDisplay";
+    public static final String ANDROID_OPEN_PDF_INLINE = "AndroidOpenPdfInline";
 
     public static final String HIDE_PASTE_POPUP_ON_GSB = "HidePastePopupOnGSB";
 
@@ -81,6 +89,16 @@ public class ContentFeatureList {
             sAccessibilityDeprecateJavaNodeCacheDisableCache =
                     sAccessibilityDeprecateJavaNodeCache.newBooleanParam("disable_cache", false);
 
+    public static final MutableFlagWithSafeDefault sAccessibilityMagnificationFollowsFocus =
+            new MutableFlagWithSafeDefault(
+                    ContentFeatureMap.getInstance(),
+                    AccessibilityFeatures.ACCESSIBILITY_MAGNIFICATION_FOLLOWS_FOCUS,
+                    false);
+
+    public static final MutableFlagWithSafeDefault sAndroidCaretBrowsing =
+            new MutableFlagWithSafeDefault(
+                    ContentFeatureMap.getInstance(), ContentFeatures.ANDROID_CARET_BROWSING, false);
+
     public static final MutableFlagWithSafeDefault sStrictHighRankProcessLRU =
             new MutableFlagWithSafeDefault(
                     ContentFeatureMap.getInstance(),
@@ -110,6 +128,18 @@ public class ContentFeatureList {
     // once decided upon.
     public static final CachedFlag sJavalessRenderers =
             new CachedFlag(ContentFeatureMap.getInstance(), JAVALESS_RENDERERS, false, false);
+
+    public static final MutableFlagWithSafeDefault sAndroidDesktopZoomScaling =
+            new MutableFlagWithSafeDefault(
+                    ContentFeatureMap.getInstance(),
+                    ContentFeatures.ANDROID_DESKTOP_ZOOM_SCALING,
+                    false);
+
+    public static final MutableIntParamWithSafeDefault sAndroidDesktopZoomScalingFactor =
+            sAndroidDesktopZoomScaling.newIntParam("desktop-zoom-scaling-factor", 100);
+
+    public static final MutableIntParamWithSafeDefault sAndroidMonitorZoomScalingFactor =
+            sAndroidDesktopZoomScaling.newIntParam("monitor-zoom-scaling-factor", 100);
 
     public static final List<CachedFlag> sCachedFlags = List.of(sJavalessRenderers);
 }

@@ -55,6 +55,9 @@ VivaldiProfilePickerUI::VivaldiProfilePickerUI(::content::WebUI* web_ui)
 }
 
 void VivaldiProfilePickerUI::WebUIRenderFrameCreated(
-    content::RenderFrameHost* render_frame_host) {
-  render_frame_host->SetSupportsDraggableRegions(true);
+    content::RenderFrameHost* rfh) {
+  auto* web_contents = content::WebContents::FromRenderFrameHost(rfh);
+  if (web_contents) {
+    web_contents->SetSupportsDraggableRegions(true);
+  }
 }

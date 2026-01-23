@@ -27,8 +27,10 @@ export async function navigateToLighthouseTab(
   return await devToolsPage.waitFor('.lighthouse-start-view');
 }
 
-// Instead of watching the worker or controller/panel internals, we wait for the Lighthouse renderer
-// to create the new report DOM. And we pull the LHR and artifacts off the lh-root node.
+/**
+ * Instead of watching the worker or controller/panel internals, we wait for the Lighthouse renderer
+ * to create the new report DOM. And we pull the LHR and artifacts off the lh-root node.
+ **/
 export async function waitForResult(
     devToolsPage = getBrowserAndPagesWrappers().devToolsPage,
     inspectedPage = getBrowserAndPagesWrappers().inspectedPage) {
@@ -227,16 +229,13 @@ export async function registerServiceWorker(inspectedPage = getBrowserAndPagesWr
 export async function interceptNextFileSave(devToolsPage = getBrowserAndPagesWrappers().devToolsPage):
     Promise<() => Promise<string>> {
   await devToolsPage.evaluate(() => {
-    // @ts-expect-error
     const original = InspectorFrontendHost.save;
     const nextFilePromise = new Promise(resolve => {
-      // @ts-expect-error
       InspectorFrontendHost.save = (_, content) => {
         resolve(content);
       };
     });
     void nextFilePromise.finally(() => {
-      // @ts-expect-error
       InspectorFrontendHost.save = original;
     });
     // @ts-expect-error

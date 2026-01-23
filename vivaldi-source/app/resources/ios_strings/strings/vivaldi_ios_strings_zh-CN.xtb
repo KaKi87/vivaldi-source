@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">要锁定“隐身”标签，请设置 Touch ID、Face ID 或密码。</translation>
 <translation id="1189137610071296104">在标签栈中打开</translation>
 <translation id="1310184829257917508">要求隐身打开其他应用程序的链接</translation>
+<translation id="1624481300475123200">自动填充密码</translation>
 <translation id="1743244221910283364">丢弃更改</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {添加标签页到新标签栈}
         other {添加标签页到新标签栈}}</translation>
 <translation id="207677936531967364">新隐身标签</translation>
 <translation id="2099591136582442348">这将永久从设备中删除标签栈。</translation>
+<translation id="2104086191144208395">发现问题了吗？</translation>
 <translation id="2181990701313127304">标签栈中的新标签页</translation>
 <translation id="2351280151183279120">共享标签栈</translation>
 <translation id="2353953000228441783">默认网站视图</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">以隐身模式打开 ${url}</translation>
 <translation id="398477389655464998">复制链接到突出显示</translation>
 <translation id="3993429087389909418">标签页将在此设备上保持打开，但堆栈将从所有登录到<ph name="USER_EMAIL" />的设备中删除 。</translation>
-<translation id="4026745073321351206">🙄发现问题了吗？</translation>
 <translation id="4216644171369573466">标签栈，<ph name="GROUP_TITLE" />，菜单。</translation>
 <translation id="4304713468139749426">密码管理器</translation>
 <translation id="4439281775431634915">标签栈保存在这里</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">您已读过的页面</translation>
 <translation id="5521301883748677039">删除标签栈？</translation>
 <translation id="5544011153887687593">标签栈内标签。<ph name="NUMBER_OF_TABS_IN_GROUP" />个标签页中的第<ph name="TAB_INDEX_IN_GROUP" />个。</translation>
+<translation id="5548760955356983418">接力功能让您可以在此设备上开始浏览网站，然后轻松地在 Mac 上继续浏览。当前打开的网站将显示在 Mac 的 Dock 栏中。
+
+此外，您必须在“设置”的“通用”部分启用接力功能，并且您的设备必须使用同一个 iCloud 帐户。</translation>
 <translation id="5614553682702429503">要保存密码吗？</translation>
+<translation id="5620163320393916465">没有保存的密码</translation>
 <translation id="570209299585559496">您可在“设置”&gt;“内容设置”中将默认网站视图改为桌面版视图</translation>
 <translation id="5719777162751096990">移至标签栈</translation>
+<translation id="5869522115854928033">已保存的密码</translation>
 <translation id="5962477178930921574">粘贴并搜索</translation>
 <translation id="6163856768888310791">解散标签栈</translation>
 <translation id="6168969409902608220">标签栈命名</translation>
 <translation id="6192561334825788389">向右滑动可以隐身浏览。</translation>
 <translation id="6233792867654386826">在 Vivaldi 中打开输入的链接。</translation>
 <translation id="6271462272606946663">隐藏请求移动网站</translation>
+<translation id="6309282378909663947">Vivaldi 密码管理器中的密码</translation>
 <translation id="6478587527114893588">关闭标签栈。</translation>
 <translation id="6527405730445064713">已展开的标签栈。</translation>
 <translation id="6532106788206463496">保存修改</translation>
+<translation id="6636411080833380839">移出标签栈</translation>
+<translation id="6644512095122093795">提示保存密码</translation>
 <translation id="6666425778700353369">此操作将删除以<ph name="USER_EMAIL" />登录的所有设备上的标签栈。</translation>
 <translation id="6680416467695217368">自定义菜单</translation>
 <translation id="6695835495840050460">点击“将标签页添加到新标签栈”</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">标签栈中的新隐身标签页</translation>
 <translation id="7661319142491611883">展开标签栈。</translation>
 <translation id="7706213624515206557">显示栈内所有标签页</translation>
+<translation id="7937179923651776879">从任何应用程序访问您的密码</translation>
 <translation id="7961015016161918242">一律不</translation>
 <translation id="8326104954595890674">新隐身标签</translation>
 <translation id="8345989863850359861">移除标签并删除标签栈？</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">标签栈中的新标签页</translation>
 <translation id="9042893549633094279">隐私与安全</translation>
 <translation id="9094033019050270033">更新密码</translation>
+<translation id="9203116392574189331">接力</translation>
 <translation id="944434461715569989">离开标签栈</translation>
 <translation id="959061183386231608">标签页将在此设备上保持打开，但标签栈将被永久删除。</translation>
+<translation id="988141524645182168">其他设备</translation>
 </translationbundle>

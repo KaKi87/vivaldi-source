@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-
 #include "chrome/installer/util/logging_installer.h"
 
 #include <windows.h>
@@ -19,6 +18,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
+#include "base/logging/logging_settings.h"
 #include "base/logging_win.h"
 #include "base/path_service.h"
 #include "base/strings/string_util.h"
@@ -123,9 +123,7 @@ base::FilePath GetLogFilePath(const installer::InitialPreferences& prefs) {
     return base::FilePath(base::UTF8ToWide(path));
 
   static const base::FilePath::CharType kLogFilename[] =
-#if defined(VIVALDI_BUILD)
-      FILE_PATH_LITERAL("vivaldi_installer.log");
-#elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       FILE_PATH_LITERAL("chrome_installer.log");
 #else  // BUILDFLAG(CHROMIUM_BRANDING)
       FILE_PATH_LITERAL("chromium_installer.log");

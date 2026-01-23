@@ -5,6 +5,8 @@
 package org.chromium.chrome.browser.quick_delete;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -12,6 +14,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 
 import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
+import static org.chromium.chrome.browser.quick_delete.QuickDeleteController.QUICK_DELETE_EVER_USED_PREF;
 
 import androidx.test.filters.MediumTest;
 
@@ -25,11 +28,13 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.transit.ConditionalState;
 import org.chromium.base.test.transit.TransitAsserts;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge;
@@ -38,8 +43,10 @@ import org.chromium.chrome.browser.browsing_data.BrowsingDataType;
 import org.chromium.chrome.browser.browsing_data.ClearBrowsingDataFragment;
 import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.browsing_data.TimePeriodUtils;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabTestUtils;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -50,6 +57,7 @@ import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.transit.quick_delete.QuickDeleteDialogFacility;
 import org.chromium.chrome.test.transit.settings.SettingsStation;
 import org.chromium.components.browsing_data.DeleteBrowsingDataAction;
+import org.chromium.components.user_prefs.UserPrefs;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -58,6 +66,7 @@ import java.util.concurrent.TimeoutException;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(Batch.PER_CLASS)
+@DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
 public class QuickDeleteControllerTest {
     private static final long FIFTEEN_MINUTES_IN_MS = TimeUnit.MINUTES.toMillis(15);
 
@@ -71,6 +80,7 @@ public class QuickDeleteControllerTest {
     private final CallbackHelper mCallbackHelper = new CallbackHelper();
     private WebPageStation mSecondPage;
     private RegularTabSwitcherStation mTabSwitcher;
+    private Profile mProfile;
 
     @Before
     public void setUp() {
@@ -101,6 +111,7 @@ public class QuickDeleteControllerTest {
 
         // Open second tab for tests.
         mSecondPage = firstPage.openFakeLinkToWebPage("about:blank");
+        mProfile = mCtaTestRule.getActivity().getCurrentTabModel().getProfile();
     }
 
     @After
@@ -112,6 +123,12 @@ public class QuickDeleteControllerTest {
             }
             mTabSwitcher = null;
         }
+
+        // Clear user prefs which are shared between tests.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    UserPrefs.get(mProfile).clearPref(QUICK_DELETE_EVER_USED_PREF);
+                });
     }
 
     @Test
@@ -136,6 +153,10 @@ public class QuickDeleteControllerTest {
                                 QuickDeleteMetricsDelegate.QuickDeleteAction
                                         .LAST_15_MINUTES_SELECTED)
                         .build();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertFalse(UserPrefs.get(mProfile).getBoolean(QUICK_DELETE_EVER_USED_PREF));
+                });
 
         QuickDeleteDialogFacility dialog = mSecondPage.openRegularTabAppMenu().clearBrowsingData();
         histogramWatcher.assertExpected();
@@ -153,6 +174,10 @@ public class QuickDeleteControllerTest {
                         .build();
 
         mTabSwitcher = dialog.confirmDelete(/* regularTabsExistAfterDeletion= */ true).first;
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertTrue(UserPrefs.get(mProfile).getBoolean(QUICK_DELETE_EVER_USED_PREF));
+                });
 
         histogramWatcher.assertExpected();
         assertDataTypesCleared(
@@ -264,7 +289,10 @@ public class QuickDeleteControllerTest {
         WebPageStation realPage =
                 mSecondPage.loadPageProgrammatically(
                         "https://www.google.com/", WebPageStation.newBuilder());
-        assertEquals(1, realPage.getTabModel().getCount());
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertEquals(1, realPage.getTabModel().getCount());
+                });
 
         QuickDeleteDialogFacility dialog = realPage.openRegularTabAppMenu().clearBrowsingData();
         mTabSwitcher = dialog.confirmDelete(/* regularTabsExistAfterDeletion= */ true).first;

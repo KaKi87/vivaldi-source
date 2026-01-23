@@ -26,6 +26,7 @@ def _AddSparkleKeys(plist, vivaldi_release_kind):
     plist['SUFeedURL'] = 'https://update.vivaldi.com/update/1.0/public/mac/appcast.xml'
   elif vivaldi_release_kind == 'vivaldi_snapshot':
     plist['SUFeedURL'] = 'https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml'
+    plist['SUScheduledCheckInterval'] = 43200
   else: #vivaldi_sopranos
     plist['SUFeedURL'] = 'https://update.vivaldi.com/update/1.0/sopranos_new/mac/appcast.xml'
     # Delta update public signing key for dev builds (key created & stored on apple builder)

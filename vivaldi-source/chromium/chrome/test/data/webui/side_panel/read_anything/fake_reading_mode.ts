@@ -60,9 +60,6 @@ export class FakeReadingMode {
   contentFinishedStopSource: number = 34;
   unexpectedUpdateContentStopSource: number = 35;
 
-  // Whether the WebUI toolbar feature flag is enabled.
-  isWebUIToolbarVisible: boolean = true;
-
   // Whether the Read Aloud feature flag is enabled.
   isReadAloudEnabled: boolean = true;
   imagesFeatureEnabled: boolean = false;
@@ -134,6 +131,11 @@ export class FakeReadingMode {
   // selection begins or ends in this node, truncates the text to only return
   // the selected text.
   getTextContent(nodeId: number): string {
+    return 'super awesome text content' + nodeId;
+  }
+
+  // Returns the text content that precedes the provided node id.
+  getPrefixText(nodeId: number): string {
     return 'super awesome text content' + nodeId;
   }
 
@@ -309,6 +311,9 @@ export class FakeReadingMode {
   // Called when a user collapses the selection. This is usually accomplished
   // by clicking.
   onCollapseSelection() {}
+
+  // Called when distillation completes with the word count.
+  onDistilled(_wordCount: number) {}
 
   sendGetVoicePackInfoRequest(_: string) {}
 

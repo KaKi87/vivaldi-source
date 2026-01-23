@@ -37,7 +37,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimator;
 import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
+import org.chromium.chrome.browser.tab.Tab.MediaState;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
@@ -50,12 +50,14 @@ import java.util.List;
 // Vivaldi
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 import org.chromium.ui.resources.AndroidResourceType;
 import org.chromium.ui.resources.LayoutResource;
 import org.chromium.ui.resources.ResourceManager;
 import org.vivaldi.browser.common.VivaldiUtils;
+import org.vivaldi.browser.preferences.TabWidthPreference;
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 
 /**
@@ -135,7 +137,7 @@ public class StripLayoutTab extends StripLayoutView {
     private static final float FAVICON_WIDTH = 16.f;
     private static final float FAVICON_PADDING = 26.f;
     protected static final float MIN_WIDTH = FAVICON_WIDTH + (FOLIO_FOOT_LENGTH_DP * 2);
-    // TODO(crbug.com/430072416): Check media indicator constants with UX.
+    // TODO(crbug.com/454048975): Check media indicator constants with UX.
     private static final float MEDIA_INDICATOR_WIDTH = 16.f;
     private static final float WIDTH_TO_HIDE_ICON = 86.f;
     private static final float WIDTH_TO_HIDE_FAVICON_FOR_MEDIA_INDICATOR =
@@ -166,8 +168,10 @@ public class StripLayoutTab extends StripLayoutView {
     private boolean mStartDividerVisible;
     private boolean mEndDividerVisible;
     private boolean mForceHideEndDivider;
+    private boolean mSkipAsyncClosure;
     private float mBottomMargin;
     private float mContainerOpacity;
+    private @MediaState int mMediaState;
 
     // For avoiding unnecessary accessibility description updates.
     private @Nullable String mCachedA11yDescriptionTitle;
@@ -343,13 +347,20 @@ public class StripLayoutTab extends StripLayoutView {
      * @param isPinned whether this tab has been pinned.
      */
     public void setIsPinned(boolean isPinned) {
-        // TODO(crbug.com/444267914): Flag guard #setIsPinned in TabImpl too.
         mIsPinned = StripLayoutUtils.isTabPinningFromStripEnabled() ? isPinned : false;
     }
 
     /** Gets whether this tab has been pinned */
     public boolean getIsPinned() {
         return mIsPinned;
+    }
+
+    /* package */ void setMediaState(@MediaState int mediaState) {
+        mMediaState = mediaState;
+    }
+
+    public @MediaState int getMediaState() {
+        return mMediaState;
     }
 
     /**
@@ -476,7 +487,6 @@ public class StripLayoutTab extends StripLayoutView {
     /**
      * @return The Android resource that represents the tab outline.
      */
-    // TODO(crbug.com/329561631) Add tint for selected tab outline.
     public @DrawableRes int getOutlineResourceId() {
         return R.drawable.tab_group_outline;
     }
@@ -602,6 +612,23 @@ public class StripLayoutTab extends StripLayoutView {
      */
     public boolean isClosed() {
         return mIsClosed;
+    }
+
+    /**
+     * Mark that this tab is closing through the new tab closure flow, and needs to skip the async
+     * closure from the old tab closure flow. Can be removed once the migration is complete. See
+     * crbug.com/443337907.
+     */
+    public void setSkipAsyncClosure(boolean skipAsyncClosure) {
+        mSkipAsyncClosure = skipAsyncClosure;
+    }
+
+    /**
+     * Returns true if the tab should skip the async closure from the old tab closure flow. Can be
+     * removed once the migration is complete. See crbug.com/443337907.
+     */
+    public boolean shouldSkipAsyncClosure() {
+        return mSkipAsyncClosure;
     }
 
     /**
@@ -864,25 +891,17 @@ public class StripLayoutTab extends StripLayoutView {
         int closeButtonOffsetX = getCloseButtonOffsetX();
 
         // Vivaldi: Bounds offset for shifted close button.
-        final int vivaldiOffset = 5;
         if (BuildConfig.IS_VIVALDI) {
-            closeButtonOffsetX = 0;
-            closeButtonWidth = 24; // In Vivaldi we have a fixed value for the close button width.
+            closeButtonOffsetX = -5;
+            closeButtonWidth = 30; // In Vivaldi we have a fixed value for the close button width.
         }
 
         if (!LocalizationUtils.isLayoutRtl()) {
             mClosePlacement.left = getWidth() - closeButtonWidth - closeButtonOffsetX;
             mClosePlacement.right = mClosePlacement.left + closeButtonWidth;
-            // Vivaldi: Add offset here as the button is shifted in Vivaldi.
-            mClosePlacement.left += vivaldiOffset;
-            mClosePlacement.right += vivaldiOffset;
         } else {
             mClosePlacement.left = closeButtonOffsetX;
             mClosePlacement.right = closeButtonWidth + closeButtonOffsetX;
-
-            // Vivaldi: Add offset here as the button is shifted in Vivaldi.
-            mClosePlacement.left -= vivaldiOffset;
-            mClosePlacement.right -= vivaldiOffset;
         }
 
         mClosePlacement.top =
@@ -939,22 +958,25 @@ public class StripLayoutTab extends StripLayoutView {
     public boolean shouldHideFavicon(boolean mediaIndicatorIsPresent) {
         if (mIsPinned) return mediaIndicatorIsPresent;
 
-        // TODO(crbug.com/439931221): Toggle the favicon visibility based on the close button's
-        // opacity.
         final float width = getWidth();
+        final boolean closeButtonVisible = mCloseButton.getOpacity() > 0.f;
 
         if (mediaIndicatorIsPresent) {
             float widthThreshold =
-                    mIsSelected ? WIDTH_TO_HIDE_FAVICON_FOR_MEDIA_INDICATOR : WIDTH_TO_HIDE_ICON;
+                    closeButtonVisible
+                            ? WIDTH_TO_HIDE_FAVICON_FOR_MEDIA_INDICATOR
+                            : WIDTH_TO_HIDE_ICON;
             return width <= widthThreshold;
         }
-        return mIsSelected && width <= WIDTH_TO_HIDE_ICON;
+
+        return closeButtonVisible && width <= WIDTH_TO_HIDE_ICON;
     }
 
     public boolean shouldHideMediaIndicator() {
         if (!ChromeFeatureList.sMediaIndicatorsAndroid.isEnabled()) return true;
 
-        return mIsSelected && getWidth() <= WIDTH_TO_HIDE_ICON;
+        final boolean closeButtonVisible = mCloseButton.getOpacity() > 0.f;
+        return closeButtonVisible && getWidth() <= WIDTH_TO_HIDE_ICON;
     }
 
     public float getMediaIndicatorWidth() {
@@ -1044,6 +1066,7 @@ public class StripLayoutTab extends StripLayoutView {
         if (mTabModelSelector != null) {
             int selectedTabId = mTabModelSelector.getCurrentTabId();
             boolean isTabSelected = mTabId == selectedTabId;
+            if (getIsPinned()) return false;
             if (isTabSelected) return true;
             return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
                     VivaldiPreferences.SHOW_X_BUTTON_FOR_BACKGROUND_TABS, false);
@@ -1084,7 +1107,8 @@ public class StripLayoutTab extends StripLayoutView {
 
             boolean showCloseButton = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
                     VivaldiPreferences.SHOW_X_BUTTON_FOR_BACKGROUND_TABS, false);
-            mCloseButton.setOpacity((!isTabSelected && !showCloseButton) ? 0.f : 1.f);
+            mCloseButton.setOpacity(
+                    getIsPinned() || (!isTabSelected && !showCloseButton) ? 0.f : 1.f);
 
             TabGroupModelFilter filter = mTabModelSelector
                     .getTabGroupModelFilterProvider()
@@ -1093,8 +1117,8 @@ public class StripLayoutTab extends StripLayoutView {
                 int tabCount = filter.getRelatedTabList(mTabId).size();
                 isTabInStack = tabCount > 1;
 
-                if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled() && !mIsStackStrip && isTabInStack
-                        && !isTabSelected) {
+                if (TabUiFeatureUtilities.isTabGroupsAndroidEnabled() && !mIsStackStrip
+                        && isTabInStack && !isTabSelected) {
                     if (!isForegrounded()) setContainerOpacity(0.5f);
                 }
             }
@@ -1147,5 +1171,20 @@ public class StripLayoutTab extends StripLayoutView {
         return VivaldiPreferences.getSharedPreferencesManager()
                 .readBoolean(VivaldiPreferences.ENABLE_FLOATING_TABS, true);
     }
-    // End Vivaldi
+
+    /**
+     * Vivaldi: Check if tab is shown as favicon only.
+     */
+    public boolean isShownAsFavicon() {
+        if (getIsPinned() || isFavIconEnabled()) return true;
+        return (Math.round(getWidth()) <= TabWidthPreference.MIN_TAB_WIDTH_DP);
+    }
+
+    /**
+     * Vivaldi: Check if the favicon setting is enabled.
+     */
+    public boolean isFavIconEnabled() {
+        return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                VivaldiPreferences.SHOW_TAB_AS_FAVICON, false);
+    }
 }

@@ -353,15 +353,6 @@ void WebContentsObserverConsistencyChecker::MediaStoppedPlaying(
   std::erase(active_media_players_, id);
 }
 
-bool WebContentsObserverConsistencyChecker::OnMessageReceived(
-    const IPC::Message& message,
-    RenderFrameHost* render_frame_host) {
-  CHECK(render_frame_host->IsRenderFrameLive());
-
-  AssertRenderFrameExists(render_frame_host);
-  return false;
-}
-
 void WebContentsObserverConsistencyChecker::WebContentsDestroyed() {
   CHECK(!web_contents_destroyed_);
   web_contents_destroyed_ = true;
@@ -480,7 +471,8 @@ class WebContentsObserverConsistencyChecker::TestInputEventObserver
   }
 
   void OnInputEvent(const RenderWidgetHost& widget,
-                    const blink::WebInputEvent&) override {
+                    const blink::WebInputEvent&,
+                    InputEventSource) override {
     EnsureRenderFrameHostNotPrerendered();
   }
   void OnInputEventAck(const RenderWidgetHost& widget,

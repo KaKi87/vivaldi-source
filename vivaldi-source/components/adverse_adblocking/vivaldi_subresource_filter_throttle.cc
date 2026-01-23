@@ -18,6 +18,7 @@
 #include "components/subresource_filter/content/shared/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/site_instance.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_source.h"
@@ -181,7 +182,8 @@ void VivaldiSubresourceFilterAdblockingThrottle::NotifyResult() {
       navigation_handle()->GetWebContents())
       ->NotifyPageActivationComputed(
           navigation_handle(),
-          selection.config.GetActivationState(activation_level));
+          selection.config.GetActivationState(activation_level,
+              subresource_filter::mojom::SubresourceFilterDisabledReason::kUnknown));
 }
 
 void VivaldiSubresourceFilterAdblockingThrottle::LogMetricsOnChecksComplete(

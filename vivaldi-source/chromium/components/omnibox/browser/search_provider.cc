@@ -104,6 +104,28 @@ bool HasMultipleWords(const std::u16string& text) {
   return false;
 }
 
+bool ShouldOnlyShowVerbatimMatches(const AutocompleteInput& input) {
+#if BUILDFLAG(IS_IOS)
+  const bool has_lens_inputs_in_composebox =
+      omnibox::IsComposebox(input.current_page_classification()) &&
+      input.lens_overlay_suggest_inputs().has_value() &&
+      !base::FeatureList::IsEnabled(omnibox::kComposeboxAttachmentsTypedState);
+  const bool is_image_gen_mode =
+      input.aim_tool_mode() ==
+          omnibox::ChromeAimToolsAndModels::TOOL_MODE_IMAGE_GEN_UPLOAD ||
+      input.aim_tool_mode() ==
+          omnibox::ChromeAimToolsAndModels::TOOL_MODE_IMAGE_GEN;
+
+  // When contextual typed state suggestions are disabled for composebox, or
+  // when in image generation mode, do not query suggest and only show
+  // verbatim matches.
+  if (has_lens_inputs_in_composebox || is_image_gen_mode) {
+    return true;
+  }
+#endif
+  return false;
+}
+
 }  // namespace
 
 // SearchProvider::Providers --------------------------------------------------
@@ -432,7 +454,7 @@ const AutocompleteInput SearchProvider::GetInput(bool is_keyword) const {
 void SearchProvider::OnURLLoadComplete(
     const network::SimpleURLLoader* source,
     const int response_code,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   TRACE_EVENT0("omnibox", "SearchProvider::OnURLLoadComplete");
   DCHECK(!done_);
   const bool is_keyword = source == keyword_loader_.get();
@@ -741,6 +763,10 @@ base::TimeDelta SearchProvider::GetSuggestQueryDelay() const {
 }
 
 void SearchProvider::StartOrStopSuggestQuery(bool minimal_changes) {
+  if (ShouldOnlyShowVerbatimMatches(input_)) {
+    return;
+  }
+
   // Since there is currently no contextual search suggest or typed AI mode
   // suggest, lens contextual searchboxes and the composebox, shouldn't query
   // suggest and only the verbatim matches should be shown.
@@ -956,6 +982,7 @@ std::unique_ptr<network::SimpleURLLoader> SearchProvider::CreateSuggestLoader(
   }
   search_term_args.lens_overlay_suggest_inputs =
       input.lens_overlay_suggest_inputs();
+  search_term_args.aim_tool_mode = input.aim_tool_mode();
 
   const SearchTermsData& search_terms_data =
       client()->GetTemplateURLService()->search_terms_data();
@@ -1225,6 +1252,10 @@ void SearchProvider::AddNavigationResultsToMatches(
 void SearchProvider::AddRawHistoryResultsToMap(bool is_keyword,
                                                int did_not_accept_suggestion,
                                                MatchMap* map) {
+  if (ShouldOnlyShowVerbatimMatches(input_)) {
+    return;
+  }
+
   const SearchSuggestionParser::SuggestResults* transformed_results =
       is_keyword ? &transformed_keyword_history_results_
                  : &transformed_default_history_results_;

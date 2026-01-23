@@ -42,7 +42,7 @@ constexpr char kDestinationText[] = "bar!";
 constexpr char kGenericText[] = "A generic page";
 
 // Label for the button in the form.
-NSString* kSubmitButtonLabel = @"submit";
+NSString* const kSubmitButtonLabel = @"submit";
 
 // Html form template with a submission button named "submit".
 constexpr char kFormHtmlTemplate[] =
@@ -566,7 +566,7 @@ id<GREYMatcher> ResendPostButtonMatcher() {
     // Wait for the accessory icon to appear.
     [ChromeEarlGrey waitForKeyboardToAppear];
 
-    // TODO(crbug.com/40227513): Move this logic into EG.
+    // There's currently no EG API to tap 'go' on the keyboard.
     XCUIApplication* app = [[XCUIApplication alloc] init];
     [[[app keyboards] buttons][@"go"] tap];
   }

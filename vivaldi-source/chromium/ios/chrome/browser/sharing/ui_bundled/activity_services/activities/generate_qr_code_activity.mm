@@ -12,7 +12,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 // End Vivaldi
 
 namespace {
@@ -53,9 +53,9 @@ NSString* const kGenerateQrCodeActivityType =
 }
 
 - (UIImage*)activityImage {
-
   if (vivaldi::IsVivaldiRunning())
-    return [UIImage imageNamed:vMenuQRCode]; // End Vivaldi
+    return CustomSymbolWithPointSize(vMenuQRCode,
+                                     kSymbolActionPointSize);  // End Vivaldi
 
   return DefaultSymbolWithPointSize(kQRCodeSymbol, kSymbolActionPointSize);
 }

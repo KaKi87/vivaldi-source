@@ -18,9 +18,10 @@ import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.DestroyableObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -28,7 +29,7 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.download.home.DownloadPage;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.bookmarks.BookmarkPage;
-import org.chromium.chrome.browser.browser_controls.BrowserControlsMarginSupplier;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsMarginAdapter;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
@@ -38,7 +39,9 @@ import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
 import org.chromium.chrome.browser.management.ManagementPage;
 import org.chromium.chrome.browser.metrics.StartupMetricsTracker;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceManager;
 import org.chromium.chrome.browser.ntp.IncognitoNewTabPage;
+import org.chromium.chrome.browser.ntp.IncognitoNtpMetrics;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp.NewTabPageCreationTracker;
 import org.chromium.chrome.browser.ntp.RecentTabsManager;
@@ -106,6 +109,7 @@ public class NativePageFactory {
     private @Nullable NativePageBuilder mNativePageBuilder;
     private static @Nullable NativePage sTestPage;
     private final BackPressManager mBackPressManager;
+    private final MultiInstanceManager mMultiInstanceManager;
 
     public NativePageFactory(
             Activity activity,
@@ -125,7 +129,8 @@ public class NativePageFactory {
             ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             ObservableSupplier<TopInsetCoordinator> topInsetCoordinatorSupplier,
             StartupMetricsTracker startupMetricsTracker,
-            BackPressManager backPressManager) {
+            BackPressManager backPressManager,
+            MultiInstanceManager multiInstanceManager) {
         mActivity = activity;
         mBottomSheetController = sheetController;
         mBrowserControlsManager = browserControlsManager;
@@ -144,6 +149,7 @@ public class NativePageFactory {
         mTopInsetCoordinatorSupplier = topInsetCoordinatorSupplier;
         mStartupMetricsTracker = startupMetricsTracker;
         mBackPressManager = backPressManager;
+        mMultiInstanceManager = multiInstanceManager;
     }
 
     private NativePageBuilder getBuilder() {
@@ -168,7 +174,8 @@ public class NativePageFactory {
                             mEdgeToEdgeControllerSupplier,
                             mTopInsetCoordinatorSupplier,
                             mStartupMetricsTracker,
-                            mBackPressManager);
+                            mBackPressManager,
+                            mMultiInstanceManager);
         }
         return mNativePageBuilder;
     }
@@ -202,6 +209,7 @@ public class NativePageFactory {
         private final ObservableSupplier<TopInsetCoordinator> mTopInsetCoordinatorSupplier;
         private final StartupMetricsTracker mStartupMetricsTracker;
         private final BackPressManager mBackPressManager;
+        private final MultiInstanceManager mMultiInstanceManager;
 
         public NativePageBuilder(
                 Activity activity,
@@ -222,7 +230,8 @@ public class NativePageFactory {
                 ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
                 ObservableSupplier<TopInsetCoordinator> topInsetCoordinatorSupplier,
                 StartupMetricsTracker startupMetricsTracker,
-                BackPressManager backPressManager) {
+                BackPressManager backPressManager,
+                MultiInstanceManager multiInstanceManager) {
             mActivity = activity;
             mNewTabPageCreationTracker = newTabPageCreationTracker;
             mBottomSheetController = sheetController;
@@ -242,11 +251,12 @@ public class NativePageFactory {
             mTopInsetCoordinatorSupplier = topInsetCoordinatorSupplier;
             mStartupMetricsTracker = startupMetricsTracker;
             mBackPressManager = backPressManager;
+            mMultiInstanceManager = multiInstanceManager;
         }
 
         protected NativePage buildNewTabPage(Tab tab, String url) {
             if (ChromeApplicationImpl.isVivaldi()) {
-                return buildSpeedDialPage(tab, mLifecycleDispatcher);
+                return buildVivaldiNativePage(tab, mLifecycleDispatcher);
             }
 
             NativePageHost nativePageHost =
@@ -257,7 +267,11 @@ public class NativePageFactory {
                             mEdgeToEdgeControllerSupplier);
             if (tab.isIncognito()) {
                 return new IncognitoNewTabPage(
-                        mActivity, nativePageHost, tab.getProfile(), mEdgeToEdgeControllerSupplier);
+                        mActivity,
+                        nativePageHost,
+                        tab,
+                        mEdgeToEdgeControllerSupplier,
+                        createIncognitoNtpMetrics());
             }
 
             return new NewTabPage(
@@ -283,7 +297,8 @@ public class NativePageFactory {
                     mModuleRegistrySupplier,
                     mEdgeToEdgeControllerSupplier,
                     mTopInsetCoordinatorSupplier,
-                    mStartupMetricsTracker);
+                    mStartupMetricsTracker,
+                    mMultiInstanceManager);
         }
 
         protected NativePage buildBookmarksPage(Tab tab) {
@@ -310,7 +325,8 @@ public class NativePageFactory {
                             tab,
                             mBrowserControlsManager,
                             mTabModelSelector,
-                            mEdgeToEdgeControllerSupplier));
+                            mEdgeToEdgeControllerSupplier),
+                    mBackPressManager);
         }
 
         protected NativePage buildHistoryPage(Tab tab, String url) {
@@ -325,7 +341,8 @@ public class NativePageFactory {
                     tab.getProfile(),
                     mBottomSheetController,
                     mCurrentTabSupplier,
-                    url);
+                    url,
+                    mBackPressManager);
         }
 
         protected NativePage buildRecentTabsPage(Tab tab) {
@@ -347,7 +364,12 @@ public class NativePageFactory {
                             mEdgeToEdgeControllerSupplier);
             NativePageNavigationDelegate navigationDelegate =
                     new NativePageNavigationDelegateImpl(
-                            mActivity, tab.getProfile(), host, mTabModelSelector, tab);
+                            mActivity,
+                            tab.getProfile(),
+                            host,
+                            mTabModelSelector,
+                            tab,
+                            mMultiInstanceManager);
 
             return new RecentTabsPage(
                     mActivity,
@@ -373,31 +395,24 @@ public class NativePageFactory {
                     url, tab, pdfInfo, mBrowserControlsManager, mTabModelSelector, mActivity);
         }
 
-        // Vivaldi
-        protected NativePage buildSpeedDialPage(
-                Tab tab,
-                ActivityLifecycleDispatcher lifecycleDispatcher) {
+        private @Nullable IncognitoNtpMetrics createIncognitoNtpMetrics() {
+            if (ChromeFeatureList.sRecordIncognitoNtpTimeToFirstNavigationMetric.isEnabled()) {
+                return new IncognitoNtpMetrics();
+            }
+            return null;
+        }
+
+        /** Vivaldi: Builds the native start page for the selected tab model. */
+        protected NativePage buildVivaldiNativePage(
+                Tab tab, ActivityLifecycleDispatcher lifecycleDispatcher) {
+            TabShim shim = new TabShim(
+                    tab, mBrowserControlsManager, mTabModelSelector, mEdgeToEdgeControllerSupplier);
             if (tab.isIncognitoBranded())
                 return new IncognitoNewTabPage(
-                        mActivity,
-                        new TabShim(
-                                tab,
-                                mBrowserControlsManager,
-                                mTabModelSelector,
-                                mEdgeToEdgeControllerSupplier),
-                        tab.getProfile(),
-                        mEdgeToEdgeControllerSupplier);
-            return new SpeedDialPage(
-                    mActivity,
-                    new TabShim(
-                            tab,
-                            mBrowserControlsManager,
-                            mTabModelSelector,
-                            mEdgeToEdgeControllerSupplier),
-                    mTabModelSelector,
-                    ((ChromeActivity) mActivity).getToolbarManager(),
-                    lifecycleDispatcher);
-        }
+                        mActivity, shim, tab, mEdgeToEdgeControllerSupplier, null);
+            return new SpeedDialPage(mActivity, shim, mTabModelSelector,
+                    ((ChromeActivity) mActivity).getToolbarManager(), lifecycleDispatcher);
+        } // End Vivaldi
     }
 
     /**
@@ -622,8 +637,8 @@ public class NativePageFactory {
         }
 
         @Override
-        public DestroyableObservableSupplier<Rect> createDefaultMarginSupplier() {
-            return new BrowserControlsMarginSupplier(mBrowserControlsStateProvider);
+        public Destroyable createDefaultMarginAdapter(ObservableSupplierImpl<Rect> supplierImpl) {
+            return BrowserControlsMarginAdapter.create(mBrowserControlsStateProvider, supplierImpl);
         }
 
         @Override
@@ -654,7 +669,7 @@ public class NativePageFactory {
                 page = candidatePage;
                 break;
             case NativePageType.NTP:
-                page = getBuilder().buildSpeedDialPage(tab, mLifecycleDispatcher);
+                page = getBuilder().buildVivaldiNativePage(tab, mLifecycleDispatcher);
                 break;
             case NativePageType.BOOKMARKS:
                 PanelUtils.showPanelAsync(mActivity, VivaldiUrlConstants.VIVALDI_BOOKMARKS_URL);

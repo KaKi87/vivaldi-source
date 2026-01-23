@@ -67,6 +67,7 @@
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
+#include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/transform_util.h"
@@ -304,7 +305,7 @@ bool IsWindowUserPositionable(aura::Window* window) {
 }
 
 void PinWindow(aura::Window* window, bool trusted) {
-  WMEvent event(trusted ? WM_EVENT_TRUSTED_PIN : WM_EVENT_PIN);
+  WMEvent event(trusted ? WM_EVENT_LOCKED_FULLSCREEN : WM_EVENT_PIN);
   WindowState::Get(window)->OnWMEvent(&event);
 }
 
@@ -387,10 +388,13 @@ void CloseWidgetForWindow(aura::Window* window) {
   widget->Close();
 }
 
-void InstallResizeHandleWindowTargeterForWindow(aura::Window* window) {
+void InstallResizeHandleWindowTargeterForWindow(
+    aura::Window* window,
+    chromeos::ResizeBorderInsets border_insets) {
+  window->SetProperty(chromeos::kResizeBorderInsets, border_insets);
   window->SetEventTargeter(
       std::make_unique<chromeos::InteriorResizeHandleTargeter>(
-          base::BindRepeating([](const aura::Window* window) {
+          border_insets, base::BindRepeating([](const aura::Window* window) {
             const WindowState* window_state = WindowState::Get(window);
             return window_state ? window_state->GetStateType()
                                 : chromeos::WindowStateType::kDefault;
@@ -399,6 +403,12 @@ void InstallResizeHandleWindowTargeterForWindow(aura::Window* window) {
 
 bool IsDraggingTabs(const aura::Window* window) {
   return window->GetProperty(ash::kIsDraggingTabsKey);
+}
+
+const WindowState* GetTabDraggingSourceWindowState(
+    const aura::Window* drag_window) {
+  return WindowState::Get(
+      drag_window->GetProperty(ash::kTabDraggingSourceWindowKey));
 }
 
 bool ShouldExcludeForCycleList(const aura::Window* window) {
@@ -845,7 +855,8 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
 bool IsInFasterSplitScreenSetupSession(const aura::Window* window) {
   SplitViewOverviewSession* split_view_overview_session =
       RootWindowController::ForWindow(window)->split_view_overview_session();
-  return !Shell::Get()->IsInTabletMode() && split_view_overview_session &&
+  return !display::Screen::Get()->InTabletMode() &&
+         split_view_overview_session &&
          split_view_overview_session->setup_type() ==
              SplitViewOverviewSetupType::kSnapThenAutomaticOverview;
 }

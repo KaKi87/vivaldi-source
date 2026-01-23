@@ -76,6 +76,11 @@ extern const char kMobileKeyCommandClose[];
 // Returns a symbolic description of the key command. For example: ⇧⌘T.
 @property(nonatomic, readonly) NSString* cr_symbolicDescription;
 
+// Vivaldi
+@property(class, nonatomic, readonly) UIKeyCommand* viv_showPanel;
+@property(class, nonatomic, readonly) UIKeyCommand* viv_translate;
+// End Vivaldi
+
 @end
 
 NS_ASSUME_NONNULL_END

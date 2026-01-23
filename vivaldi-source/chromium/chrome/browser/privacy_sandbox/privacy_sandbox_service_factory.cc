@@ -26,8 +26,6 @@
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
 #endif
 
-#include "app/vivaldi_apptools.h"
-
 namespace {
 
 profile_metrics::BrowserProfileType GetProfileType(Profile* profile) {
@@ -89,8 +87,6 @@ PrivacySandboxServiceFactory::PrivacySandboxServiceFactory()
 std::unique_ptr<KeyedService>
 PrivacySandboxServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-
-
   Profile* profile = Profile::FromBrowserContext(context);
   return std::make_unique<PrivacySandboxServiceImpl>(
       profile, PrivacySandboxSettingsFactory::GetForProfile(profile),

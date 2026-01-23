@@ -84,7 +84,6 @@
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/account_managed_status_finder.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
-#include "components/signin/public/identity_manager/signin_constants.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/sync/protocol/user_event_specifics.pb.h"
 #include "components/sync/service/sync_service.h"
@@ -141,7 +140,6 @@ using PasswordReuseEvent =
     safe_browsing::LoginReputationClientRequest::PasswordReuseEvent;
 using SafeBrowsingStatus =
     GaiaPasswordReuse::PasswordReuseDetected::SafeBrowsingStatus;
-using signin::constants::kNoHostedDomainFound;
 
 namespace safe_browsing {
 
@@ -731,7 +729,8 @@ void ChromePasswordProtectionService::MaybeLogPasswordReuseDetectedEvent(
     content::WebContents* web_contents) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (IsIncognito() && !WebUIContentInfoSingleton::HasListener()) {
+  if (IsIncognito() &&
+      !WebUIContentInfoSingleton::GetInstance()->HasListener()) {
     return;
   }
 
@@ -777,7 +776,8 @@ void ChromePasswordProtectionService::MaybeLogPasswordReuseDialogInteraction(
     PasswordReuseDialogInteraction::InteractionResult interaction_result) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (IsIncognito() && !WebUIContentInfoSingleton::HasListener()) {
+  if (IsIncognito() &&
+      !WebUIContentInfoSingleton::GetInstance()->HasListener()) {
     return;
   }
 
@@ -805,7 +805,8 @@ void ChromePasswordProtectionService::MaybeLogPasswordReuseLookupResult(
     PasswordReuseLookup::LookupResult result) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (IsIncognito() && !WebUIContentInfoSingleton::HasListener()) {
+  if (IsIncognito() &&
+      !WebUIContentInfoSingleton::GetInstance()->HasListener()) {
     return;
   }
 
@@ -835,7 +836,8 @@ void ChromePasswordProtectionService::
         const std::string& verdict_token) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (IsIncognito() && !WebUIContentInfoSingleton::HasListener()) {
+  if (IsIncognito() &&
+      !WebUIContentInfoSingleton::GetInstance()->HasListener()) {
     return;
   }
 
@@ -1347,12 +1349,6 @@ void ChromePasswordProtectionService::MaybeReportPasswordReuseDetected(
           "PasswordProtection.GmailReportSent",
           base::EndsWith(username_or_email, "@gmail.com"));
     }
-#else   // BUILDFLAG(IS_ANDROID)
-    if (!base::FeatureList::IsEnabled(
-            enterprise_connectors::
-                kEnterpriseSecurityEventReportingOnAndroid)) {
-      return;
-    }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
     auto* reporting_event_router = enterprise_connectors::
@@ -1377,11 +1373,6 @@ void ChromePasswordProtectionService::ReportPasswordChanged() {
   if (safe_browsing_event_router) {
     safe_browsing_event_router->OnPolicySpecifiedPasswordChanged(
         GetAccountInfo().email);
-  }
-#else   // BUILDFLAG(IS_ANDROID)
-  if (!base::FeatureList::IsEnabled(
-          enterprise_connectors::kEnterpriseSecurityEventReportingOnAndroid)) {
-    return;
   }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -1607,25 +1598,38 @@ bool ChromePasswordProtectionService::IsPingingEnabled(
     return false;
   }
   bool extended_reporting_enabled = IsExtendedReporting();
-  if (trigger_type == LoginReputationClientRequest::PASSWORD_REUSE_EVENT) {
+  if (trigger_type == LoginReputationClientRequest::PASSWORD_REUSE_EVENT ||
+      trigger_type ==
+          LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED) {
     // Don't send a ping if the password protection setting is off
     if (GetPasswordProtectionWarningTriggerPref(password_type) ==
         PASSWORD_PROTECTION_OFF) {
       return false;
     }
+    // Don't send a ping if in password alert mode.
+    if (IsInPasswordAlertMode(password_type)) {
+      return false;
+    }
     // If the account type is UNKNOWN (i.e. AccountInfo fields could not be
-    // retrieved from server), pings should be gated by SBER.
-    if (password_type.account_type() == ReusedPasswordAccountType::UNKNOWN) {
+    // retrieved from server) and it's not an OTP ping, a phishy verdict will
+    // not be acted on. Therefore any ping sent would be a pure telemetry ping.
+    // Such pings should be gated by SBER.
+    if (password_type.account_type() == ReusedPasswordAccountType::UNKNOWN &&
+        trigger_type !=
+            LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED) {
       return extended_reporting_enabled;
     }
 
-// Only saved password and GAIA password reuse warnings are shown to users on
-// Android, so other types of password reuse events should be gated by Safe
-// Browsing extended reporting.
+// Only saved password reuse, GAIA password reuse, and OTP field detection can
+// result in enforcement for Android users. Therefore, other types of password
+// reuse events should be gated by Safe Browsing extended reporting because
+// phishy verdicts won't be enforced making the pings telemetry-only.
 #if BUILDFLAG(IS_ANDROID)
     if (password_type.account_type() ==
             ReusedPasswordAccountType::SAVED_PASSWORD ||
-        password_type.account_type() == ReusedPasswordAccountType::GMAIL) {
+        password_type.account_type() == ReusedPasswordAccountType::GMAIL ||
+        trigger_type ==
+            LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED) {
       return true;
     }
 
@@ -1634,7 +1638,9 @@ bool ChromePasswordProtectionService::IsPingingEnabled(
     return true;
 #endif
   }
-
+  // Since it's possible that on-focus pings could trigger for many visited
+  // pages, don't send the ping when a SBER user is in Incognito to reduce data
+  // sent to Google.
   return !IsIncognito() && extended_reporting_enabled;
 }
 
@@ -1709,7 +1715,7 @@ bool ChromePasswordProtectionService::IsPrimaryAccountSyncingHistory() const {
 
 bool ChromePasswordProtectionService::IsPrimaryAccountSignedIn() const {
   return !GetAccountInfo().account_id.empty() &&
-         !GetAccountInfo().hosted_domain.empty();
+         GetAccountInfo().GetHostedDomain().has_value();
 }
 
 bool ChromePasswordProtectionService::IsAccountConsumer(
@@ -1717,11 +1723,12 @@ bool ChromePasswordProtectionService::IsAccountConsumer(
   // Check that |username| is likely an email address because if |username| has
   // no email domain MayBeEnterpriseUserBasedOnEmail will assume it is a
   // consumer account.
+  std::optional<std::string_view> hosted_domain =
+      GetAccountInfoForUsername(username).GetHostedDomain();
   return (username.find("@") != std::string::npos &&
           !signin::AccountManagedStatusFinder::MayBeEnterpriseUserBasedOnEmail(
               username)) ||
-         GetAccountInfoForUsername(username).hosted_domain ==
-             kNoHostedDomainFound;
+         (hosted_domain.has_value() && hosted_domain->empty());
 }
 
 AccountInfo ChromePasswordProtectionService::GetAccountInfoForUsername(

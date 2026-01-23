@@ -26,6 +26,7 @@ limitations under the License.
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/span.h"
@@ -39,7 +40,6 @@ limitations under the License.
 #include "xla/stream_executor/platform.h"
 #include "xla/stream_executor/platform_manager.h"
 #include "xla/stream_executor/stream_executor.h"
-#include "xla/tsl/platform/status_matchers.h"
 #include "xla/tsl/platform/statusor.h"
 
 namespace stream_executor {
@@ -49,7 +49,6 @@ namespace {
 using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
-using ::tsl::testing::IsOk;
 
 class CudaStreamTest : public ::testing::Test {
  public:
@@ -282,26 +281,26 @@ TEST_F(CudaStreamTest, WaitForOtherStream) {
   // - stream2 waits for stream1 to be done.
   // - Afterwards stream2 invokes the host callback.
   EXPECT_THAT(stream1->DoHostCallback([&]() {
-    absl::MutexLock lock(&mutex);
+    absl::MutexLock lock(mutex);
     execution_order.push_back(ExecutionStage::kBeforeWaitForEvent);
   }),
               absl_testing::IsOk());
   EXPECT_THAT(stream1->WaitFor(&event), absl_testing::IsOk());
   EXPECT_THAT(stream1->DoHostCallback([&]() {
-    absl::MutexLock lock(&mutex);
+    absl::MutexLock lock(mutex);
     execution_order.push_back(ExecutionStage::kAfterWaitForEvent);
   }),
               absl_testing::IsOk());
   EXPECT_THAT(stream2->WaitFor(stream1.get()), absl_testing::IsOk());
   EXPECT_THAT(stream2->DoHostCallback([&]() {
-    absl::MutexLock lock(&mutex);
+    absl::MutexLock lock(mutex);
     execution_order.push_back(ExecutionStage::kAfterWaitForStream);
   }),
               absl_testing::IsOk());
 
   EXPECT_THAT(stream1->RecordEvent(&event), absl_testing::IsOk());
   EXPECT_THAT(stream2->BlockHostUntilDone(), absl_testing::IsOk());
-  absl::MutexLock lock(&mutex);
+  absl::MutexLock lock(mutex);
   EXPECT_THAT(execution_order,
               ElementsAre(ExecutionStage::kBeforeWaitForEvent,
                           ExecutionStage::kAfterWaitForEvent,

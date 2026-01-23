@@ -42,9 +42,9 @@
 #include "ui/aura/client/window_types.h"
 #include "ui/base/hit_test.h"
 #include "ui/compositor/layer.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/display/screen.h"
 #include "ui/events/test/event_generator.h"
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
 
 namespace ash {
 namespace {
@@ -221,8 +221,8 @@ TEST_F(OverviewControllerTest, OcclusionTestWithSnapshot) {
       ->overview_controller()
       ->set_occlusion_pause_duration_for_end_for_test(base::Milliseconds(500));
   TestOverviewObserver observer(/*should_monitor_animation_state = */ true);
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   constexpr gfx::Rect kBounds(0, 0, 100, 100);
   std::unique_ptr<aura::Window> window1(CreateAppWindow(kBounds));
   std::unique_ptr<aura::Window> window2(CreateAppWindow(kBounds));
@@ -288,7 +288,7 @@ TEST_F(OverviewControllerTest, OcclusionTestWithSnapshot) {
 TEST_F(OverviewControllerTest, PipMustNotInOverviewGridTest) {
   gfx::Rect bounds{100, 100};
   std::unique_ptr<aura::Window> window(
-      CreateTestWindowInShellWithBounds(bounds));
+      CreateTestWindowInShell({.bounds = bounds}));
   WaitForShowAnimation(window.get());
   auto* controller = Shell::Get()->overview_controller();
   EnterOverview();
@@ -354,8 +354,8 @@ TEST_F(OverviewControllerTest, ExcludedWindowsHidden) {
 // amount of starts should match the amount of ends). This test verifies that
 // behavior. Tests for both tablet and clamshell mode.
 TEST_F(OverviewControllerTest, ObserverCallsMatch) {
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   TestOverviewObserver observer(/*should_monitor_animation_state=*/false);
 
   // Helper which waits for an overview animation to finish.
@@ -433,7 +433,7 @@ TEST_F(OverviewControllerTest, OverviewEnterExitAnimationTablet) {
 
   const gfx::Rect bounds(200, 200);
   std::unique_ptr<aura::Window> window(
-      CreateTestWindowInShellWithBounds(bounds));
+      CreateTestWindowInShell({.bounds = bounds}));
 
   EnterOverview();
   EXPECT_FALSE(observer.last_animation_was_fade());
@@ -460,7 +460,7 @@ TEST_F(OverviewControllerTest, OverviewEnterExitAnimationClamshell) {
 
   const gfx::Rect bounds(200, 200);
   std::unique_ptr<aura::Window> window(
-      CreateTestWindowInShellWithBounds(bounds));
+      CreateTestWindowInShell({.bounds = bounds}));
 
   EnterOverview();
   EXPECT_FALSE(observer.last_animation_was_fade());
@@ -485,13 +485,13 @@ TEST_F(OverviewControllerTest, OverviewExitWhileStillEntering) {
 
   const gfx::Rect bounds(200, 200);
   std::unique_ptr<aura::Window> window(
-      CreateTestWindowInShellWithBounds(bounds));
+      CreateTestWindowInShell({.bounds = bounds}));
   wm::ActivateWindow(window.get());
 
   // Start overview session - set non zero animation duration so overview is
   // started asynchronously.
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   EnterOverview();
 
   // Exit to home launcher using fade out animation. This should minimize all
@@ -517,8 +517,8 @@ TEST_F(OverviewControllerTest, CloseWindowDuringAnimation) {
   std::unique_ptr<aura::Window> window2 =
       CreateAppWindow(gfx::Rect(250, 250, 250, 100));
 
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   EnterOverview();
 
   // Destroy a window during the enter animation.
@@ -643,8 +643,8 @@ TEST_F(OverviewControllerTest, OverviewEnterExitWhileDeskAnimation) {
   const Desk* desk1 = desks_controller->GetDeskAtIndex(0);
   const Desk* desk2 = desks_controller->GetDeskAtIndex(1);
 
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   // Animate to desk 2. Try to enter overview while animating. On desk animation
   // finished, we shouldn't be in overview.
@@ -670,8 +670,8 @@ TEST_F(OverviewControllerTest, WindowClipping) {
   window->SetProperty(aura::client::kTopViewInset, 20);
   ASSERT_EQ(gfx::Rect(), window->layer()->GetTargetClipRect());
 
-  ui::ScopedAnimationDurationScaleMode non_zero(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode non_zero(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   // Tests that the clipping bounds in overview will clip away the top inset.
   // There is a extra pixel added to account for what seems to be a rounding
@@ -812,7 +812,7 @@ class OverviewEnterFromWallpaperTest : public OverviewControllerTest {
 TEST_F(OverviewEnterFromWallpaperTest,
        OverviewEnterExitClamshellFromWallpaper) {
   std::unique_ptr<aura::Window> window1(
-      CreateTestWindowInShellWithBounds(gfx::Rect(400, 400)));
+      CreateTestWindowInShell({.bounds = {400, 400}}));
 
   ASSERT_FALSE(Shell::Get()->overview_controller()->InOverviewSession());
 

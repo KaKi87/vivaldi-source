@@ -15,7 +15,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Process;
-import android.provider.Settings;
 import android.webkit.WebSettings;
 
 import androidx.annotation.IntDef;
@@ -44,6 +43,7 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.components.embedder_support.util.PasswordEchoSettingState;
 import org.chromium.components.webauthn.WebauthnMode;
 import org.chromium.components.webauthn.WebauthnModeProvider;
 import org.chromium.content_public.browser.WebContents;
@@ -235,7 +235,8 @@ public class AwSettings {
     private final boolean mAllowGeolocationOnInsecureOrigins;
     private final boolean mDoNotUpdateSelectionOnMutatingSelectionRange;
 
-    private final boolean mPasswordEchoEnabled;
+    private boolean mPasswordEchoEnabledPhysical;
+    private boolean mPasswordEchoEnabledTouch;
 
     // Not accessed by the native side.
     private boolean mBlockSpecialFileUrls;
@@ -410,12 +411,9 @@ public class AwSettings {
                             .hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN);
 
             // Respect the system setting for password echoing.
-            mPasswordEchoEnabled =
-                    Settings.System.getInt(
-                                    context.getContentResolver(),
-                                    Settings.System.TEXT_SHOW_PASSWORD,
-                                    1)
-                            == 1;
+            final PasswordEchoSettingState state = PasswordEchoSettingState.getInstance();
+            mPasswordEchoEnabledPhysical = state.getPasswordEchoEnabledPhysical();
+            mPasswordEchoEnabledTouch = state.getPasswordEchoEnabledTouch();
 
             // By default, scale the text size by the system font scale factor. Embedders
             // may override this by invoking setTextZoom().
@@ -816,20 +814,15 @@ public class AwSettings {
         if (TRACE) Log.i(TAG, "setUserAgentString=" + ua);
         synchronized (mAwSettingsLock) {
             final String oldUserAgent = mUserAgent;
-            if (ua == null || ua.length() == 0) {
+            if (ua == null || ua.isEmpty()) {
                 mUserAgent = LazyDefaultUserAgent.sInstance;
+            } else if (!AwBrowserContext.isValidHttpHeaderValue(ua)) {
+                throw new IllegalArgumentException("Invalid HTTP header value: '" + ua + "'");
             } else {
                 mUserAgent = ua;
             }
             if (!oldUserAgent.equals(mUserAgent)) {
-                if (ua != null
-                        && ua.length() > 0
-                        && AwBrowserContext.BAD_HEADER_CHAR.matcher(ua).find()) {
-                    throw new IllegalArgumentException(
-                            AwBrowserContext.BAD_HEADER_MSG + "Invalid User-Agent '" + ua + "'");
-                }
-                mEventHandler.runOnUiThreadBlockingAndLocked(
-                        () -> updateUserAgentOnUiThreadLocked());
+                mEventHandler.runOnUiThreadBlockingAndLocked(this::updateUserAgentOnUiThreadLocked);
             }
         }
     }
@@ -1556,9 +1549,27 @@ public class AwSettings {
     }
 
     @CalledByNative
-    private boolean getPasswordEchoEnabledLocked() {
+    private boolean getPasswordEchoEnabledPhysicalLocked() {
         assert Thread.holdsLock(mAwSettingsLock);
-        return mPasswordEchoEnabled;
+        return mPasswordEchoEnabledPhysical;
+    }
+
+    @CalledByNative
+    private boolean getPasswordEchoEnabledTouchLocked() {
+        assert Thread.holdsLock(mAwSettingsLock);
+        return mPasswordEchoEnabledTouch;
+    }
+
+    public void setPasswordEchoEnabled(
+            boolean physicalSettingEnabled, boolean touchSettingEnabled) {
+        synchronized (mAwSettingsLock) {
+            if (mPasswordEchoEnabledPhysical != physicalSettingEnabled
+                    || mPasswordEchoEnabledTouch != touchSettingEnabled) {
+                mPasswordEchoEnabledPhysical = physicalSettingEnabled;
+                mPasswordEchoEnabledTouch = touchSettingEnabled;
+                mEventHandler.updateWebkitPreferencesLocked();
+            }
+        }
     }
 
     /** See {@link android.webkit.WebSettings#setDomStorageEnabled}. */

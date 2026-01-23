@@ -67,7 +67,15 @@
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
+namespace {
+
+/// The padding necessary for the edit state compact bottom omnibox.
+constexpr CGFloat kLocationBarCompactBottomPadding = 10.0;
+
+}  // namespace
+
 @interface ToolbarCoordinator () <GuidedTourCommands,
+                                  LocationBarCoordinatorHeightDelegate,
                                   PrimaryToolbarViewControllerDelegate,
                                   ToolbarCommands,
 
@@ -95,6 +103,8 @@ using vivaldi::IsVivaldiRunning;
 @property(nonatomic, strong) OmniboxFocusOrchestrator* orchestrator;
 /// Whether the omnibox is currently focused.
 @property(nonatomic, assign) BOOL locationBarFocused;
+/// The height of the location bar in edit state.
+@property(nonatomic, assign) CGFloat locationBarEditStateHeight;
 /// Dynamic response system view controller is an omnibox presenter. Only
 /// defined  when kOmniboxDRSPrototype is set.
 @property(nonatomic, strong) OmniboxDRSViewController* drsViewController;
@@ -217,6 +227,7 @@ using vivaldi::IsVivaldiRunning;
   self.locationBarCoordinator =
       [[LocationBarCoordinator alloc] initWithBrowser:browser];
   self.locationBarCoordinator.delegate = self.omniboxFocusDelegate;
+  self.locationBarCoordinator.heightDelegate = self;
   self.locationBarCoordinator.popupPresenterDelegate =
       self.popupPresenterDelegate;
 
@@ -277,6 +288,7 @@ using vivaldi::IsVivaldiRunning;
   }
 
   [self updateToolbarsLayout];
+  [self updateLocationBarHeightWithAnimation:NO focusStateDidChange:NO];
 
   [super start];
   self.started = YES;
@@ -392,9 +404,8 @@ using vivaldi::IsVivaldiRunning;
 
   // Hide the toolbar when displaying content suggestions without the tab
   // strip, without the focused omnibox, only when in split toolbar mode.
-  BOOL hideToolbar = isNTP && !isOffTheRecord &&
-                     ![self isOmniboxFirstResponder] &&
-                     ![self showingOmniboxPopup] && !canShowTabStrip &&
+  BOOL hideToolbar = isNTP && !isOffTheRecord && ![self inEditState] &&
+                     !canShowTabStrip &&
                      IsSplitToolbarMode(self.traitEnvironment);
 
   if (IsVivaldiRunning()) {
@@ -434,14 +445,22 @@ using vivaldi::IsVivaldiRunning;
   }
   [self.toolbarMediator locationBarFocusChangedTo:focused];
 
-  BOOL followSteadyState =
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
   // Disable toolbar animations when focusing the omnibox on secondary toolbar.
-  // TODO(crbug.com/40275116): Add animation in OmniboxFocusOrchestrator if
-  // needed.
+  ToolbarType editStatePosition;
+  if (omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition()) {
+    editStatePosition = _steadyStateOmniboxPosition;
+  } else if (omnibox::ForceBottomOmniboxInEditState()) {
+    if (IsCompactHeight(self.traitEnvironment.traitCollection)) {
+      editStatePosition = ToolbarType::kPrimary;
+    } else {
+      editStatePosition = ToolbarType::kSecondary;
+    }
+  } else {
+    editStatePosition = ToolbarType::kPrimary;
+  }
+
   BOOL animateTransition = _enableAnimationsForOmniboxFocus &&
-                           (followSteadyState || _steadyStateOmniboxPosition ==
-                                                     ToolbarType::kPrimary);
+                           (editStatePosition == _steadyStateOmniboxPosition);
 
   if (IsVivaldiRunning())
     animateTransition = _enableAnimationsForOmniboxFocus; // End Vivaldi
@@ -471,7 +490,12 @@ using vivaldi::IsVivaldiRunning;
                                                          completion:completion];
                              }];
   }
+
+  [self.primaryToolbarCoordinator.viewController setLocationBarFocused:focused];
+  [self.secondaryToolbarCoordinator.viewController
+      setLocationBarFocused:focused];
   self.locationBarFocused = focused;
+  [self updateLocationBarHeightWithAnimation:YES focusStateDidChange:YES];
 }
 
 - (BOOL)isOmniboxFirstResponder {
@@ -482,8 +506,16 @@ using vivaldi::IsVivaldiRunning;
   return [self.locationBarCoordinator showingOmniboxPopup];
 }
 
+- (BOOL)inEditState {
+  return [self isOmniboxFirstResponder] || [self showingOmniboxPopup];
+}
+
 - (void)setBottomOmniboxOffsetForPopup:(CGFloat)bottomOffset {
   [self.toolbarMediator setBottomOmniboxOffsetForPopup:bottomOffset];
+}
+
+- (ToolbarType)omniboxPosition {
+  return _omniboxPosition;
 }
 
 #pragma mark ToolbarHeightProviding
@@ -518,11 +550,10 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     CGFloat height =
         self.primaryToolbarViewController.view.intrinsicContentSize.height;
-    if (!IsSplitToolbarMode(self.traitEnvironment) ||
-        CanShowTabStrip(self.traitEnvironment) ||
-        (_omniboxPosition == ToolbarType::kPrimary && _tabBarEnabled)) {
-      // When the adaptive toolbar is unsplit or the tab strip is visible, add a
-      // margin.
+    if ((!IsSplitToolbarMode(self.traitEnvironment) || _tabBarEnabled) &&
+      _omniboxPosition == ToolbarType::kPrimary) {
+      // When the adaptive toolbar is unsplit or the tab strip is visible for
+      // top omnibox, add a margin.
       height += kTopToolbarUnsplitMargin;
       return height;
     } else {
@@ -550,7 +581,11 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (CGFloat)expandedSecondaryToolbarHeight {
-  if (!IsSplitToolbarMode(self.traitEnvironment)) {
+  BOOL presentInEditState =
+      self.locationBarFocused && omnibox::ForceBottomOmniboxInEditState();
+  BOOL showsSecondaryToolbarHeight =
+      IsSplitToolbarMode(self.traitEnvironment) || presentInEditState;
+  if (!showsSecondaryToolbarHeight) {
 
     // Important(prio@vivaldi.com) - This enables the bottom omnibox area for
     // iPads and iPhone landscape.
@@ -561,6 +596,10 @@ using vivaldi::IsVivaldiRunning;
         CHECK(IsBottomOmniboxAvailable());
         height += ToolbarExpandedHeight(
             self.traitEnvironment.traitCollection.preferredContentSizeCategory);
+        // When tab strip is visible, add a margin. -1 is to make the location
+        // bar optically centered as there is a separator on top of the
+        // secondary toolbar which creates visual offset otherwise.
+        height += kTopToolbarUnsplitMargin - 1;
       } else {
         height += vBottomAdaptiveLocationBarTopMargin;
       }
@@ -578,8 +617,22 @@ using vivaldi::IsVivaldiRunning;
   if (_omniboxPosition == ToolbarType::kSecondary) {
     height += ToolbarExpandedHeight(
         self.traitEnvironment.traitCollection.preferredContentSizeCategory);
+
+    if (IsVivaldiRunning() && _tabBarEnabled) {
+      // When tab strip is visible, add a margin. -1 is to make the location
+      // bar optically centered as there is a separator on top of the secondary
+      // toolbar which creates visual offset otherwise.
+      height += kTopToolbarUnsplitMargin - 1;
+    } // End Vivaldi
+
   }
   return height;
+}
+
+- (CGFloat)locationBarCompactDisplayHeight {
+  return self.locationBarCoordinator.locationBarViewController.view.frame.size
+             .height +
+         kLocationBarCompactBottomPadding;
 }
 
 #pragma mark - FakeboxFocuser
@@ -644,6 +697,12 @@ using vivaldi::IsVivaldiRunning;
   [self.toolbarMediator didNavigateToNTPOnActiveWebState];
 }
 
+#pragma mark - OmniboxStateProvider
+
+- (BOOL)isOmniboxFocused {
+  return [self.locationBarCoordinator isOmniboxFocused];
+}
+
 #pragma mark - PopupMenuUIUpdating
 
 - (void)updateUIForOverflowMenuIPHDisplayed {
@@ -696,6 +755,25 @@ using vivaldi::IsVivaldiRunning;
   // Do nothing.
 }
 
+- (ToolbarCancelButtonStyle)styleForCancelButtonInToolbar {
+  if (IsVivaldiRunning()) {
+    return ToolbarCancelButtonStyle::kCancelLabel;
+  } // End Vivaldi
+
+  BOOL userPreferenceBottom =
+      _toolbarMediator.preferredOmniboxPosition == ToolbarType::kSecondary;
+  BOOL followSteadyState =
+      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
+  BOOL forcedBottomInEditState = omnibox::ForceBottomOmniboxInEditState();
+  BOOL inTheBottomInEditState =
+      (followSteadyState && userPreferenceBottom) || forcedBottomInEditState;
+  if (inTheBottomInEditState) {
+    return ToolbarCancelButtonStyle::kXCircle;
+  }
+
+  return ToolbarCancelButtonStyle::kCancelLabel;
+}
+
 #pragma mark - SideSwipeToolbarInteracting
 
 - (BOOL)isInsideToolbar:(CGPoint)point {
@@ -736,9 +814,13 @@ using vivaldi::IsVivaldiRunning;
   [adaptiveToolbarCoordinator updateToolbarForSideSwipeSnapshot:webState];
   [self updateLocationBarForSideSwipeSnapshot:webState];
 
+  UIView* toolbarView = adaptiveToolbarCoordinator.viewController.view;
+  // The toolbar must be in the view hierarchy to be snapshotted.
+  if (!toolbarView.window) {
+    return nil;
+  }
   UIImage* toolbarSnapshot = CaptureViewWithOption(
-      adaptiveToolbarCoordinator.viewController.view,
-      [[UIScreen mainScreen] scale], kClientSideRendering);
+      toolbarView, [[UIScreen mainScreen] scale], kClientSideRendering);
 
   [adaptiveToolbarCoordinator resetToolbarAfterSideSwipeSnapshot];
   [self resetLocationBarAfterSideSwipeSnapshot];
@@ -788,6 +870,46 @@ using vivaldi::IsVivaldiRunning;
 - (void)stepCompleted:(GuidedTourStep)step {
   for (id<GuidedTourCommands> coordinator in self.coordinators) {
     [coordinator stepCompleted:step];
+  }
+}
+
+#pragma mark - LocationBarCoordinatorHeightDelegate
+
+- (void)locationBarCoordinator:(LocationBarCoordinator*)coordinator
+      didChangeEditStateHeight:(CGFloat)height {
+  if (height == self.locationBarEditStateHeight) {
+    return;
+  }
+  self.locationBarEditStateHeight = height;
+  [self updateLocationBarHeightWithAnimation:NO focusStateDidChange:NO];
+}
+
+- (void)updateLocationBarHeightWithAnimation:(BOOL)animated
+                         focusStateDidChange:(BOOL)focusStateDidChange {
+  if (!IsMultilineBrowserOmniboxEnabled()) {
+    // Location bar height is constant when multiline is not enabled. The height
+    // is management in primary and secondary toolbar view controllers.
+    return;
+  }
+  // Steady state height by default.
+  CGFloat height =
+      LocationBarHeight(self.primaryToolbarViewController.traitCollection
+                            .preferredContentSizeCategory);
+
+  // Apply the edit state height only when the location bar is focused and we
+  // are not in a transition to focused state.
+  if (self.locationBarFocused && !focusStateDidChange) {
+    height = self.locationBarEditStateHeight;
+  }
+
+  [self.primaryToolbarCoordinator setLocationBarHeight:height];
+  [self.secondaryToolbarCoordinator setLocationBarHeight:height];
+
+  BOOL layoutChange = [self inEditState] || focusStateDidChange;
+  if (layoutChange) {
+    [self.toolbarHeightDelegate toolbarsHeightChanged];
+    [self.toolbarHeightDelegate
+        layoutToolbarHeightChangeWithAnimation:animated];
   }
 }
 
@@ -853,17 +975,33 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (CGFloat)keyboardAttachedBottomOmniboxHeight {
-  BOOL followSteadyState =
-      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
-  if (_omniboxPosition == ToolbarType::kPrimary || !followSteadyState) {
+  CGFloat attachedHeight = self.locationBarCoordinator.locationBarViewController
+                               .view.frame.size.height +
+                           2 * kBottomAdaptiveLocationBarTopMargin;
+
+  if (!self.locationBarFocused) {
     return 0;
   }
 
-  // The height of the location bar including symmetrical top and bottom
-  // margins.
-  return self.locationBarCoordinator.locationBarViewController.view.frame.size
-             .height +
-         2 * kBottomAdaptiveLocationBarTopMargin;
+  if (IsMultilineBrowserOmniboxEnabled()) {
+    return self.locationBarEditStateHeight +
+           LocationBarVerticalMargins(
+               self.locationBarCoordinator.locationBarViewController
+                   .traitCollection.preferredContentSizeCategory);
+  }
+
+  BOOL forceEditState = omnibox::ForceBottomOmniboxInEditState();
+  if (forceEditState) {
+    return attachedHeight;
+  }
+
+  BOOL followSteadyState =
+      omnibox::ShouldFocusedOmniboxFollowSteadyStatePosition();
+  if (_omniboxPosition == ToolbarType::kSecondary && followSteadyState) {
+    return attachedHeight;
+  }
+
+  return 0;
 }
 
 #pragma mark - Private
@@ -892,8 +1030,7 @@ using vivaldi::IsVivaldiRunning;
 - (void)updateToolbarsLayout {
   [self.toolbarMediator
       toolbarTraitCollectionChangedTo:self.traitEnvironment.traitCollection];
-  BOOL omniboxFocused =
-      self.isOmniboxFirstResponder || self.showingOmniboxPopup;
+  BOOL omniboxFocused = [self inEditState];
   [self.orchestrator
       transitionToStateOmniboxFocused:omniboxFocused
                       toolbarExpanded:omniboxFocused &&
@@ -979,6 +1116,56 @@ using vivaldi::IsVivaldiRunning;
       [self.locationBarCoordinator editViewAnimatee];
 }
 
+- (void)setEntrypointViewHidden:(BOOL)hidden {
+  AdaptiveToolbarCoordinator* adaptiveToolbarCoordinator =
+      [self coordinatorWithToolbarType:_omniboxPosition];
+  adaptiveToolbarCoordinator.viewController.locationBarContainer.hidden =
+      hidden;
+}
+
+- (UIView*)entrypointViewVisualCopy {
+  if (_omniboxPosition == ToolbarType::kSecondary || [self isNTP]) {
+    return nil;
+  }
+
+  AdaptiveToolbarCoordinator* adaptiveToolbarCoordinator =
+      [self coordinatorWithToolbarType:_omniboxPosition];
+  UIView* locationBarContainer =
+      adaptiveToolbarCoordinator.viewController.locationBarContainer;
+
+  UIView* entrypointCopy = [[UIView alloc] init];
+  entrypointCopy.frame =
+      [locationBarContainer convertRect:locationBarContainer.bounds toView:nil];
+  entrypointCopy.layer.cornerRadius = locationBarContainer.layer.cornerRadius;
+  entrypointCopy.backgroundColor = locationBarContainer.backgroundColor;
+  UIView* locationBarSteadyViewVisualCopy =
+      self.locationBarCoordinator.locationBarSteadyViewVisualCopy;
+  [entrypointCopy addSubview:locationBarSteadyViewVisualCopy];
+  locationBarSteadyViewVisualCopy.translatesAutoresizingMaskIntoConstraints =
+      NO;
+
+  [NSLayoutConstraint activateConstraints:@[
+    [locationBarSteadyViewVisualCopy.centerXAnchor
+        constraintEqualToAnchor:entrypointCopy.centerXAnchor],
+    [locationBarSteadyViewVisualCopy.centerYAnchor
+        constraintEqualToAnchor:entrypointCopy.centerYAnchor],
+    [locationBarSteadyViewVisualCopy.widthAnchor
+        constraintEqualToAnchor:entrypointCopy.widthAnchor],
+    [locationBarSteadyViewVisualCopy.heightAnchor
+        constraintEqualToAnchor:entrypointCopy.heightAnchor],
+  ]];
+
+  return entrypointCopy;
+}
+
+- (BOOL)isNTP {
+  web::WebState* webState =
+      self.browser->GetWebStateList()->GetActiveWebState();
+  if (!webState) {
+    return NO;
+  }
+  return IsVisibleURLNewTabPage(webState);
+}
 
 #pragma mark - VIVALDI
 

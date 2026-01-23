@@ -46,7 +46,7 @@ class VivaldiWindowFrameViewAura : public views::FrameView {
       delete;
 
  private:
-  // views::NonClientFrameView overrides
+  // views::FrameView overrides
 
   int NonClientHitTest(const gfx::Point& point) override;
   gfx::Rect GetBoundsForClientView() const override;
@@ -74,12 +74,12 @@ VivaldiWindowFrameViewAura::VivaldiWindowFrameViewAura(
 
 VivaldiWindowFrameViewAura::~VivaldiWindowFrameViewAura() = default;
 
-// views::NonClientFrameView implementation.
+// views::FrameView implementation.
 
  void VivaldiWindowFrameViewAura::Layout(PassKey key) {
   // Don't layout when transitioning to and from fullscreen.
   if (!window_->is_in_fullscreen_transition_) {
-    LayoutSuperclass<views::NonClientFrameView>(this);
+    LayoutSuperclass<views::FrameView>(this);
   }
 }
 
@@ -115,6 +115,8 @@ int VivaldiWindowFrameViewAura::NonClientHitTest(const gfx::Point& point) {
   if (!widget)
     return HTNOWHERE;
 
+  window_->ReportNCMousePosition(point);
+
   if (widget->IsFullscreen())
     return HTCLIENT;
 
@@ -122,6 +124,8 @@ int VivaldiWindowFrameViewAura::NonClientHitTest(const gfx::Point& point) {
   // Points outside the (possibly expanded) bounds can be discarded.
   if (!expanded_bounds.Contains(point))
     return HTNOWHERE;
+
+
 
 #if BUILDFLAG(IS_WIN)
   if (window_->GetMaximizeButtonBounds().Contains(point)) {

@@ -8,9 +8,6 @@
 #include "app/vivaldi_resources.h"
 #include "importer/viv_importer_utils.h"
 
-// static const char OPERA_PREFS_NAME[] = "operaprefs.ini";
-// static const char OPERA_SPEEDDIAL_NAME[] = "speeddial.ini";
-
 namespace viv_importer {
 
 void DetectOperaMailProfiles(std::vector<user_data_importer::SourceProfile>* profiles) {
@@ -37,26 +34,8 @@ void DetectOperaProfiles(
   opera.services_supported =
       user_data_importer::SPEED_DIAL | user_data_importer::FAVORITES |
       user_data_importer::NOTES | user_data_importer::PASSWORDS |
-      user_data_importer::EMAIL;
+      user_data_importer::EMAIL | user_data_importer::MASTER_PASSWORD;
 
-#if 0
-  // Check if this profile need the master password
-  DictionaryValueINIParser inifile_parser;
-  base::FilePath ini_file(opera.source_path);
-  ini_file = ini_file.AppendASCII(OPERA_PREFS_NAME);
-  if (ReadOperaIniFile(ini_file, inifile_parser)) {
-    const base::Value::Dict& inifile = inifile_parser.root();
-    std::optional<int> val = inifile.FindInt("Security Prefs.Use Paranoid Mailpassword");
-    if (val && *val) {
-      opera.services_supported |= user_data_importer::MASTER_PASSWORD;
-    }
-  }
-#else
-  // NOTE(pettern):
-  // If we import from a different profile, we can't check the default
-  // profile prefs file. Disable it for now until we have a better solution.
-  opera.services_supported |= user_data_importer::MASTER_PASSWORD;
-#endif
   profiles->push_back(opera);
 
   DetectOperaMailProfiles(profiles);

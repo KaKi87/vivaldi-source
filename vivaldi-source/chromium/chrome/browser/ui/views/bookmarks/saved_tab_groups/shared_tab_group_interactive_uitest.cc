@@ -70,8 +70,8 @@ class SharedTabGroupInteractiveUiTest
     std::vector<base::test::FeatureRefAndParams> enabled_features = {
         {data_sharing::features::kDataSharingFeature, {}},
     };
-    std::vector<base::test::FeatureRef> disabled_features = {
-        tabs::kTabGroupShortcuts};
+
+    std::vector<base::test::FeatureRef> disabled_features = {};
 
     if (GetParam().page_actions_migration_enabled) {
       enabled_features.push_back({
@@ -325,6 +325,13 @@ IN_PROC_BROWSER_TEST_P(SharedTabGroupInteractiveUiTest,
 // opened from the bookmarks bar.
 IN_PROC_BROWSER_TEST_P(SharedTabGroupInteractiveUiTest,
                        RecordMetricOnSharedGroupOpeningFromBookmarksBar) {
+  // TODO(crbug.com/455937970): Add new metric for opening shared groups from
+  // the tab group submenu from the bookmarks bar. Then, re-enable this test
+  // using the new metric when the feature flag tab-group-menu-improvements is
+  // on.
+  if (base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements)) {
+    GTEST_SKIP();
+  }
   ::base::HistogramTester histogram_tester;
 
   TabGroupId group_id = CreateNewTabGroup();
@@ -337,7 +344,7 @@ IN_PROC_BROWSER_TEST_P(SharedTabGroupInteractiveUiTest,
   RunTestSequence(FinishTabstripAnimations(), ShowBookmarksBar(),
                   EnsurePresent(kSavedTabGroupButtonElementId),
                   PressButton(kSavedTabGroupButtonElementId),
-                  FinishTabstripAnimations());
+                  WaitForShow(kTabGroupHeaderElementId));
 
   histogram_tester.ExpectUniqueSample(
       kRecallHistogram,
@@ -350,6 +357,13 @@ IN_PROC_BROWSER_TEST_P(SharedTabGroupInteractiveUiTest,
 // opened from the everything menu.
 IN_PROC_BROWSER_TEST_P(SharedTabGroupInteractiveUiTest,
                        RecordMetricOnSharedGroupOpeningFromEverythingMenu) {
+  // TODO(crbug.com/455937970): Add new metric for opening shared groups from
+  // the tab group submenu from the everything menu. Then, enable this
+  // test using the new metric when the feature flag is turned on.
+  if (base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements)) {
+    GTEST_SKIP();
+  }
+
   ::base::HistogramTester histogram_tester;
 
   TabGroupId group_id = CreateNewTabGroup();

@@ -115,6 +115,7 @@ public class TabWindowManagerImpl implements TabWindowManager {
 
     private @Nullable TabModelSelector mArchivedTabModelSelector;
     private boolean mKeepAllTabModelsLoaded;
+    private boolean mTabStateInitialized;
 
     TabWindowManagerImpl(
             TabModelSelectorFactory selectorFactory,
@@ -129,6 +130,7 @@ public class TabWindowManagerImpl implements TabWindowManager {
     @Override
     public void addObserver(Observer observer) {
         mObservers.addObserver(observer);
+        if (mTabStateInitialized) observer.onTabStateInitialized();
     }
 
     @Override
@@ -519,6 +521,21 @@ public class TabWindowManagerImpl implements TabWindowManager {
     }
 
     @Override
+    public @Nullable TabWindowInfo getTabWindowInfoById(@TabId int tabId) {
+        for (Map.Entry<@WindowId Integer, TabModelSelector> entry :
+                mWindowIdToSelectors.entrySet()) {
+            TabModelSelector selector = entry.getValue();
+            for (TabModel tabModel : selector.getModels()) {
+                @Nullable final Tab tab = tabModel.getTabById(tabId);
+                if (tab != null) {
+                    return new TabWindowInfo(entry.getKey(), selector, tabModel, tab);
+                }
+            }
+        }
+        return null;
+    }
+
+    @Override
     public @Nullable List<Tab> getGroupedTabsByWindow(
             @WindowId int windowId, Token tabGroupId, boolean isIncognito) {
         @Nullable TabModelSelector tabModelSelector = getTabModelSelectorById(windowId);
@@ -536,6 +553,13 @@ public class TabWindowManagerImpl implements TabWindowManager {
     @Override
     public @Nullable TabModelSelector getTabModelSelectorById(@WindowId int windowId) {
         return mWindowIdToSelectors.get(windowId);
+    }
+
+    @Override
+    public @WindowId int getWindowIdForSelector(TabModelSelector selector) {
+        @WindowId Integer windowId = mSelectorsToWindowId.get(selector);
+        if (windowId == null) return INVALID_WINDOW_ID;
+        return windowId;
     }
 
     @Override
@@ -587,6 +611,11 @@ public class TabWindowManagerImpl implements TabWindowManager {
         }
         TabModelUtils.runOnTabStateInitialized(
                 () -> {
+                    mTabStateInitialized = true;
+                    for (Observer observer : mObservers) {
+                        observer.onTabStateInitialized();
+                    }
+
                     TabModel model = tabModelSelectorList.get(0).getModel(/* incognito= */ false);
 
                     // TODO(https://crbug.com/420738506): Remove this post once the order is

@@ -57,6 +57,7 @@
 #include "chrome/browser/ui/ash/desks/desks_client.h"
 #include "chrome/browser/ui/ash/device_scheduled_reboot/reboot_notification_controller.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -97,9 +98,9 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/window_open_disposition.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/display/types/display_constants.h"
 #include "ui/events/test/event_generator.h"
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/wm/core/window_util.h"
@@ -245,14 +246,21 @@ void CreateAndSaveWindowInfo(aura::Window* window) {
 }
 
 // Gets the browser whose restore window id is same as `window_id`.
-Browser* GetBrowserForWindowId(int32_t window_id) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->window()->GetNativeWindow()->GetProperty(
-            ::app_restore::kRestoreWindowIdKey) == window_id) {
-      return browser;
-    }
-  }
-  return nullptr;
+BrowserWindowInterface* GetBrowserForWindowId(int32_t window_id) {
+  BrowserWindowInterface* found_browser = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [window_id,
+       &found_browser](BrowserWindowInterface* browser_window_interface) {
+        if (browser_window_interface->GetWindow()
+                ->GetNativeWindow()
+                ->GetProperty(::app_restore::kRestoreWindowIdKey) ==
+            window_id) {
+          found_browser = browser_window_interface;
+          return false;
+        }
+        return true;
+      });
+  return found_browser;
 }
 
 void ClickView(const views::View* view) {
@@ -294,7 +302,7 @@ class FullRestoreAppLaunchHandlerTestBase
  public:
   FullRestoreAppLaunchHandlerTestBase()
       : faster_animations_(
-            ui::ScopedAnimationDurationScaleMode::ZERO_DURATION) {
+            gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION) {
     scoped_restore_for_testing_ = std::make_unique<ScopedRestoreForTesting>();
     set_launch_browser_for_testing(nullptr);
   }
@@ -323,14 +331,9 @@ class FullRestoreAppLaunchHandlerTestBase
   }
 
   aura::Window* FindWebAppWindow() {
-    for (Browser* browser : *BrowserList::GetInstance()) {
-      aura::Window* window = browser->window()->GetNativeWindow();
-      if (window->GetProperty(::app_restore::kRestoreWindowIdKey) ==
-          kWindowId2) {
-        return window;
-      }
-    }
-    return nullptr;
+    BrowserWindowInterface* const app_browser =
+        GetBrowserForWindowId(kWindowId2);
+    return app_browser ? app_browser->GetWindow()->GetNativeWindow() : nullptr;
   }
 
   // Creates and saves an app using `kAppId` and `kWindowId2` as the app ID and
@@ -393,7 +396,7 @@ class FullRestoreAppLaunchHandlerTestBase
   void ResetRestoreForTesting() { scoped_restore_for_testing_.reset(); }
 
  protected:
-  ui::ScopedAnimationDurationScaleMode faster_animations_;
+  gfx::ScopedAnimationDurationScaleMode faster_animations_;
   std::unique_ptr<ScopedRestoreForTesting> scoped_restore_for_testing_;
   std::unique_ptr<NotificationDisplayServiceTester> display_service_;
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -424,7 +427,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
 
   AppLaunchInfoSaveWaiter::Wait();
 
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Create FullRestoreAppLaunchHandler, and set should restore.
   auto app_launch_handler =
@@ -432,7 +435,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   SetShouldRestore(app_launch_handler.get());
 
   // Verify there is no new browser launched.
-  EXPECT_EQ(count, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count, chrome::GetTotalBrowserCount());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
@@ -512,7 +515,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   SaveBrowserAppLaunchInfo(kWindowId1);
   AppLaunchInfoSaveWaiter::Wait();
 
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Create FullRestoreAppLaunchHandler.
   auto app_launch_handler =
@@ -522,7 +525,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is a new browser launched.
-  EXPECT_EQ(count + 1, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 1, chrome::GetTotalBrowserCount());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest, NotRestore) {
@@ -530,7 +533,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest, NotRestore) {
   SaveDefaultAppLaunchInfo();
   AppLaunchInfoSaveWaiter::Wait();
 
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Create FullRestoreAppLaunchHandler.
   auto app_launch_handler =
@@ -542,7 +545,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest, NotRestore) {
   content::RunAllTasksUntilIdle();
 
   // Verify there is no new browser launched.
-  EXPECT_EQ(count, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count, chrome::GetTotalBrowserCount());
   EXPECT_FALSE(FindWebAppWindow());
 }
 
@@ -556,7 +559,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   SaveDefaultAppLaunchInfo();
   AppLaunchInfoSaveWaiter::Wait();
 
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Set the pref for showing post reboot notification.
   profile()->GetPrefs()->SetBoolean(prefs::kShowPostRebootNotification, true);
@@ -571,14 +574,14 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is no new browser launched.
-  EXPECT_EQ(count, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count, chrome::GetTotalBrowserCount());
   EXPECT_FALSE(FindWebAppWindow());
   EXPECT_TRUE(HasNotificationFor(kPostRebootNotificationId));
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        RestoreAndLaunchBrowser) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add the chrome browser launch info.
   SaveBrowserAppLaunchInfo(kWindowId1);
@@ -594,14 +597,14 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is new browser launched.
-  EXPECT_EQ(count + 1, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 1, chrome::GetTotalBrowserCount());
 }
 
 // Verify the restore data is saved when the restore setting is always and the
 // restore finishes.
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        RestoreAndLaunchBrowserWithAlwaysSetting) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add the chrome browser launch info.
   SaveBrowserAppLaunchInfo(kWindowId1);
@@ -625,7 +628,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is new browser launched.
-  EXPECT_EQ(count + 1, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 1, chrome::GetTotalBrowserCount());
 
   AppLaunchInfoSaveWaiter::Wait(/*allow_save*/ false);
   ::full_restore::FullRestoreSaveHandler::GetInstance()->ClearForTesting();
@@ -640,12 +643,12 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is a new browser launched again.
-  EXPECT_EQ(count + 2, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 2, chrome::GetTotalBrowserCount());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        RestoreAndNoBrowserLaunchInfo) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add app launch info, but no browser launch info.
   SaveDefaultAppLaunchInfo();
@@ -665,12 +668,12 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is no new browser launched.
-  EXPECT_EQ(count, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count, chrome::GetTotalBrowserCount());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        LaunchBrowserAndRestore) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add the chrome browser launch info.
   SaveBrowserAppLaunchInfo(kWindowId1);
@@ -685,19 +688,19 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is no new browser launched.
-  EXPECT_EQ(count, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count, chrome::GetTotalBrowserCount());
 
   // Set should restore.
   app_launch_handler->SetShouldRestore();
   content::RunAllTasksUntilIdle();
 
   // Verify there is new browser launched.
-  EXPECT_EQ(count + 1, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 1, chrome::GetTotalBrowserCount());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        RestoreAndLaunchBrowserAndAddApp) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add app launch infos.
   SaveBrowserAppLaunchInfo(kWindowId1);
@@ -715,13 +718,13 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is new browser launched.
-  EXPECT_EQ(count + 2, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 2, chrome::GetTotalBrowserCount());
   EXPECT_TRUE(FindWebAppWindow());
 }
 
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        LaunchBrowserAndAddAppAndRestore) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   // Add app launch infos.
   SaveBrowserAppLaunchInfo(kWindowId1);
@@ -739,7 +742,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   SetShouldRestore(app_launch_handler.get());
 
   // Verify there is new browser launched.
-  EXPECT_EQ(count + 2, BrowserList::GetInstance()->size());
+  EXPECT_EQ(count + 2, chrome::GetTotalBrowserCount());
   EXPECT_TRUE(FindWebAppWindow());
 }
 
@@ -747,7 +750,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
 // in the window info.
 IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
                        WindowProperties) {
-  size_t count = BrowserList::GetInstance()->size();
+  size_t count = chrome::GetTotalBrowserCount();
 
   SaveBrowserAppLaunchInfo(kWindowId1);
   constexpr uint32_t kSnapPercentage = 75;
@@ -762,7 +765,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   app_launch_handler->LaunchBrowserWhenReady(/*first_run_full_restore=*/false);
   SetShouldRestore(app_launch_handler.get());
 
-  ASSERT_EQ(count + 1u, BrowserList::GetInstance()->size());
+  ASSERT_EQ(count + 1u, chrome::GetTotalBrowserCount());
 
   auto window = std::make_unique<aura::Window>(nullptr);
   window->Init(ui::LAYER_NOT_DRAWN);
@@ -813,9 +816,8 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
           local_state->GetInteger(kRestoreIdPrefName));
   ASSERT_NE(0, previous_browser_id);
 
-  auto* browser_list = BrowserList::GetInstance();
   // Initially there should not be any browsers.
-  ASSERT_TRUE(browser_list->empty());
+  ASSERT_FALSE(GetLastActiveBrowserWindowInterfaceWithAnyProfile());
 
   // Create Full Restore launch data before launching any browser, simulating
   // Full Restore data being saved prior to restart.
@@ -832,7 +834,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   app_launch_handler->LaunchBrowserWhenReady(/*first_run_full_restore=*/false);
   SetShouldRestore(app_launch_handler.get());
 
-  ASSERT_EQ(1u, browser_list->size());
+  ASSERT_EQ(1u, chrome::GetTotalBrowserCount());
 
   // The restored browser's bounds should be the bounds saved by Full Restore,
   // i.e. |kCurrentBounds|.
@@ -861,7 +863,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   content::RunAllTasksUntilIdle();
 
   // Verify there is new browser launched.
-  ASSERT_EQ(1u, BrowserList::GetInstance()->size());
+  ASSERT_EQ(1u, chrome::GetTotalBrowserCount());
   BrowserWindowInterface* const browser_from_full_restore =
       GetLastActiveBrowserWindowInterfaceWithAnyProfile();
 
@@ -884,7 +886,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   new_browser->window()->Show();
   new_browser->window()->SetBounds(expected_bounds);
 
-  ASSERT_EQ(BrowserList::GetInstance()->size(), 2u);
+  ASSERT_EQ(chrome::GetTotalBrowserCount(), 2u);
 
   // The browser has now been created. We're now going to enter overview mode
   // and save the desk as a template. Once saved, we'll exit overview mode.
@@ -903,7 +905,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   new_browser->window()->SetBounds(expected_bounds + gfx::Vector2d(10, 10));
   web_app::CloseAndWait(new_browser);
 
-  ASSERT_EQ(BrowserList::GetInstance()->size(), 1u);
+  ASSERT_EQ(chrome::GetTotalBrowserCount(), 1u);
 
   // We're now going to launch the template and verify that we have a new
   // browser, and that it has the correct bounds and URL.
@@ -918,7 +920,7 @@ IN_PROC_BROWSER_TEST_F(FullRestoreAppLaunchHandlerBrowserTest,
   ToggleOverview();
   WaitForOverviewExitAnimation();
 
-  ASSERT_EQ(BrowserList::GetInstance()->size(), 2u);
+  ASSERT_EQ(chrome::GetTotalBrowserCount(), 2u);
 
   BrowserWindowInterface* browser_from_template = nullptr;
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
@@ -2617,12 +2619,13 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
   ASSERT_TRUE(HasWindowInfo(window_id));
 
   // Get the restored browser for the system web app.
-  Browser* restore_app_browser = GetBrowserForWindowId(window_id);
+  BrowserWindowInterface* const restore_app_browser =
+      GetBrowserForWindowId(window_id);
   ASSERT_TRUE(restore_app_browser);
   ASSERT_NE(browser(), restore_app_browser);
 
   // Get the restore window id.
-  window = restore_app_browser->window()->GetNativeWindow();
+  window = restore_app_browser->GetWindow()->GetNativeWindow();
   int32_t restore_window_id =
       window->GetProperty(::app_restore::kRestoreWindowIdKey);
 
@@ -2693,7 +2696,8 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
   SetShouldRestore(app_launch_handler.get());
 
   // Verify the app is not restored because the app is not installed.
-  Browser* restore_app_browser = GetBrowserForWindowId(window_id);
+  BrowserWindowInterface* restore_app_browser =
+      GetBrowserForWindowId(window_id);
   ASSERT_FALSE(restore_app_browser);
 
   // Modify the app readiness to kReady to simulate the app is installed.
@@ -2709,7 +2713,7 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
   ASSERT_NE(browser(), restore_app_browser);
 
   // Get the restore window id.
-  window = restore_app_browser->window()->GetNativeWindow();
+  window = restore_app_browser->GetWindow()->GetNativeWindow();
   int32_t restore_window_id =
       window->GetProperty(::app_restore::kRestoreWindowIdKey);
 
@@ -2776,11 +2780,12 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
 
   // Get the restored browser for the system web app to verify the app is
   // restored.
-  auto* restore_app_browser = GetBrowserForWindowId(window_id1);
+  BrowserWindowInterface* const restore_app_browser =
+      GetBrowserForWindowId(window_id1);
   ASSERT_TRUE(restore_app_browser);
 
   // Get the restore window id.
-  window1 = restore_app_browser->window()->GetNativeWindow();
+  window1 = restore_app_browser->GetWindow()->GetNativeWindow();
   int32_t restore_window_id =
       window1->GetProperty(::app_restore::kRestoreWindowIdKey);
 
@@ -2850,11 +2855,12 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
 
   // Get the restored browser for the system web app to verify the app is
   // restored.
-  auto* restore_app_browser = GetBrowserForWindowId(window_id2);
+  BrowserWindowInterface* const restore_app_browser =
+      GetBrowserForWindowId(window_id2);
   ASSERT_TRUE(restore_app_browser);
 
   // Get the restore window id.
-  window2 = restore_app_browser->window()->GetNativeWindow();
+  window2 = restore_app_browser->GetWindow()->GetNativeWindow();
   int32_t restore_window_id =
       window2->GetProperty(::app_restore::kRestoreWindowIdKey);
 
@@ -2893,12 +2899,13 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
   SetShouldRestore(app_launch_handler.get());
 
   // Get the restored browser for the system web app.
-  Browser* restore_app_browser = GetBrowserForWindowId(window_id);
+  BrowserWindowInterface* const restore_app_browser =
+      GetBrowserForWindowId(window_id);
   ASSERT_TRUE(restore_app_browser);
   ASSERT_NE(browser(), restore_app_browser);
 
   // Get the restored browser's window.
-  window = restore_app_browser->window()->GetNativeWindow();
+  window = restore_app_browser->GetWindow()->GetNativeWindow();
   ASSERT_EQ(window_id, window->GetProperty(::app_restore::kRestoreWindowIdKey));
 
   // Check that |window|'s properties match the one's we stored.
@@ -2914,8 +2921,15 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
 
 // Tests that apps maintain splitview snap status after being relaunched with
 // full restore.
+// TODO(crbug.com/452086032): Re-enable on "Linux Chromium OS ASan LSan Tests".
+#if BUILDFLAG(IS_CHROMEOS) && defined(ADDRESS_SANITIZER) && \
+    defined(LEAK_SANITIZER)
+#define MAYBE_TabletSplitView DISABLED_TabletSplitView
+#else
+#define MAYBE_TabletSplitView TabletSplitView
+#endif
 IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
-                       TabletSplitView) {
+                       MAYBE_TabletSplitView) {
   TabletMode::Get()->SetEnabledForTest(true);
 
   BrowserWindowInterface* const app1_browser = LaunchHelpSystemWebApp();
@@ -2953,17 +2967,20 @@ IN_PROC_BROWSER_TEST_P(FullRestoreAppLaunchHandlerSystemWebAppsBrowserTest,
   aura::Window* restore_app2_window = nullptr;
 
   // Find the restored app windows in the browser list.
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    aura::Window* native_window = browser->window()->GetNativeWindow();
-    if (native_window->GetProperty(::app_restore::kRestoreWindowIdKey) ==
-        app1_id) {
-      restore_app1_window = native_window;
-    }
-    if (native_window->GetProperty(::app_restore::kRestoreWindowIdKey) ==
-        app2_id) {
-      restore_app2_window = native_window;
-    }
-  }
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser_window_interface) {
+        aura::Window* const native_window =
+            browser_window_interface->GetWindow()->GetNativeWindow();
+        if (native_window->GetProperty(::app_restore::kRestoreWindowIdKey) ==
+            app1_id) {
+          restore_app1_window = native_window;
+        }
+        if (native_window->GetProperty(::app_restore::kRestoreWindowIdKey) ==
+            app2_id) {
+          restore_app2_window = native_window;
+        }
+        return true;
+      });
 
   ASSERT_TRUE(restore_app1_window);
   ASSERT_TRUE(restore_app2_window);

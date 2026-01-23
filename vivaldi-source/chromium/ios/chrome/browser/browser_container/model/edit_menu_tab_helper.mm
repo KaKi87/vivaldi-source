@@ -26,3 +26,11 @@ id<EditMenuBuilder> EditMenuTabHelper::GetEditMenuBuilder() {
 void EditMenuTabHelper::BuildEditMenu(id<UIMenuBuilder> builder) const {
   [edit_menu_builder_ buildEditMenuWithBuilder:builder inWebState:web_state_];
 }
+
+// Vivaldi
+void EditMenuTabHelper::BuildSelectionlessEditMenu(
+    id<UIMenuBuilder> builder) const {
+  [edit_menu_builder_ buildSelectionlessEditMenuWithBuilder:builder
+                                                 inWebState:web_state_];
+}
+// End Vivaldi

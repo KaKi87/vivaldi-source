@@ -264,7 +264,8 @@ void VivaldiRenderViewContextMenu::InitMenu() {
     // AutocompleteInput below matches too much as a url (a single word is
     // accepted) so we require there is at least '.' in the text to examine or
     // accepted internal specifiers.
-    if (maybe_url.find(".") != std::string::npos ||
+    if ((maybe_url.find(".") != std::string::npos &&
+          !base::EndsWith(maybe_url, ".")) ||
         maybe_url.find("chrome:") == 0 ||
         maybe_url.find("vivaldi:") == 0) {
       auto input = AutocompleteInput(

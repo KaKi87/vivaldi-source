@@ -43,12 +43,10 @@ BASE_DECLARE_FEATURE(kClearUserDataUponProfileDestruction);
 
 #if BUILDFLAG(IS_LINUX)
 BASE_DECLARE_FEATURE(kDbusSecretPortal);
-BASE_DECLARE_FEATURE(kUseFreedesktopSecretKeyProvider);
 #endif
 
 BASE_DECLARE_FEATURE(kDestroyProfileOnBrowserClose);
 BASE_DECLARE_FEATURE(kDestroySystemProfiles);
-BASE_DECLARE_FEATURE(kDelayOnProfileCreatedForFullBrowserTransition);
 
 BASE_DECLARE_FEATURE(kFlexOrgManagementDisclosure);
 BASE_DECLARE_FEATURE(kIncomingCallNotifications);
@@ -74,14 +72,9 @@ const base::FeatureParam<int>
         &features::kNewTabPageTriggerForPrefetch,
         "prefetch_start_delay_on_mouse_hover_ms", 300};
 
-#if BUILDFLAG(IS_ANDROID)
-BASE_DECLARE_FEATURE(kNotificationOneTapUnsubscribe);
-extern base::FeatureParam<bool>
-    kNotificationOneTapUnsubscribeUseServiceIntentParam;
+#if !BUILDFLAG(IS_ANDROID)
+BASE_DECLARE_FEATURE(kNotificationOneTapUnsubscribeOnDesktop);
 #endif
-
-BASE_DECLARE_FEATURE(kPromoBrowserCommands);
-extern const char kBrowserCommandIdParam[];
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 BASE_DECLARE_FEATURE(kRegisterOsUpdateHandlerWin);
@@ -94,7 +87,6 @@ BASE_DECLARE_FEATURE(kSandboxExternalProtocolBlockedWarning);
 
 #if BUILDFLAG(IS_LINUX)
 BASE_DECLARE_FEATURE(kSecretPortalKeyProviderUseForEncryption);
-BASE_DECLARE_FEATURE(kUseFreedesktopSecretKeyProviderForEncryption);
 #endif
 
 BASE_DECLARE_FEATURE(kTriggerNetworkDataMigration);

@@ -71,7 +71,7 @@
             "type": "array",
             "description": "Resulting search list ids.",
             "items": {
-              "type": "number"
+              "type": "integer"
             }
           },
           "success": {
@@ -649,6 +649,25 @@
               "name": "count",
               "description": "Count of messages in mail search database.",
               "type": "integer"
+            }
+          ]
+        }
+      },
+      {
+        "name": "getMailSearchDBIds",
+        "type": "function",
+        "description": "Returns a list of SearchListIds in the mail search database.",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "SearchListIDs",
+              "type": "array",
+              "description": "List of SearchListId's",
+              "items": {
+                "type": "integer"
+              }
             }
           ]
         }

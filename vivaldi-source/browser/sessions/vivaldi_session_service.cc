@@ -158,8 +158,7 @@ bool SessionServiceBase::ShouldTrackBrowserOfType(Browser::Type type) {
 namespace resource_coordinator {
 
 void TabLifecycleUnitSource::TabLifecycleUnit::SetIsDiscarded() {
-  SetState(LifecycleUnitState::DISCARDED,
-           LifecycleUnitStateChangeReason::EXTENSION_INITIATED);
+  SetState(LifecycleUnitState::DISCARDED);
 }
 
 void TabLifecycleUnitExternal::SetIsDiscarded() {}

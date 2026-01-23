@@ -3,11 +3,12 @@
 #include "installer/util/vivaldi_progress_dialog.h"
 
 #include <CommCtrl.h>
+#include <dwmapi.h>
 
 #include "base/check.h"
 #include "base/logging.h"
 #include "base/notreached.h"
-#include "chrome/installer/setup/setup_resource.h"
+#include "installer/win/setup/setup_resource.h"
 
 #include "installer/win/detached_thread.h"
 
@@ -49,15 +50,42 @@ void SetProgressValue(HWND hdlg, int percentage) {
   ::SendMessage(hwnd_progress, PBM_SETPOS, percentage, 0);
 }
 
+void SetProgressColor(HWND hdlg) {
+  HWND hwnd_progress = GetProgressControl(hdlg);
+  if (!hwnd_progress)
+    return;
+  // Invert as background.
+
+  DWORD color = 0;
+  BOOL opaque_blend = FALSE;
+  HRESULT hr = DwmGetColorizationColor(&color, &opaque_blend);
+  COLORREF progresscolor = RGB(200, 150, 150);
+  COLORREF progressbackgroundcolor = RGB(100, 100, 200);
+
+  if (SUCCEEDED(hr)) {
+    color = 0xFF000000u | (_byteswap_ulong(color) >> 8);
+    progresscolor = RGB(GetRValue(color), GetGValue(color), GetBValue(color));
+  }
+
+  ::SendMessage(hwnd_progress, PBM_SETBKCOLOR, 0, progressbackgroundcolor);
+  ::SendMessage(hwnd_progress, PBM_SETBARCOLOR, 0, progresscolor);
+}
+
 }  // namespace
 
 class VivaldiProgressDialog::ProgressThread : public vivaldi::DetachedThread {
  public:
   ProgressThread(HINSTANCE hInstance) : hInstance_(hInstance) {}
   void Run() override {
+
+    INITCOMMONCONTROLSEX info;
+    info.dwSize = sizeof(info);
+    info.dwICC = ICC_STANDARD_CLASSES;
+    InitCommonControlsEx(&info);
+
     // make sure we have a UI thread with a message loop.
     ::IsGUIThread(TRUE);
-    ::DialogBox(hInstance_, MAKEINTRESOURCE(IDD_DIALOG2), NULL, DlgProc);
+    ::DialogBox(hInstance_, MAKEINTRESOURCE(IDD_PROGRESS_DIALOG), NULL, DlgProc);
   }
   HINSTANCE hInstance_ = nullptr;
 };
@@ -129,6 +157,7 @@ INT_PTR CALLBACK VivaldiProgressDialog::DlgProc(HWND hdlg,
       // parent thread waits for the dlg_event_ event.
       this_->hdlg_ = hdlg;
       SetMarqueeMode(hdlg, true);
+      SetProgressColor(hdlg);
       SetForegroundWindow(hdlg);
       SetEvent(this_->dlg_event_);
       return (INT_PTR)TRUE;

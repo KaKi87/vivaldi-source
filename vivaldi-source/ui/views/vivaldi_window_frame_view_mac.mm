@@ -27,7 +27,7 @@ class VivaldiWindowFrameViewMac : public views::NativeFrameView {
       const VivaldiWindowFrameViewMac&) = delete;
 
  private:
-  // views::NonClientFrameView overrides
+  // views::FrameView overrides
   gfx::Rect GetWindowBoundsForClientBounds(
       const gfx::Rect& client_bounds) const override;
   int NonClientHitTest(const gfx::Point& point) override;
@@ -62,6 +62,9 @@ gfx::Rect VivaldiWindowFrameViewMac::GetWindowBoundsForClientBounds(
 
 int VivaldiWindowFrameViewMac::NonClientHitTest(
     const gfx::Point& point) {
+
+  window_->ReportNCMousePosition(point);
+
   if (!bounds().Contains(point))
     return HTNOWHERE;
 

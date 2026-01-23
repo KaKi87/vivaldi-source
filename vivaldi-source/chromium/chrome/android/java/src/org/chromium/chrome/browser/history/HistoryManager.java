@@ -63,12 +63,14 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import android.graphics.Rect;
+import android.text.TextUtils;
 import android.view.Gravity;
 
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
+import org.chromium.ui.KeyboardVisibilityDelegate;
 
 import org.vivaldi.browser.panels.PanelUtils;
 // End Vivaldi
@@ -222,7 +224,10 @@ public class HistoryManager
                 mContentManager.getAdapter(),
                 mContentManager.getRecyclerView(),
                 edgeToEdgePadAdjusterGenerator);
-        if (mContentManager.showAppFilter()) {
+        boolean isLargeScreenWithKeyboard =
+                DeviceInput.supportsKeyboard()
+                        && DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
+        if (mContentManager.showAppFilter() || isLargeScreenWithKeyboard) {
             // Now the search mode can have a header. Let the layout ignore it to
             // return the right item count.
             mSelectableListLayout.ignoreItemTypeForEmptyState(ItemViewType.STANDARD_HEADER);
@@ -230,6 +235,10 @@ public class HistoryManager
 
         // VAB-6771: Fab covers up bottommost item in panel lists
         if (ChromeApplicationImpl.isVivaldi()) {
+            mSelectableListLayout.ignoreItemTypeForEmptyState(
+                    ItemViewType.PERSISTENT_HEADER);
+            mSelectableListLayout.setAlwaysShowRecyclerView();
+
             mContentManager.getRecyclerView().addItemDecoration(new RecyclerView.ItemDecoration() {
                 @Override
                 public void getItemOffsets(
@@ -277,7 +286,19 @@ public class HistoryManager
                         return IncognitoUtils.isIncognitoModeEnabled(profile);
                     }
                 });
-        mToolbar.initializeSearchView(this, R.string.history_manager_search, R.id.search_menu_id);
+
+        mToolbar.setIsLargeScreenWithKeyboard(isLargeScreenWithKeyboard);
+
+        /* If the current device is LFF device w/ physical keyboard attached,
+         * then initialize the search box only; Otherwise initialize the whole toolbar
+         */
+        if (!isLargeScreenWithKeyboard) {
+            if (!ChromeApplicationImpl.isVivaldi() || !useBookmarkStyleSearch())
+            mToolbar.initializeSearchView(
+                    this, R.string.history_manager_search, R.id.search_menu_id);
+            else mToolbar.getMenu().removeItem(R.id.search_menu_id);
+        } else mToolbar.initializeInlineSearchView(this, R.id.search_menu_id);
+
         mToolbar.setInfoMenuItem(R.id.info_menu_id);
         mToolbar.updateInfoMenuItem(shouldShowInfoButton(), shouldShowInfoHeaderIfAvailable());
 
@@ -298,6 +319,12 @@ public class HistoryManager
                 mActivity.getResources().getString(
                         R.string.history_manager_empty_state_view_or_clear_page_visited));
         mEmptyView.setGravity(Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+        View mEmptyViewWrapper = mSelectableListLayout.findViewById(
+                R.id.empty_state_container);
+        ViewGroup.MarginLayoutParams params =
+                (ViewGroup.MarginLayoutParams) mEmptyViewWrapper.getLayoutParams();
+        params.setMargins(params.leftMargin, 100, params.rightMargin, params.bottomMargin);
+        mEmptyViewWrapper.setLayoutParams(params);
         // Vivaldi
 
         // 6. Load items.
@@ -312,19 +339,18 @@ public class HistoryManager
         onBackPressStateChanged(); // Initialize back press State.
         mContentManager.maybeQueryApps();
 
-        boolean isLargeScreenWithKeyboard =
-                DeviceInput.supportsKeyboard()
-                        && DeviceFormFactor.isNonMultiDisplayContextOnTablet(mActivity);
-        mToolbar.setIsLargeScreenWithKeyboard(isLargeScreenWithKeyboard);
         mContentManager.getAdapter().setIsLargeScreenWithKeyboard(isLargeScreenWithKeyboard);
-        // Vivaldi VAB-11891. Don't focus search mode on tablet
-        if (!ChromeApplicationImpl.isVivaldi())
-        if (isLargeScreenWithKeyboard) {
-            enterSearchMode();
-        }
+        mContentManager.getAdapter().setToolbar(mToolbar);
 
-        if (ChromeApplicationImpl.isVivaldi())
+        if (ChromeApplicationImpl.isVivaldi()) {
             mSelectableListLayout.getToolbarShadow().setVisibility(View.GONE);
+
+            if (mContentManager.useBookmarkStyleSearch()) {
+                mContentManager.setSearchTextCallback(this::onSearchTextChanged);
+                mContentManager.setFocusChangeCallback(this::onSearchBoxFocusChange);
+                mContentManager.setClearSearchTextRunnable(this::onClearSearchTextRunnable);
+            }
+        } // End Vivaldi
     }
 
     private void initializeEmptyView() {
@@ -541,6 +567,10 @@ public class HistoryManager
 
     @Override
     public void onSearchTextChanged(String query) {
+        if (useBookmarkStyleSearch()) {
+            onSearchTextChangeCallback(query);
+            return;
+        } // End Vivaldi
         assumeNonNull(mContentManager).search(query);
     }
 
@@ -653,6 +683,7 @@ public class HistoryManager
     public void onItemClicked(HistoryItem item) {
         if (ChromeApplicationImpl.isVivaldi())
             PanelUtils.closePanel(mActivity);
+
         mUmaRecorder.recordOpenItem(mIsSearching);
     }
 
@@ -731,17 +762,6 @@ public class HistoryManager
     }
 
     /** Vivaldi. */
-    public void openSearchUI() {
-        assumeNonNull(mSelectableListLayout);
-        assumeNonNull(mToolbar);
-        mToolbar.showSearchView(true);
-        mSelectableListLayout.onStartSearch(
-                mActivity.getResources().getString(R.string.history_manager_no_results),
-                R.string.history_manager_empty_state_view_or_open_more_history);
-        mIsSearching = true;
-    }
-
-    /** Vivaldi. */
     public void clearSelection() {
         assumeNonNull(mSelectionDelegate);
         mSelectionDelegate.clearSelection();
@@ -749,7 +769,60 @@ public class HistoryManager
 
     /** Vivaldi. */
     public void refresh() {
-        if (mContentManager != null)
-            mContentManager.startLoadingItems();
+        if (mContentManager != null) mContentManager.startLoadingItems();
+    }
+
+    // Vivaldi
+    /** Vivaldi. */
+    public boolean useBookmarkStyleSearch() {
+        return mContentManager != null && mContentManager.useBookmarkStyleSearch();
+    }
+
+    /** Vivaldi. */
+    public void onSearchTextChangeCallback(String searchText) {
+        searchText = searchText == null ? "" : searchText;
+        setSearchTextAndUpdateButtonVisibility(searchText);
+        onSearchChange(searchText);
+    }
+
+    /** Vivaldi. */
+    private void setSearchTextAndUpdateButtonVisibility(String searchText) {
+        if (mContentManager != null) {
+            mContentManager.setSearchText(searchText);
+            boolean isVisible = !TextUtils.isEmpty(searchText);
+            mContentManager.updateClearSearchButtonVisibliity(isVisible);
+        }
+    }
+
+    /** Vivaldi. */
+    private void onSearchBoxFocusChange(Boolean hasFocus) {
+        assert hasFocus != null;
+        setSearchBoxFocusAndHideKeyboardIfNeeded(hasFocus);
+    }
+
+    /** Vivaldi. */
+    private void setSearchBoxFocusAndHideKeyboardIfNeeded(boolean hasFocus) {
+        if (mContentManager != null) mContentManager.setSearchBoxHasFocus(hasFocus);
+        if (hasFocus && mContentManager != null) {
+            mContentManager.querySearch("");
+        } else {
+            hideKeyboard();
+        }
+    }
+
+    /** Vivaldi. */
+    public void hideKeyboard() {
+        KeyboardVisibilityDelegate.getInstance().hideKeyboard(mContentView);
+    }
+
+    /** Vivaldi. */
+    private void onSearchChange(@Nullable String searchText) {
+        searchText = searchText == null ? "" : searchText;
+        if (mContentManager != null) mContentManager.search(searchText);
+    }
+
+    /** Vivaldi. */
+    private void onClearSearchTextRunnable() {
+        onSearchTextChangeCallback("");
     }
 }

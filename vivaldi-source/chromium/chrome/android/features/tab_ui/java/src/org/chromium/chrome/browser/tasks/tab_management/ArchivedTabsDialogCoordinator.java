@@ -56,6 +56,7 @@ import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tabmodel.TabModelSelectorBase;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListItemSizeChangedObserver;
 import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
@@ -68,7 +69,6 @@ import org.chromium.chrome.browser.tasks.tab_management.TabProperties.UiType;
 import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.MessageType;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeControllerFactory;
-import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.undo_tab_close_snackbar.SavedTabGroupUndoBarController;
 import org.chromium.components.browser_ui.desktop_windowing.DesktopWindowStateManager;
@@ -423,7 +423,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
             mCurrentTabGroupModelFilterSupplier;
     private final DestroyChecker mDestroyChecker = new DestroyChecker();
 
-    private @Nullable EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;
+    private EdgeToEdgePadAdjuster mEdgeToEdgePadAdjuster;
     private TabListRecyclerView mDialogRecyclerView;
     private WeakReference<TabListRecyclerView> mTabSwitcherRecyclerView;
     private @TabActionState int mTabActionState = TabActionState.CLOSABLE;
@@ -486,14 +486,13 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
         mDesktopWindowStateManager = desktopWindowStateManager;
 
         mArchivedTabModelOrchestrator = archivedTabModelOrchestrator;
-        mArchivedTabModel =
-                mArchivedTabModelOrchestrator
-                        .getTabModelSelector()
-                        .getModel(/* incognito= */ false);
+        TabModelSelectorBase tabModelSelector = mArchivedTabModelOrchestrator.getTabModelSelector();
+        assumeNonNull(tabModelSelector);
+        mArchivedTabModel = tabModelSelector.getModel(/* incognito= */ false);
         mUndoBarController =
                 new SavedTabGroupUndoBarController(
                         mActivity,
-                        mArchivedTabModelOrchestrator.getTabModelSelector(),
+                        tabModelSelector,
                         /* snackbarManageable= */ this,
                         tabGroupSyncService);
         mTabSwitcherView = tabSwitcherView;
@@ -516,11 +515,9 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
         mActionConfirmationDialog = new ActionConfirmationDialog(mActivity, mModalDialogManager);
 
         mEdgeToEdgeSupplier = edgeToEdgeSupplier;
-        if (EdgeToEdgeUtils.isDrawKeyNativePageToEdgeEnabled()) {
-            mEdgeToEdgePadAdjuster =
-                    EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(
-                            getCloseAllTabsButtonContainer(), mEdgeToEdgeSupplier);
-        }
+        mEdgeToEdgePadAdjuster =
+                EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(
+                        getCloseAllTabsButtonContainer(), mEdgeToEdgeSupplier);
 
         mTabGroupSyncService = tabGroupSyncService;
         mPaneManagerSupplier = paneManagerSupplier;
@@ -790,15 +787,13 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
 
     @EnsuresNonNull("mTabListEditorCoordinator")
     private void createTabListEditorCoordinator() {
-        // TODO(crbug.com/417467809): Plumb the actual UndoBar trigger interface when available.
         mTabListEditorCoordinator =
                 new TabListEditorCoordinator(
                         mActivity,
                         mRootView,
                         /* parentView= */ mDialogView.findViewById(R.id.tab_list_editor_container),
                         mBrowserControlsStateProvider,
-                        mArchivedTabModelOrchestrator
-                                .getTabModelSelector()
+                        assumeNonNull(mArchivedTabModelOrchestrator.getTabModelSelector())
                                 .getTabGroupModelFilterProvider()
                                 .getCurrentTabGroupModelFilterSupplier(),
                         mTabContentManager,
@@ -815,7 +810,8 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                         /* edgeToEdgeSupplier= */ null,
                         CreationMode.FULL_SCREEN,
                         mUndoBarController,
-                        COMPONENT_NAME);
+                        COMPONENT_NAME,
+                        TabListEditorCoordinator.UNLIMITED_SELECTION);
     }
 
     @VisibleForTesting

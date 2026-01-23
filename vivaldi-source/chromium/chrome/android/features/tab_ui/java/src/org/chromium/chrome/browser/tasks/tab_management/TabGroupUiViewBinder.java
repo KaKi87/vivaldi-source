@@ -24,6 +24,9 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** ViewBinder for TabGroupUi component. */
 @NullMarked
 class TabGroupUiViewBinder {
@@ -87,6 +90,7 @@ class TabGroupUiViewBinder {
                     @Override
                     public void run() {
                         // Retry if animating or layout is incomplete.
+                        if (!BuildConfig.IS_VIVALDI) // Vivaldi VAB-12104
                         if (contentView.isAnimating()
                                 || contentView.getWidth() == 0
                                 || contentView.getHeight() == 0) {

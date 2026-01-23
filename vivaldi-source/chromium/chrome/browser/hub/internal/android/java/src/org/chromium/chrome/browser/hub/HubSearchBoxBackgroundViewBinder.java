@@ -13,12 +13,19 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Forwards changed property values to the view. */
 @NullMarked
 public class HubSearchBoxBackgroundViewBinder {
     /** Stateless propagation of properties. */
     public static void bind(PropertyModel model, View view, PropertyKey propertyKey) {
         if (propertyKey == SHOW_BACKGROUND) {
+            if (BuildConfig.IS_VIVALDI) {
+                view.setVisibility(View.GONE);
+                return;
+            }
             view.setVisibility(model.get(SHOW_BACKGROUND) ? View.VISIBLE : View.GONE);
         } else if (propertyKey == COLOR_SCHEME) {
             view.setBackgroundColor(

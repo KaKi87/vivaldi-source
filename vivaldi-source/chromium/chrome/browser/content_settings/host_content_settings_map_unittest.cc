@@ -69,8 +69,13 @@
 using content_settings::SettingSource;
 using content_settings::mojom::SessionModel;
 using ::testing::_;
+using ::testing::AllOf;
+using ::testing::Field;
 using ::testing::MockFunction;
+using ::testing::Property;
+using ::testing::ResultOf;
 using ::testing::Return;
+using ::testing::UnorderedElementsAre;
 
 namespace {
 
@@ -88,49 +93,41 @@ class MockUserModifiableProvider
     : public content_settings::UserModifiableProvider {
  public:
   ~MockUserModifiableProvider() override = default;
-  MOCK_CONST_METHOD3(GetRuleIterator,
-                     std::unique_ptr<content_settings::RuleIterator>(
-                         ContentSettingsType,
-                         bool,
-                         const content_settings::PartitionKey&));
+  MOCK_CONST_METHOD2(
+      GetRuleIterator,
+      std::unique_ptr<content_settings::RuleIterator>(ContentSettingsType,
+                                                      bool));
 
-  MOCK_METHOD6(SetWebsiteSetting,
+  MOCK_METHOD5(SetWebsiteSetting,
                bool(const ContentSettingsPattern&,
                     const ContentSettingsPattern&,
                     ContentSettingsType,
                     base::Value&&,
-                    const content_settings::ContentSettingConstraints&,
-                    const content_settings::PartitionKey&));
+                    const content_settings::ContentSettingConstraints&));
 
-  MOCK_METHOD2(ClearAllContentSettingsRules,
-               void(ContentSettingsType,
-                    const content_settings::PartitionKey&));
+  MOCK_METHOD1(ClearAllContentSettingsRules, void(ContentSettingsType));
 
   MOCK_METHOD0(ShutdownOnUIThread, void());
 
-  MOCK_METHOD5(UpdateLastUsedTime,
+  MOCK_METHOD4(UpdateLastUsedTime,
                bool(const GURL& primary_url,
                     const GURL& secondary_url,
                     ContentSettingsType content_type,
-                    const base::Time time,
-                    const content_settings::PartitionKey& partition_key));
-  MOCK_METHOD4(UpdateLastVisitTime,
+                    const base::Time time));
+  MOCK_METHOD3(UpdateLastVisitTime,
                bool(const ContentSettingsPattern& primary_pattern,
                     const ContentSettingsPattern& secondary_pattern,
-                    ContentSettingsType content_type,
-                    const content_settings::PartitionKey& partition_key));
-  MOCK_METHOD4(ResetLastVisitTime,
+                    ContentSettingsType content_type));
+  MOCK_METHOD3(ResetLastVisitTime,
                bool(const ContentSettingsPattern& primary_pattern,
                     const ContentSettingsPattern& secondary_pattern,
-                    ContentSettingsType content_type,
-                    const content_settings::PartitionKey& partition_key));
-  MOCK_METHOD5(RenewContentSetting,
+                    ContentSettingsType content_type));
+  MOCK_METHOD4(RenewContentSetting,
                std::optional<base::TimeDelta>(
                    const GURL& primary_url,
                    const GURL& secondary_url,
                    ContentSettingsType content_type,
-                   std::optional<ContentSetting> setting_to_match,
-                   const content_settings::PartitionKey& partition_key));
+                   std::optional<ContentSetting> setting_to_match));
 
   MOCK_METHOD1(SetClockForTesting, void(const base::Clock*));
 };
@@ -1366,8 +1363,8 @@ TEST_F(HostContentSettingsMapTest, IncognitoDontInheritWebsiteSetting) {
 
 TEST_F(HostContentSettingsMapTest, IncognitoDontInheritContentSetting) {
   // Content settings marked DONT_INHERIT_IN_INCOGNITO in
-  // ContentSettingsRegistry (e.g. top-level scoped 3pcd, which is a special
-  // case) don't inherit any values from from regular to incognito.
+  // ContentSettingsRegistry (e.g. Storage Access Header origin trial, which is
+  // a special case) don't inherit any values from from regular to incognito.
   TestingProfile profile;
   Profile* otr_profile =
       profile.GetPrimaryOTRProfile(/*create_if_needed=*/true);
@@ -1378,25 +1375,29 @@ TEST_F(HostContentSettingsMapTest, IncognitoDontInheritContentSetting) {
 
   GURL host("https://example.com/");
 
-  // top-level scoped 3pcd defaults to ALLOW.
-  EXPECT_EQ(CONTENT_SETTING_ALLOW,
-            map->GetContentSetting(
-                host, host, ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL));
-  EXPECT_EQ(CONTENT_SETTING_ALLOW,
-            otr_map->GetContentSetting(
-                host, host, ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL));
+  // Storage Access Header origin trial content settings defaults to BLOCK.
+  EXPECT_EQ(
+      CONTENT_SETTING_BLOCK,
+      map->GetContentSetting(
+          host, host, ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL));
+  EXPECT_EQ(
+      CONTENT_SETTING_BLOCK,
+      otr_map->GetContentSetting(
+          host, host, ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL));
 
   map->SetContentSettingDefaultScope(
-      host, GURL(), ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL,
-      CONTENT_SETTING_BLOCK);
+      host, host, ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL,
+      CONTENT_SETTING_ALLOW);
 
   // The setting is not inherited by |otr_map|.
-  EXPECT_EQ(CONTENT_SETTING_BLOCK,
-            map->GetContentSetting(
-                host, host, ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL));
-  EXPECT_EQ(CONTENT_SETTING_ALLOW,
-            otr_map->GetContentSetting(
-                host, host, ContentSettingsType::TOP_LEVEL_TPCD_ORIGIN_TRIAL));
+  EXPECT_EQ(
+      CONTENT_SETTING_ALLOW,
+      map->GetContentSetting(
+          host, host, ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL));
+  EXPECT_EQ(
+      CONTENT_SETTING_BLOCK,
+      otr_map->GetContentSetting(
+          host, host, ContentSettingsType::STORAGE_ACCESS_HEADER_ORIGIN_TRIAL));
 }
 
 TEST_F(HostContentSettingsMapTest, PrefExceptionsOperation) {
@@ -1502,7 +1503,7 @@ TEST_F(HostContentSettingsMapTest,
         /*read_only=*/false);
     mock_provider->SetWebsiteSetting(
         ContentSettingsPattern::Wildcard(), ContentSettingsPattern::Wildcard(),
-        ContentSettingsType::COOKIES, base::Value(CONTENT_SETTING_BLOCK));
+        ContentSettingsType::COOKIES, base::Value(CONTENT_SETTING_BLOCK), {});
     map_tester.map->RegisterProvider(
         content_settings::ProviderType::kProviderForTests,
         std::move(mock_provider));
@@ -2075,6 +2076,91 @@ TEST_F(HostContentSettingsMapTest, CanSetNarrowestSetting) {
                                                   ContentSettingsType::POPUPS));
 }
 
+TEST_F(HostContentSettingsMapTest, MigrateSettingsEmbeddingOriginToWildcard) {
+  TestingProfile profile;
+  HostContentSettingsMap* map =
+      HostContentSettingsMapFactory::GetForProfile(&profile);
+
+  GURL origin("https://requester.com");
+
+  ContentSettingsPattern pattern =
+      ContentSettingsPattern::FromURLNoWildcard(origin);
+
+  map->AllowInvalidSecondaryPatternForTesting(true);
+
+  map->SetContentSettingCustomScope(pattern, pattern,
+                                    ContentSettingsType::GEOLOCATION,
+                                    CONTENT_SETTING_ALLOW);
+
+  map->MigrateSettingsPrecedingPermissionDelegationActivation();
+
+  EXPECT_THAT(
+      map->GetSettingsForOneType(ContentSettingsType::GEOLOCATION),
+      UnorderedElementsAre(
+          AllOf(Field(&ContentSettingPatternSource::primary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Field(&ContentSettingPatternSource::secondary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Property(&ContentSettingPatternSource::GetContentSetting,
+                         CONTENT_SETTING_ASK)),
+          AllOf(Field(&ContentSettingPatternSource::primary_pattern, pattern),
+                Field(&ContentSettingPatternSource::secondary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Property(&ContentSettingPatternSource::GetContentSetting,
+                         CONTENT_SETTING_ALLOW))));
+}
+
+TEST_F(HostContentSettingsMapTest,
+       MigrateSettingsEmbeddingOriginToWildcardForGeolocationWithOptions) {
+  base::test::ScopedFeatureList enable_approx_geolocation(
+      content_settings::features::kApproximateGeolocationPermission);
+  TestingProfile profile;
+  HostContentSettingsMap* map =
+      HostContentSettingsMapFactory::GetForProfile(&profile);
+
+  GURL origin("https://requester.com");
+
+  ContentSettingsPattern pattern =
+      ContentSettingsPattern::FromURLNoWildcard(origin);
+
+  map->AllowInvalidSecondaryPatternForTesting(true);
+
+  GeolocationSetting geolocation_setting =
+      GeolocationSetting{.approximate = PermissionOption::kAllowed,
+                         .precise = PermissionOption::kDenied};
+  map->SetPermissionSettingCustomScope(
+      pattern, pattern, ContentSettingsType::GEOLOCATION_WITH_OPTIONS,
+      geolocation_setting);
+
+  map->MigrateSettingsPrecedingPermissionDelegationActivation();
+
+  auto value_to_permission_setting = [](const base::Value& value) {
+    return content_settings::ValueToPermissionSetting(
+        content_settings::PermissionSettingsRegistry::GetInstance()->Get(
+            ContentSettingsType::GEOLOCATION_WITH_OPTIONS),
+        value);
+  };
+
+  EXPECT_THAT(
+      map->GetSettingsForOneType(ContentSettingsType::GEOLOCATION_WITH_OPTIONS),
+      UnorderedElementsAre(
+          AllOf(Field(&ContentSettingPatternSource::primary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Field(&ContentSettingPatternSource::secondary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Field(&ContentSettingPatternSource::setting_value,
+                      ResultOf(value_to_permission_setting,
+                               GeolocationSetting{
+                                   .approximate = PermissionOption::kAsk,
+                                   .precise = PermissionOption::kAsk}))),
+          AllOf(Field(&ContentSettingPatternSource::primary_pattern, pattern),
+                Field(&ContentSettingPatternSource::secondary_pattern,
+                      ContentSettingsPattern::Wildcard()),
+                Field(&ContentSettingPatternSource::setting_value,
+                      ResultOf(value_to_permission_setting,
+                               geolocation_setting)))));
+}
+
 TEST_F(HostContentSettingsMapTest, MigrateRequestingAndTopLevelOriginSettings) {
   TestingProfile profile;
   HostContentSettingsMap* map =
@@ -2236,11 +2322,11 @@ TEST_F(HostContentSettingsMapTest, GetPatternsFromScopingType) {
   // Testing cases:
   //   WebsiteSettingsInfo::REQUESTING_ORIGIN_AND_TOP_SCHEMEFUL_SITE_SCOPE,
   host_content_settings_map->SetContentSettingDefaultScope(
-      primary_url, secondary_url, ContentSettingsType::TPCD_TRIAL,
+      primary_url, secondary_url, ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS,
       CONTENT_SETTING_ALLOW);
 
   settings = host_content_settings_map->GetSettingsForOneType(
-      ContentSettingsType::TPCD_TRIAL);
+      ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS);
 
   EXPECT_EQ(settings[0].primary_pattern,
             ContentSettingsPattern::FromURLNoWildcard(primary_url));
@@ -2309,7 +2395,8 @@ TEST_F(HostContentSettingsMapTest, GetPatternsForContentSettingsType) {
   // Testing cases:
   //   WebsiteSettingsInfo::REQUESTING_ORIGIN_AND_TOP_SCHEMEFUL_SITE_SCOPE,
   patterns = HostContentSettingsMap::GetPatternsForContentSettingsType(
-      primary_url, secondary_url, ContentSettingsType::TPCD_TRIAL);
+      primary_url, secondary_url,
+      ContentSettingsType::TOP_LEVEL_STORAGE_ACCESS);
 
   EXPECT_EQ(patterns.first,
             ContentSettingsPattern::FromURLNoWildcard(primary_url));
@@ -2867,3 +2954,28 @@ TEST_F(HostContentSettingsMapTest, DevToolsFileAccess) {
                 ContentSettingsType::FILE_SYSTEM_WRITE_GUARD));
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+TEST_F(HostContentSettingsMapTest, ExtensionContentSetting) {
+  TestingProfile profile;
+  HostContentSettingsMap* map =
+      HostContentSettingsMapFactory::GetForProfile(&profile);
+
+  const std::string extension_id = "abcdefghijklmnopqrstuvwxyzabcdef";
+  const std::string extension_url_str = "chrome-extension://" + extension_id;
+  const GURL extension_url(extension_url_str + "/index.html");
+  map->SetContentSettingDefaultScope(
+      extension_url, GURL(), ContentSettingsType::SOUND, CONTENT_SETTING_BLOCK);
+
+  EXPECT_EQ(CONTENT_SETTING_BLOCK,
+            map->GetContentSetting(extension_url, extension_url,
+                                   ContentSettingsType::SOUND));
+
+  // Verify the setting is not applied to a web URL that has the same host as
+  // the extension ID.
+  const GURL domain_url("https://" + extension_id);
+  EXPECT_NE(CONTENT_SETTING_BLOCK,
+            map->GetContentSetting(domain_url, domain_url,
+                                   ContentSettingsType::SOUND));
+}
+#endif

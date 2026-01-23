@@ -14,7 +14,6 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/contains.h"
-#include "base/debug/dump_without_crashing.h"
 #include "base/environment.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
@@ -105,9 +104,6 @@
 #include "chrome/browser/startup_data.h"
 #include "chrome/browser/storage/storage_notification_service_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/tpcd/support/origin_trial_service_factory.h"
-#include "chrome/browser/tpcd/support/top_level_trial_service_factory.h"
-#include "chrome/browser/tpcd/support/tpcd_support_service_factory.h"
 #include "chrome/browser/transition_manager/full_browser_transition_manager.h"
 #include "chrome/browser/ui/signin/dice_migration_service.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
@@ -136,6 +132,7 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/download/public/common/in_progress_download_manager.h"
+#include "components/guest_view/buildflags/buildflags.h"
 #include "components/heavy_ad_intervention/heavy_ad_service.h"
 #include "components/history/core/common/pref_names.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -241,14 +238,12 @@
 #include "extensions/browser/extension_pref_store.h"
 #include "extensions/browser/extension_pref_value_map.h"
 #include "extensions/browser/extension_pref_value_map_factory.h"
-#endif
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
-#include "components/guest_view/browser/guest_view_manager.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_system.h"
+#endif
+
+#if BUILDFLAG(ENABLE_GUEST_VIEW)
+#include "components/guest_view/browser/guest_view_manager.h"
 #endif
 
 #if BUILDFLAG(ENABLE_PLUGINS)
@@ -527,7 +522,8 @@ ProfileImpl::ProfileImpl(
     // tests.
     // Note: |ash::InitializeAccountManager| is idempotent and safe to call
     // multiple times.
-    // TODO(crbug.com/40635309): Remove this call.
+    // Consider removing this initialization and fixing failing tests.
+    // See https://crbug.com/40635309 for reference.
     ash::InitializeAccountManager(
         std::move(shared_url_loader_factory), path_,
         base::DoNothing() /* initialization_callback */);
@@ -880,13 +876,9 @@ void ProfileImpl::DoFinalInit(CreateMode create_mode) {
   // as it depends on the default StoragePartition being initialized.
   GetOriginTrialsControllerDelegate();
 
-  // The TpcdTrialService, TopLevelTrialService, and OriginTrialService for
   // third-party cookie deprecation must be created with the profile, but after
   // the initialization of the OriginTrialsControllerDelegate, as it depends on
   // it.
-  tpcd::trial::TpcdTrialServiceFactory::GetForProfile(this);
-  tpcd::trial::TopLevelTrialServiceFactory::GetForProfile(this);
-  tpcd::trial::OriginTrialServiceFactory::GetForProfile(this);
 }
 
 base::FilePath ProfileImpl::last_selected_directory() {
@@ -1089,7 +1081,7 @@ void ProfileImpl::OnLocaleReady(CreateMode create_mode) {
 
   // Migrate obsolete prefs.
   MigrateObsoleteProfilePrefs(GetPrefs(), GetPath());
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   // Note: Extension preferences can be keyed off the extension ID, so need to
   // be handled specially (rather than directly as part of
   // MigrateObsoleteProfilePrefs()).
@@ -1137,38 +1129,17 @@ void ProfileImpl::OnLocaleReady(CreateMode create_mode) {
   }
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
-  if (!base::FeatureList::IsEnabled(
-          features::kDelayOnProfileCreatedForFullBrowserTransition)) {
-    FullBrowserTransitionManager::Get()->OnProfileCreated(this);
-  }
-
   SimpleDependencyManager::GetInstance()->CreateServices(GetProfileKey());
 
-#if !BUILDFLAG(IS_ANDROID)
   // Check that the IdentityManager was not created before the browser context
   // services were created. This ensures that browser tests can override the
   // IdentityManager with a fake.
-  CHECK(!IdentityManagerFactory::GetForProfileIfExists(this),
-        base::NotFatalUntil::M160);
-#else
-  if (base::FeatureList::IsEnabled(
-          features::kDelayOnProfileCreatedForFullBrowserTransition)) {
-    // TODO(msarda): This invariant is violated on Android, but may be fixed by
-    // enabling the kDelayOnProfileCreatedForFullBrowserTransition feature.
-    // Remove this check once the IdentityManager is no longer created too early
-    // on Android.
-    CHECK(!IdentityManagerFactory::GetForProfileIfExists(this),
-          base::NotFatalUntil::M160);
-  }
-#endif
+  CHECK(!IdentityManagerFactory::GetForProfileIfExists(this));
 
   BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(
       this);
 
-  if (base::FeatureList::IsEnabled(
-          features::kDelayOnProfileCreatedForFullBrowserTransition)) {
-    FullBrowserTransitionManager::Get()->OnProfileCreated(this);
-  }
+  FullBrowserTransitionManager::Get()->OnProfileCreated(this);
 
   ChromeVersionService::OnProfileLoaded(prefs_.get(), IsNewProfile());
   DoFinalInit(create_mode);
@@ -1340,7 +1311,7 @@ ProfileImpl::GetURLLoaderFactory() {
 }
 
 content::BrowserPluginGuestManager* ProfileImpl::GetGuestManager() {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_GUEST_VIEW)
   return guest_view::GuestViewManager::FromBrowserContext(this);
 #else
   return NULL;

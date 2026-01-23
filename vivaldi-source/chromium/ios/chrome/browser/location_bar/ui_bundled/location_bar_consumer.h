@@ -32,6 +32,12 @@
 // Sets the default search engine image to use as placeholder when the
 // placeholder is set to kDefaultSearchEngineIcon.
 - (void)setPlaceholderDefaultSearchEngineIcon:(UIImage*)icon;
+
+// Vivaldi
+// Passes whether the address bar swipe gesture is enabled.
+- (void)setAddressBarSwipeGestureEnabled:(BOOL)enabled;
+// End Vivaldi
+
 @end
 
 #endif  // IOS_CHROME_BROWSER_LOCATION_BAR_UI_BUNDLED_LOCATION_BAR_CONSUMER_H_

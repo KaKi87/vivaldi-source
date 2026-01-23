@@ -17,6 +17,7 @@
   PrefBackedBoolean* _showFullAddressEnabled;
   PrefBackedBoolean* _showXForSuggestionsEnabled;
   PrefBackedBoolean* _showTypedHistoryOnFocusEnabled;
+  PrefBackedBoolean* _addressBarSwipeGestureEnabled;
 
   PrefBackedBoolean* _bookmarksEnabled;
   PrefBackedBoolean* _bookmarksBoostedEnabled;
@@ -35,6 +36,13 @@
   self = [super init];
   if (self) {
     _prefService = originalPrefService;
+
+    _addressBarSwipeGestureEnabled =
+      [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+          prefName:vivaldiprefs::kVivaldiAddressBarSwipeGestureEnabled];
+    [_addressBarSwipeGestureEnabled setObserver:self];
+    [self booleanDidChange:_addressBarSwipeGestureEnabled];
 
     PrefService* localPrefs = GetApplicationContext()->GetLocalState();
     _showFullAddressEnabled =
@@ -162,6 +170,10 @@
   [_directMatchPrioritizationEnabled setObserver:nil];
   _directMatchPrioritizationEnabled = nil;
 
+  [_addressBarSwipeGestureEnabled stop];
+  [_addressBarSwipeGestureEnabled setObserver:nil];
+  _addressBarSwipeGestureEnabled = nil;
+
   _prefService = nil;
   _consumer = nil;
 }
@@ -193,6 +205,13 @@
     return NO;
   }
   return [_showTypedHistoryOnFocusEnabled value];
+}
+
+- (BOOL)isAddressBarSwipeGestureEnabled {
+  if (!_addressBarSwipeGestureEnabled) {
+    return NO;
+  }
+  return [_addressBarSwipeGestureEnabled value];
 }
 
 - (BOOL)isHistoryEnabled {
@@ -272,9 +291,16 @@
   [self.consumer
       setPreferenceForEnableDirectMatchPrioritization:
           [self isDirectMatchPrioritizationEnabled]];
+  [self.consumer
+      setPreferenceForEnableAddressBarSwipeGesture:
+          [self isAddressBarSwipeGestureEnabled]];
 }
 
 #pragma mark - VivaldiAddressBarSettingsConsumer
+- (void)setPreferenceForEnableAddressBarSwipeGesture:(BOOL)enable {
+  if (enable != [self isAddressBarSwipeGestureEnabled])
+    [_addressBarSwipeGestureEnabled setValue:enable];
+}
 
 - (void)setPreferenceForShowFullAddress:(BOOL)show {
   if (show != [self showFullAddressEnabled])
@@ -364,6 +390,9 @@
     [self.consumer
         setPreferenceForEnableDirectMatchPrioritization:
             [observableBoolean value]];
+  } else if (observableBoolean == _addressBarSwipeGestureEnabled) {
+    [self.consumer
+        setPreferenceForEnableAddressBarSwipeGesture:[observableBoolean value]];
   }
 }
 

@@ -141,8 +141,8 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jstring>& short_name,
       const base::android::JavaParamRef<jstring>& nickname,
-      const base::android::JavaParamRef<jobject>& searchable_jurl,
-      const base::android::JavaParamRef<jobject>& suggest_jurl,
+      const base::android::JavaParamRef<jstring>& searchable_jurl,
+      const base::android::JavaParamRef<jstring>& suggest_jurl,
       const base::android::JavaParamRef<jstring>& jsearch_url_post_params,
       const base::android::JavaParamRef<jstring>& jimage_url,
       const base::android::JavaParamRef<jstring>& jimage_url_post_params);
@@ -162,8 +162,8 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       const base::android::JavaParamRef<jstring>& jkeyword,
       const base::android::JavaParamRef<jstring>& jnew_keyword,
       const base::android::JavaParamRef<jstring>& jshort_name,
-      const base::android::JavaParamRef<jobject>& searchable_jurl,
-      const base::android::JavaParamRef<jobject>& suggestion_jurl,
+      const base::android::JavaParamRef<jstring>& searchable_jurl,
+      const base::android::JavaParamRef<jstring>& suggestion_jurl,
       const base::android::JavaParamRef<jstring>& jsearch_url_post_params,
       const base::android::JavaParamRef<jstring>& jimage_url,
       const base::android::JavaParamRef<jstring>& jimage_url_post_params);

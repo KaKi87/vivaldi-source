@@ -21,6 +21,11 @@
 #include "chrome/browser/web_applications/web_contents/web_app_data_retriever.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
 
+namespace base {
+class DictValue;
+class Value;
+}  // namespace base
+
 namespace content {
 class WebContents;
 }  // namespace content
@@ -58,6 +63,10 @@ struct WebAppInstallInfoConstructOptions {
   // Defers all icon fetching, to be done later via
   // ManifestToWebAppInstallInfoJob::FetchIcons.
   bool defer_icon_fetching = false;
+  // Ensures that all manifest icons are treated as trusted icons. Used for
+  // trusted installation/update flows like for policy and default installed
+  // apps.
+  bool use_manifest_icons_as_trusted = false;
 };
 
 // The role of this job is to take a `blink::mojom::Manifest`, parse it,
@@ -81,13 +90,13 @@ class ManifestToWebAppInstallInfoJob {
       webapps::WebappInstallSource install_source,
       base::WeakPtr<content::WebContents> web_contents,
       base::FunctionRef<void(IconUrlSizeSet&)> icon_url_modifications,
-      base::Value::Dict& debug_data,
+      base::DictValue& debug_data,
       WebAppInstallInfoCreationCallback creation_callback,
       WebAppInstallInfoConstructOptions options =
           WebAppInstallInfoConstructOptions{},
       std::optional<WebAppInstallInfo> fallback_info = std::nullopt);
 
-  base::Value::Dict GetManifestToWebAppInfoGenerationErrors();
+  base::Value GetManifestToWebAppInfoGenerationErrors();
 
   // Manually fetch icons, for use when the
   // `WebAppInstallInfoConstructOptions::defer_icon_fetching` option is set to
@@ -108,13 +117,17 @@ class ManifestToWebAppInstallInfoJob {
                       icon_url_modifications = std::nullopt,
                   IconUrlExtractionOptions icon_url_options = {});
 
+  // Returns the result of fetching the icons. Returns `kAbortedDueToFailure` if
+  // the fetch has not occurred yet.
+  IconsDownloadedResult icon_download_result() const;
+
  private:
   ManifestToWebAppInstallInfoJob(
       const blink::mojom::Manifest& manifest,
       WebAppDataRetriever& data_retriever,
       bool background_installation,
       webapps::WebappInstallSource install_source,
-      base::Value::Dict& debug_data,
+      base::DictValue& debug_data,
       WebAppInstallInfoCreationCallback creation_callback,
       WebAppInstallInfoConstructOptions options,
       std::optional<WebAppInstallInfo> fallback_info);
@@ -146,8 +159,10 @@ class ManifestToWebAppInstallInfoJob {
   WebAppInstallInfoConstructOptions options_;
   std::optional<WebAppInstallInfo> fallback_info_;
 
+  IconsDownloadedResult icon_fetch_result_ =
+      IconsDownloadedResult::kAbortedDueToFailure;
   InstallErrorLogEntry install_error_log_entry_;
-  raw_ref<base::Value::Dict> debug_data_;
+  raw_ref<base::DictValue> debug_data_;
 
   base::WeakPtrFactory<ManifestToWebAppInstallInfoJob> weak_ptr_factory_{this};
 };

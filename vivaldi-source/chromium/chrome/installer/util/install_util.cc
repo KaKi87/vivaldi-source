@@ -46,10 +46,6 @@
 #include "chrome/installer/util/util_constants.h"
 #include "chrome/installer/util/work_item_list.h"
 
-#include "app/vivaldi_apptools.h"
-#include "installer/util/vivaldi_install_util.h"
-#include "installer/vivaldi_install_modes.h"
-
 using base::win::RegKey;
 using installer::ProductState;
 
@@ -206,11 +202,6 @@ base::CommandLine InstallUtil::GetChromeUninstallCmd(bool system_install) {
 }
 
 base::Version InstallUtil::GetChromeVersion(bool system_install) {
-  // We want to use Vivaldi version both when running as the browser and in the
-  // installer, but not in tests.
-  if (vivaldi::IsVivaldiRunning() || vivaldi::g_inside_installer_application) {
-    return vivaldi::GetInstallVersion();
-  }
   base::Version version;
   RegKey key;
   std::wstring version_str;
@@ -290,12 +281,6 @@ void InstallUtil::AddInstallerResultItems(bool system_install,
         root, state_key, KEY_WOW64_32KEY,
         installer::kInstallerSuccessLaunchCmdLine, *launch_cmd, true);
   }
-
-  std::wstring toastActivatorClsid =
-      base::win::WStringFromGUID(install_static::GetToastActivatorClsid());
-  install_list->AddSetRegValueWorkItem(root, state_key, KEY_WOW64_32KEY,
-                                       installer::kLastUsedToastActivatorClsid,
-                                       toastActivatorClsid, true);
 }
 
 bool InstallUtil::IsPerUserInstall() {
@@ -374,11 +359,9 @@ bool InstallUtil::IsRunningAsInteractiveUser() {
 }
 
 // static
-std::wstring InstallUtil::GetToastActivatorRegistryPath(
-    base::FilePath* target) {
+std::wstring InstallUtil::GetToastActivatorRegistryPath() {
   return L"Software\\Classes\\CLSID\\" +
-         base::win::WStringFromGUID(
-             ::vivaldi::GetOrGenerateToastActivatorCLSID(target));
+         base::win::WStringFromGUID(install_static::GetToastActivatorClsid());
 }
 
 // static
@@ -426,7 +409,6 @@ void InstallUtil::AppendModeAndChannelSwitches(
     command_line->AppendSwitchNative(installer::switches::kChannel,
                                      install_details.channel_override());
   }
-  vivaldi::AppendInstallChildProcessSwitches(*command_line);
 }
 
 // static

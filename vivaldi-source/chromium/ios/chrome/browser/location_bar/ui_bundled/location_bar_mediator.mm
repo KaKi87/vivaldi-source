@@ -36,6 +36,12 @@
 #import "ios/web/public/web_state.h"
 #import "skia/ext/skia_utils_ios.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
+#import "prefs/vivaldi_pref_names.h"
+// End Vivaldi
+
 namespace {
 
 // The point size of the entry point's symbol.
@@ -60,6 +66,12 @@ const CGFloat kIconPointSize = 16.0;
   std::unique_ptr<WebStateListObserverBridge> _webStateListObserver;
   std::unique_ptr<PlaceholderServiceObserverBridge> _placeholderServiceObserver;
   BOOL _isIncognito;
+
+  // Vivaldi
+  PrefBackedBoolean* _vivaldiSwipeGestureEnabled;
+  PrefService* _prefService;
+  // End Vivaldi
+
 }
 
 - (instancetype)initWithIsIncognito:(BOOL)isIncognito {
@@ -115,6 +127,10 @@ const CGFloat kIconPointSize = 16.0;
   [consumer setSearchByImageEnabled:self.searchEngineSupportsSearchByImage];
   [consumer setLensImageEnabled:self.searchEngineSupportsLens];
   [self updatePlaceholderType];
+
+  if (vivaldi::IsVivaldiRunning()) {
+    [self setUpVivaldiSwipeGesturePrefObserver];
+  } // End Vivaldi
 }
 
 - (void)setTemplateURLService:(TemplateURLService*)templateURLService {
@@ -297,7 +313,6 @@ const CGFloat kIconPointSize = 16.0;
 /// Whether the lens overlay entrypoint should be available.
 - (BOOL)isLensOverlayEntrypointAvailable {
   if (![self isLensOverlayAvailable] ||
-      !base::FeatureList::IsEnabled(kLensOverlayEnableLocationBarEntrypoint) ||
       _isIncognito ||
       !search_engines::SupportsSearchImageWithLens(self.templateURLService)) {
     return NO;
@@ -310,10 +325,8 @@ const CGFloat kIconPointSize = 16.0;
     }
   }
 
-  if (!base::FeatureList::IsEnabled(
-          kLensOverlayEnableLocationBarEntrypointOnSRP) &&
-      (google_util::IsGoogleSearchUrl(visibleURL) ||
-       google_util::IsGoogleHomePageUrl(visibleURL))) {
+  if (google_util::IsGoogleSearchUrl(visibleURL) ||
+      google_util::IsGoogleHomePageUrl(visibleURL)) {
     return NO;
   }
 
@@ -331,5 +344,38 @@ const CGFloat kIconPointSize = 16.0;
 
   return IsURLNewTabPage(visibleURL);
 }
+
+// Vivaldi
+- (void)setPrefService:(PrefService*)prefService {
+  _prefService = prefService;
+  [self setUpVivaldiSwipeGesturePrefObserver];
+}
+
+- (void)setUpVivaldiSwipeGesturePrefObserver {
+  if (_vivaldiSwipeGestureEnabled) {
+    [_vivaldiSwipeGestureEnabled stop];
+    _vivaldiSwipeGestureEnabled = nil;
+  }
+  if (_prefService && _consumer) {
+    _vivaldiSwipeGestureEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefService
+                   prefName:vivaldiprefs::
+                                kVivaldiAddressBarSwipeGestureEnabled];
+    _vivaldiSwipeGestureEnabled.observer = (id<BooleanObserver>)self;
+    // Immediately update the consumer with the current value
+    [_consumer
+        setAddressBarSwipeGestureEnabled:_vivaldiSwipeGestureEnabled.value];
+  }
+}
+
+#pragma mark - BooleanObserver
+
+- (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
+  if (observableBoolean == _vivaldiSwipeGestureEnabled) {
+    [_consumer
+        setAddressBarSwipeGestureEnabled:_vivaldiSwipeGestureEnabled.value];
+  }
+}
+// End Vivaldi
 
 @end

@@ -879,11 +879,8 @@ void MailPrivateSearchMessagesFunction::MessagesSearchComplete(
   res.success = cb.success;
 
   if (cb.success) {
-    mail_client::SearchListIDs ids = cb.search_list_ids;
-    for (mail_client::SearchListIDs ::iterator it = ids.begin();
-         it != ids.end(); ++it) {
-      res.search_list_ids.push_back(double(*it));
-    }
+    res.search_list_ids.assign(cb.search_list_ids.begin(),
+                               cb.search_list_ids.end());
     Respond(ArgumentList(mail_private::SearchMessages::Results::Create(res)));
   } else {
     Respond(Error(cb.message));
@@ -1001,8 +998,33 @@ ResponseAction MailPrivateGetMailSearchDBCountFunction::Run() {
 }
 
 void MailPrivateGetMailSearchDBCountFunction::OnCountFinished(int count) {
-  Respond(ArgumentList(
-      mail_private::GetMailSearchDBCount::Results::Create(count)));
+  Respond(
+      ArgumentList(mail_private::GetMailSearchDBCount::Results::Create(count)));
+}
+ResponseAction MailPrivateGetMailSearchDBIdsFunction::Run() {
+  MailClientService* service =
+      MailClientServiceFactory::GetForProfile(GetProfile());
+
+  service->GetMailSearchDBSearchListIds(
+      base::BindOnce(
+          &MailPrivateGetMailSearchDBIdsFunction::GetMailSearchDBIdsComplete,
+          this),
+      &task_tracker_);
+
+  return RespondLater();
+}
+
+void MailPrivateGetMailSearchDBIdsFunction::GetMailSearchDBIdsComplete(
+    mail_client::MailSearchCB cb) {
+  if (cb.success) {
+    std::vector<int> search_list_ids(cb.search_list_ids.begin(),
+                                     cb.search_list_ids.end());
+
+    Respond(ArgumentList(
+        mail_private::GetMailSearchDBIds::Results::Create(search_list_ids)));
+  } else {
+    Respond(Error(cb.message));
+  }
 }
 
 }  //  namespace extensions

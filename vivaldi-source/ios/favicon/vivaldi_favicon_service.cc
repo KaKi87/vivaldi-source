@@ -36,7 +36,7 @@ bool IsFaviconUrl(const GURL& url) {
     return false;
   }
 
-  std::string path = url.path();
+  std::string path = url.GetPath();
 
   // Check if the path contains common favicon indicators
   return path.find("favicon") != std::string::npos ||

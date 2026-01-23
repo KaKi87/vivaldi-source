@@ -27,7 +27,6 @@
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
-#include "chrome/browser/apps/app_service/browser_app_launcher.h"
 #include "chrome/browser/apps/app_service/metrics/app_platform_metrics.h"
 #include "chrome/browser/apps/app_service/metrics/app_platform_metrics_service_test_base.h"
 #include "chrome/browser/apps/app_service/metrics/app_platform_metrics_utils.h"
@@ -39,7 +38,7 @@
 #include "chrome/browser/ash/guest_os/guest_os_registry_service_factory.h"
 #include "chrome/browser/metrics/usertype_by_devicetype_metrics_provider.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/test/base/chrome_ash_test_base.h"
 #include "chrome/test/base/test_browser_window_aura.h"
@@ -296,6 +295,14 @@ class AppPlatformMetricsServiceTest : public AppPlatformMetricsServiceTestBase {
                  InstallReason::kUser, InstallSource::kUnknown)});
 
     pre_installed_apps_.insert(
+        {kSystemWebAppId,
+         // SystemWebApp is registered as AppType::kWeb in production.
+         TestApp(kSystemWebAppId, AppType::kWeb, "chrome://os-settings",
+                 Readiness::kReady, InstallReason::kSystem,
+                 InstallSource::kSystem,
+                 /*should_notify_initialized=*/false)});
+
+    pre_installed_apps_.insert(
         {kWebAppId1,
          TestApp(kWebAppId1, AppType::kWeb, "https://foo.com",
                  Readiness::kReady, InstallReason::kSync, InstallSource::kSync,
@@ -305,11 +312,6 @@ class AppPlatformMetricsServiceTest : public AppPlatformMetricsServiceTestBase {
         {kWebAppId2, TestApp(kWebAppId2, AppType::kWeb, "https://foo2.com",
                              Readiness::kReady, InstallReason::kSync,
                              InstallSource::kSync)});
-    pre_installed_apps_.insert(
-        {kSystemWebAppId,
-         TestApp(kSystemWebAppId, AppType::kSystemWeb, "https://os-settings",
-                 Readiness::kReady, InstallReason::kSystem,
-                 InstallSource::kSystem)});
 
     pre_installed_apps_.insert(
         {"u", TestApp("u", AppType::kUnknown, "", Readiness::kReady,
@@ -456,7 +458,7 @@ class AppPlatformMetricsServiceTest : public AppPlatformMetricsServiceTestBase {
                   /*is_platform_app=*/false, WindowMode::kUnknown,
                   install_reason);
     std::unique_ptr<Browser> browser = CreateBrowserWithAuraWindow1();
-    EXPECT_EQ(1U, BrowserList::GetInstance()->size());
+    EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
     return browser;
   }
 
@@ -821,12 +823,11 @@ TEST_F(AppPlatformMetricsServiceTest, BrowserWindow) {
   InstallOneApp(app_constants::kChromeAppId, AppType::kChromeApp, "Chrome",
                 Readiness::kReady, InstallSource::kSystem);
 
-  BrowserList* active_browser_list = BrowserList::GetInstance();
-  // Expect BrowserList is empty at the beginning.
-  EXPECT_EQ(0U, active_browser_list->size());
+  // Expect no Browsers at the beginning.
+  EXPECT_EQ(0U, chrome::GetTotalBrowserCount());
   std::unique_ptr<Browser> browser1 = CreateBrowserWithAuraWindow1();
 
-  EXPECT_EQ(1U, active_browser_list->size());
+  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
 
   // Set the browser window active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -844,7 +845,7 @@ TEST_F(AppPlatformMetricsServiceTest, BrowserWindow) {
 
   // Test multiple browsers.
   std::unique_ptr<Browser> browser2 = CreateBrowserWithAuraWindow2();
-  EXPECT_EQ(2U, active_browser_list->size());
+  EXPECT_EQ(2U, chrome::GetTotalBrowserCount());
 
   ModifyInstance(app_constants::kChromeAppId,
                  browser2->window()->GetNativeWindow(), kActiveInstanceState);
@@ -1266,7 +1267,7 @@ TEST_F(AppPlatformMetricsServiceTest, UsageTimeUkmWithMultipleWindows) {
   InstallOneApp(app_constants::kChromeAppId, AppType::kChromeApp, "Chrome",
                 Readiness::kReady, InstallSource::kSystem);
   std::unique_ptr<Browser> browser1 = CreateBrowserWithAuraWindow1();
-  EXPECT_EQ(1U, BrowserList::GetInstance()->size());
+  EXPECT_EQ(1U, chrome::GetTotalBrowserCount());
 
   // Set the browser window1 active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -1279,7 +1280,7 @@ TEST_F(AppPlatformMetricsServiceTest, UsageTimeUkmWithMultipleWindows) {
   task_environment_.FastForwardBy(base::Minutes(1));
 
   std::unique_ptr<Browser> browser2 = CreateBrowserWithAuraWindow2();
-  EXPECT_EQ(2U, BrowserList::GetInstance()->size());
+  EXPECT_EQ(2U, chrome::GetTotalBrowserCount());
 
   // Set the browser window2 active.
   ModifyInstance(app_constants::kChromeAppId,
@@ -1590,9 +1591,8 @@ TEST_F(AppPlatformMetricsServiceTest, LaunchApps) {
   VerifyAppLaunchPerAppTypeHistogram(1, GetWebAppTypeName());
   VerifyAppLaunchPerAppTypeV2Histogram(1, AppTypeNameV2::kWebWindow);
 
-  // TODO(crbug.com/40199106): Register non-mojom apps and use
-  // AppServiceProxy::LaunchAppWithParams to test launching.
-  proxy->BrowserAppLauncher()->LaunchAppWithParamsForTesting(AppLaunchParams(
+  // TODO(crbug.com/40199106): Register non-mojom apps.
+  proxy->LaunchAppWithParams(AppLaunchParams(
       kWebAppId2, LaunchContainer::kLaunchContainerTab,
       WindowOpenDisposition::NEW_FOREGROUND_TAB, LaunchSource::kFromTest));
 
@@ -1601,7 +1601,7 @@ TEST_F(AppPlatformMetricsServiceTest, LaunchApps) {
   VerifyAppLaunchPerAppTypeHistogram(1, AppTypeName::kChromeBrowser);
   VerifyAppLaunchPerAppTypeV2Histogram(1, AppTypeNameV2::kWebTab);
 
-  proxy->BrowserAppLauncher()->LaunchAppWithParamsForTesting(AppLaunchParams(
+  proxy->LaunchAppWithParams(AppLaunchParams(
       kSystemWebAppId, LaunchContainer::kLaunchContainerTab,
       WindowOpenDisposition::NEW_FOREGROUND_TAB, LaunchSource::kFromTest));
   VerifyAppsLaunchUkm("app://" + std::string(kSystemWebAppId),
@@ -2767,11 +2767,6 @@ TEST_F(AppDiscoveryMetricsTest, AppActivityMetricsRecordedForTwoInstances) {
 class AppPlatformMetricsServiceObserverTest
     : public AppPlatformMetricsServiceTestBase {
  protected:
-  void SetUp() override {
-    // Set up test user.
-    AddRegularUser("test@test.com");
-  }
-
   MockObserver* observer() { return &observer_; }
 
  private:

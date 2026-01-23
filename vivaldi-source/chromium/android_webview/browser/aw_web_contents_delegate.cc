@@ -378,7 +378,7 @@ int AwWebContentsDelegate::AllowedPrerenderingCount(
 }
 
 content::NavigationController::UserAgentOverrideOption
-AwWebContentsDelegate::ShouldOverrideUserAgentForPrerender2(const GURL& url) {
+AwWebContentsDelegate::ShouldOverrideUserAgentForPreloading(const GURL& url) {
   // For WebView, always use the user agent override, which is set every time
   // the user agent in AwSettings is modified.
   return content::NavigationController::UA_OVERRIDE_TRUE;
@@ -485,3 +485,5 @@ static void JNI_AwWebContentsDelegate_FilesSelectedInChooser(
 }
 
 }  // namespace android_webview
+
+DEFINE_JNI(AwWebContentsDelegate)

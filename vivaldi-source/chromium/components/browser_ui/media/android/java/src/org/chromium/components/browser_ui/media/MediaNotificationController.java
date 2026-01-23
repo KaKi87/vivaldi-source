@@ -591,7 +591,22 @@ public class MediaNotificationController {
         // is no longer available. It's unclear if it is a Support Library issue
         // or something that isn't properly cleaned up but given that the
         // crashes are rare and the fix is simple, null check was enough.
-        if (mMediaNotificationInfo == null || mMediaNotificationInfo.isPaused) return;
+        if (mMediaNotificationInfo == null) return;
+
+        if (mMediaNotificationInfo.isPaused) {
+            // If already paused, receiving a PAUSE command from the MediaSession indicates
+            // the external controller is out of sync (e.g. it believes the audio stream is active).
+            // We interpret this redundant PAUSE as a user intent to resume playback.
+            //
+            // We specifically check for ACTION_SOURCE_MEDIA_SESSION to avoid side effects from
+            // other pause sources, such as unplugging headphones (ACTION_SOURCE_HEADSET_UNPLUG),
+            // which should never trigger playback.
+            if (actionSource == MediaNotificationListener.ACTION_SOURCE_MEDIA_SESSION) {
+                onPlay(actionSource);
+            }
+            return;
+        }
+
         mMediaNotificationInfo.listener.onPause(actionSource);
     }
 
@@ -747,9 +762,11 @@ public class MediaNotificationController {
                     MediaMetadataCompat.METADATA_KEY_DURATION,
                     mMediaNotificationInfo.mediaPosition.getDuration());
         }
+
         // Note(david@vivaldi.com): This flag will trigger the creation of the extra bundle in the
         // MediaMetadataCompat description. If not set the bundle is always null.
         metadataBuilder.putLong(MediaMetadataCompat.METADATA_KEY_DOWNLOAD_STATUS, -1);
+
         return metadataBuilder.build();
     }
 
@@ -875,7 +892,7 @@ public class MediaNotificationController {
                 buildMediaDescription(mmd, bundle);
                 mMediaSession.setMetadata(mmd);
             }
-        } else
+        } else // Vivaldi
         mMediaSession.setMetadata(createMetadata());
 
         mMediaSession.setPlaybackState(createPlaybackState());
@@ -1165,4 +1182,5 @@ public class MediaNotificationController {
             if (extras != null) extras.putAll(bundle);
         }
     }
+    // End Vivaldi
 }

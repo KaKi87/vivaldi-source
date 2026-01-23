@@ -29,7 +29,7 @@
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/toolbar/test_toolbar_action_view_controller.h"
+#include "chrome/browser/ui/toolbar/test_toolbar_action_view_model.h"
 #include "chrome/common/pref_names.h"
 #include "components/crx_file/id_util.h"
 #include "components/policy/core/common/policy_map.h"
@@ -861,7 +861,7 @@ TEST_F(ToolbarActionsModelUnitTest, PinnedExtensionsFilteredOnInitialization) {
   // Create a model after setting the prefs, this is done to ensure that the
   // pinned preferences are loaded and correctly filtered.
   ToolbarActionsModel model_created_after_prefs_set(profile(), extension_prefs);
-  // Wait for load to happen (::OnReady is posted from ToolbarActionModel's
+  // Wait for load to happen (::OnReady is posted from ToolbarActionsModel's
   // constructor).
   base::RunLoop().RunUntilIdle();
 

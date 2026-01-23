@@ -71,6 +71,10 @@ const CGFloat kIpadTabSwipeDistance = 100;
   // Used in iPad side swipe gesture, tracks the starting tab index.
   unsigned int _startingTabIndex;
 
+  // Vivaldi
+  BOOL _vivaldiHasStartingTabIndex;
+  // End Vivaldi
+
   // The disabler that prevents the toolbar from being scrolled away when the
   // side swipe gesture is being recognized.
   std::unique_ptr<ScopedFullscreenDisabler> _fullscreenDisabler;
@@ -655,12 +659,34 @@ const CGFloat kIpadTabSwipeDistance = 100;
     // Disable fullscreen while the side swipe gesture is occurring.
     _fullscreenDisabler =
         std::make_unique<ScopedFullscreenDisabler>(self.fullscreenController);
+
+    if (IsVivaldiRunning()) {
+      int startingIndex = [self.tabsDelegate activeTabIndex];
+      if (startingIndex < 0) {
+        _fullscreenDisabler = nullptr;
+        _vivaldiHasStartingTabIndex = NO;
+        return;
+      }
+      _startingTabIndex = static_cast<unsigned int>(startingIndex);
+      _vivaldiHasStartingTabIndex = YES;
+      [[NSNotificationCenter defaultCenter]
+          postNotificationName:kSideSwipeWillStartNotification
+                        object:nil];
+      [self.tabsDelegate updateActiveTabSnapshot:nil];
+      return;
+    }  // End Vivaldi
+
     __weak SideSwipeUIController* weakSelf = self;
     [self.tabsDelegate updateActiveTabSnapshot:^() {
       [weakSelf handleiPadSnapshotOnTabSwipe];
     }];
     return;
   } else if (gesture.state == UIGestureRecognizerStateChanged) {
+
+    if (IsVivaldiRunning() && !_vivaldiHasStartingTabIndex) {
+      return;
+    }  // End Vivaldi
+
     // Side swipe for iPad involves changing the selected tab as the swipe moves
     // across the width of the view.  The screen is broken up into
     // `kIpadTabSwipeDistance` / `width` segments, with the current tab in the
@@ -706,6 +732,11 @@ const CGFloat kIpadTabSwipeDistance = 100;
 
     // Stop disabling fullscreen.
     _fullscreenDisabler = nullptr;
+
+    if (IsVivaldiRunning()) {
+      _vivaldiHasStartingTabIndex = NO;
+    }  // End Vivaldi
+
   }
   CHECK_NE(gesture.state, UIGestureRecognizerStateBegan)
       << "UI gesture must go through snapshot completion callback to complete "

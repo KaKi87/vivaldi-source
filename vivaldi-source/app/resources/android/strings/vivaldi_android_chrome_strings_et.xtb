@@ -55,6 +55,9 @@
 <translation id="4269820728363426813">Kopeeri lingi aadress</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Esmalt tuleb ekraanilukk Androidi seadetes sisse lülitada.<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Paroolihaldur</translation>
+<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
+          =1 {Kaardid ja kaardivirnad, mida pole vaadatud vähemalt 1 päev}
+          other {Kaardid ja kaardivirnad, mida pole vaadatud vähemalt # päeva}}</translation>
 <translation id="451872707440238414">Otsi järjehoidjatest</translation>
 <translation id="4526803704855831732">Privaatsed kaardid</translation>
 <translation id="4532845899244822526">Kausta valimine</translation>
@@ -63,7 +66,7 @@
 
 Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi otsingumootor on Google.</translation>
 <translation id="4759238208242260848">Allalaadimised</translation>
-<translation id="4777866634702576038">Kaardirühma kustutamine</translation>
+<translation id="4777866634702576038">Kaardivirna kustutamine</translation>
 <translation id="4850886885716139402">Näita</translation>
 <translation id="4883379392681899581">Välju privaatsest režiimist</translation>
 <translation id="4943872375798546930">Tulemusi pole</translation>
@@ -86,6 +89,7 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="6336451774241870485">Uus privaatne kaart</translation>
 <translation id="6337323516034698937">Selle kaardi teise seadmesse saatmiseks tuleb esmalt mõlemas seadmes Vivaldi sünkimisteenusesse sisse logida. Vaata, et sisestaksid ka krüptimisparooli, kui vaja.</translation>
 <translation id="6341580099087024258">Küsitakse, kuhu failid salvestada</translation>
+<translation id="6364438453358674297">Kas eemaldada see soovitus ajaloost?</translation>
 <translation id="6404511346730675251">Järjehoidja muutmine</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Fail on alla laaditud}
@@ -113,6 +117,9 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="8062594758852531064">Laiendatud eellaadimine:</translation>
 <translation id="8073388330009372546">Ava pilt uuel kaardil</translation>
 <translation id="8127542551745560481">Kodulehe muutmine</translation>
+<translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
+          =1 {(1) mitteaktiivne}
+          other {(#) mitteaktiivset}}</translation>
 <translation id="8266862848225348053">Allalaadimiste asukoht</translation>
 <translation id="8348430946834215779">Võimaluse korral kasutatakse HTTPS-i ning kui sait seda ei toeta, näidatakse enne laadimist hoiatust.</translation>
 <translation id="8560602726703398413">Lugemisnimekirja leiad järjehoidjate alt.</translation>
@@ -122,6 +129,9 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="9042893549633094279">Privaatsus ja turvalisus</translation>
 <translation id="9063523880881406963">Lülita saitide arvutiversiooni taotlemine välja</translation>
 <translation id="9080642952018487277">Sisene privaatsesse režiimi</translation>
+<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
+          =1 {Pole vaadatud vähemalt 1 päev}
+          other {Pole vaadatud vähemalt # päeva}}</translation>
 <translation id="930124987204876019">Võimaldab kustutada ajaloo, küpsised, saidiandmed, vahemälu sisu, …</translation>
 <translation id="961856697154696964">Sirvimisandmete kustutamine</translation>
 </translationbundle>

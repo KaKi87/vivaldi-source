@@ -81,7 +81,8 @@ public class PageInfoController
         OpenedFromSource.MENU,
         OpenedFromSource.TOOLBAR,
         OpenedFromSource.VR,
-        OpenedFromSource.WEBAPK_SNACKBAR
+        OpenedFromSource.WEBAPK_SNACKBAR,
+        OpenedFromSource.PERMISSION_PROMPT
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface OpenedFromSource {
@@ -89,6 +90,7 @@ public class PageInfoController
         int TOOLBAR = 2;
         int VR = 3;
         int WEBAPK_SNACKBAR = 4;
+        int PERMISSION_PROMPT = 5;
     }
 
     @ContentSettingsType.EnumType
@@ -174,7 +176,10 @@ public class PageInfoController
             PageInfoControllerDelegate delegate,
             PageInfoHighlight pageInfoHighlight,
             @OpenedFromSource int source,
-            @GravityInt int dialogPosition) {
+            @GravityInt int dialogPosition,
+            // TODO(crbug.com/458351800): Remove this variable if the Loud Clapper experiment cannot
+            // be launched.
+            boolean openPermissionsSubpage) {
         mWebContents = webContents;
         mSecurityLevel = securityLevel;
         mDelegate = delegate;
@@ -257,7 +262,6 @@ public class PageInfoController
                         // it easier to close the UI.
                         /* showCloseButton= */ !isSheet() || mDelegate.isAccessibilityEnabled(),
                         /* closeButtonClickCallback= */ this::dismiss);
-
         mContainer.setParams(containerParams);
 
         // Setup View.
@@ -305,6 +309,7 @@ public class PageInfoController
                         this,
                         mView.getPermissionsRowView(),
                         mDelegate,
+                        mWebContents,
                         pageInfoHighlight.getHighlightedPermission());
         mSubpageControllers.add(mPermissionsController);
         mCookiesController =
@@ -373,6 +378,10 @@ public class PageInfoController
         if (mNativePageInfoController != 0 && !BuildConfig.IS_VIVALDI) { // Vivaldi
             dialog.show();
         }
+
+        if (openPermissionsSubpage) {
+            launchSubpage(mPermissionsController);
+        }
     }
 
     private void destroy() {
@@ -398,11 +407,13 @@ public class PageInfoController
      *     mid-sentence.
      * @param type The ContentSettingsType of the permission.
      * @param allowed Whether the permission is allowed.
+     * @param requested Whether the permission is currently being requested.
      */
     @CalledByNative
     private void addPermissionSection(
-            String name, String nameMidSentence, int type, boolean allowed) {
-        mPermissionParamsListBuilder.addPermissionEntry(name, nameMidSentence, type, allowed);
+            String name, String nameMidSentence, int type, boolean allowed, boolean requested) {
+        mPermissionParamsListBuilder.addPermissionEntry(
+                name, nameMidSentence, type, allowed, requested);
     }
 
     /** Update the permissions view based on the contents of mDisplayedPermissions. */
@@ -554,6 +565,9 @@ public class PageInfoController
      * @param source Determines the source that triggered the popup.
      * @param delegate The PageInfoControllerDelegate used to provide embedder-specific info.
      * @param pageInfoHighlight Providing the highlight row info related to this dialog.
+     * @param dialogPosition The position of the dialog.
+     * @param openPermissionsSubpage Whether to open the permissions subpage when the dialog is
+     *     shown.
      */
     public static void show(
             final Activity activity,
@@ -563,6 +577,8 @@ public class PageInfoController
             PageInfoControllerDelegate delegate,
             PageInfoHighlight pageInfoHighlight,
             @GravityInt int dialogPosition,
+            // TODO(crbug.com/458351800): Create a config class and move parameters into it.
+            boolean openPermissionsSubpage,
             Runnable onDismissButtonClicked) { // Vivaldi
         // Don't show the dialog if this tab doesn't have an activity. See https://crbug.com/1267383
         if (activity == null) return;
@@ -580,6 +596,8 @@ public class PageInfoController
             RecordUserAction.record("MobileWebsiteSettingsOpenedFromVR");
         } else if (source == OpenedFromSource.WEBAPK_SNACKBAR) {
             RecordUserAction.record("MobileWebsiteSettingsOpenedFromWebApkSnackbar");
+        } else if (source == OpenedFromSource.PERMISSION_PROMPT) {
+            RecordUserAction.record("MobileWebsiteSettingsOpenedFromPermissionPrompt");
         } else {
             assert false : "Invalid source passed";
         }
@@ -593,7 +611,9 @@ public class PageInfoController
                                 delegate,
                                 pageInfoHighlight,
                                 source,
-                                dialogPosition));
+                                dialogPosition,
+                                openPermissionsSubpage));
+
         // Vivaldi
         sDismissPopup = onDismissButtonClicked;
     }
@@ -644,6 +664,7 @@ public class PageInfoController
                         : currentSubpageController.createViewForSubpage(mContainer);
 
         if (subview != null) {
+            currentSubpageController.updateSubpageIfNeeded();
             mContainer.showPage(subview, title, onPreviousPageRemoved);
         }
     }
@@ -693,4 +714,5 @@ public class PageInfoController
     public PageInfoContainer getPageInfoContainer() {
         return mContainer;
     }
+    // End Vivaldi
 }

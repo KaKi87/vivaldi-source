@@ -41,6 +41,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/content_settings/core/browser/cookie_settings.h"
@@ -49,12 +50,12 @@
 #include "components/custom_handlers/protocol_handler.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
 #include "components/enterprise/buildflags/buildflags.h"
+#include "components/enterprise/connectors/core/cloud_content_scanning/common.h"
 #include "components/enterprise/data_controls/core/browser/test_utils.h"
 #include "components/guest_view/browser/guest_view_base.h"
 #include "components/guest_view/browser/guest_view_manager.h"
 #include "components/guest_view/browser/guest_view_manager_delegate.h"
 #include "components/guest_view/browser/test_guest_view_manager.h"
-#include "components/network_session_configurator/common/network_switches.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -91,6 +92,8 @@
 #include "net/test/embedded_test_server/http_response.h"
 #include "services/network/public/cpp/url_loader_factory_builder.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom.h"
+#include "ui/base/clipboard/clipboard.h"
+#include "ui/base/clipboard/clipboard_buffer.h"
 #include "ui/base/clipboard/clipboard_monitor.h"
 #include "ui/base/data_transfer_policy/data_transfer_endpoint.h"
 #include "ui/color/color_provider.h"
@@ -181,6 +184,7 @@ class IsolatedOriginNTPBrowserTest : public InProcessBrowserTest,
                                      public InstantTestBase {
  public:
   void SetUpCommandLine(base::CommandLine* command_line) override {
+    https_test_server().SetCertHostnames({"ntp.com"});
     ASSERT_TRUE(https_test_server().InitializeAndListen());
 
     // Mark ntp.com (with an appropriate port from the test server) as an
@@ -188,7 +192,6 @@ class IsolatedOriginNTPBrowserTest : public InProcessBrowserTest,
     GURL isolated_url(https_test_server().GetURL("ntp.com", "/"));
     command_line->AppendSwitchASCII(switches::kIsolateOrigins,
                                     isolated_url.spec());
-    command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
   }
 
   void SetUpOnMainThread() override {
@@ -253,13 +256,10 @@ IN_PROC_BROWSER_TEST_F(IsolatedOriginNTPBrowserTest,
 class OpenWindowFromNTPBrowserTest : public InProcessBrowserTest,
                                      public InstantTestBase {
  public:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
-  }
-
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     host_resolver()->AddRule("*", "127.0.0.1");
+    https_test_server().SetCertHostnames({"ntp.com"});
     ASSERT_TRUE(https_test_server().InitializeAndListen());
     https_test_server().StartAcceptingConnections();
   }
@@ -336,7 +336,7 @@ IN_PROC_BROWSER_TEST_P(ForcedColorsTest, ForcedColors) {
       ->GetActiveWebContents()
       ->OnWebPreferencesChanged();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), ui_test_utils::GetTestUrl(
+      browser(), chrome_test_utils::GetTestUrl(
                      base::FilePath(base::FilePath::kCurrentDirectory),
                      base::FilePath(FILE_PATH_LITERAL("forced-colors.html")))));
   std::u16string tab_title;
@@ -419,7 +419,7 @@ IN_PROC_BROWSER_TEST_F(PageColorsBrowserClientTest,
       ->SetRequestedPageColors(PageColors::kDesert);
 
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), ui_test_utils::GetTestUrl(
+      browser(), chrome_test_utils::GetTestUrl(
                      base::FilePath(base::FilePath::kCurrentDirectory),
                      base::FilePath(FILE_PATH_LITERAL("system-colors.html")))));
 
@@ -540,7 +540,7 @@ class PrefersColorSchemeTest
 IN_PROC_BROWSER_TEST_P(PrefersColorSchemeTest, PrefersColorScheme) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
-      ui_test_utils::GetTestUrl(
+      chrome_test_utils::GetTestUrl(
           base::FilePath(base::FilePath::kCurrentDirectory),
           base::FilePath(FILE_PATH_LITERAL("prefers-color-scheme.html")))));
   std::u16string tab_title;
@@ -758,7 +758,7 @@ class PrefersContrastTest
 IN_PROC_BROWSER_TEST_P(PrefersContrastTest, PrefersContrast) {
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
-      ui_test_utils::GetTestUrl(
+      chrome_test_utils::GetTestUrl(
           base::FilePath(base::FilePath::kCurrentDirectory),
           base::FilePath(FILE_PATH_LITERAL("prefers-contrast.html")))));
   std::u16string tab_title;
@@ -1097,7 +1097,7 @@ class ClipboardTestContentAnalysisDelegate
 
  protected:
   void FakeUploadFileForDeepScanning(
-      safe_browsing::BinaryUploadService::Result result,
+      enterprise_connectors::ScanRequestUploadResult result,
       const base::FilePath& path,
       std::unique_ptr<safe_browsing::BinaryUploadService::Request> request,
       enterprise_connectors::test::FakeFilesRequestHandler::
@@ -1756,13 +1756,10 @@ class AutomaticBeaconCredentialsBrowserTest : public InProcessBrowserTest,
             content_settings::features::kTrackingProtection3pcd});
   }
 
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(switches::kIgnoreCertificateErrors);
-  }
-
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     host_resolver()->AddRule("*", "127.0.0.1");
+    https_test_server().SetSSLConfig(net::EmbeddedTestServer::CERT_TEST_NAMES);
   }
 
  protected:
@@ -1857,8 +1854,9 @@ IN_PROC_BROWSER_TEST_F(AutomaticBeaconCredentialsBrowserTest,
             first_response.http_request()->headers.at("Cookie"));
 
   // Disable 3rd party cookies.
-  browser()->profile()->GetPrefs()->SetBoolean(
-      prefs::kTrackingProtection3pcdEnabled, true);
+  browser()->profile()->GetPrefs()->SetInteger(
+      prefs::kCookieControlsMode,
+      static_cast<int>(content_settings::CookieControlsMode::kBlockThirdParty));
 
   // Verify automatic beacons no longer are sent with cookie data.
   EXPECT_TRUE(
@@ -2068,23 +2066,12 @@ class DevToolsOverridesThirdPartyCookiesBrowserTest
  public:
   DevToolsOverridesThirdPartyCookiesBrowserTest()
       : https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
-    std::vector<base::test::FeatureRefAndParams> enabled_features;
-    std::vector<base::test::FeatureRef> disabled_features;
-    // The 3PCD tracking protection feature must be disabled so that we can
-    // disable third-party cookies by changing the devtools overrides.
-    disabled_features.push_back(
-        content_settings::features::kTrackingProtection3pcd);
-
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
     // This feature must be enabled to align the behavior in the test with the
     // actual behavior in the branded-build. Related bug: crbug.com/385032014.
-    enabled_features.push_back(
-        {extensions_features::kForceWebRequestProxyForTest, {}});
-
+    feature_list_.InitAndEnableFeature(
+        extensions_features::kForceWebRequestProxyForTest);
 #endif
-
-    feature_list_.InitWithFeaturesAndParameters(enabled_features,
-                                                disabled_features);
   }
 
   void SetUpOnMainThread() override {

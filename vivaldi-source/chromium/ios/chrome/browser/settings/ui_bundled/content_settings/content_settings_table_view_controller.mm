@@ -25,7 +25,6 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_multi_detail_text_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/web/model/annotations/annotations_util.h"
@@ -56,7 +55,7 @@ namespace {
 BOOL openedMailTo = NO;
 
 // Notification name of changes to openedMailTo state.
-NSString* kMailToInstanceChanged = @"MailToInstanceChanged";
+NSString* const kMailToInstanceChanged = @"MailToInstanceChanged";
 
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierSettings = kSectionIdentifierEnumZero,
@@ -506,6 +505,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
     _linkPreviewItem.text = l10n_util::GetNSString(IDS_IOS_SHOW_LINK_PREVIEWS);
     _linkPreviewItem.on = [self.linkPreviewEnabled value];
+    _linkPreviewItem.target = self;
+    _linkPreviewItem.selector = @selector(showLinkPreviewSwitchToggled:);
     _linkPreviewItem.accessibilityIdentifier = kSettingsShowLinkPreviewCellId;
   }
   return _linkPreviewItem;
@@ -521,6 +522,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _detectAddressesItem.detailText =
         l10n_util::GetNSString(IDS_IOS_DETECT_ADDRESSES_SETTING_DESCRIPTION);
     _detectAddressesItem.on = [self.detectAddressesEnabled value];
+    _detectAddressesItem.target = self;
+    _detectAddressesItem.selector = @selector(detectAddressesSwitchToggled:);
     _detectAddressesItem.accessibilityIdentifier =
         kSettingsDetectAddressesCellId;
   }
@@ -535,6 +538,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _miniMapShowNativeViewItem.text =
         l10n_util::GetNSString(IDS_IOS_MAPS_PREVIEWS_SETTING_TITLE);
     _miniMapShowNativeViewItem.on = [_miniMapShowNativeEnabled value];
+    _miniMapShowNativeViewItem.target = self;
+    _miniMapShowNativeViewItem.selector =
+        @selector(detectMiniMapSwitchToggled:);
     _miniMapShowNativeViewItem.accessibilityIdentifier =
         kSettingsMimiMapNativeCellId;
   }
@@ -551,6 +557,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _detectUnitsItem.detailText =
         l10n_util::GetNSString(IDS_IOS_DETECT_UNITS_SETTING_DESCRIPTION);
     _detectUnitsItem.on = [self.detectUnitsEnabled value];
+    _detectUnitsItem.target = self;
+    _detectUnitsItem.selector = @selector(detectUnitsSwitchToggled:);
     _detectUnitsItem.accessibilityIdentifier = kSettingsDetectUnitsCellId;
   }
   return _detectUnitsItem;
@@ -566,63 +574,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
       UITableViewCellAccessoryDisclosureIndicator;
   _webInspectorStateItem.accessibilityIdentifier = kSettingsWebInspectorCellId;
   return _webInspectorStateItem;
-}
-
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-  NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
-
-  if (itemType == ItemTypeSettingsShowLinkPreview) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(showLinkPreviewSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == ItemTypeSettingsDetectAddresses) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(detectAddressesSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == ItemTypeSettingsMiniMapShowNative) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(detectMiniMapSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == ItemTypeSettingsDetectUnits) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(detectUnitsSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (IsVivaldiRunning() && itemType == ItemTypeSettingsPreferTranslatePanel) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                            action:@selector(preferTranslatePanelSwitchToggled:)
-                  forControlEvents:UIControlEventValueChanged];
-  } else if (IsVivaldiRunning() && itemType == ItemTypeSettingsReaderMode) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                            action:@selector(readerModeSwitchToggled:)
-                  forControlEvents:UIControlEventValueChanged];
-  } // End Vivaldi
-
-  return cell;
 }
 
 #pragma mark - UITableViewDelegate
@@ -812,6 +763,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _preferTranslatePanelItem.on = [self.preferTranslatePanelEnabled value];
     _preferTranslatePanelItem.accessibilityIdentifier =
         kSettingsPreferTranslatePanelCellId;
+    _preferTranslatePanelItem.target = self;
+    _preferTranslatePanelItem.selector =
+        @selector(preferTranslatePanelSwitchToggled:);
   }
   return _preferTranslatePanelItem;
 }
@@ -854,8 +808,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
     _readerModeItem.text = l10n_util::GetNSString(IDS_IOS_READER_MODE_TITLE);
     _readerModeItem.on = [self.readerModeEnabled value];
     _readerModeItem.accessibilityIdentifier = kSettingsReaderModeCellId;
-    }
-    return _readerModeItem;
+    _readerModeItem.target = self;
+    _readerModeItem.selector = @selector(readerModeSwitchToggled:);
+  }
+  return _readerModeItem;
 }
 
 - (void)readerModeSwitchToggled:(UISwitch*)sender {

@@ -41,8 +41,10 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/test/display_manager_test_api.h"
+#include "ui/events/base_event_utils.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/test/test_event_handler.h"
+#include "ui/gfx/geometry/rect.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -190,8 +192,10 @@ TEST_F(RootWindowControllerTest, MoveWindows_Basic) {
   // will not crash.
   aura::WindowTracker tracker;
   DeleteOnBlurDelegate delete_on_blur_delegate;
-  aura::Window* d2 = CreateTestWindowInShellWithDelegate(
-      &delete_on_blur_delegate, 0, gfx::Rect(50, 50, 100, 100));
+  aura::Window* d2 =
+      CreateTestWindowInShell({.delegate = &delete_on_blur_delegate,
+                               .bounds = {50, 50, 100, 100},
+                               .window_id = 0});
   delete_on_blur_delegate.SetWindow(d2);
   aura::client::GetFocusClient(root_windows[0])->FocusWindow(d2);
   tracker.Add(d2);
@@ -619,6 +623,64 @@ TEST_F(RootWindowControllerTest, FocusBlockedWindow) {
   }
 }
 
+class ExpandedHitRegionRootWindowControllerTest
+    : public AshTestBase,
+      public testing::WithParamInterface<ash::ShellWindowId> {
+ public:
+  views::Widget* CreateTestWindow(const gfx::Rect& bounds,
+                                  ash::ShellWindowId container_id) {
+    RootWindowController* controller = Shell::GetPrimaryRootWindowController();
+    aura::Window* container = controller->GetContainer(container_id);
+
+    views::Widget* widget =
+        Widget::CreateWindowWithParent(nullptr, container, bounds);
+
+    widget->Show();
+    return widget;
+  }
+};
+
+TEST_P(ExpandedHitRegionRootWindowControllerTest,
+       ExpandedHitRegionForCertainContainer) {
+  views::Widget* widget = CreateTestWindow(gfx::Rect(20, 20, 100, 100),
+                                           /*container_id=*/GetParam());
+  aura::Window* window = widget->GetNativeWindow();
+  window->SetProperty(aura::client::kResizeBehaviorKey,
+                      aura::client::kResizeBehaviorCanResize);
+
+  ui::EventTarget* root_target = window->GetRootWindow();
+  auto* targeter = root_target->GetEventTargeter();
+  {
+    // Mouse event outside the extended hit region.
+    gfx::Point location{0, 0};
+    ui::MouseEvent mouse(ui::EventType::kMouseMoved, location, location,
+                         ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
+    EXPECT_NE(window, targeter->FindTargetForEvent(root_target, &mouse));
+  }
+  {
+    // Mouse event inside the extended hit region.
+    gfx::Point location{18, 18};
+    ui::MouseEvent mouse(ui::EventType::kMouseMoved, location, location,
+                         ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
+    EXPECT_EQ(window, targeter->FindTargetForEvent(root_target, &mouse));
+  }
+  {
+    // Touch event inside the extended hit region.
+    gfx::PointF location{9, 9};
+    ui::TouchEvent touch(ui::EventType::kTouchPressed, location, location,
+                         ui::EventTimeForNow(),
+                         ui::PointerDetails(ui::EventPointerType::kTouch));
+    EXPECT_EQ(window, targeter->FindTargetForEvent(root_target, &touch));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    /* no prefix */,
+    ExpandedHitRegionRootWindowControllerTest,
+    testing::Values(kShellWindowId_AlwaysOnTopContainer,
+                    kShellWindowId_FloatContainer,
+                    kShellWindowId_DeskContainerA));
+
 // Tracks whether OnWindowDestroying() has been invoked.
 class DestroyedWindowObserver : public aura::WindowObserver {
  public:
@@ -1010,9 +1072,9 @@ TEST_F(VirtualKeyboardRootWindowControllerTest, ZOrderTest) {
   // Normal window is partially occluded by the virtual keyboard.
   aura::test::TestWindowDelegate delegate;
   std::unique_ptr<aura::Window> normal(
-      CreateTestWindowInShellWithDelegateAndType(
-          &delegate, aura::client::WINDOW_TYPE_NORMAL, 0,
-          gfx::Rect(0, 0, window_width, window_height)));
+      CreateTestWindowInShell({.delegate = &delegate,
+                               .bounds = {window_width, window_height},
+                               .window_id = 0}));
   normal->set_owned_by_parent(false);
   normal->Show();
   TargetHitTestEventHandler normal_handler;
@@ -1029,9 +1091,11 @@ TEST_F(VirtualKeyboardRootWindowControllerTest, ZOrderTest) {
 
   // Menu overlaps virtual keyboard.
   aura::test::TestWindowDelegate delegate2;
-  std::unique_ptr<aura::Window> menu(CreateTestWindowInShellWithDelegateAndType(
-      &delegate2, aura::client::WINDOW_TYPE_MENU, 0,
-      gfx::Rect(window_width, 0, window_width, window_height)));
+  std::unique_ptr<aura::Window> menu(CreateTestWindowInShell(
+      {.delegate = &delegate2,
+       .bounds = {window_width, 0, window_width, window_height},
+       .window_type = aura::client::WINDOW_TYPE_MENU,
+       .window_id = 0}));
   menu->set_owned_by_parent(false);
   menu->Show();
   TargetHitTestEventHandler menu_handler;
@@ -1096,8 +1160,8 @@ TEST_F(VirtualKeyboardRootWindowControllerTest, ClickDoesNotFocusKeyboard) {
 
   // Create a test window in the background with the same size as the screen.
   aura::test::EventCountDelegate delegate;
-  std::unique_ptr<aura::Window> background_window(
-      CreateTestWindowInShellWithDelegate(&delegate, 0, root_window->bounds()));
+  std::unique_ptr<aura::Window> background_window(CreateTestWindowInShell(
+      {.delegate = &delegate, .bounds = root_window->bounds()}));
   background_window->Focus();
   EXPECT_TRUE(background_window->IsVisible());
   EXPECT_TRUE(background_window->HasFocus());

@@ -22,23 +22,20 @@ public class IncognitoNewTabPageAppMenuFacility
             mAddToGroup = declareMenuItem(items, ADD_TO_GROUP_ID);
         }
 
-        if (ChromeFeatureList.sAndroidPinnedTabsTabletTabStrip.isEnabled()
-                || ChromeFeatureList.sAndroidPinnedTabs.isEnabled()) {
-            // At most one of these exist.
-            mPinTab = declarePossibleMenuItem(items, PIN_TAB);
-            mUnpinTab = declarePossibleMenuItem(items, UNPIN_TAB);
-        }
-
         mNewWindow = declarePossibleMenuItem(items, NEW_WINDOW_ID);
         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
             mNewIncognitoWindow = declareMenuItem(items, NEW_INCOGNITO_WINDOW_ID);
         }
 
-        declareMenuItem(items, HISTORY_ID);
+        if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+            declareAbsentMenuItem(items, HISTORY_ID);
+        } else {
+            declareMenuItem(items, HISTORY_ID);
+        }
         declareAbsentMenuItem(items, DELETE_BROWSING_DATA_ID);
 
         declareMenuItem(items, DOWNLOADS_ID);
-        declareMenuItem(items, BOOKMARKS_ID);
+        mBookmarks = declareMenuItem(items, BOOKMARKS_ID);
         declareAbsentMenuItem(items, RECENT_TABS_ID);
 
         mSettings = declareMenuItem(items, SETTINGS_ID);

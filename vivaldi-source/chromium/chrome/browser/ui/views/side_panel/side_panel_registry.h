@@ -14,8 +14,7 @@
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_key.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_observer.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_scope.h"
-
-class SidePanelCoordinator;
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
 namespace content {
 class WebContents;
@@ -26,6 +25,7 @@ class WebContents;
 class SidePanelRegistry final : public SidePanelEntryObserver,
                                 public SidePanelEntryScope {
  public:
+  DECLARE_USER_DATA(SidePanelRegistry);
   using SidePanelEntryScope::GetBrowserWindowInterface;
   using SidePanelEntryScope::GetTabInterface;
 
@@ -43,11 +43,14 @@ class SidePanelRegistry final : public SidePanelEntryObserver,
   // Can return null for non-tab contents.
   static SidePanelRegistry* GetDeprecated(content::WebContents* web_contents);
 
+  static SidePanelRegistry* From(
+      BrowserWindowInterface* browser_window_interface);
+
   SidePanelEntry* GetEntryForKey(const SidePanelEntry::Key& entry_key);
   void ResetActiveEntryFor(SidePanelEntry::PanelType type);
 
-  // Clear cached view for all owned entries.
-  void ClearCachedEntryViews();
+  // Clear cached view for all owned entries with the corresponding panel type.
+  void ClearCachedEntryViews(SidePanelEntry::PanelType type);
 
   // Registers a SidePanelEntry. Returns true if the entry is successfully
   // registered and false if a SidePanelEntry already exists in the registry for
@@ -74,8 +77,6 @@ class SidePanelRegistry final : public SidePanelEntryObserver,
   const BrowserWindowInterface& GetBrowserWindowInterface() const override;
 
  private:
-  SidePanelCoordinator* GetCoordinator();
-
   // The active entry hosted in the side panel used to determine what entry
   // should be visible. This is reset by the coordinator when the panel is
   // closed. When there are multiple registries, this may not be the entry
@@ -88,6 +89,8 @@ class SidePanelRegistry final : public SidePanelEntryObserver,
   const std::variant<tabs::TabInterface*, BrowserWindowInterface*> owner_;
 
   std::optional<SidePanelEntryKey> deregistering_entry_key_ = std::nullopt;
+
+  ui::ScopedUnownedUserData<SidePanelRegistry> scoped_unowned_user_data_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_SIDE_PANEL_REGISTRY_H_

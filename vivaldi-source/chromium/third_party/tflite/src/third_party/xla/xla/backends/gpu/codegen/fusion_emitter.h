@@ -30,7 +30,6 @@ limitations under the License.
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "mlir/IR/AffineMap.h"
-#include "mlir/IR/MLIRContext.h"
 #include "xla/backends/gpu/runtime/thunk.h"
 #include "xla/codegen/emitters/kernel_arguments.h"
 #include "xla/hlo/analysis/indexing_analysis.h"
@@ -80,12 +79,12 @@ class KernelFusionInterface : public FusionInterface {
   virtual std::optional<IndexingMap> ComputeThreadIdToOutputIndexing(
       int64_t root_index, mlir::MLIRContext* ctx) const = 0;
 
-  // Computes an indexing map from thread to input element(s) of the root's
+  // Computes indexing maps from thread id to input elements of the root's
   // **hero**. Note that in many cases this is not computable from the output
   // indexing. The indexing may only be known for some operands of the hero.
-  virtual std::optional<IndexingMap> ComputeThreadIdToInputIndexing(
-      int64_t root_index, int64_t hero_operand_index,
-      mlir::MLIRContext* ctx) const = 0;
+  virtual std::optional<std::vector<IndexingMap>>
+  ComputeThreadIdToInputIndexing(int64_t root_index,
+                                 mlir::MLIRContext* ctx) const = 0;
 
   static constexpr std::array<int, 3> kIndexingMapThreadIdxDims = {0, 1, 2};
   static constexpr std::array<int, 3> kIndexingMapBlockIdxDims = {3, 4, 5};

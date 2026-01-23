@@ -4,6 +4,8 @@
 
 #include "components/sync/service/sync_stopped_reporter.h"
 
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "base/check.h"
@@ -114,7 +116,7 @@ void SyncStoppedReporter::ReportSyncStopped(const std::string& access_token,
       net::LOAD_BYPASS_CACHE | net::LOAD_DISABLE_CACHE;
   resource_request->credentials_mode =
       google_apis::GetOmitCredentialsModeForGaiaRequests();
-  resource_request->method = "POST";
+  resource_request->method = net::HttpRequestHeaders::kPostMethod;
   resource_request->headers.SetHeader(
       net::HttpRequestHeaders::kAuthorization,
       base::StringPrintf("Bearer %s", access_token.c_str()));
@@ -132,7 +134,7 @@ void SyncStoppedReporter::ReportSyncStopped(const std::string& access_token,
 }
 
 void SyncStoppedReporter::OnSimpleLoaderComplete(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   DCHECK(simple_url_loader_);
   LogSyncStoppedRequestResult(*simple_url_loader_);
   simple_url_loader_.reset();
@@ -146,7 +148,7 @@ void SyncStoppedReporter::OnTimeout() {
 
 // Static.
 GURL SyncStoppedReporter::GetSyncEventURL(const GURL& sync_service_url) {
-  std::string path = sync_service_url.path();
+  std::string path = sync_service_url.GetPath();
   if (path.empty() || *path.rbegin() != '/') {
     path += '/';
   }

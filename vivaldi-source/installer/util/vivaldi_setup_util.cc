@@ -17,14 +17,16 @@
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "base/win/wmi.h"
-#include "chrome/installer/setup/install_params.h"
-#include "chrome/installer/setup/installer_state.h"
-#include "chrome/installer/util/initial_preferences.h"
-#include "chrome/installer/util/install_util.h"
-#include "chrome/installer/util/installer_util_strings.h"
-#include "chrome/installer/util/logging_installer.h"
-#include "chrome/installer/util/shell_util.h"
-#include "chrome/installer/util/work_item_list.h"
+#include "chrome/common/chrome_paths.h"
+#include "chrome/common/chrome_switches.h"
+#include "installer/mini_installer/setup/install_params.h"
+#include "installer/mini_installer/setup/installer_state.h"
+#include "installer/mini_installer/util/initial_preferences.h"
+#include "installer/mini_installer/util/install_util.h"
+#include "installer/mini_installer/util/installer_util_strings.h"
+#include "installer/mini_installer/util/logging_installer.h"
+#include "installer/mini_installer/util/shell_util.h"
+#include "installer/mini_installer/util/work_item_list.h"
 
 #include "base/vivaldi_switches.h"
 #include "components/version_info/version_info_values.h"
@@ -218,7 +220,7 @@ std::vector<base::win::ScopedHandle> GetRunningProcessesForPath(
   PROCESSENTRY32 entry = {sizeof(PROCESSENTRY32)};
   base::win::ScopedHandle snapshot(
       CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
-  if (!snapshot.IsValid() || Process32First(snapshot.Get(), &entry) == FALSE)
+  if (!snapshot.is_valid() || Process32First(snapshot.Get(), &entry) == FALSE)
     return processes;
   DWORD current_process = GetCurrentProcessId();
   do {
@@ -230,7 +232,7 @@ std::vector<base::win::ScopedHandle> GetRunningProcessesForPath(
     }
     base::win::ScopedHandle process(OpenProcess(
         PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID));
-    if (!process.IsValid())
+    if (!process.is_valid())
       continue;
 
     // Check if process is dead already.
@@ -258,14 +260,14 @@ std::vector<base::win::ScopedHandle> GetRunningProcessesForPath(
 
 void KillProcesses(std::vector<base::win::ScopedHandle> processes) {
   for (auto& process : processes) {
-    DCHECK(process.IsValid());
+    DCHECK(process.is_valid());
 
     // It is necessary to reopen as we have not passed the terminate permission
     // in GetRunningProcessesForPath to ensure the maximum coverage of collected
     // processes.
     process.Set(::OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE,
                               ::GetProcessId(process.Get())));
-    if (!process.IsValid())
+    if (!process.is_valid())
       continue;
     ::TerminateProcess(process.Get(), 1);
 
@@ -501,8 +503,7 @@ bool PrepareSetupConfig(HINSTANCE instance) {
     // not an update. Show Vivaldi UI to customize options or use defaults for
     // silent installs.
     DCHECK(!options.register_browser);
-    if (cmd_line.HasSwitch(installer::switches::kMakeChromeDefault) ||
-        cmd_line.HasSwitch(vivaldi::constants::kVivaldiRegisterStandalone)) {
+    if (cmd_line.HasSwitch(vivaldi::constants::kVivaldiRegisterStandalone)) {
       // See comments for VivaldiInstallUIOptions::register_browser.
       options.register_browser = true;
       options.given_register_browser = true;
@@ -560,18 +561,17 @@ bool PrepareSetupConfig(HINSTANCE instance) {
     if (options.install_type == InstallType::kStandalone) {
       cmd_line.AppendSwitch(vivaldi::constants::kVivaldiRegisterStandalone);
     }
-    if (ShellUtil::CanMakeChromeDefaultUnattended()) {
-      cmd_line.AppendSwitch(installer::switches::kMakeChromeDefault);
-    }
   } else {
     cmd_line.RemoveSwitch(vivaldi::constants::kVivaldiRegisterStandalone);
-    cmd_line.RemoveSwitch(installer::switches::kMakeChromeDefault);
   }
 
   if (!options.install_dir.empty()) {
     cmd_line.AppendSwitchPath(vivaldi::constants::kVivaldiInstallDir,
                               options.install_dir);
   }
+
+  cmd_line.AppendSwitchASCII(vivaldi::constants::kVivaldiEnableCrashlogUpload,
+                             options.allow_crashlog_uploads ? "1" : "0");
 
   switch (options.install_type) {
     case vivaldi::InstallType::kForCurrentUser:
@@ -729,40 +729,8 @@ void FinalizeSuccessfullInstall(
   // even for full installs.
   UpdateDeltaPatchStatus(true);
 
-  if (IsInstallStandalone()) {
-    // TODO(jarle@vivaldi.com): REMOVE THIS:
-    // rename the "Profile" folder to "User Data" for standalone builds if
-    // the "Profile" folder exists
-    std::wstring::size_type pos =
-        std::wstring(installer_state.target_path().value())
-            .rfind(L"\\Application");
-    if (pos != std::wstring::npos) {
-      std::wstring base =
-          std::wstring(installer_state.target_path().value()).substr(0, pos);
-      base::FilePath old_profile_dir(base);
-      old_profile_dir = old_profile_dir.AppendASCII("Profile");
-      base::FilePath new_user_data_dir(base);
-      new_user_data_dir = new_user_data_dir.AppendASCII("User Data");
-      if (base::DirectoryExists(old_profile_dir)) {
-        if (!::MoveFileEx(old_profile_dir.value().c_str(),
-                          new_user_data_dir.value().c_str(),
-                          MOVEFILE_WRITE_THROUGH)) {
-          DWORD error = ::GetLastError();
-          LOG(WARNING) << "Failed to rename old Profile folder to User "
-                          "Data. Error="
-                       << error;
-          std::wstring message(base::UTF8ToWide(base::StringPrintf(
-              "Failed to rename 'Profile' folder. Error=%lu", error)));
-          MessageBox(NULL, message.c_str(), L"Vivaldi Installer",
-                     MB_OK | MB_ICONWARNING);
-        } else {
-          // relax for a sec to be 100% sure that the rename has been
-          // flushed to disk ...
-          Sleep(1000);
-        }
-      }
-    }
-  }
+  base::FilePath user_data_dir;
+  base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
 
   RestartUpdateNotifier(installer_state);
   base::DeleteFile(installer_state.target_path().Append(
@@ -772,22 +740,32 @@ void FinalizeSuccessfullInstall(
     base::FilePath vivaldi_path =
         installer_state.target_path().Append(installer::kChromeExe);
 
+    base::CommandLine& cmd_line = *base::CommandLine::ForCurrentProcess();
+    // Add an empty line between log entries from different invocations of
+    // setup.exe for convenience.
+    std::wstring params;
+    if (cmd_line.HasSwitch(vivaldi::constants::kVivaldiEnableCrashlogUpload)) {
+      const auto switch_value = cmd_line.GetSwitchValueASCII(
+          vivaldi::constants::kVivaldiEnableCrashlogUpload);
+      std::wstring enabled = switch_value == "1" ? L"1" : L"0";
+      params = L"--vivaldi-enable-crashlog-uploading=" + enabled;
+    }
+
     // We need to use the custom ShellExecuteFromExplorer to avoid
     // launching vivaldi.exe with elevated privileges.
     // The setup.exe process could be elevated.
     VLOG(1) << "Launching: " << vivaldi_path.value()
             << ", is_standalone() = " << IsInstallStandalone()
-            << ", install_status = " << static_cast<int>(install_status);
-    vivaldi::ShellExecuteFromExplorer(vivaldi_path, std::wstring(),
+            << ", install_status = " << static_cast<int>(install_status)
+            << ", params = " << params;
+
+    vivaldi::ShellExecuteFromExplorer(vivaldi_path, params,
                                       base::FilePath());
   }
 }
 
 void AddVivaldiSpecificWorkItems(const installer::InstallParams& install_params,
                                  WorkItemList* install_list) {
-  if (!installer::kVivaldi)
-    return;
-
   const installer::InstallerState& installer_state =
       *install_params.installer_state;
   const base::FilePath& src_path = *install_params.src_path;

@@ -414,6 +414,24 @@ class MailPrivateGetMailSearchDBCountFunction
   base::CancelableTaskTracker task_tracker_;
 };
 
+class MailPrivateGetMailSearchDBIdsFunction : public MailPrivateAsyncFunction {
+  DECLARE_EXTENSION_FUNCTION("mailPrivate.getMailSearchDBIds",
+                             MAIL_GET_MAIL_SEARCH_DB_LIST_IDS)
+ public:
+  MailPrivateGetMailSearchDBIdsFunction() = default;
+
+ private:
+  ~MailPrivateGetMailSearchDBIdsFunction() override = default;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+
+  // Callback for the GetMailSearchDBIds function to provide results.
+  void GetMailSearchDBIdsComplete(mail_client::MailSearchCB cb);
+
+  base::CancelableTaskTracker task_tracker_;
+};
+
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_MAIL_MAIL_PRIVATE_API_H_

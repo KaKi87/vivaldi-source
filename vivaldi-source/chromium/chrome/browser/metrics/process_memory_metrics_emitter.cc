@@ -583,8 +583,6 @@ const Metric kAllocatorDumpNamesForMetrics[] = {
      "max_allocated_size", EmitTo::kSizeInUmaOnly, nullptr},
     {"partition_alloc/partitions/layout", "PartitionAlloc.Wasted.Layout",
      MetricSize::kLarge, "wasted", EmitTo::kSizeInUmaOnly, nullptr},
-    {"passwords", "ManualFillingCache", MetricSize::kSmall, kEffectiveSize,
-     EmitTo::kSizeInUmaOnly, nullptr},
     {"site_storage", "SiteStorage", MetricSize::kLarge, kEffectiveSize,
      EmitTo::kSizeInUkmAndUma, &Memory_Experimental::SetSiteStorage},
     {"site_storage/blob_storage", "SiteStorage.BlobStorage", MetricSize::kLarge,
@@ -1381,12 +1379,12 @@ std::optional<base::TimeDelta> ProcessMemoryMetricsEmitter::GetProcessUptime(
 
 void ProcessMemoryMetricsEmitter::ReceivedMemoryDump(
     absl::flat_hash_map<base::ProcessId, ProcessInfo> process_infos,
-    bool success,
+    memory_instrumentation::mojom::RequestOutcome outcome,
     std::unique_ptr<GlobalMemoryDump> dump) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  base::UmaHistogramBoolean("Memory.MemoryDumpSuccess", success);
+  base::UmaHistogramEnumeration("Memory.MemoryDumpOutcome", outcome);
 
-  if (!success) {
+  if (outcome != memory_instrumentation::mojom::RequestOutcome::kSuccess) {
     return;
   }
 

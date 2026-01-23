@@ -11,26 +11,26 @@
 #include <utility>
 #include <vector>
 
+#include "app/vivaldi_apptools.h"
+#include "app/vivaldi_version_info.h"
 #include "base/base64.h"
 #include "base/command_line.h"
 #include "base/environment.h"
 #include "base/files/file_util.h"
 #include "base/lazy_instance.h"
-#include "base/memory/ptr_util.h"
 #include "base/power_monitor/power_monitor.h"
-#include "base/rand_util.h"
-#include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/values.h"
+#include "base/vivaldi_switches.h"
+#include "browser/translate/vivaldi_translate_server_request.h"
+#include "browser/vivaldi_browser_finder.h"
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/content_settings/generated_cookie_prefs.h"
-#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/extensions/api/passwords_private/passwords_private_event_router.h"
@@ -42,6 +42,7 @@
 #include "chrome/browser/history/top_sites_factory.h"
 #include "chrome/browser/icon_manager.h"
 #include "chrome/browser/media/router/media_router_feature.h"
+#include "chrome/browser/net/proxy_service_factory.h"
 #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
 #include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/platform_util.h"
@@ -55,16 +56,20 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/qrcode_generator/qrcode_generator_bubble_controller.h"
-#include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tab_dialogs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/passwords/password_bubble_view_base.h"
+#include "chrome/browser/ui/webui/certificate_manager/chrome_root_store_cert_source.h"
+#include "chrome/browser/ui/webui/certificate_manager/enterprise_cert_sources.h"
+#include "chrome/browser/ui/webui/certificate_manager/platform_cert_sources.h"
+#include "chrome/browser/ui/webui/certificate_manager/user_cert_sources.h"
 #include "chrome/browser/ui/webui/settings/settings_utils.h"
 #include "chrome/browser/ui/webui/settings/site_settings_helper.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
+#include "components/bookmarks/vivaldi_bookmark_kit.h"
 #include "components/content_settings/core/browser/content_settings_info.h"
 #include "components/content_settings/core/browser/content_settings_registry.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
@@ -73,76 +78,50 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/crash/core/app/crashpad.h"
-#include "components/custom_handlers/protocol_handler.h"
 #include "components/custom_handlers/protocol_handler_registry.h"
+#include "components/datasource/vivaldi_data_url_utils.h"
+#include "components/datasource/vivaldi_image_store.h"
 #include "components/history/core/browser/top_sites.h"
 #include "components/language/core/browser/pref_names.h"
+#include "components/locale/locale_kit.h"
 #include "components/media_router/browser/media_router_dialog_controller.h"
 #include "components/media_router/browser/media_router_metrics.h"
 #include "components/os_crypt/sync/os_crypt.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_uma_util.h"
 #include "components/prefs/pref_service.h"
+#include "components/qr_code_generator/bitmap_generator.h"
 #include "components/sessions/core/tab_restore_service.h"
-#include "components/version_info/version_info.h"
-#include "content/public/browser/browser_task_traits.h"
+#include "components/version_utils/vivaldi_version_utils.h"
+#include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_entry.h"
-#include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/url_constants.h"
+#include "extensions/api/runtime/runtime_api.h"
+#include "extensions/api/vivaldi_utilities/drag_download_items.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/helper/file_selection_options.h"
 #include "extensions/schema/vivaldi_utilities.h"
+#include "extensions/tools/vivaldi_tools.h"
+#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "extensions/vivaldi_silent_extension_installer.h"
 #include "net/base/data_url.h"
 #include "net/base/filename_util.h"
 #include "net/base/mime_util.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
-#include "ui/base/clipboard/scoped_clipboard_writer.h"
-#include "ui/display/screen.h"
-#include "ui/shell_dialogs/select_file_policy.h"
-#include "url/third_party/mozilla/url_parse.h"
-#include "url/url_constants.h"
-#include "app/vivaldi_apptools.h"
-#include "app/vivaldi_constants.h"
-#include "app/vivaldi_version_info.h"
-#include "base/vivaldi_switches.h"
-#include "browser/translate/vivaldi_translate_server_request.h"
-#include "browser/vivaldi_browser_finder.h"
-#include "components/bookmarks/vivaldi_bookmark_kit.h"
-#include "components/datasource/vivaldi_data_url_utils.h"
-#include "components/datasource/vivaldi_image_store.h"
-#include "components/locale/locale_kit.h"
-#include "components/version_utils/vivaldi_version_utils.h"
-#include "extensions/api/runtime/runtime_api.h"
-#include "extensions/api/vivaldi_utilities/drag_download_items.h"
-#include "extensions/helper/file_selection_options.h"
-#include "extensions/tools/vivaldi_tools.h"
-#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "prefs/vivaldi_gen_prefs.h"
 #include "prefs/vivaldi_pref_names.h"
 #include "sync/file_sync/file_store.h"
 #include "sync/file_sync/file_store_factory.h"
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
+#include "ui/base/clipboard/scoped_clipboard_writer.h"
+#include "ui/display/screen.h"
 #include "ui/lights/razer_chroma_handler.h"
 #include "ui/vivaldi_browser_window.h"
 #include "ui/vivaldi_skia_utils.h"
 #include "ui/vivaldi_ui_utils.h"
 #include "ui/webui/privacy_report_dialog.h"
 #include "vivaldi_status/vivaldi_status_factory.h"
-
-#include "chrome/browser/net/proxy_service_factory.h"
-#include "chromium/net/proxy_resolution/proxy_config_service.h"
-#include "components/proxy_config/pref_proxy_config_tracker.h"
-#include "net/proxy_resolution/proxy_config_service.h"
-#include "net/proxy_resolution/proxy_config_with_annotation.h"
-
-#include "extensions/vivaldi_silent_extension_installer.h"
-
-#include "components/qr_code_generator/bitmap_generator.h"
-#include "components/qr_code_generator/qr_code_generator.h"
-
 
 #if BUILDFLAG(IS_WIN)
 
@@ -156,12 +135,11 @@
 
 #include <mfapi.h>
 #include "base/win/windows_version.h"
-#include "chrome/browser/password_manager/password_manager_util_win.h"
 
 #elif BUILDFLAG(IS_MAC)
 
-#include "chrome/browser/password_manager/password_manager_util_mac.h"
 #include "base/mac/mac_util.h"
+#include "chrome/browser/password_manager/password_manager_util_mac.h"
 
 #endif
 
@@ -459,7 +437,6 @@ void VivaldiUtilitiesAPI::TopSitesChanged(
 
 void VivaldiUtilitiesAPI::OnVivaldiSyncStatusUpdated(
     vivaldi_status::VivaldiStatus::Mode mode) {
-
   vivaldi::utilities::VivaldiStatus status;
   switch (mode) {
     case vivaldi_status::VivaldiStatus::kOperational:
@@ -488,17 +465,17 @@ void VivaldiUtilitiesAPI::OnSessionRecoveryStart() {
       SessionRestore::RegisterOnSessionRestoredCallback(base::BindRepeating(
           &VivaldiUtilitiesAPI::OnSessionRecoveryDone, base::Unretained(this)));
 
-  ::vivaldi::BroadcastEvent(vivaldi::utilities::OnSessionRecoveryStart::kEventName,
-                            vivaldi::utilities::OnSessionRecoveryStart::Create(),
-                            browser_context_);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::utilities::OnSessionRecoveryStart::kEventName,
+      vivaldi::utilities::OnSessionRecoveryStart::Create(), browser_context_);
 }
 
 void VivaldiUtilitiesAPI::OnSessionRecoveryDone(Profile* profile, int tabs) {
   on_session_recovery_done_subscription_ = {};
 
-  ::vivaldi::BroadcastEvent(vivaldi::utilities::OnSessionRecoveryDone::kEventName,
-                            vivaldi::utilities::OnSessionRecoveryDone::Create(),
-                            browser_context_);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::utilities::OnSessionRecoveryDone::kEventName,
+      vivaldi::utilities::OnSessionRecoveryDone::Create(), browser_context_);
 }
 
 VivaldiUtilitiesAPI::DialogPosition::DialogPosition(
@@ -510,6 +487,70 @@ VivaldiUtilitiesAPI::DialogPosition::DialogPosition(
       dialog_name_(dialog_name),
       rect_(rect),
       flow_direction_(flow_direction) {}
+
+// Adapted from CertificateManagerPageHandler::GetCertSource, but takes in
+// certificate store as a string, which gets passed in from the js side.
+void VivaldiUtilitiesAPI::InitCertSource(content::WebContents* web_contents,
+                                         Profile* profile,
+                                         std::string source_str) {
+  auto* rfhi = static_cast<content::RenderFrameHostImpl*>(
+      web_contents->GetPrimaryMainFrame());
+
+  // The chromium certificate code needs a mojo connection to work since it's
+  // usually called from the chrome://settings/certificates page which lives in
+  // a renderer process. We're calling it from the browser process but mojo
+  // behaves the same either way, so we can just pass it in and use the methods.
+  //
+  // For our purposes it also doesn't matter which RenderFrameHost it belongs
+  // to, so we just initialize it once we have one and then keep it alive.
+  if (!certificate_manager_page_) {
+    rfhi->GetRemoteInterfaces()->GetInterface(
+        certificate_manager_page_.BindNewPipeAndPassReceiver());
+  }
+
+  if (source_str == "chrome_root_store") {
+    cert_source_ptr_ = std::make_unique<ChromeRootStoreCertSource>();
+  } else if (source_str == "platform_client_cert") {
+    cert_source_ptr_ = std::make_unique<EnterpriseTrustedCertSource>(profile);
+  } else if (source_str == "enterprise_trusted_certs") {
+    cert_source_ptr_ = std::make_unique<EnterpriseTrustedCertSource>(profile);
+  } else if (source_str == "enterprise_intermediate_certs") {
+    cert_source_ptr_ =
+        std::make_unique<EnterpriseIntermediateCertSource>(profile);
+  } else if (source_str == "enterprise_distrusted_certs") {
+    cert_source_ptr_ =
+        std::make_unique<EnterpriseDistrustedCertSource>(profile);
+  } else if (source_str == "platform_user_trusted_certs") {
+    cert_source_ptr_ = std::make_unique<PlatformCertSource>(
+        "trusted_certs", cert_verifier::mojom::CertificateTrust::kTrusted);
+  } else if (source_str == "platform_user_intermediate_certs") {
+    cert_source_ptr_ = std::make_unique<PlatformCertSource>(
+        "intermediate_certs",
+        cert_verifier::mojom::CertificateTrust::kUnspecified);
+  } else if (source_str == "platform_user_distrusted_certs") {
+    cert_source_ptr_ = std::make_unique<PlatformCertSource>(
+        "distrusted_certs",
+        cert_verifier::mojom::CertificateTrust::kDistrusted);
+  } else if (source_str == "user_trusted_certs") {
+    cert_source_ptr_ = std::make_unique<UserCertSource>(
+        "trusted_certs",
+        chrome_browser_server_certificate_database::CertificateTrust::
+            CERTIFICATE_TRUST_TYPE_TRUSTED,
+        profile, &certificate_manager_page_);
+  } else if (source_str == "user_intermediate_certs") {
+    cert_source_ptr_ = std::make_unique<UserCertSource>(
+        "intermediate_certs",
+        chrome_browser_server_certificate_database::CertificateTrust::
+            CERTIFICATE_TRUST_TYPE_UNSPECIFIED,
+        profile, &certificate_manager_page_);
+  } else if (source_str == "user_distrusted_certs") {
+    cert_source_ptr_ = std::make_unique<UserCertSource>(
+        "distrusted_certs",
+        chrome_browser_server_certificate_database::CertificateTrust::
+            CERTIFICATE_TRUST_TYPE_DISTRUSTED,
+        profile, &certificate_manager_page_);
+  }
+}
 
 ExtensionFunction::ResponseAction UtilitiesShowPasswordDialogFunction::Run() {
   using vivaldi::utilities::ShowPasswordDialog::Params;
@@ -650,7 +691,7 @@ ExtensionFunction::ResponseAction UtilitiesCanOpenUrlExternallyFunction::Run() {
     // return true.
     ExternalProtocolHandler::BlockState block_state =
         ExternalProtocolHandler::GetBlockState(
-            url.scheme(), nullptr,
+            url.GetScheme(), nullptr,
             Profile::FromBrowserContext(browser_context()));
     if (block_state != ExternalProtocolHandler::UNKNOWN) {
       result = (block_state == ExternalProtocolHandler::DONT_BLOCK);
@@ -675,7 +716,7 @@ ExtensionFunction::ResponseAction UtilitiesCanOpenUrlExternallyFunction::Run() {
     // given the above GetApplicationNameForProtocol() check?
     auto default_protocol_worker =
         base::MakeRefCounted<shell_integration::DefaultSchemeClientWorker>(
-            url.scheme());
+            url.GetScheme());
 
     // StartCheckIsDefault takes ownership and releases everything once all
     // background activities finishes
@@ -1348,9 +1389,8 @@ UtilitiesLaunchNetworkSettingsFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -1444,9 +1484,9 @@ UtilitiesGetDefaultContentSettingsFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   std::string& content_settings = params->content_setting;
-  std::string setting = VivaldiBrowserComponentWrapper::GetInstance()
-      ->GetDefaultContentSetting(
-      browser_context(), content_settings);
+  std::string setting =
+      VivaldiBrowserComponentWrapper::GetInstance()->GetDefaultContentSetting(
+          browser_context(), content_settings);
 
   return RespondNow(ArgumentList(Results::Create(setting)));
 }
@@ -1524,9 +1564,8 @@ ExtensionFunction::ResponseAction UtilitiesOpenTaskManagerFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -1795,11 +1834,9 @@ ExtensionFunction::ResponseAction UtilitiesSetContentSettingsFunction::Run() {
           profile, primary_pattern, secondary_pattern, content_type,
           permissions::PermissionSourceUI::SITE_SETTINGS);
 
-
   VivaldiBrowserComponentWrapper::GetInstance()->SetContentSettingCustomScope(
       browser_context(), primary_pattern_string, secondary_pattern_string,
       content_type_string, content_setting_string);
-
 
   return RespondNow(NoArguments());
 }
@@ -2015,9 +2052,8 @@ void UtilitiesGenerateQRCodeFunction::RespondOnUiThread(
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetGAPIKeyFunction::Run() {
-  namespace Results = vivaldi::utilities::GetGAPIKey::Results;
-
 #ifdef VIVALDI_GOOGLE_TASKS_API_KEY
+  namespace Results = vivaldi::utilities::GetGAPIKey::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_GOOGLE_TASKS_API_KEY)));
 #else
@@ -2026,9 +2062,8 @@ ExtensionFunction::ResponseAction UtilitiesGetGAPIKeyFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetGOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetGOAuthClientId::Results;
-
 #ifdef VIVALDI_GOOGLE_OAUTH_API_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetGOAuthClientId::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_GOOGLE_OAUTH_API_CLIENT_ID)));
 #else
@@ -2038,9 +2073,8 @@ ExtensionFunction::ResponseAction UtilitiesGetGOAuthClientIdFunction::Run() {
 
 ExtensionFunction::ResponseAction
 UtilitiesGetGOAuthClientSecretFunction::Run() {
-  namespace Results = vivaldi::utilities::GetGOAuthClientSecret::Results;
-
 #ifdef VIVALDI_GOOGLE_OAUTH_API_CLIENT_SECRET
+  namespace Results = vivaldi::utilities::GetGOAuthClientSecret::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_GOOGLE_OAUTH_API_CLIENT_SECRET)));
 #else
@@ -2049,9 +2083,8 @@ UtilitiesGetGOAuthClientSecretFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetMOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetMOAuthClientId::Results;
-
 #ifdef VIVALDI_MICROSOFT_OAUTH_API_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetMOAuthClientId::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_MICROSOFT_OAUTH_API_CLIENT_ID)));
 #else
@@ -2060,9 +2093,8 @@ ExtensionFunction::ResponseAction UtilitiesGetMOAuthClientIdFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetYOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetYOAuthClientId::Results;
-
 #ifdef VIVALDI_YAHOO_OAUTH_API_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetYOAuthClientId::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_YAHOO_OAUTH_API_CLIENT_ID)));
 #else
@@ -2071,9 +2103,8 @@ ExtensionFunction::ResponseAction UtilitiesGetYOAuthClientIdFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetAOLOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetAOLOAuthClientId::Results;
-
 #ifdef VIVALDI_AOL_OAUTH_API_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetAOLOAuthClientId::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_AOL_OAUTH_API_CLIENT_ID)));
 #else
@@ -2083,9 +2114,8 @@ ExtensionFunction::ResponseAction UtilitiesGetAOLOAuthClientIdFunction::Run() {
 
 ExtensionFunction::ResponseAction
 UtilitiesGetAOLOAuthClientSecretFunction::Run() {
-  namespace Results = vivaldi::utilities::GetAOLOAuthClientSecret::Results;
-
 #ifdef VIVALDI_AOL_OAUTH_API_CLIENT_SECRET
+  namespace Results = vivaldi::utilities::GetAOLOAuthClientSecret::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_AOL_OAUTH_API_CLIENT_SECRET)));
 #else
@@ -2095,9 +2125,8 @@ UtilitiesGetAOLOAuthClientSecretFunction::Run() {
 
 ExtensionFunction::ResponseAction
 UtilitiesGetYOAuthClientSecretFunction::Run() {
-  namespace Results = vivaldi::utilities::GetYOAuthClientSecret::Results;
-
 #ifdef VIVALDI_YAHOO_OAUTH_API_CLIENT_SECRET
+  namespace Results = vivaldi::utilities::GetYOAuthClientSecret::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_YAHOO_OAUTH_API_CLIENT_SECRET)));
 #else
@@ -2107,10 +2136,9 @@ UtilitiesGetYOAuthClientSecretFunction::Run() {
 
 ExtensionFunction::ResponseAction
 UtilitiesGetVivaldiNetOAuthClientSecretFunction::Run() {
+#ifdef VIVALDI_NET_OAUTH_CLIENT_SECRET
   namespace Results =
       vivaldi::utilities::GetVivaldiNetOAuthClientSecret::Results;
-
-#ifdef VIVALDI_NET_OAUTH_CLIENT_SECRET
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_NET_OAUTH_CLIENT_SECRET)));
 #else
@@ -2120,9 +2148,8 @@ UtilitiesGetVivaldiNetOAuthClientSecretFunction::Run() {
 
 ExtensionFunction::ResponseAction
 UtilitiesGetVivaldiNetOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetVivaldiNetOAuthClientId::Results;
-
 #ifdef VIVALDI_NET_OAUTH_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetVivaldiNetOAuthClientId::Results;
   return RespondNow(ArgumentList(Results::Create(VIVALDI_NET_OAUTH_CLIENT_ID)));
 #else
   return RespondNow(Error("No Vivaldi.net client id defined"));
@@ -2130,9 +2157,8 @@ UtilitiesGetVivaldiNetOAuthClientIdFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction UtilitiesGetFOAuthClientIdFunction::Run() {
-  namespace Results = vivaldi::utilities::GetFOAuthClientId::Results;
-
 #ifdef VIVALDI_FASTMAIL_OAUTH_CLIENT_ID
+  namespace Results = vivaldi::utilities::GetFOAuthClientId::Results;
   return RespondNow(
       ArgumentList(Results::Create(VIVALDI_FASTMAIL_OAUTH_CLIENT_ID)));
 #else
@@ -2144,8 +2170,8 @@ ExtensionFunction::ResponseAction
 UtilitiesGetOSGeolocationStateFunction::Run() {
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   namespace Results = vivaldi::utilities::GetOSGeolocationState::Results;
-  return RespondNow(ArgumentList(Results::Create(
-      system_permission_settings::IsAllowed(
+  return RespondNow(
+      ArgumentList(Results::Create(system_permission_settings::IsAllowed(
           ContentSettingsType::GEOLOCATION))));
 #else
   return RespondNow(Error("System not supported"));
@@ -2191,32 +2217,15 @@ ExtensionFunction::ResponseAction UtilitiesOsCryptFunction::Run() {
 
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  auto encrypted = std::make_unique<std::string>();
-  // |encrypted_ptr| is expected to be valid as long as |encrypted| is valid,
-  // which should be at least until OnEncryptDone is called. So, it should be
-  // safe to use during EncryptString
-  std::string* encrypted_ptr = encrypted.get();
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock()},
-      base::BindOnce(&OSCrypt::EncryptString, params->plain, encrypted_ptr),
-      base::BindOnce(&UtilitiesOsCryptFunction::OnEncryptDone, this,
-                     std::move(encrypted)));
-
-  return RespondLater();
-}
-
-void UtilitiesOsCryptFunction::OnEncryptDone(
-    std::unique_ptr<std::string> encrypted,
-    bool result) {
-  if (!result) {
-    Respond(Error("Encryption failed"));
-    return;
+  std::string encrypted;
+  if (!OSCrypt::EncryptString(params->plain, &encrypted)) {
+    return RespondNow(Error("Encryption failed"));
   }
 
   std::string encoded;
-  encoded = base::Base64Encode(*encrypted);
-
-  Respond(ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(encoded)));
+  encoded = base::Base64Encode(encrypted);
+  return RespondNow(
+      ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(encoded)));
 }
 
 UtilitiesOsDecryptFunction::UtilitiesOsDecryptFunction() {}
@@ -2233,30 +2242,13 @@ ExtensionFunction::ResponseAction UtilitiesOsDecryptFunction::Run() {
     return RespondNow(Error("Invalid base64 input"));
   }
 
-  auto decrypted = std::make_unique<std::string>();
-  // |decrypted_ptr| is expected to be valid as long as |decrypted| is valid,
-  // which should be at least until OnEncryptDone is called. So, it should be
-  // safe to use during EncryptString
-  std::string* decrypted_ptr = decrypted.get();
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock()},
-      base::BindOnce(&OSCrypt::DecryptString, encrypted, decrypted_ptr),
-      base::BindOnce(&UtilitiesOsDecryptFunction::OnDecryptDone, this,
-                     std::move(decrypted)));
-
-  return RespondLater();
-}
-
-void UtilitiesOsDecryptFunction::OnDecryptDone(
-    std::unique_ptr<std::string> decrypted,
-    bool result) {
-  if (!result) {
-    Respond(Error("Decryption failed"));
-    return;
+  std::string decrypted;
+  if (!OSCrypt::DecryptString(encrypted, &decrypted)) {
+    return RespondNow(Error("Decryption failed"));
   }
 
-  Respond(
-      ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(*decrypted)));
+  return RespondNow(
+      ArgumentList(vivaldi::utilities::OsCrypt::Results::Create(decrypted)));
 }
 
 UtilitiesTranslateTextFunction::UtilitiesTranslateTextFunction() {}
@@ -2316,6 +2308,105 @@ void UtilitiesTranslateTextFunction::OnTranslateFinished(
   Respond(ArgumentList(Results::Create(result)));
 }
 
+ExtensionFunction::ResponseAction UtilitiesImportSSLCertificateFunction::Run() {
+  using vivaldi::utilities::ImportSSLCertificate::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
+  if (!window) {
+    return RespondNow(Error("No such window"));
+  }
+
+  VivaldiUtilitiesAPI* api =
+      VivaldiUtilitiesAPI::GetFactoryInstance()->Get(browser_context());
+
+  api->InitCertSource(window->web_contents(), profile, params->cert_store);
+  api->CertSource()->ImportCertificate(
+      window->web_contents()->GetWeakPtr(),
+      base::BindOnce(&UtilitiesImportSSLCertificateFunction::CertImported,
+                     this));
+
+  return RespondLater();
+}
+
+void UtilitiesImportSSLCertificateFunction::CertImported(
+    certificate_manager::mojom::ActionResultPtr action_result) {
+  namespace Results = vivaldi::utilities::ImportSSLCertificate::Results;
+
+  if (action_result.get() && action_result.get()->is_error()) {
+    Respond(Error(action_result.get()->get_error()));
+    return;
+  }
+
+  if (!action_result.get()) {
+    Respond(Error("User did not complete import"));
+    return;
+  }
+
+  Respond(ArgumentList(Results::Create("")));
+}
+
+ExtensionFunction::ResponseAction UtilitiesGetSSLCertificatesFunction::Run() {
+  using vivaldi::utilities::GetSSLCertificates::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
+  if (!window) {
+    return RespondNow(Error("No such window"));
+  }
+
+  VivaldiUtilitiesAPI* api =
+      VivaldiUtilitiesAPI::GetFactoryInstance()->Get(browser_context());
+
+  api->InitCertSource(window->web_contents(), profile, params->cert_store);
+  api->CertSource()->GetCertificateInfos(base::BindOnce(
+      &UtilitiesGetSSLCertificatesFunction::CertsReceived, this));
+
+  return RespondLater();
+}
+
+void UtilitiesGetSSLCertificatesFunction::CertsReceived(
+    std::vector<certificate_manager::mojom::SummaryCertInfoPtr> cert_infos) {
+  namespace Results = vivaldi::utilities::GetSSLCertificates::Results;
+  std::vector<std::string> certs;
+  for (auto const& cert_info : cert_infos) {
+    certs.push_back(cert_info->display_name);
+  }
+  Respond(ArgumentList(Results::Create(certs)));
+}
+
+ExtensionFunction::ResponseAction
+UtilitiesExportSSLCertificatesFunction::Run() {
+  using vivaldi::utilities::ExportSSLCertificates::Params;
+
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
+  if (!window) {
+    return RespondNow(Error("No such window"));
+  }
+
+  VivaldiUtilitiesAPI* api =
+      VivaldiUtilitiesAPI::GetFactoryInstance()->Get(browser_context());
+
+  api->InitCertSource(window->web_contents(), profile, params->cert_store);
+  api->CertSource()->ExportCertificates(window->web_contents()->GetWeakPtr());
+
+  return RespondNow(NoArguments());
+}
+
 ExtensionFunction::ResponseAction
 UtilitiesShowManageSSLCertificatesFunction::Run() {
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
@@ -2326,9 +2417,8 @@ UtilitiesShowManageSSLCertificatesFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -2365,9 +2455,8 @@ ExtensionFunction::ResponseAction UtilitiesBrowserWindowReadyFunction::Run() {
       vivaldi::utilities::BrowserWindowReady::Params::Create(args()));
   EXTENSION_FUNCTION_VALIDATE(params);
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (window) {
     window->OnUIReady();
     return RespondNow(ArgumentList(Results::Create(true)));
@@ -2453,8 +2542,6 @@ ExtensionFunction::ResponseAction UtilitiesIsRTLFunction::Run() {
   return RespondNow(Error("Unexpected call to the browser process"));
 }
 
-
-
 ExtensionFunction::ResponseAction UtilitiesEmulateUserInputFunction::Run() {
   using vivaldi::utilities::EmulateUserInput::Params;
   namespace Results = vivaldi::utilities::EmulateUserInput::Results;
@@ -2463,8 +2550,8 @@ ExtensionFunction::ResponseAction UtilitiesEmulateUserInputFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -2564,6 +2651,10 @@ ExtensionFunction::ResponseAction UtilitiesDownloadsDragFunction::Run() {
 
   content::WebContents* web_contents =
       browser->tab_strip_model()->GetActiveWebContents();
+  if (!web_contents) {
+    return RespondNow(Error("No active web contents."));
+  }
+
   gfx::NativeView view = web_contents->GetNativeView();
   {
     // Enable nested tasks during DnD, while |DragDownload()| blocks.
@@ -2638,13 +2729,16 @@ UtilitiesAcknowledgeCrashedSessionFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction UtilitiesSilentlyInstallExtensionFunction::Run() {
-  namespace Results = vivaldi::utilities::HasCommandLineSwitch::Results;
+ExtensionFunction::ResponseAction
+UtilitiesSilentlyInstallExtensionFunction::Run() {
   using vivaldi::utilities::SilentlyInstallExtension::Params;
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
 
-  Profile* profile = Profile::FromBrowserContext(browser_context());
+  // If the profile is off the record the extension install will crash the
+  // browser.
+  Profile* profile =
+      Profile::FromBrowserContext(browser_context())->GetOriginalProfile();
 
   ::vivaldi::SilentWebstoreInstaller::Install(
       params->id, profile,
@@ -2667,13 +2761,13 @@ void UtilitiesSilentlyInstallExtensionFunction::OnExtensionInstalled(
   install_result.success = success;
   install_result.error = error;
 
-
   Respond(ArgumentList(Results::Create(install_result)));
 }
 
 ExtensionFunction::ResponseAction UtilitiesAllowVPNIncognitoFunction::Run() {
   Profile* profile = Profile::FromBrowserContext(browser_context());
-  extensions::util::SetIsIncognitoEnabled("jplgfhpmjnbigmhklmmbgecoobifkmpa", profile, true);
+  extensions::util::SetIsIncognitoEnabled("jplgfhpmjnbigmhklmmbgecoobifkmpa",
+                                          profile, true);
   return RespondNow(NoArguments());
 }
 
@@ -2681,8 +2775,8 @@ ExtensionFunction::ResponseAction
 UtilitiesRequestVivaldiSyncStatusFunction::Run() {
   namespace Results = vivaldi::utilities::RequestVivaldiSyncStatus::Results;
   vivaldi_status::VivaldiStatus* service =
-    vivaldi_status::VivaldiStatusFactory::GetForBrowserContext(
-        browser_context());
+      vivaldi_status::VivaldiStatusFactory::GetForBrowserContext(
+          browser_context());
   if (!service) {
     return RespondNow(Error("Service not available."));
   }
@@ -2798,6 +2892,86 @@ ExtensionFunction::ResponseAction UtilitiesCopyToClipboardFunction::Run() {
   clipboard_writter.WriteText(std::u16string_view(tmp));
 
   return RespondNow(NoArguments());
+}
+
+std::string UtilitiesDetectNewCrashesFunction::CheckForNewCrashes(
+    const std::string& lastSeenUUID) {
+  std::vector<crash_reporter::Report> reports;
+  crash_reporter::GetReports(&reports);
+  if (reports.empty()) {
+    return "";
+  }
+
+  // Reports are sorted by capture_time
+  const std::string lastCrashUUID = reports.front().local_id;
+  return (lastSeenUUID.empty() || lastCrashUUID != lastSeenUUID) ? lastCrashUUID
+                                                                 : lastSeenUUID;
+}
+
+void UtilitiesDetectNewCrashesFunction::SendResult(
+    const std::string& lastCrashUUID) {
+  namespace Results = vivaldi::utilities::DetectNewCrashes::Results;
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    Respond(NoArguments());
+    return;
+  }
+
+  PrefService* prefs = profile->GetOriginalProfile()->GetPrefs();
+  if (!prefs) {
+    Respond(NoArguments());
+    return;
+  }
+
+  PrefService* local_state_prefs = g_browser_process->local_state();
+  if (!local_state_prefs) {
+    Respond(NoArguments());
+    return;
+  }
+
+  const bool has_new_crash_report =
+      !lastCrashUUID.empty() &&
+      local_state_prefs->GetString(
+          vivaldiprefs::kVivaldiCrashReportLastUuidSeen) != lastCrashUUID;
+  if (has_new_crash_report || lastCrashUUID.empty()) {
+    local_state_prefs->SetString(vivaldiprefs::kVivaldiCrashReportLastUuidSeen,
+                                 lastCrashUUID);
+  }
+
+  if (has_new_crash_report) {
+    const std::string exit_type = prefs->GetString(prefs::kSessionExitType);
+    if (exit_type == "CrashedOnlyOnce" || exit_type == "Crashed") {
+      // Browser crashed if last exit type is "CrashedOnlyOnce" or "Crashed".
+      Respond(ArgumentList(
+          Results::Create(vivaldi::utilities::CrashType::kBrowser)));
+    } else {
+      // Otherwise it's probably other crash.
+      Respond(
+          ArgumentList(Results::Create(vivaldi::utilities::CrashType::kOther)));
+    }
+  } else {
+    // Otherwise no new crash.
+    Respond(NoArguments());
+  }
+}
+
+ExtensionFunction::ResponseAction UtilitiesDetectNewCrashesFunction::Run() {
+  PrefService* prefs = g_browser_process->local_state();
+
+  if (!prefs) {
+    return RespondNow(Error("Cannot get local state prefs."));
+  }
+
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(
+          &UtilitiesDetectNewCrashesFunction::CheckForNewCrashes, this,
+          prefs->GetString(vivaldiprefs::kVivaldiCrashReportLastUuidSeen)),
+      base::BindOnce(&UtilitiesDetectNewCrashesFunction::SendResult, this));
+
+  return RespondLater();
 }
 
 }  // namespace extensions

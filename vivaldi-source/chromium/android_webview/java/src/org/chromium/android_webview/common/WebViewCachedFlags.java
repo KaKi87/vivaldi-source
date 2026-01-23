@@ -12,8 +12,12 @@ import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JNINamespace;
 import org.jni_zero.JniType;
+import org.jni_zero.NativeMethods;
 
+import org.chromium.base.FeatureList;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -39,6 +43,7 @@ import java.util.Set;
  * if you use a feature through the cached mechanism you must not query its value through finch as
  * the two may differ in their values.
  */
+@JNINamespace("android_webview")
 @NullMarked
 public class WebViewCachedFlags {
     private static final String CACHED_ENABLED_FLAGS_PREF = "CachedFlagsEnabled";
@@ -81,9 +86,6 @@ public class WebViewCachedFlags {
                             // Add new CachedFlags here along with their default state.
                             Map.ofEntries(
                                     Map.entry(
-                                            AwFeatures.WEBVIEW_DISABLE_CHIPS,
-                                            DefaultState.DISABLED),
-                                    Map.entry(
                                             AwFeatures.WEBVIEW_MOVE_WORK_TO_PROVIDER_INIT,
                                             DefaultState.DISABLED),
                                     Map.entry(
@@ -109,6 +111,9 @@ public class WebViewCachedFlags {
                                             DefaultState.DISABLED),
                                     Map.entry(
                                             TracingServiceFeatures.ENABLE_PERFETTO_SYSTEM_TRACING,
+                                            DefaultState.DISABLED),
+                                    Map.entry(
+                                            AwFeatures.WEBVIEW_BYPASS_PROVISIONAL_COOKIE_MANAGER,
                                             DefaultState.DISABLED),
                                     Map.entry(
                                             AwFeatures
@@ -148,6 +153,22 @@ public class WebViewCachedFlags {
     }
 
     /**
+     * @param feature the name of the feature to query.
+     * @return true if feature is overridden in the cache i.e the client was actually in one of the
+     *     experiment arms, false if it is not overridden.
+     */
+    @VisibleForTesting
+    public boolean isCachedFeatureOverridden(String feature) {
+        return mOverrideEnabled.contains(feature) || mOverrideDisabled.contains(feature);
+    }
+
+    /** Helper method to be called by native to check feature values without the instance. */
+    @CalledByNative
+    private static boolean isFeatureOverridden(@JniType("std::string") String feature) {
+        return get().isCachedFeatureOverridden(feature);
+    }
+
+    /**
      * Writes new finch values to prefs. This method should be called from a background thread.
      *
      * @param prefs the SharedPreferences to write new feature values to.
@@ -157,10 +178,13 @@ public class WebViewCachedFlags {
         Set<String> newDisabledSet = new HashSet<>();
         mDefaults.forEach(
                 (String feature, @DefaultState Integer value) -> {
-                    if (AwFeatureMap.isEnabled(feature)) {
-                        newEnabledSet.add(feature);
-                    } else {
-                        newDisabledSet.add(feature);
+                    Boolean overrideState = getStateIfOverridden(feature);
+                    if (overrideState != null) {
+                        if (overrideState) {
+                            newEnabledSet.add(feature);
+                        } else {
+                            newDisabledSet.add(feature);
+                        }
                     }
                 });
         prefs.edit()
@@ -218,11 +242,9 @@ public class WebViewCachedFlags {
             didMigration = true;
         }
         if (prefs.contains("defaultWebViewPartitionedCookiesState")) {
-            // If this pref is present, we want to default to not using CHIPS so enable the
-            // WEBVIEW_DISABLE_CHIPS flag.
+            // This flag has been cleaned up now so we don't need to add it to enabled set. Just
+            // remove the pref.
             editor.remove("defaultWebViewPartitionedCookiesState");
-            mOverrideDisabled.remove(AwFeatures.WEBVIEW_DISABLE_CHIPS);
-            mOverrideEnabled.add(AwFeatures.WEBVIEW_DISABLE_CHIPS);
             didMigration = true;
         }
         if (prefs.contains("webViewUseStartupTasksLogic")) {
@@ -234,5 +256,24 @@ public class WebViewCachedFlags {
             didMigration = true;
         }
         RecordHistogram.recordBooleanHistogram(MIGRATION_HISTOGRAM_NAME, didMigration);
+    }
+
+    /**
+     * @param feature the name of the feature to query.
+     * @return null if the feature is not overridden, which means that the client is not a part of
+     *     the study. Otherwise returns true if the feature is enabled or false if it is disabled.
+     */
+    private @Nullable Boolean getStateIfOverridden(String feature) {
+        if (!FeatureList.isNativeInitialized()) {
+            return FeatureOverrides.getTestValueForFeature(feature);
+        }
+
+        return WebViewCachedFlagsJni.get().getStateIfOverridden(feature);
+    }
+
+    @NativeMethods
+    interface Natives {
+        @JniType("std::optional<bool>")
+        @Nullable Boolean getStateIfOverridden(@JniType("std::string") String feature);
     }
 }

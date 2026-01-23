@@ -53,6 +53,7 @@ class MessageTable {
   bool DetachDBAfterMigrate();
   bool DoesAttachedMessageTableExists();
   int CountMessages();
+  bool GetSearchListIds(SearchListIDs* out_ids);
 
  protected:
   virtual sql::Database& GetDB() = 0;

@@ -140,6 +140,7 @@ public class CompositorViewHolder extends FrameLayout
     // Vivaldi
     @SuppressWarnings("NullAway.Init")
     private GestureDetector mGestureDetector;
+    private static final long URLBAR_REQUEST_FOCUS_DELAY_MS = 250;
 
     /**
      * Initializer interface used to decouple initialization from the class that owns the
@@ -363,8 +364,7 @@ public class CompositorViewHolder extends FrameLayout
 
                 @Override
                 public void onTouchDown() {
-                    if (ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)) {
+                    if (ChromeFeatureList.sToolbarStaleCaptureBugFix.isEnabled()) {
                         mInTouch = true;
                         updateInMotion();
                     }
@@ -372,8 +372,7 @@ public class CompositorViewHolder extends FrameLayout
 
                 @Override
                 public void onTouchUp() {
-                    if (ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)) {
+                    if (ChromeFeatureList.sToolbarStaleCaptureBugFix.isEnabled()) {
                         mInTouch = false;
                         updateInMotion();
                     }
@@ -477,6 +476,8 @@ public class CompositorViewHolder extends FrameLayout
         if (FirstRunStatus.isFirstRunTriggered() && !BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) {
             VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
                     VivaldiPreferences.FOCUS_ADDRESS_BAR_SWITCH, true);
+            VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
+                    VivaldiPreferences.PULL_TO_REFRESH, true);
         }
     }
 
@@ -833,7 +834,7 @@ public class CompositorViewHolder extends FrameLayout
     private void updateInMotion() {
         // TODO(crbug.com/40244051): Track fling as well.
         boolean inMotion = mContentViewScrolling;
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)) {
+        if (ChromeFeatureList.sToolbarStaleCaptureBugFix.isEnabled()) {
             inMotion |= mInTouch;
         } else if (ChromeFeatureList.sSuppressToolbarCapturesAtGestureEnd.isEnabled()) {
             inMotion |= mNumGestureActiveTouches > 0;
@@ -1540,11 +1541,17 @@ public class CompositorViewHolder extends FrameLayout
 
                         // Note(david@vivaldi.com): This will trigger to focus the url bar when new tab was
                         // created by a user.
-                        String homepageUrl = tab.isIncognito()
-                                ? HomepageManager.getInstance().getDefaultHomepageGurl().getSpec()
-                                : HomepageManager.getInstance().getHomepageGurl().getSpec();
+                        String homepageUrl = tab.isIncognitoBranded()
+                                ? HomepageManager.getInstance()
+                                          .getDefaultHomepageGurl(tab.isIncognitoBranded())
+                                          .getSpec()
+                                : HomepageManager.getInstance()
+                                          .getHomepageGurl(tab.isIncognitoBranded())
+                                          .getSpec();
                         if (!HomepageManager.getInstance().isHomepageEnabled())
-                            homepageUrl = HomepageManager.getInstance().getHomepageGurl().getSpec();
+                            homepageUrl = HomepageManager.getInstance()
+                                                  .getHomepageGurl(tab.isIncognitoBranded())
+                                                  .getSpec();
                         if (creationState == TabCreationState.LIVE_IN_FOREGROUND
                                 && tab.getUrl().getSpec().equalsIgnoreCase(homepageUrl))
                             VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
@@ -1586,15 +1593,17 @@ public class CompositorViewHolder extends FrameLayout
 
             setFocusable(false);
             setFocusableInTouchMode(false);
+
             // Note(david@vivaldi.com): Check if we can focus the url bar.
-            if (VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                        VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false)
-                    && mRequestAutoFocus
-                    && mUrlBar != null) {
-                mUrlBar.clearFocus();
-                mUrlBar.requestFocus();
-                mRequestAutoFocus = false;
+            if (VivaldiPreferences.getSharedPreferencesManager()
+                    .readBoolean(VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false)
+                    && mRequestAutoFocus) {
+                new Handler().postDelayed(() -> {
+                    if (mUrlBar != null && !mUrlBar.hasFocus()) mUrlBar.requestFocus();
+                    mRequestAutoFocus = false;
+                }, URLBAR_REQUEST_FOCUS_DELAY_MS);
             }
+            if (!mRequestAutoFocus) // Vivaldi
             // Claim focus for the new view unless the user is currently using the URL bar.
             if (mUrlBar == null || !mUrlBar.hasFocus()) mView.requestFocus();
         } else {
@@ -2033,7 +2042,7 @@ public class CompositorViewHolder extends FrameLayout
             }
             VirtualView view = mVirtualViews.get(virtualViewId);
 
-            event.setContentDescription(view.getAccessibilityDescription());
+            event.setContentDescription(getAccessibilityDescription(view));
             event.setClassName(CompositorViewHolder.class.getName());
         }
 
@@ -2051,7 +2060,7 @@ public class CompositorViewHolder extends FrameLayout
             view.getTouchTarget(mTouchTarget);
 
             node.setBoundsInParent(rectToPx(mTouchTarget));
-            node.setContentDescription(view.getAccessibilityDescription());
+            node.setContentDescription(getAccessibilityDescription(view));
             if (view.hasClickAction()) {
                 node.addAction(AccessibilityNodeInfoCompat.ACTION_CLICK);
             }
@@ -2059,6 +2068,20 @@ public class CompositorViewHolder extends FrameLayout
             if (view.hasLongClickAction()) {
                 node.addAction(AccessibilityNodeInfoCompat.ACTION_LONG_CLICK);
             }
+        }
+
+        private String getAccessibilityDescription(VirtualView view) {
+            String accessibilityDescription = view.getAccessibilityDescription();
+            // TODO(crbug.com/456622040): Prevent this from being null. It's unclear when that might
+            //  be the case, so add an assert and fallback logic to prevent crashes in the meantime.
+            if (accessibilityDescription == null) {
+                assert false
+                        : String.format(
+                                "VirtualView of type %s unexpectedly had a null a11y description.",
+                                view.getClass().getName());
+                return PLACE_HOLDER_STRING;
+            }
+            return accessibilityDescription;
         }
 
         private Rect rectToPx(RectF rect) {

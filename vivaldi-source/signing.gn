@@ -19,7 +19,7 @@ import("//vivaldi/gn/config/signer_features.gni")
 
 if (is_win) {
   update_target(
-      "//chrome/installer/mini_installer:mini_installer_archive") {
+      "//vivaldi/installer/mini_installer/mini_installer:mini_installer_archive") {
     deps = []
     inputs = []
   }
@@ -34,7 +34,7 @@ group("signings") {
   deps = []
   if (is_win) {
     deps += [
-      "//chrome/installer/mini_installer",
+      "//vivaldi/installer/mini_installer/mini_installer",
     ]
   }
   if (is_mac) {

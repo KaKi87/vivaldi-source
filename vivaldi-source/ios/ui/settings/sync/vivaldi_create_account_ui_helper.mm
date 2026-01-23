@@ -6,14 +6,11 @@
 #import "base/json/json_string_value_serializer.h"
 #import "ios/ui/settings/sync/vivaldi_sync_settings_constants.h"
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
-
 std::optional<base::Value> NSDataToDict(NSData* data) {
   const std::string_view server_reply(static_cast<const char*>([data bytes]),
                                         [data length]);
-  return base::JSONReader::Read(server_reply);
+  return base::JSONReader::Read(server_reply,
+                                base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 }
 
 void sendRequestToServer(base::Value::Dict dict, NSURL* url,

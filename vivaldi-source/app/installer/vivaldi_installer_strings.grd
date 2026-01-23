@@ -195,10 +195,10 @@
         Simple
       </message>
       <message name="IDS_INSTALL_TXT_TOS_ACCEPT_AND_INSTALL" desc="Description text for the TOS 'Accept and Install' button">
-        By clicking on the 'Accept and Install' button you are agreeing to Vivaldi's &lt;a&gt;Terms of Service&lt;/a&gt;
+        By clicking on the 'Accept and Install' button, you are agreeing to Vivaldi's &lt;a&gt;Terms of Service&lt;/a&gt;
       </message>
       <message name="IDS_INSTALL_TXT_TOS_ACCEPT_AND_UPDATE" desc="Description text for the TOS 'Accept and Update' button">
-        By clicking on the 'Accept and Update' button you are agreeing to Vivaldi's &lt;a&gt;Terms of Service&lt;/a&gt;
+        By clicking on the 'Accept and Update' button, you are agreeing to Vivaldi's &lt;a&gt;Terms of Service&lt;/a&gt;
       </message>
       <message name="IDS_INSTALL_TOS_ACCEPT_AND_INSTALL" desc="Text of the TOS 'Accept and Install' button">
         Accept and Install
@@ -207,13 +207,13 @@
         Accept and Update
       </message>
       <message name="IDS_INSTALL_INSTALL_FOR_ALL_USERS" desc="Item text of the install type combo box">
-        Install for all users
+        All users
       </message>
       <message name="IDS_INSTALL_INSTALL_PER_USER" desc="Item text of the install type combo box">
-        Install per user
+        Per user
       </message>
       <message name="IDS_INSTALL_INSTALL_STANDALONE" desc="Item text of the install type combo box">
-        Install standalone
+        Standalone
       </message>
       <message name="IDS_INSTALL_SELECT_A_FOLDER" desc="Browse-for-folder dialog title">
         Select a folder
@@ -268,6 +268,16 @@
       </message>
       <message name="IDS_INSTALL_RUNNING_EMULATED_ON_ARM64" desc="Message shown when starting in emulation mode on ARM64">
         The version of Vivaldi you are installing is not optimized for the version of Windows you are running.\n\nVisit vivaldi.com/download to download the Windows on Arm version.
+      </message>
+      <message name="IDS_INSTALL_SLOGAN" desc="Header text in the Windows installer dialog">
+        Get ready for unrivaled customization options and built-in browser features for better performance, productivity, and privacy 🎉
+      </message>
+      <message name="IDS_INSTALL_ALLOW_CRASHLOGS" desc="Checkbox in install dialog">
+        Share crash reports to help us improve product quality
+      </message>
+      <!-- Copied from chromium used by vivaldi/installer/mini_installer-->
+      <message name="IDS_VIVALDI_SETUP_PATCH_FAILED" desc="Error message when setup.exe fails to patch itself.">
+        Installation failed due to unspecified error. Please download Vivaldi again.
       </message>
     </messages>
   </release>

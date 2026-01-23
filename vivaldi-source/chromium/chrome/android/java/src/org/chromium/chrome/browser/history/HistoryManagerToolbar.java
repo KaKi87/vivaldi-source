@@ -22,6 +22,7 @@ import org.chromium.components.browser_ui.widget.selectable_list.SelectableListT
 
 import java.util.List;
 
+// Vivaldi
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 
 /** The SelectionToolbar for the browsing history UI. */
@@ -126,6 +127,9 @@ public class HistoryManagerToolbar extends SelectableListToolbar<HistoryItem> {
 
     @Override
     protected boolean handleEnterKeyPress() {
+        // Vivaldi
+        if (mManager.useBookmarkStyleSearch()) return false;
+        // End Vivaldi
         return getMenu().performIdentifierAction(R.id.search_menu_id, 0);
     }
 

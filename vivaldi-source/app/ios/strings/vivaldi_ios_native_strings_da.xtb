@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoomniveau for <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi er langsom, går ned eller gør enheden varm</translation>
 <translation id="1929299157575856072">STANDARD BLOKERINGSNIVEAU</translation>
+<translation id="1933618400514506228">Serbokroatisk (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Åbn billede i baggrundsfane</translation>
 <translation id="1986733655397734221">Ingen af disse</translation>
 <translation id="1994506778397655062">Åbn i ny baggrundsfane</translation>
@@ -167,7 +168,6 @@ blokeret</translation>
 <translation id="309084557304084991">Jeg vil ikke have forudindlæste bogmærker og hurtigvalg</translation>
 <translation id="3091563570137981919">Tracker- og annonceblokering</translation>
 <translation id="3097968995088564986">Vis Tilføj-knap</translation>
-<translation id="3102790820790869053">Søg i seneste faner</translation>
 <translation id="3134385238404760368">Ingen nylige faner</translation>
 <translation id="3142562627629111859">Ny gruppe</translation>
 <translation id="3157931365184549694">Gendan</translation>
@@ -310,7 +310,6 @@ blokeret</translation>
 <translation id="462860218383788109">Redigeringsdato</translation>
 <translation id="4640946580087069269">Kopiér til note</translation>
 <translation id="4643117005422448078">Top sider</translation>
-<translation id="4654428449690716275">Vis ikke bannere før eller efter oversættelse er blevet fulbudt</translation>
 <translation id="4654578955713250802">Bloker annoncer og trackere</translation>
 <translation id="4655510151391078468">Denne kode matcher ikke den, vi sendte til dig.
         Du har <ph name="ATTEMPTS" /> forsøg tilbage.</translation>
@@ -663,6 +662,7 @@ blokeret</translation>
 <translation id="8948792607467387336">Vælg som baggrund</translation>
 <translation id="8964449607824577665">Uden din nuværende krypteringsadgangskode kan vi ikke dekryptere dine data. Nulstilling af denne adgangskode kræver sletning af alle eksisterende synkroniseringsdata på Vivaldi-servere.</translation>
 <translation id="8965371804397726192">Start synkronisering af alle data</translation>
+<translation id="896787570003733070">Vis ikke bannere før eller efter oversættelse er tilbudt</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Bogmærke flyttet til “{title}”}
           other {Bogmærker flyttet til “{title}”}}</translation>

@@ -18,6 +18,7 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.DefaultBrowserInfo;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -80,6 +81,7 @@ class ChromeContextMenuItem {
         Item.SAVE_PAGE,
         Item.SHARE_PAGE,
         Item.PRINT_PAGE,
+        Item.VIEW_PAGE_SOURCE,
         Item.INSPECT_ELEMENT,
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -136,13 +138,14 @@ class ChromeContextMenuItem {
         int SHARE_PAGE = 39;
         int PRINT_PAGE = 40;
         // Developer Group
-        int INSPECT_ELEMENT = 41;
+        int VIEW_PAGE_SOURCE = 41;
+        int INSPECT_ELEMENT = 42;
 
-        int OPEN_IN_NEW_TAB_BACKGROUND = 42; // Vivaldi
-        int OPEN_IMAGE_IN_NEW_TAB_BACKGROUND = 43; // Vivaldi
+        int OPEN_IN_NEW_TAB_BACKGROUND = 43; // Vivaldi
+        int OPEN_IMAGE_IN_NEW_TAB_BACKGROUND = 44; // Vivaldi
 
         // ALWAYS UPDATE!
-        int NUM_ENTRIES = 44;
+        int NUM_ENTRIES = 45;
     }
 
     /** Mapping from {@link Item} to the ID found in the ids.xml. */
@@ -188,6 +191,7 @@ class ChromeContextMenuItem {
         R.id.contextmenu_save_page, // Item.SAVE_PAGE
         R.id.contextmenu_share_page, // Item.SHARE_PAGE
         R.id.contextmenu_print_page, // Item.PRINT_PAGE
+        R.id.contextmenu_view_page_source, // Item.VIEW_PAGE_SOURCE
         R.id.contextmenu_inspect_element, // Item.INSPECT_ELEMENT
         // From here Vivaldi ids:
         R.id.contextmenu_open_in_new_tab_background,
@@ -237,6 +241,7 @@ class ChromeContextMenuItem {
         R.string.contextmenu_save_page, // Item.SAVE_PAGE
         R.string.contextmenu_share_page, // Item.SHARE_PAGE
         R.string.contextmenu_print_page, // Item.PRINT_PAGE
+        R.string.contextmenu_view_page_source, // Item.VIEW_PAGE_SOURCE
         R.string.contextmenu_inspect_element, // Item.INSPECT_ELEMENT
         // From here Vivaldi ids:
         R.string.contextmenu_open_in_new_tab_background,
@@ -312,9 +317,20 @@ class ChromeContextMenuItem {
                         item,
                         ChromePreferenceKeys.CONTEXT_MENU_SHOP_IMAGE_WITH_GOOGLE_LENS_CLICKED,
                         showInProductHelp);
+            case Item.OPEN_IN_CHROME_INCOGNITO_TAB:
+                if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+                    return context.getString(R.string.contextmenu_open_in_incognito_window);
+                }
+                break;
+            case Item.OPEN_IN_NEW_CHROME_TAB:
+                if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+                    return context.getString(R.string.contextmenu_open_in_chrome_window);
+                }
+                break;
             default:
                 return context.getString(getStringId(item));
         }
+        return context.getString(getStringId(item));
     }
 
     /**

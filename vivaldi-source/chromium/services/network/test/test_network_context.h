@@ -77,8 +77,6 @@ class TestNetworkContext : public mojom::NetworkContext {
   void GetTrustTokenQueryAnswerer(
       mojo::PendingReceiver<mojom::TrustTokenQueryAnswerer> receiver,
       const url::Origin& top_frame_origin) override {}
-  void GetIpProxyStatus(GetIpProxyStatusCallback callback) override {}
-  void SetBypassIpProtectionProxy(bool bypass_proxy) override {}
   void GetStoredTrustTokenCounts(
       GetStoredTrustTokenCountsCallback callback) override {}
   void GetPrivateStateTokenRedemptionRecords(
@@ -87,8 +85,6 @@ class TestNetworkContext : public mojom::NetworkContext {
       const url::Origin& issuer,
       DeleteStoredTrustTokensCallback callback) override {}
   void SetBlockTrustTokens(bool block) override {}
-  void SetTrackingProtectionContentSetting(
-      const ContentSettingsForOneType& settings) override {}
 #if BUILDFLAG(ENABLE_REPORTING)
   void AddReportingApiObserver(
       mojo::PendingRemote<network::mojom::ReportingApiObserver> observer)
@@ -226,8 +222,10 @@ class TestNetworkContext : public mojom::NetworkContext {
       const net::NetworkAnonymizationKey& network_anonymization_key,
       std::vector<mojom::WebTransportCertificateFingerprintPtr> fingerprints,
       const std::vector<std::string>& application_protocols,
-      mojo::PendingRemote<mojom::WebTransportHandshakeClient> handshake_client)
-      override {}
+      mojo::PendingRemote<mojom::WebTransportHandshakeClient> handshake_client,
+      mojo::PendingRemote<mojom::URLLoaderNetworkServiceObserver>
+          url_loader_network_observer,
+      mojom::ClientSecurityStatePtr client_security_state) override {}
   void LookUpProxyForURL(
       const GURL& url,
       const net::NetworkAnonymizationKey& network_anonymization_key,
@@ -373,10 +371,8 @@ class TestNetworkContext : public mojom::NetworkContext {
       const scoped_refptr<net::X509Certificate>& certificate) override {}
   void FlushMatchingCachedClientCert(
       const scoped_refptr<net::X509Certificate>& certificate) override {}
-  void SetCookieDeprecationLabel(
-      const std::optional<std::string>& label) override {}
   void RevokeNetworkForNonces(
-      const std::vector<base::UnguessableToken>& nonces,
+      std::vector<mojom::NonceAndAllowlistedPatternsPtr> nonces_to_patternss,
       RevokeNetworkForNoncesCallback callback) override {}
   void ClearNonces(const std::vector<base::UnguessableToken>& nonces) override {
   }
@@ -398,6 +394,9 @@ class TestNetworkContext : public mojom::NetworkContext {
       const base::UnguessableToken& throttling_profile_id,
       mojo::PendingReceiver<network::mojom::DurableMessageCollector> receiver)
       override {}
+  void AddQuicHints(
+      const std::vector<url::SchemeHostPort>& origins,
+      const net::NetworkAnonymizationKey& network_anonymization_key) override {}
 };
 
 }  // namespace network

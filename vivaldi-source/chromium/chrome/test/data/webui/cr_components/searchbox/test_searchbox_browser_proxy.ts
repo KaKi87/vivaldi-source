@@ -26,6 +26,7 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     super([
       'deleteAutocompleteMatch',
       'activateKeyword',
+      'showContextMenu',
       'executeAction',
       'onNavigationLikely',
       'onThumbnailRemoved',
@@ -44,6 +45,7 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
       'deleteContext',
       'clearFiles',
       'submitQuery',
+      'openLensSearch',
     ]);
   }
 
@@ -72,6 +74,10 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
       matchSelectionTimestamp,
       isMouseEvent,
     });
+  }
+
+  showContextMenu(point: {x: number, y: number}) {
+    this.methodCalled('showContextMenu', {point});
   }
 
   executeAction(
@@ -183,6 +189,10 @@ class FakePageHandler extends TestBrowserProxy implements PageHandlerInterface {
     this.methodCalled(
         'submitQuery',
         {queryText, mouseButton, altKey, ctrlKey, metaKey, shiftKey});
+  }
+
+  openLensSearch() {
+    this.methodCalled('openLensSearch');
   }
 }
 

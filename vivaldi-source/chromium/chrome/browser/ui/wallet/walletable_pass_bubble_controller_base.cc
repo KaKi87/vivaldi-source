@@ -8,7 +8,6 @@
 #include "chrome/browser/ui/autofill/bubble_manager.h"
 #include "chrome/browser/ui/wallet/walletable_pass_bubble_view_base.h"
 #include "components/autofill/core/common/autofill_features.h"
-#include "components/tabs/public/tab_interface.h"
 
 namespace wallet {
 namespace {
@@ -36,16 +35,32 @@ WalletablePassClient::WalletablePassBubbleResult GetResult(
 
 WalletablePassBubbleControllerBase::WalletablePassBubbleControllerBase(
     tabs::TabInterface* tab)
-    : tab_(CHECK_DEREF(tab)) {}
+    : tab_(CHECK_DEREF(tab)) {
+  tab_activation_subscription_ = tab->RegisterDidActivate(
+      base::BindRepeating(&WalletablePassBubbleControllerBase::OnTabActivated,
+                          base::Unretained(this)));
+}
 
 WalletablePassBubbleControllerBase::~WalletablePassBubbleControllerBase() =
     default;
+
+bool WalletablePassBubbleControllerBase::CanBeReshown() const {
+  return true;
+}
 
 bool WalletablePassBubbleControllerBase::IsShowingBubble() const {
   return bubble_view_ != nullptr;
 }
 
-void WalletablePassBubbleControllerBase::HideBubble() {
+void WalletablePassBubbleControllerBase::OnBubbleDiscarded() {
+  CHECK(base::FeatureList::IsEnabled(
+      autofill::features::kAutofillShowBubblesBasedOnPriorities));
+  std::move(callback_).Run(
+      WalletablePassClient::WalletablePassBubbleResult::kDiscarded);
+}
+
+void WalletablePassBubbleControllerBase::HideBubble(
+    bool initiated_by_bubble_manager) {
   if (IsShowingBubble()) {
     bubble_view_->CloseBubble();
     ResetBubbleViewAndInformBubbleManager();
@@ -58,6 +73,29 @@ bool WalletablePassBubbleControllerBase::IsMouseHovered() const {
 
 void WalletablePassBubbleControllerBase::OnBubbleClosed(
     WalletablePassBubbleClosedReason reason) {
+  if (base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
+    if (autofill::BubbleManager* manager =
+            autofill::BubbleManager::GetForTab(&tab())) {
+      if (manager->HasPendingBubbleOfSameType(GetBubbleType())) {
+        // It means that the BubbleManager has the bubble in the queue,
+        // therefore, do not run the callback.
+        ResetBubbleViewAndInformBubbleManager();
+        return;
+      }
+    }
+  }
+
+  if (!base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities) &&
+      reshow_bubble_on_activation_) {
+    // If the bubble is closed because the user clicked a link that opened a new
+    // tab, we want to reshow the bubble when the user returns to this tab.
+    // In this case, we don't run the callback yet.
+    ResetBubbleViewAndInformBubbleManager();
+    return;
+  }
+
   if (callback_) {
     std::move(callback_).Run(GetResult(reason));
   }
@@ -77,7 +115,8 @@ void WalletablePassBubbleControllerBase::SetCallback(
 void WalletablePassBubbleControllerBase::QueueOrShowBubble(bool force_show) {
   if (base::FeatureList::IsEnabled(
           autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
-    if (auto* manager = autofill::BubbleManager::GetForTab(&tab())) {
+    if (autofill::BubbleManager* manager =
+            autofill::BubbleManager::GetForTab(&tab())) {
       manager->RequestShowController(*this, force_show);
     }
     return;
@@ -91,11 +130,26 @@ void WalletablePassBubbleControllerBase::
   if (IsShowingBubble() &&
       base::FeatureList::IsEnabled(
           autofill::features::kAutofillShowBubblesBasedOnPriorities)) {
-    if (auto* manager = autofill::BubbleManager::GetForTab(&tab())) {
-      manager->OnBubbleHiddenByController(*this);
+    if (autofill::BubbleManager* manager =
+            autofill::BubbleManager::GetForTab(&tab())) {
+      manager->OnBubbleHiddenByController(*this, /*show_next_bubble=*/true);
     }
   }
   bubble_view_ = nullptr;
+}
+
+void WalletablePassBubbleControllerBase::SetReshowOnActivation(bool reshow) {
+  reshow_bubble_on_activation_ = reshow;
+}
+
+void WalletablePassBubbleControllerBase::OnTabActivated(
+    tabs::TabInterface* tab) {
+  if (!base::FeatureList::IsEnabled(
+          autofill::features::kAutofillShowBubblesBasedOnPriorities) &&
+      reshow_bubble_on_activation_) {
+    reshow_bubble_on_activation_ = false;
+    QueueOrShowBubble();
+  }
 }
 
 }  // namespace wallet

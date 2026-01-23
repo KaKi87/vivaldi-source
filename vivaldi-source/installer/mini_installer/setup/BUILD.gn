@@ -1,0 +1,153 @@
+# Copyright 2015 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/buildflag_header.gni")
+import("//build/config/chrome_build.gni")
+import("//chrome/process_version_rc_template.gni")
+
+import("//vivaldi/gn/config/product.gni")
+
+if (is_win) {
+  executable("setup") {
+    sources = [
+      "setup_main.cc",
+      "setup_main.h",
+      "uninstall.cc",
+      "uninstall.h",
+      "//vivaldi/installer/win/setup/setup.rc",
+      "//vivaldi/installer/win/setup/setup_resource.h",
+    ]
+
+    configs -= [
+      "//build/config/compiler:cet_shadow_stack",
+      "//build/config/win:console",
+    ]
+    configs += [ "//build/config/win:windowed" ]
+
+    deps = [
+      ":lib",
+      ":setup_exe_version",
+      "//base",
+      "//base:base_static",
+      "//build:branding_buildflags",
+      "//chrome/browser/enterprise/connectors/device_trust/key_management/core/network:win_key_network_delegate",
+      "//chrome/browser/enterprise/connectors/device_trust/key_management/installer:elevated_rotation",
+      "//chrome/browser/enterprise/connectors/device_trust/key_management/installer/management_service:rotate_util",
+      "//chrome/chrome_elf:constants",
+      "//chrome/common:constants",
+      "//chrome/install_static:install_static_util",
+      "//chrome/windows_services/elevated_tracing_service:integration",
+      "//components/crash/core/app",
+      "//components/crash/core/app:crash_export_thunks",
+      "//components/crash/core/app:run_as_crashpad_handler",
+      "//components/version_info",
+      "//content/public/common:static_switches",
+      "//rlz:rlz_lib_no_network",
+      "//vivaldi/app:vivaldi_icon",
+      "//vivaldi/installer/mini_installer/util:with_rc_strings",
+      "//vivaldi/installer/win:dpi_aware_exe_manifest",
+      "//ui/gfx:gfx",
+      "//url",
+    ]
+
+    libs = [
+      "comctl32.lib",
+      "netapi32.lib",
+      "d2d1.lib",
+      "Dwrite.lib",
+      "Dwmapi.lib",
+      "UxTheme.lib",
+      "Ddraw.lib",
+      "gdiplus.lib"
+    ]
+  }
+
+  static_library("lib") {
+    sources = [
+      "archive_patch_helper.cc",
+      "archive_patch_helper.h",
+      "brand_behaviors.h",
+      "configure_app_container_sandbox.cc",
+      "configure_app_container_sandbox.h",
+      "downgrade_cleanup.cc",
+      "downgrade_cleanup.h",
+      "install.cc",
+      "install.h",
+      "install_params.h",
+      "install_worker.cc",
+      "install_worker.h",
+      "installer_state.cc",
+      "installer_state.h",
+      "last_breaking_installer_version.cc",
+      "last_breaking_installer_version.h",
+      "launch_chrome.cc",
+      "launch_chrome.h",
+      "modify_params.h",
+      "scoped_thread_pool.cc",
+      "scoped_thread_pool.h",
+      "setup_constants.cc",
+      "setup_constants.h",
+      "setup_install_details.cc",
+      "setup_install_details.h",
+      "setup_singleton.cc",
+      "setup_singleton.h",
+      "setup_util.cc",
+      "setup_util.h",
+      "unpack_archive.cc",
+      "unpack_archive.h",
+      "update_active_setup_version_work_item.cc",
+      "update_active_setup_version_work_item.h",
+      "user_hive_visitor.cc",
+      "user_hive_visitor.h",
+      "//vivaldi/installer/util/vivaldi_install_dialog.cc",
+      "//vivaldi/installer/util/vivaldi_install_dialog.h",
+      "//vivaldi/installer/util/vivaldi_progress_dialog.cc",
+      "//vivaldi/installer/util/vivaldi_progress_dialog.h",
+      "//vivaldi/installer/util/vivaldi_setup_util.cc",
+      "//vivaldi/installer/util/vivaldi_setup_util.h",
+      "//vivaldi/installer/vivaldi_behaviors.cc",
+    ]
+
+    public_deps = [
+      "//base",
+      "//vivaldi/installer/mini_installer/util:with_rc_strings",
+    ]
+
+    deps = [
+      "//base",
+      "//build:branding_buildflags",
+      "//chrome/common:constants",
+      "//chrome/common:version_header",
+      "//chrome/install_static:buildflags",
+      "//chrome/install_static:install_static_util",
+      "//components/base32",
+      "//components/crash/core/app",
+      "//components/crash/core/common",
+      "//components/metrics:client_info",
+      "//components/metrics:metrics_pref_names",
+      "//components/version_info:channel",
+      "//components/zucchini:zucchini_io",
+      "//components/zucchini:zucchini_lib",
+      "//third_party/crashpad/crashpad/client",
+      "//third_party/crashpad/crashpad/util",
+      "//ui/base:fullscreen_win",
+      "//vivaldi/installer/mini_installer/thirdparty/bspatch",
+    ]
+
+    if (release_kind == "final") {
+      color = "#EF3939"
+    } else if (is_official_build) {
+      color = "#373737"
+    } else {
+      color = "#30c27c"
+    }
+    defines = ["VIVALDI_RELEASE_BACKGROUND_COLOR=\"$color\""]
+  }
+
+  process_version_rc_template("setup_exe_version") {
+    template_file =
+        "//vivaldi/installer/win/setup/setup_exe_version.rc.version"
+    output = "$target_gen_dir/setup_exe_version.rc"
+  }
+}

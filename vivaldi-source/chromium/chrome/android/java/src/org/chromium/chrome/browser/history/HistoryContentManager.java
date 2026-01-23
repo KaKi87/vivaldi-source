@@ -69,7 +69,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.base.Callback;
 import org.chromium.build.BuildConfig;
+// End Vivaldi
 
 /** Displays and manages the content view / list UI for browsing history. */
 @NullMarked
@@ -503,6 +506,7 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
      * @return True if the clear history data button should be shown.
      */
     boolean getShouldShowClearData() {
+        if (BuildConfig.IS_VIVALDI) return false;
         return mShouldShowClearDataIfAvailable
                 && UserPrefs.get(mProfile).getBoolean(Pref.ALLOW_DELETING_BROWSER_HISTORY);
     }
@@ -814,5 +818,38 @@ public class HistoryContentManager implements SignInStateObserver, PrefObserver 
 
     @Nullable AppInfo getAppInfoForTesting() {
         return mCurrentApp;
+    }
+
+    // Vivaldi
+    public void setSearchText(String searchText) {
+        mHistoryAdapter.setSearchText(searchText);
+    }
+
+    public void setSearchTextCallback(Callback<String> callback) {
+        mHistoryAdapter.setSearchTextCallback(callback);
+    }
+
+    public void setFocusChangeCallback(Callback<Boolean> focusChangeCallback) {
+        mHistoryAdapter.setFocusChangeCallback(focusChangeCallback);
+    }
+
+    public void setClearSearchTextRunnable(Runnable clearSearchTextRunnable) {
+        mHistoryAdapter.setClearSearchTextButtonRunnable(clearSearchTextRunnable);
+    }
+
+    public void updateClearSearchButtonVisibliity(boolean visible) {
+        mHistoryAdapter.updateClearSearchButtonVisibliity(visible);
+    }
+
+    public void setSearchBoxHasFocus(boolean hasFocus) {
+        mHistoryAdapter.setSearchBoxHasFocus(hasFocus);
+    }
+
+    public void querySearch(String searchText) {
+        mHistoryAdapter.search(searchText);
+    }
+
+    public boolean useBookmarkStyleSearch() {
+        return BuildConfig.IS_VIVALDI;
     }
 }

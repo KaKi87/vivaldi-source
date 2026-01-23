@@ -1107,7 +1107,9 @@ class _ProvidedDiffCache(_DiffCache):
         with gclient_utils.temporary_file() as diff_file:
             gclient_utils.FileWrite(diff_file, diff)
             try:
-                scm.GIT.Capture(['apply', '--reverse', '--check', diff_file],
+                scm.GIT.Capture([
+                    'apply', '--reverse', '--unidiff-zero', '--check', diff_file
+                ],
                                 cwd=local_root)
             except subprocess.CalledProcessError:
                 raise RuntimeError('Provided diff does not apply cleanly.')
@@ -1119,8 +1121,13 @@ class _ProvidedDiffCache(_DiffCache):
                 if is_file:
                     shutil.copyfile(full_path, copy_dst)
                 scm.GIT.Capture([
-                    'apply', '--reverse', '--directory', tmp_dir,
-                    '--unsafe-paths', diff_file
+                    'apply',
+                    '--reverse',
+                    '--directory',
+                    tmp_dir,
+                    '--unidiff-zero',
+                    '--unsafe-paths',
+                    diff_file,
                 ],
                                 cwd=tmp_dir)
                 # Applying the patch can create a new file if the file at
@@ -1248,7 +1255,8 @@ class AffectedFile(object):
         # The keeplinebreaks parameter to splitlines must be True or else the
         # CheckForWindowsLineEndings presubmit will be a NOP.
         for line in self.GenerateScmDiff().splitlines(keeplinebreaks):
-            m = re.match(r'^@@ [0-9\,\+\-]+ \+([0-9]+)\,[0-9]+ @@', line)
+            m = re.match(r'^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@',
+                         line)
             if m:
                 line_num = int(m.groups(1)[0])
                 continue
@@ -2556,6 +2564,10 @@ def main(argv=None):
     log_format = ('[%(levelname).1s%(asctime)s %(process)d %(thread)d '
                   '%(filename)s] %(message)s')
     logging.basicConfig(format=log_format, level=log_level)
+
+    # Recognize *.gn files as text files, so they are included in testable
+    # files.
+    mimetypes.add_type('text/ninja', '.gn')
 
     # Print call stacks when _PresubmitResult objects are created with -v -v is
     # specified. This helps track down where presubmit messages are coming from.

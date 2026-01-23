@@ -40,7 +40,10 @@ const char kPureHostIsDocumentBlock[] = "pure-host-is-document-block";
 const char kRulesListChecksumKey[] = "rules-list-checksum";
 const char kLastUpdateKey[] = "last-upate";
 const char kNextFetchKey[] = "next-fetch";
+// Deprecated key as of 2026-01
 const char kLastFetchResultKey[] = "last-fetch-result";
+const char kLastReadResultKey[] = "last-read-result";
+const char kLastDownloadResultKey[] = "last-download-result";
 const char kHasTrackerInfosKey[] = "has-tracker-infos";
 const char kValidRulesCountKey[] = "valid-rules-count";
 const char kUnsupportedRulesCountKey[] = "unsupported-rules-count";
@@ -58,7 +61,7 @@ const char kBlockedReportingStartKey[] = "blocked-reporting-start";
 
 const char kPresetIdKey[] = "preset-id";
 
-const int kCurrentStorageVersion = 11;
+const int kCurrentStorageVersion = 13;
 
 const base::FilePath::CharType kSourcesFileName[] =
     FILE_PATH_LITERAL("AdBlockState");
@@ -156,13 +159,74 @@ ActiveRuleSources LoadSourcesList(base::Value::List& sources_list) {
       rule_sources.back().next_fetch = next_fetch.value();
     }
 
-    std::optional<int> last_fetch_result =
-        source_dict.FindInt(kLastFetchResultKey);
-    if (last_fetch_result &&
-        last_fetch_result.value() >= static_cast<int>(FetchResult::kFirst) &&
-        last_fetch_result.value() <= static_cast<int>(FetchResult::kLast))
-      rule_sources.back().last_fetch_result =
-          FetchResult(last_fetch_result.value());
+    {
+      // Migrate kLastFetchResultKey if it exists.
+      std::optional<int> last_fetch_result =
+          source_dict.FindInt(kLastFetchResultKey);
+
+      if (last_fetch_result) {
+        enum FetchResult {
+          kSuccess = 0,
+          kDownloadFailed,
+          kFileNotFound,
+          kFileReadError,
+          kFileUnsupported,
+          kFailedSavingParsedRules,
+          // Skipping Unknown case, as it is equivalent to not set either of the
+          // new states.
+
+          kFirst = kSuccess,
+          kLast = kFailedSavingParsedRules
+        };
+        switch (*last_fetch_result) {
+          case kSuccess:
+            rule_sources.back().last_download_result = DownloadResult::kSuccess;
+            rule_sources.back().last_read_result = ReadResult::kSuccess;
+            break;
+
+          case kDownloadFailed:
+            rule_sources.back().last_download_result =
+                DownloadResult::kDownloadFailed;
+            break;
+
+          case kFileNotFound:
+            rule_sources.back().last_download_result = DownloadResult::kSuccess;
+            rule_sources.back().last_read_result = ReadResult::kFileNotFound;
+            break;
+
+          case kFileReadError:
+            rule_sources.back().last_download_result = DownloadResult::kSuccess;
+            rule_sources.back().last_read_result = ReadResult::kFileReadError;
+            break;
+          case kFileUnsupported:
+            rule_sources.back().last_download_result = DownloadResult::kSuccess;
+            rule_sources.back().last_read_result = ReadResult::kFileUnsupported;
+            break;
+          case kFailedSavingParsedRules:
+            rule_sources.back().last_download_result = DownloadResult::kSuccess;
+            rule_sources.back().last_read_result =
+                ReadResult::kFailedSavingParsedRules;
+            break;
+        }
+      }
+    }
+
+    std::optional<int> last_download_result =
+        source_dict.FindInt(kLastDownloadResultKey);
+    if (last_download_result &&
+        last_download_result.value() >=
+            static_cast<int>(DownloadResult::kFirst) &&
+        last_download_result.value() <= static_cast<int>(DownloadResult::kLast))
+      rule_sources.back().last_download_result =
+          DownloadResult(last_download_result.value());
+
+    std::optional<int> last_read_result =
+        source_dict.FindInt(kLastReadResultKey);
+    if (last_read_result &&
+        last_read_result.value() >= static_cast<int>(ReadResult::kFirst) &&
+        last_read_result.value() <= static_cast<int>(ReadResult::kLast))
+      rule_sources.back().last_read_result =
+          ReadResult(last_read_result.value());
 
     std::optional<bool> has_tracker_infos =
         source_dict.FindBool(kHasTrackerInfosKey);
@@ -384,8 +448,14 @@ base::Value::List SerializeSourcesList(
                     rule_source.rules_info.unsupported_rules);
     source_dict.Set(kInvalidRulesCountKey,
                     rule_source.rules_info.invalid_rules);
-    source_dict.Set(kLastFetchResultKey,
-                    static_cast<int>(rule_source.last_fetch_result));
+    if (rule_source.last_download_result) {
+      source_dict.Set(kLastDownloadResultKey,
+                      static_cast<int>(*rule_source.last_download_result));
+    }
+    if (rule_source.last_read_result) {
+      source_dict.Set(kLastReadResultKey,
+                      static_cast<int>(*rule_source.last_read_result));
+    }
     source_dict.Set(kHasTrackerInfosKey, rule_source.has_tracker_infos);
     source_dict.Set(kTitleKey, rule_source.unsafe_adblock_metadata.title);
     source_dict.Set(

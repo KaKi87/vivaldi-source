@@ -81,6 +81,9 @@ class ChromePasswordChangeServiceBase {
     prefs()->registry()->RegisterIntegerPref(
         password_manager::prefs::kTotalPasswordsAvailableForProfile,
         /*default_value=*/0);
+    prefs()->registry()->RegisterTimePref(
+        password_manager::prefs::kLastNegativePasswordChangeTimestamp,
+        /*default_value=*/base::Time());
     auto feature_manager = std::make_unique<
         testing::StrictMock<password_manager::MockPasswordFeatureManager>>();
     feature_manager_ = feature_manager.get();
@@ -111,8 +114,13 @@ class ChromePasswordChangeServiceBase {
 
   TestingPrefServiceSimple* prefs() { return &prefs_; }
 
+  void AdvanceClock(base::TimeDelta delta) {
+    task_environment_.AdvanceClock(delta);
+  }
+
  private:
-  content::BrowserTaskEnvironment task_environment_;
+  content::BrowserTaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   base::test::ScopedFeatureList feature_list_{
       password_manager::features::kImprovedPasswordChangeService};
   autofill::LogRouter log_router_;
@@ -127,10 +135,13 @@ class ChromePasswordChangeServiceBase {
   raw_ptr<password_manager::MockPasswordFeatureManager> feature_manager_;
 };
 
-class ChromePasswordChangeServiceTest : public testing::Test,
+class ChromePasswordChangeServiceTest : public testing::TestWithParam<bool>,
                                         public ChromePasswordChangeServiceBase {
  public:
   ChromePasswordChangeServiceTest() {
+    scoped_feature_list_.InitWithFeatureStates(
+        {{password_manager::features::kReduceRequirementsForPasswordChange,
+          GetParam()}});
     variations::TestVariationsService::RegisterPrefs(prefs()->registry());
     metrics_state_manager_ = metrics::MetricsStateManager::Create(
         prefs(), &enabled_state_provider_, std::wstring(), base::FilePath());
@@ -148,6 +159,7 @@ class ChromePasswordChangeServiceTest : public testing::Test,
   }
 
  private:
+  base::test::ScopedFeatureList scoped_feature_list_;
   metrics::TestEnabledStateProvider enabled_state_provider_{/*consent=*/false,
                                                             /*enabled=*/false};
   std::unique_ptr<metrics::MetricsStateManager> metrics_state_manager_;
@@ -155,7 +167,7 @@ class ChromePasswordChangeServiceTest : public testing::Test,
 };
 
 #if !BUILDFLAG(IS_ANDROID)
-TEST_F(ChromePasswordChangeServiceTest, PasswordChangeSupportedForURL) {
+TEST_P(ChromePasswordChangeServiceTest, PasswordChangeSupportedForURL) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       variations::switches::kVariationsOverrideCountry, "us");
 
@@ -176,7 +188,7 @@ TEST_F(ChromePasswordChangeServiceTest, PasswordChangeSupportedForURL) {
       PasswordChangeAvailability::kAvailable, 1);
 }
 
-TEST_F(ChromePasswordChangeServiceTest, NoChangePasswordUrl) {
+TEST_P(ChromePasswordChangeServiceTest, NoChangePasswordUrl) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       variations::switches::kVariationsOverrideCountry, "us");
 
@@ -197,7 +209,7 @@ TEST_F(ChromePasswordChangeServiceTest, NoChangePasswordUrl) {
       PasswordChangeAvailability::kNotSupportedSite, 1);
 }
 
-TEST_F(ChromePasswordChangeServiceTest, DifferentCountry) {
+TEST_P(ChromePasswordChangeServiceTest, DifferentCountry) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       variations::switches::kVariationsOverrideCountry, "in");
 
@@ -210,14 +222,25 @@ TEST_F(ChromePasswordChangeServiceTest, DifferentCountry) {
       .WillOnce(testing::Return(true));
   EXPECT_CALL(*feature_manager(), IsGenerationEnabled)
       .WillOnce(testing::Return(true));
-  EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
-      url, autofill::LanguageCode("en")));
-  histogram_tester.ExpectUniqueSample(
-      "PasswordManager.PasswordChangeAvailability",
-      PasswordChangeAvailability::kUnsupportedCountryCode, 1);
+  if (base::FeatureList::IsEnabled(
+          password_manager::features::kReduceRequirementsForPasswordChange)) {
+    EXPECT_CALL(affiliation_service(), GetChangePasswordURL(url))
+        .WillOnce(testing::Return(GURL("https://test.com/password/")));
+    EXPECT_TRUE(change_service()->IsPasswordChangeSupported(
+        url, autofill::LanguageCode("en")));
+    histogram_tester.ExpectUniqueSample(
+        "PasswordManager.PasswordChangeAvailability",
+        PasswordChangeAvailability::kAvailable, 1);
+  } else {
+    EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
+        url, autofill::LanguageCode("en")));
+    histogram_tester.ExpectUniqueSample(
+        "PasswordManager.PasswordChangeAvailability",
+        PasswordChangeAvailability::kUnsupportedCountryCode, 1);
+  }
 }
 
-TEST_F(ChromePasswordChangeServiceTest, DifferentLanguage) {
+TEST_P(ChromePasswordChangeServiceTest, DifferentLanguage) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       variations::switches::kVariationsOverrideCountry, "us");
 
@@ -230,14 +253,26 @@ TEST_F(ChromePasswordChangeServiceTest, DifferentLanguage) {
       .WillOnce(testing::Return(true));
   EXPECT_CALL(*feature_manager(), IsGenerationEnabled)
       .WillOnce(testing::Return(true));
-  EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
-      url, autofill::LanguageCode("ru")));
-  histogram_tester.ExpectUniqueSample(
-      "PasswordManager.PasswordChangeAvailability",
-      PasswordChangeAvailability::kUnsupportedLanguage, 1);
+  if (base::FeatureList::IsEnabled(
+          password_manager::features::kReduceRequirementsForPasswordChange)) {
+    EXPECT_CALL(affiliation_service(), GetChangePasswordURL(url))
+        .WillOnce(testing::Return(GURL("https://test.com/password/")));
+    EXPECT_TRUE(change_service()->IsPasswordChangeSupported(
+        url, autofill::LanguageCode("ru")));
+    histogram_tester.ExpectUniqueSample(
+        "PasswordManager.PasswordChangeAvailability",
+        PasswordChangeAvailability::kAvailable, 1);
+  } else {
+    EXPECT_CALL(affiliation_service(), GetChangePasswordURL).Times(0);
+    EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
+        url, autofill::LanguageCode("ru")));
+    histogram_tester.ExpectUniqueSample(
+        "PasswordManager.PasswordChangeAvailability",
+        PasswordChangeAvailability::kUnsupportedLanguage, 1);
+  }
 }
 
-TEST_F(ChromePasswordChangeServiceTest,
+TEST_P(ChromePasswordChangeServiceTest,
        PasswordChangeNotSupportedSettingNotVisible) {
   base::HistogramTester histogram_tester;
   GURL url("https://test.com/");
@@ -253,7 +288,7 @@ TEST_F(ChromePasswordChangeServiceTest,
       PasswordChangeAvailability::kModelExecutionNotAllowed, 1);
 }
 
-TEST_F(ChromePasswordChangeServiceTest,
+TEST_P(ChromePasswordChangeServiceTest,
        PasswordChangeSupportedIfCommandLineArgProvided) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       password_manager::kPasswordChangeUrl, "https://test.com/new_password/");
@@ -269,7 +304,7 @@ TEST_F(ChromePasswordChangeServiceTest,
       PasswordChangeAvailability::kAvailable, 1);
 }
 
-TEST_F(ChromePasswordChangeServiceTest,
+TEST_P(ChromePasswordChangeServiceTest,
        PasswordChangeSupportedIfPSLMatchedInArg) {
   base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
       password_manager::kPasswordChangeUrl, "https://test.com/new_password/");
@@ -285,8 +320,12 @@ TEST_F(ChromePasswordChangeServiceTest,
       PasswordChangeAvailability::kAvailable, 1);
 }
 
-TEST_F(ChromePasswordChangeServiceTest,
+TEST_P(ChromePasswordChangeServiceTest,
        PasswordChangeNotSupportedIfNoSavedPasswords) {
+  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+      variations::switches::kVariationsOverrideCountry, "us");
+  base::HistogramTester histogram_tester;
+
   GURL url("https://test.com/");
   prefs()->SetInteger(
       password_manager::prefs::kTotalPasswordsAvailableForAccount, 0);
@@ -300,6 +339,53 @@ TEST_F(ChromePasswordChangeServiceTest,
   EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
       url, autofill::LanguageCode("en")));
 }
+
+TEST_P(ChromePasswordChangeServiceTest, PasswordChangeThrottledAfterFailure) {
+  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+      variations::switches::kVariationsOverrideCountry, "us");
+
+  base::HistogramTester histogram_tester;
+  GURL url("https://test.com/");
+  EXPECT_CALL(affiliation_service(), GetChangePasswordURL(url))
+      .WillRepeatedly(testing::Return(GURL("https://test.com/password/")));
+  EXPECT_CALL(mock_optimization_service(), ShouldModelExecutionBeAllowedForUser)
+      .WillRepeatedly(testing::Return(true));
+  EXPECT_CALL(settings_service(), IsSettingEnabled)
+      .WillRepeatedly(testing::Return(true));
+  EXPECT_CALL(*feature_manager(), IsGenerationEnabled)
+      .WillRepeatedly(testing::Return(true));
+  EXPECT_TRUE(change_service()->IsPasswordChangeSupported(
+      url, autofill::LanguageCode("en")));
+  histogram_tester.ExpectUniqueSample(
+      "PasswordManager.PasswordChangeAvailability",
+      PasswordChangeAvailability::kAvailable, 1);
+
+  prefs()->SetTime(
+      password_manager::prefs::kLastNegativePasswordChangeTimestamp,
+      base::Time::Now());
+  EXPECT_FALSE(change_service()->IsPasswordChangeSupported(
+      url, autofill::LanguageCode("en")));
+
+  EXPECT_THAT(histogram_tester.GetAllSamples(
+                  "PasswordManager.PasswordChangeAvailability"),
+              testing::ElementsAre(
+                  base::Bucket(PasswordChangeAvailability::kAvailable, 1),
+                  base::Bucket(PasswordChangeAvailability::kThrottled, 1)));
+
+  AdvanceClock(password_manager::features::kPasswordChangeThrottleTime.Get() +
+               base::Seconds(1));
+
+  EXPECT_TRUE(change_service()->IsPasswordChangeSupported(
+      url, autofill::LanguageCode("en")));
+  EXPECT_THAT(histogram_tester.GetAllSamples(
+                  "PasswordManager.PasswordChangeAvailability"),
+              testing::ElementsAre(
+                  base::Bucket(PasswordChangeAvailability::kAvailable, 2),
+                  base::Bucket(PasswordChangeAvailability::kThrottled, 1)));
+}
+
+INSTANTIATE_TEST_SUITE_P(, ChromePasswordChangeServiceTest, testing::Bool());
+
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 class ChromePasswordChangeServiceAvailabilityTest

@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 
 import("//build/config/compiler/compiler.gni")
-import("//build/config/features.gni")
 import("//build/config/python.gni")
 import("//build/config/ui.gni")
 import("//build/timestamp.gni")
@@ -14,6 +13,8 @@ import("//third_party/icu/config.gni")
 import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
 import("//ui/base/ui_features.gni")
 import("//v8/gni/v8.gni")
+
+assert(false, "Use Vivaldi's own installer code")
 
 declare_args() {
   # The Chrome archive is maximally compressed in official builds to reduce the
@@ -180,11 +181,6 @@ action("mini_installer_archive") {
     rebase_path(setup_runtime_deps, root_build_dir),
     "--build_time",
     build_timestamp,
-
-    # Optional arguments to generate diff installer.
-    #'--last_chrome_installer=C:/Temp/base',
-    #'--setup_exe_format=DIFF',
-    #'--diff_algorithm=ZUCCHINI',
 
     # Optional argument for verbose archiving output.
     #"--verbose",

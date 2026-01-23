@@ -21,7 +21,6 @@
     <output filename="vivaldi_native_strings_bn.pak" type="data_package" lang="bn" />
     <output filename="vivaldi_native_strings_bg.pak" type="data_package" lang="bg" />
     <output filename="vivaldi_native_strings_be.pak" type="data_package" lang="be" />
-    <output filename="vivaldi_native_strings_az.pak" type="data_package" lang="az" />
     <output filename="vivaldi_native_strings_ar-XB.pak" type="data_package" lang="ar-XB" />
     <output filename="vivaldi_native_strings_ar.pak" type="data_package" lang="ar" />
     <output filename="vivaldi_native_strings_am.pak" type="data_package" lang="am" />
@@ -35,20 +34,17 @@
     </if>
     <output filename="vivaldi_native_strings_es-PE.pak" type="data_package" lang="es-PE" />
     <output filename="vivaldi_native_strings_et.pak" type="data_package" lang="et" />
-    <output filename="vivaldi_native_strings_eu.pak" type="data_package" lang="eu" />
     <output filename="vivaldi_native_strings_fa.pak" type="data_package" lang="fa" />
     <output filename="vivaldi_native_strings_fi.pak" type="data_package" lang="fi" />
     <output filename="vivaldi_native_strings_fil.pak" type="data_package" lang="fil" />
     <output filename="vivaldi_native_strings_fr.pak" type="data_package" lang="fr" />
     <output filename="vivaldi_native_strings_fy.pak" type="data_package" lang="fy" />
     <output filename="vivaldi_native_strings_gd.pak" type="data_package" lang="gd" />
-    <output filename="vivaldi_native_strings_gl.pak" type="data_package" lang="gl" />
     <output filename="vivaldi_native_strings_gu.pak" type="data_package" lang="gu" />
     <output filename="vivaldi_native_strings_he.pak" type="data_package" lang="he" />
     <output filename="vivaldi_native_strings_hi.pak" type="data_package" lang="hi" />
     <output filename="vivaldi_native_strings_hr.pak" type="data_package" lang="hr" />
     <output filename="vivaldi_native_strings_hu.pak" type="data_package" lang="hu" />
-    <output filename="vivaldi_native_strings_hy.pak" type="data_package" lang="hy" />
     <output filename="vivaldi_native_strings_id.pak" type="data_package" lang="id" />
     <output filename="vivaldi_native_strings_io.pak" type="data_package" lang="io" />
     <output filename="vivaldi_native_strings_is.pak" type="data_package" lang="is" />
@@ -63,14 +59,12 @@
     <output filename="vivaldi_native_strings_ko.pak" type="data_package" lang="ko" />
     <output filename="vivaldi_native_strings_lt.pak" type="data_package" lang="lt" />
     <output filename="vivaldi_native_strings_lv.pak" type="data_package" lang="lv" />
-    <output filename="vivaldi_native_strings_mk.pak" type="data_package" lang="mk" />
     <output filename="vivaldi_native_strings_ml.pak" type="data_package" lang="ml" />
     <output filename="vivaldi_native_strings_mr.pak" type="data_package" lang="mr" />
     <output filename="vivaldi_native_strings_ms.pak" type="data_package" lang="ms" />
     <output filename="vivaldi_native_strings_nb.pak" type="data_package" lang="no" />
     <output filename="vivaldi_native_strings_nl.pak" type="data_package" lang="nl" />
     <output filename="vivaldi_native_strings_nn.pak" type="data_package" lang="nn" />
-    <output filename="vivaldi_native_strings_pa.pak" type="data_package" lang="pa" />
     <output filename="vivaldi_native_strings_pl.pak" type="data_package" lang="pl" />
     <if expr="is_ios">
       <!-- iOS uses pt for pt-BR -->
@@ -85,7 +79,6 @@
     <output filename="vivaldi_native_strings_sc.pak" type="data_package" lang="sc" />
     <output filename="vivaldi_native_strings_sk.pak" type="data_package" lang="sk" />
     <output filename="vivaldi_native_strings_sl.pak" type="data_package" lang="sl" />
-    <output filename="vivaldi_native_strings_sq.pak" type="data_package" lang="sq" />
     <output filename="vivaldi_native_strings_sr.pak" type="data_package" lang="sr" />
     <output filename="vivaldi_native_strings_sr-Latn.pak" type="data_package" lang="sr-Latn" />
     <output filename="vivaldi_native_strings_sv.pak" type="data_package" lang="sv" />
@@ -116,6 +109,16 @@
       <output filename="vivaldi_native_strings_zh-HK.pak" type="data_package" lang="zh-HK" />
       <output filename="vivaldi_native_strings_zu.pak" type="data_package" lang="zu" />
     </if>
+    <if expr="not is_ios">
+      <output filename="vivaldi_native_strings_az.pak" type="data_package" lang="az" />
+      <output filename="vivaldi_native_strings_eu.pak" type="data_package" lang="eu" />
+      <output filename="vivaldi_native_strings_gl.pak" type="data_package" lang="gl" />
+      <output filename="vivaldi_native_strings_hy.pak" type="data_package" lang="hy" />
+      <output filename="vivaldi_native_strings_mk.pak" type="data_package" lang="mk" />
+      <output filename="vivaldi_native_strings_pa.pak" type="data_package" lang="pa" />
+      <output filename="vivaldi_native_strings_sq.pak" type="data_package" lang="sq" />
+    </if>
+
   </outputs>
   <translations>
     <file path="strings/vivaldi_native_strings_am.xtb" lang="am" />

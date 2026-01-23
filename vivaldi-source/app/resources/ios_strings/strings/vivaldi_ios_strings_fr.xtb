@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Pour verrouiller vos onglets privés, configurez Touch ID, Face ID ou un code d'accès.</translation>
 <translation id="1189137610071296104">Ouvrir dans une nouvelle pile d’onglets</translation>
 <translation id="1310184829257917508">Demander avant d’ouvrir des liens d’autres applications en navigation privée</translation>
+<translation id="1624481300475123200">Remplissage automatique des mots de passe</translation>
 <translation id="1743244221910283364">Supprimer les modifications</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Ajouter l’onglet à la pile}
         other {Ajouter les onglets à la pile}}</translation>
 <translation id="207677936531967364">Nouvelle page d’onglet privé</translation>
 <translation id="2099591136582442348">Cela supprimera définitivement la pile de votre appareil.</translation>
+<translation id="2104086191144208395">Vous avez remarqué un problème ?</translation>
 <translation id="2181990701313127304">Nouvel onglet dans une pile</translation>
 <translation id="2351280151183279120">Partager la pile d’onglets</translation>
 <translation id="2353953000228441783">Affichage par défaut du site</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Ouvrir ${url} en navigation privée</translation>
 <translation id="398477389655464998">Copier le lien à tmettre en évidence</translation>
 <translation id="3993429087389909418">Les onglets resteront ouverts sur cet appareil, mais la pile sera supprimée de tous les appareils connectés avec <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Vous avez détecté un problème ?</translation>
 <translation id="4216644171369573466">Pile d’onglets, <ph name="GROUP_TITLE" />, Menu.</translation>
 <translation id="4304713468139749426">Gestionnaire de mots de passe</translation>
 <translation id="4439281775431634915">Vos piles d’onglets sont enregistrées ici</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">Pages lues</translation>
 <translation id="5521301883748677039">Supprimer la pile d’onglets ?</translation>
 <translation id="5544011153887687593">Onglets de la pile d’onglets. <ph name="TAB_INDEX_IN_GROUP" /> sur <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">La fonction de transfert vous permet de commencer à naviguer sur un site Web sur cet appareil, puis de continuer facilement sur votre Mac. Le site Web actuellement ouvert apparaîtra dans le dock de votre Mac.
+
+Le transfert doit également être activé dans Réglages &gt; Général et vos appareils doivent utiliser le même compte iCloud.</translation>
 <translation id="5614553682702429503">Enregistrer le mot de passe ?</translation>
+<translation id="5620163320393916465">Aucun mot de passe mémorisé</translation>
 <translation id="570209299585559496">Vous pouvez remplacer le mode d'affichage par défaut du site par le mode ordinateur de bureau dans Paramètres &gt; Paramètres de contenu</translation>
 <translation id="5719777162751096990">Déplacer dans une pile d’onglets</translation>
+<translation id="5869522115854928033">Mots de passe enregistrés</translation>
 <translation id="5962477178930921574">Coller et rechercher</translation>
 <translation id="6163856768888310791">Défaire la pile</translation>
 <translation id="6168969409902608220">Nommer la pile d’onglets</translation>
 <translation id="6192561334825788389">Vous pouvez balayer vers la droite pour naviguer en mode privé.</translation>
 <translation id="6233792867654386826">Ouvre les URL saisies dans Vivaldi.</translation>
 <translation id="6271462272606946663">Masquer la requête du site</translation>
+<translation id="6309282378909663947">Mots de passe du gestionnaire de mots de passe de Vivaldi</translation>
 <translation id="6478587527114893588">Fermer l’onglet.</translation>
 <translation id="6527405730445064713">Pile d’onglets. Développée.</translation>
 <translation id="6532106788206463496">Enregistrer les modifications</translation>
+<translation id="6636411080833380839">Retirer de la pile</translation>
+<translation id="6644512095122093795">Demander de mémoriser les mots de passe</translation>
 <translation id="6666425778700353369">Cela supprimera la pile de tous les appareils connectés avec <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Personnaliser le menu</translation>
 <translation id="6695835495840050460">Saisissiz « Ajouter d’onglet dans une nouvelle pile »</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">Nouvel onglet privé dans une pile d’onglets</translation>
 <translation id="7661319142491611883">Développer la pile d’onglets.</translation>
 <translation id="7706213624515206557">Afficher tous les onglets de la pile d’onglets</translation>
+<translation id="7937179923651776879">Accédez à vos mots de passe depuis n’importe quelle application</translation>
 <translation id="7961015016161918242">Jamais</translation>
 <translation id="8326104954595890674">Nouvel Onglet Privé</translation>
 <translation id="8345989863850359861">Supprimer l’onglet et la pile ?</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">Nouvel onglet dans une pile</translation>
 <translation id="9042893549633094279">Sécurité et vie privée</translation>
 <translation id="9094033019050270033">Mettre à jour le mot de passe</translation>
+<translation id="9203116392574189331">Transfert</translation>
 <translation id="944434461715569989">Quitter la pile d’onglets</translation>
 <translation id="959061183386231608">Les onglets resteront ouverts sur cet appareil, mais la pile sera supprimée définitivement.</translation>
+<translation id="988141524645182168">Autres appareils</translation>
 </translationbundle>

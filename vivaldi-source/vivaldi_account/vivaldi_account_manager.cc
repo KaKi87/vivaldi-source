@@ -67,7 +67,8 @@ std::optional<base::Value::Dict> ParseServerResponse(
   if (!data)
     return std::nullopt;
 
-  std::optional<base::Value> value = base::JSONReader::Read(*data);
+  std::optional<base::Value> value =
+      base::JSONReader::Read(*data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!value || !value->is_dict())
     return std::nullopt;
 
@@ -404,7 +405,8 @@ bool VivaldiAccountManager::UpdateAccountInfoFromJwt(const std::string& jwt) {
     return false;
   }
 
-  std::optional<base::Value> value = base::JSONReader::Read(decoded);
+  std::optional<base::Value> value =
+      base::JSONReader::Read(decoded, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 
   if (!value || !value->is_dict()) {
     return false;

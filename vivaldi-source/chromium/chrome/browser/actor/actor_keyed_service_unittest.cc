@@ -9,12 +9,15 @@
 
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "chrome/browser/actor/actor_features.h"
+#include "chrome/browser/actor/actor_policy_checker.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
 #include "chrome/browser/actor/ui/mocks/mock_actor_ui_state_manager.h"
 #include "chrome/common/actor/action_result.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
@@ -51,8 +54,10 @@ class ActorKeyedServiceTest : public testing::Test {
   void SetUp() override {
     ASSERT_TRUE(testing_profile_manager_.SetUp());
     profile_ = testing_profile_manager()->CreateTestingProfile("profile");
-    ActorKeyedService::Get(profile())->SetActorUiStateManagerForTesting(
-        BuildUiStateManagerMock());
+    auto* actor_service = ActorKeyedService::Get(profile());
+    ASSERT_TRUE(actor_service);
+    actor_service->GetPolicyChecker().SetActOnWebForTesting(true);
+    actor_service->SetActorUiStateManagerForTesting(BuildUiStateManagerMock());
   }
 
   TestingProfileManager* testing_profile_manager() {
@@ -63,6 +68,7 @@ class ActorKeyedServiceTest : public testing::Test {
 
  protected:
   base::CallbackListSubscription user_confirmation_dialog_subscription_;
+  base::CallbackListSubscription confirm_navigation_subscription_;
 
  private:
   content::BrowserTaskEnvironment task_environment_;
@@ -85,7 +91,7 @@ TEST_F(ActorKeyedServiceTest, StopActiveTask) {
   TaskId id = actor_service->CreateTask();
 
   // Add a tab to the task
-  ActorTask* task = actor_service->GetTask(id);
+  base::WeakPtr<ActorTask> task = actor_service->GetTask(id)->GetWeakPtr();
   base::RunLoop loop;
   task->AddTab(tabs::TabHandle(123),
                base::BindLambdaForTesting([&](mojom::ActionResultPtr result) {
@@ -96,15 +102,9 @@ TEST_F(ActorKeyedServiceTest, StopActiveTask) {
 
   EXPECT_TRUE(task->IsActingOnTab(tabs::TabHandle(123)));
   EXPECT_TRUE(task->HasTab(tabs::TabHandle(123)));
-  actor_service->StopTask(id, /*success=*/true);
+  actor_service->StopTask(id, ActorTask::StoppedReason::kTaskComplete);
   ASSERT_EQ(actor_service->GetActiveTasks().size(), 0u);
-  ASSERT_EQ(actor_service->GetInactiveTasks().size(), 1u);
-  EXPECT_EQ(actor_service->GetInactiveTasks().begin()->second->GetState(),
-            ActorTask::State::kFinished);
-  EXPECT_EQ(actor_service->GetInactiveTasks().begin()->second->GetEndTime(),
-            base::Time::Now());
-  EXPECT_FALSE(task->IsActingOnTab(tabs::TabHandle(123)));
-  EXPECT_FALSE(task->HasTab(tabs::TabHandle(123)));
+  ASSERT_FALSE(task);
 }
 
 TEST_F(ActorKeyedServiceTest, FindTaskIdsInActive_ReturnsSuccessfully) {
@@ -114,26 +114,10 @@ TEST_F(ActorKeyedServiceTest, FindTaskIdsInActive_ReturnsSuccessfully) {
   actor_service->GetTask(id2)->Pause(/*from_actor=*/true);
 
   // Find a single active task.
-  std::vector<TaskId> single_found = actor_service->FindTaskIdsInActive(
-      base::BindRepeating([](const ActorTask& task) {
+  std::vector<TaskId> single_found =
+      actor_service->FindTaskIdsInActive([](const ActorTask& task) {
         return task.GetState() == ActorTask::State::kPausedByActor;
-      }));
-  ASSERT_EQ(single_found.size(), 1u);
-  EXPECT_EQ(single_found[0], id2);
-}
-
-TEST_F(ActorKeyedServiceTest, FindTaskIdsInInactive_ReturnsSuccessfully) {
-  auto* actor_service = ActorKeyedService::Get(profile());
-  const TaskId id1 = actor_service->CreateTask();
-  const TaskId id2 = actor_service->CreateTask();
-  actor_service->StopTask(id1, /*success=*/true);
-  actor_service->StopTask(id2, /*success=*/false);
-
-  // Find a single inactive task.
-  std::vector<TaskId> single_found = actor_service->FindTaskIdsInInactive(
-      base::BindRepeating([](const ActorTask& task) {
-        return task.GetState() == ActorTask::State::kCancelled;
-      }));
+      });
   ASSERT_EQ(single_found.size(), 1u);
   EXPECT_EQ(single_found[0], id2);
 }
@@ -143,13 +127,13 @@ TEST_F(ActorKeyedServiceTest, AddTabToPausedOrStoppedTask) {
   auto* actor_service = ActorKeyedService::Get(profile());
   TaskId id = actor_service->CreateTask();
 
-  ActorTask* task = actor_service->GetTask(id);
+  base::WeakPtr<ActorTask> task = actor_service->GetTask(id)->GetWeakPtr();
   ASSERT_TRUE(task);
   const tabs::TabHandle tab_handle(123);
 
   // Pause the task and try to add a tab.
   task->Pause(/*from_actor=*/true);
-  EXPECT_TRUE(task->IsPaused());
+  EXPECT_TRUE(task->IsUnderUserControl());
 
   {
     base::RunLoop loop;
@@ -164,21 +148,9 @@ TEST_F(ActorKeyedServiceTest, AddTabToPausedOrStoppedTask) {
   EXPECT_FALSE(task->IsActingOnTab(tab_handle));
   EXPECT_FALSE(task->HasTab(tab_handle));
 
-  // Stop the task and try to add a tab.
-  actor_service->StopTask(id, true);
-  EXPECT_TRUE(task->IsStopped());
-  {
-    base::RunLoop loop;
-    task->AddTab(tab_handle,
-                 base::BindLambdaForTesting([&](mojom::ActionResultPtr result) {
-                   EXPECT_EQ(result->code,
-                             mojom::ActionResultCode::kTaskWentAway);
-                   loop.Quit();
-                 }));
-    loop.Run();
-  }
-  EXPECT_FALSE(task->IsActingOnTab(tab_handle));
-  EXPECT_FALSE(task->HasTab(tab_handle));
+  // Stop the task and ensure it is gone.
+  actor_service->StopTask(id, ActorTask::StoppedReason::kTaskComplete);
+  EXPECT_FALSE(task);
 }
 
 // Test tab association to a paused task.
@@ -186,7 +158,7 @@ TEST_F(ActorKeyedServiceTest, PausedTaskTabs) {
   auto* actor_service = ActorKeyedService::Get(profile());
   TaskId id = actor_service->CreateTask();
 
-  ActorTask* task = actor_service->GetTask(id);
+  base::WeakPtr<ActorTask> task = actor_service->GetTask(id)->GetWeakPtr();
   ASSERT_TRUE(task);
   const tabs::TabHandle tab_handle(123);
 
@@ -236,10 +208,8 @@ TEST_F(ActorKeyedServiceTest, PausedTaskTabs) {
   EXPECT_TRUE(task->HasTab(tab_handle));
 
   // Stop the task. This should remove the tab from the task.
-  actor_service->StopTask(id, true);
-
-  EXPECT_FALSE(task->IsActingOnTab(tab_handle));
-  EXPECT_FALSE(task->HasTab(tab_handle));
+  actor_service->StopTask(id, ActorTask::StoppedReason::kTaskComplete);
+  EXPECT_FALSE(task);
 }
 
 TEST_F(ActorKeyedServiceTest, LogsActorTaskCreatedOnCreateTask) {

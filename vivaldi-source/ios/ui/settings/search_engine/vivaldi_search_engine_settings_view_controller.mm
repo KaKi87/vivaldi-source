@@ -8,7 +8,6 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_coordinator.h"
@@ -144,30 +143,6 @@ NSString* const kPrivateTabsSearchEngineCellId =
   [self.navigationController pushViewController:controller animated:YES];
 }
 
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-  NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
-
-  switch (itemType) {
-    case SettingsItemTypeSearchEngineNickname: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView
-                 addTarget:self
-                    action:@selector(searchEngineNicknameToggleChanged:)
-          forControlEvents:UIControlEventValueChanged];
-      break;
-    }
-    default:
-      break;
-  }
-  return cell;
-}
-
 #pragma mark SettingsControllerProtocol
 
 - (void)reportDismissalUserAction {
@@ -263,6 +238,8 @@ NSString* const kPrivateTabsSearchEngineCellId =
     _enableNicknameToggleItem.text = title;
     _enableNicknameToggleItem.on = _nicknameEnabled;
     _enableNicknameToggleItem.accessibilityIdentifier = title;
+    _enableNicknameToggleItem.target = self;
+    _enableNicknameToggleItem.selector = @selector(searchEngineNicknameToggleChanged:);
   }
   return _enableNicknameToggleItem;
 }
@@ -290,8 +267,11 @@ NSString* const kPrivateTabsSearchEngineCellId =
   _editorCoordinator = [[VivaldiSearchEngineEditorCoordinator alloc]
       initWithBaseNavigationController:self.navigationController
                                browser:_browser
-                             isEditing:NO
-                           editingItem:nil];
+                            entryPoint:
+                                VivaldiSearchEngineEditorEntryPointSettings
+                           entryReason:VivaldiSearchEngineEditorEntryReasonAdd
+                                  item:nil
+                          allowsCancel:NO];
   _editorCoordinator.delegate = self;
   [_editorCoordinator start];
 }

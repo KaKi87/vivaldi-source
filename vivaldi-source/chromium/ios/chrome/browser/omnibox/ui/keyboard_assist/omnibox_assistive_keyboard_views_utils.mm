@@ -20,7 +20,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -139,7 +139,8 @@ NSArray<UIControl*>* OmniboxAssistiveKeyboardLeadingControls(
 
     if (IsVivaldiRunning()) {
       [cameraButton setTranslatesAutoresizingMaskIntoConstraints:NO];
-      UIImage* icon = [UIImage imageNamed:vMenuQRCode];
+      UIImage* icon = CustomSymbolWithPointSize(
+          vMenuQRCode, kOmniboxAssistiveKeyboardSymbolPointSize);
       [cameraButton setImage:icon forState:UIControlStateNormal];
       cameraButton.tintColor = UIColor.labelColor;
     } else {

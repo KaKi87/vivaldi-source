@@ -587,7 +587,7 @@ void ServicesCustomizationDocument::StartFetching() {
     if (url_.SchemeIsFile()) {
       base::ThreadPool::PostTaskAndReplyWithResult(
           FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
-          base::BindOnce(&ReadFileInBackground, base::FilePath(url_.path())),
+          base::BindOnce(&ReadFileInBackground, base::FilePath(url_.GetPath())),
           base::BindOnce(&ServicesCustomizationDocument::OnManifestRead,
                          weak_ptr_factory_.GetWeakPtr()));
     } else {
@@ -659,7 +659,7 @@ void ServicesCustomizationDocument::OnManifestLoaded() {
 }
 
 void ServicesCustomizationDocument::OnSimpleLoaderComplete(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   int response_code = -1;
   std::string mime_type;
   if (url_loader_->ResponseInfo() && url_loader_->ResponseInfo()->headers) {

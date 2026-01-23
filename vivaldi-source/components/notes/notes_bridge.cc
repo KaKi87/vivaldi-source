@@ -5,12 +5,10 @@
 
 #include "notes_bridge.h"
 
-#include <android/log.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <memory>
 #include <queue>
-
 
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
@@ -25,7 +23,6 @@
 #include "components/notes/notes_factory.h"
 #include "components/notes/notes_model.h"
 
-#include "components/prefs/pref_service.h"
 #include "components/query_parser/query_parser.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 
@@ -33,6 +30,9 @@
 #include "content/public/browser/browser_thread.h"
 
 #include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+
+
+#include "chrome/android/chrome_jni_headers/NotesBridge_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertUTF16ToJavaString;
@@ -49,6 +49,7 @@ using vivaldi::NoteNode;
 using vivaldi::NotesModelFactory;
 
 namespace {
+const char kNotesBridgeUserDataKey[] = "notes_bridge";
 
 class NoteTitleComparer {
  public:
@@ -82,65 +83,102 @@ std::unique_ptr<icu::Collator> GetICUCollator() {
 
 }  // namespace
 
-NotesBridge::NotesBridge(JNIEnv* env,
-                         const JavaRef<jobject>& obj,
-                         const JavaRef<jobject>& j_profile)
-    : profile_(Profile::FromJavaObject(j_profile)),
-      notes_model_(NotesModelFactory::GetForBrowserContext(profile_)),
-      weak_java_ref_(env, obj) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+ScopedJavaLocalRef<jobject> JNI_NotesBridge_NativeGetForProfile(
+    JNIEnv* env,
+    Profile* profile) {
+    DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
+    if (!profile) {
+        return nullptr;
+    }
+
+   vivaldi::NotesModel* model = NotesModelFactory::GetForBrowserContext(profile);
+    if (!model)
+        return nullptr;
+
+    NotesBridge* notes_bridge = static_cast<NotesBridge*>(
+       model->GetUserData(kNotesBridgeUserDataKey));
+
+    if (!notes_bridge) {
+        notes_bridge = new NotesBridge(
+            profile, model);
+        model->SetUserData(kNotesBridgeUserDataKey,
+                           base::WrapUnique(notes_bridge));
+    }
+
+   return ScopedJavaLocalRef<jobject>(notes_bridge->GetJavaNotesModel());
+}
+
+NotesBridge::NotesBridge(Profile* profile,
+                        vivaldi::NotesModel* model) :
+                        profile_(profile),
+                        notes_model_(model),
+                        weak_ptr_factory_(this) {
+  CHECK(profile);
+  CHECK(model);
   // Registers the notifications we are interested.
   notes_model_->AddObserver(this);
 
-  // pref_change_registrar_.Init(profile_->GetPrefs());
+  profile_observation_.Observe(profile_);
+   if (notes_model_->loaded()) {
+     NotesModelLoaded(false);
+   }
+   NotifyIfDoneLoading();
 
-  NotifyIfDoneLoading();
+   // Since a sync or import could have started before this class is
+   // initialized, we need to make sure that our initial state is
+   // up to date.
+   if (notes_model_->IsDoingExtensiveChanges())
+     ExtensiveNotesChangesBeginning();
 
-  // Since a sync or import could have started before this class is
-  // initialized, we need to make sure that our initial state is
-  // up to date.
-  if (notes_model_->IsDoingExtensiveChanges())
-    ExtensiveNoteChangesBeginning();
+   java_notes_model_ = Java_NotesBridge_createNotesModel(
+       base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this),
+       profile_->GetJavaObject());
+
+   NotifyIfDoneLoading();
 }
 
 NotesBridge::~NotesBridge() {
   notes_model_->RemoveObserver(this);
+  profile_observation_.Reset();
 }
 
 void NotesBridge::Destroy(JNIEnv*, const JavaParamRef<jobject>&) {
-  delete this;
+  notes_model_->RemoveUserData(kNotesBridgeUserDataKey);
 }
 
-static jlong JNI_NotesBridge_Init(JNIEnv* env,
-                                  const JavaParamRef<jobject>& obj,
-                                  const JavaParamRef<jobject>& j_profile) {
-  NotesBridge* delegate = new NotesBridge(env, obj, j_profile);
-  return reinterpret_cast<intptr_t>(delegate);
+ScopedJavaGlobalRef<jobject> NotesBridge::GetJavaNotesModel() {
+  return java_notes_model_;
 }
 
-jboolean NotesBridge::IsEditNotesEnabled(JNIEnv* env,
-                                         const JavaParamRef<jobject>& obj) {
+void NotesBridge::DestroyJavaObject() {
+  if (!java_notes_model_)
+    return;
+
+  Java_NotesBridge_destroyFromNative(
+      AttachCurrentThread(), ScopedJavaLocalRef<jobject>(java_notes_model_));
+}
+
+jboolean NotesBridge::IsEditNotesEnabled(JNIEnv* env) {
   return IsEditNotesEnabled();
 }
 
 ScopedJavaLocalRef<jobject> NotesBridge::GetNoteByID(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     jlong id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
   const NoteNode* node = GetNodeByID(id);
   return node ? CreateJavaNote(node) : ScopedJavaLocalRef<jobject>();
 }
 
-bool NotesBridge::IsDoingExtensiveChanges(JNIEnv* env,
-                                          const JavaParamRef<jobject>& obj) {
+bool NotesBridge::IsDoingExtensiveChanges(JNIEnv* env) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return notes_model_->IsDoingExtensiveChanges();
 }
 
 void NotesBridge::GetPermanentNodeIDs(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_result_obj) {
   DCHECK(IsLoaded());
 
@@ -164,7 +202,6 @@ void NotesBridge::GetPermanentNodeIDs(
 
 void NotesBridge::GetTopLevelFolderParentIDs(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_result_obj) {
   Java_NotesBridge_addToNoteIdList(env, j_result_obj,
                                    notes_model_->root_node()->id());
@@ -172,16 +209,14 @@ void NotesBridge::GetTopLevelFolderParentIDs(
 
 void NotesBridge::GetTopLevelFolderIDs(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_result_obj) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
   std::vector<const NoteNode*> top_level_folders;
-
-  const NoteNode* trash_node = notes_model_->trash_node();
-  top_level_folders.push_back(trash_node);
   const NoteNode* main_node = notes_model_->main_node();
   top_level_folders.push_back(main_node);
+  const NoteNode* trash_node = notes_model_->trash_node();
+  top_level_folders.push_back(trash_node);
 
   for (std::vector<const NoteNode*>::const_iterator it =
            top_level_folders.begin();
@@ -192,9 +227,9 @@ void NotesBridge::GetTopLevelFolderIDs(
 
 void NotesBridge::GetAllFoldersWithDepths(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_folders_obj,
     const JavaParamRef<jobject>& j_depths_obj) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
 
   std::unique_ptr<icu::Collator> collator = GetICUCollator();
@@ -238,8 +273,7 @@ void NotesBridge::GetAllFoldersWithDepths(
 }
 
 ScopedJavaLocalRef<jobject> NotesBridge::GetRootFolderId(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj) {
+    JNIEnv* env) {
   const NoteNode* root_node = notes_model_->root_node();
   ScopedJavaLocalRef<jobject> folder_id_obj =
       JavaNoteIdCreateNoteId(env, root_node->id());
@@ -247,8 +281,7 @@ ScopedJavaLocalRef<jobject> NotesBridge::GetRootFolderId(
 }
 
 ScopedJavaLocalRef<jobject> NotesBridge::GetMainFolderId(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj) {
+    JNIEnv* env) {
   const NoteNode* main_node = notes_model_->main_node();
   ScopedJavaLocalRef<jobject> folder_id_obj =
       JavaNoteIdCreateNoteId(env, main_node->id());
@@ -264,8 +297,7 @@ ScopedJavaLocalRef<jobject> NotesBridge::GetTrashFolderId(
 }
 
 ScopedJavaLocalRef<jobject> NotesBridge::GetOtherFolderId(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj) {
+    JNIEnv* env) {
   const NoteNode* other_node = notes_model_->other_node();
   ScopedJavaLocalRef<jobject> folder_id_obj =
       JavaNoteIdCreateNoteId(env, other_node->id());
@@ -273,20 +305,20 @@ ScopedJavaLocalRef<jobject> NotesBridge::GetOtherFolderId(
 }
 
 jint NotesBridge::GetChildCount(JNIEnv* env,
-                                const JavaParamRef<jobject>& obj,
                                 jlong id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
   const NoteNode* node = GetNodeByID(id);
   return static_cast<jint>(node->children().size());
 }
 
 void NotesBridge::GetChildIDs(JNIEnv* env,
-                              const JavaParamRef<jobject>& obj,
                               jlong id,
                               jboolean get_folders,
                               jboolean get_notes,
                               jboolean get_separators,
                               const JavaParamRef<jobject>& j_result_obj) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
 
   const NoteNode* parent = GetNodeByID(id);
@@ -306,9 +338,9 @@ void NotesBridge::GetChildIDs(JNIEnv* env,
 
 ScopedJavaLocalRef<jobject> NotesBridge::GetChildAt(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     jlong id,
     jint index) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
 
   const NoteNode* parent = GetNodeByID(id);
@@ -319,8 +351,8 @@ ScopedJavaLocalRef<jobject> NotesBridge::GetChildAt(
 
 jint NotesBridge::GetTotalNoteCount(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
     jlong id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
 
   std::queue<const NoteNode*> nodes;
@@ -345,9 +377,9 @@ jint NotesBridge::GetTotalNoteCount(
 }
 
 void NotesBridge::SetNoteTitle(JNIEnv* env,
-                               const JavaParamRef<jobject>& obj,
                                jlong id,
                                const JavaParamRef<jstring>& j_title) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
   const NoteNode* note = GetNodeByID(id);
   const std::u16string title =
@@ -357,7 +389,6 @@ void NotesBridge::SetNoteTitle(JNIEnv* env,
 }
 
 void NotesBridge::SetNoteContent(JNIEnv* env,
-                                 const JavaParamRef<jobject>& obj,
                                  jlong id,
                                  const JavaParamRef<jstring>& j_content) {
   DCHECK(IsLoaded());
@@ -369,7 +400,6 @@ void NotesBridge::SetNoteContent(JNIEnv* env,
 }
 
 void NotesBridge::SetNoteUrl(JNIEnv* env,
-                             const JavaParamRef<jobject>& obj,
                              jlong id,
                              const JavaParamRef<jstring>& url) {
   DCHECK(IsLoaded());
@@ -378,21 +408,18 @@ void NotesBridge::SetNoteUrl(JNIEnv* env,
 }
 
 bool NotesBridge::DoesNoteExist(JNIEnv* env,
-                                const JavaParamRef<jobject>& obj,
                                 jlong id) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
-
   const NoteNode* node = GetNodeByID(id);
 
   if (!node)
     return false;
-
   return true;
 }
 
 void NotesBridge::GetNotesForFolder(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_folder_id_obj,
     const JavaParamRef<jobject>& j_callback_obj,
     const JavaParamRef<jobject>& j_result_obj) {
@@ -421,7 +448,6 @@ void NotesBridge::GetNotesForFolder(
 
 void NotesBridge::GetCurrentFolderHierarchy(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_folder_id_obj,
     const JavaParamRef<jobject>& j_callback_obj,
     const JavaParamRef<jobject>& j_result_obj) {
@@ -448,7 +474,6 @@ void NotesBridge::GetCurrentFolderHierarchy(
 }
 
 void NotesBridge::SearchNotes(JNIEnv* env,
-                              const JavaParamRef<jobject>& obj,
                               const JavaParamRef<jobject>& j_list,
                               const JavaParamRef<jstring>& j_query,
                               jint max_results) {
@@ -464,7 +489,6 @@ void NotesBridge::SearchNotes(JNIEnv* env,
 
 ScopedJavaLocalRef<jobject> NotesBridge::AddFolder(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_parent_id_obj,
     jint index,
     const JavaParamRef<jstring>& j_title) {
@@ -481,7 +505,6 @@ ScopedJavaLocalRef<jobject> NotesBridge::AddFolder(
 }
 
 void NotesBridge::DeleteNote(JNIEnv* env,
-                             const JavaParamRef<jobject>& obj,
                              const JavaParamRef<jobject>& j_note_id_obj) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
@@ -492,15 +515,13 @@ void NotesBridge::DeleteNote(JNIEnv* env,
   notes_model_->Remove(node, FROM_HERE);
 }
 
-void NotesBridge::RemoveAllUserNotes(JNIEnv* env,
-                                     const JavaParamRef<jobject>& obj) {
+void NotesBridge::RemoveAllUserNotes(JNIEnv* env) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(IsLoaded());
   notes_model_->RemoveAllUserNotes(FROM_HERE);
 }
 
 void NotesBridge::MoveNote(JNIEnv* env,
-                           const JavaParamRef<jobject>& obj,
                            const JavaParamRef<jobject>& j_note_id_obj,
                            const JavaParamRef<jobject>& j_parent_id_obj,
                            jint index) {
@@ -512,12 +533,12 @@ void NotesBridge::MoveNote(JNIEnv* env,
   DCHECK(IsEditable(node));
   note_id = JavaNoteIdGetId(env, j_parent_id_obj);
   const NoteNode* new_parent_node = GetNodeByID(note_id);
+
   notes_model_->Move(node, new_parent_node, index);
 }
 
 ScopedJavaLocalRef<jobject> NotesBridge::AddNote(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
     const JavaParamRef<jobject>& j_parent_id_obj,
     jint index,
     const JavaParamRef<jstring>& j_content,
@@ -535,33 +556,6 @@ ScopedJavaLocalRef<jobject> NotesBridge::AddNote(
   ScopedJavaLocalRef<jobject> new_java_obj =
       JavaNoteIdCreateNoteId(env, new_node->id());
   return new_java_obj;
-}
-
-// TODO: Undo not yet implemented
-void NotesBridge::Undo(JNIEnv* env, const JavaParamRef<jobject>& obj) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(IsLoaded());
-  /* NoteUndoService* undo_service =
-       NoteUndoServiceFactory::GetForProfile(profile_);
-   UndoManager* undo_manager = undo_service->undo_manager();
-   undo_manager->Undo();*/ // TODO
-}
-
-void NotesBridge::StartGroupingUndos(JNIEnv* env,
-                                     const JavaParamRef<jobject>& obj) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(IsLoaded());
-  // DCHECK(!grouped_note_actions_.get()); // shouldn't have started already
-  // grouped_note_actions_.reset(
-  //    new notes::ScopedGroupNoteActions(notes_model_));
-}
-
-void NotesBridge::EndGroupingUndos(JNIEnv* env,
-                                   const JavaParamRef<jobject>& obj) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(IsLoaded());
-  // DCHECK(grouped_note_actions_.get()); // should only call after start
-  // grouped_note_actions_.reset();
 }
 
 std::u16string NotesBridge::GetContent(const NoteNode* node) const {
@@ -620,11 +614,11 @@ bool NotesBridge::IsEditNotesEnabled() const {
 }
 
 void NotesBridge::EditNotesEnabledChanged() {
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  if (!java_notes_model_)
     return;
-  Java_NotesBridge_editNotesEnabledChanged(env, obj);
+  Java_NotesBridge_editNotesEnabledChanged(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 bool NotesBridge::IsEditable(const NoteNode* node) const {
@@ -656,35 +650,30 @@ bool NotesBridge::IsLoaded() const {
 bool NotesBridge::IsFolderAvailable(const NoteNode* folder) const {
   auto* identity_manager =
       IdentityManagerFactory::GetForProfile(profile_->GetOriginalProfile());
-  return (folder->type() != NoteNode::TRASH &&  // TODO
+  return (folder->type() != NoteNode::TRASH &&
           folder->type() != NoteNode::OTHER) ||
          (identity_manager &&
           identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync));
 }
 
 void NotesBridge::NotifyIfDoneLoading() {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_) {
     return;
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteModelLoaded(env, obj);
+  }
+  Java_NotesBridge_noteModelLoaded(AttachCurrentThread(),
+    ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 // ------------- Observer-related methods ------------- //
 
 void NotesBridge::NotesModelChanged() {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
 
   // Called when there are changes to the note model. It is most
   // likely changes to the partner notes.
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteModelChanged(env, obj);
+  Java_NotesBridge_noteModelChanged(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 void NotesBridge::NotesModelLoaded(bool ids_reassigned) {
@@ -692,41 +681,29 @@ void NotesBridge::NotesModelLoaded(bool ids_reassigned) {
 }
 
 void NotesBridge::NotesModelBeingDeleted() {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteModelDeleted(env, obj);
+  DestroyJavaObject();
 }
 
 void NotesBridge::NoteNodeMoved(const NoteNode* old_parent,
                                 size_t old_index,
                                 const NoteNode* new_parent,
                                 size_t new_index) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_) {
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteNodeMoved(env, obj, CreateJavaNote(old_parent),
+  }
+  Java_NotesBridge_noteNodeMoved(AttachCurrentThread(),
+    ScopedJavaLocalRef<jobject>(java_notes_model_), CreateJavaNote(old_parent),
                                  old_index, CreateJavaNote(new_parent),
                                  new_index);
 }
 
 void NotesBridge::NoteNodeAdded(const NoteNode* parent, size_t index) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteNodeAdded(env, obj, CreateJavaNote(parent), index);
+  Java_NotesBridge_noteNodeAdded(AttachCurrentThread(),
+    ScopedJavaLocalRef<jobject>(java_notes_model_), CreateJavaNote(parent), index);
 }
 
 void NotesBridge::NoteNodeRemoved(const NoteNode* parent,
@@ -734,71 +711,51 @@ void NotesBridge::NoteNodeRemoved(const NoteNode* parent,
                                   const NoteNode* node,
                                   const std::set<GURL>& removed_urls,
                                   const base::Location& location) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
 
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteNodeRemoved(env, obj, CreateJavaNote(parent), old_index,
+  Java_NotesBridge_noteNodeRemoved(AttachCurrentThread(),
+                                   ScopedJavaLocalRef<jobject>(java_notes_model_),
+                                   CreateJavaNote(parent), old_index,
                                    CreateJavaNote(node));
 }
 
 void NotesBridge::NoteAllUserNodesRemoved(const std::set<GURL>& removed_urls,
                                           const base::Location& location) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteAllUserNodesRemoved(env, obj);
+  Java_NotesBridge_noteAllUserNodesRemoved(
+  AttachCurrentThread(), ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 void NotesBridge::NoteNodeChanged(const NoteNode* node) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteNodeChanged(env, obj, CreateJavaNote(node));
+  Java_NotesBridge_noteNodeChanged(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_), CreateJavaNote(node));
 }
 
 void NotesBridge::NoteNodeChildrenReordered(const NoteNode* node) {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
-
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_noteNodeChildrenReordered(env, obj, CreateJavaNote(node));
+  Java_NotesBridge_noteNodeChildrenReordered(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_), CreateJavaNote(node));
 }
 
 void NotesBridge::ExtensiveNoteChangesBeginning() {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
 
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_extensiveNoteChangesBeginning(env, obj);
+  Java_NotesBridge_extensiveNoteChangesBeginning(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 void NotesBridge::ExtensiveNoteChangesEnded() {
-  if (!IsLoaded())
+  if (!IsLoaded() || !java_notes_model_)
     return;
 
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
-  if (obj.is_null())
-    return;
-  Java_NotesBridge_extensiveNoteChangesEnded(env, obj);
+  Java_NotesBridge_extensiveNoteChangesEnded(AttachCurrentThread(),
+  ScopedJavaLocalRef<jobject>(java_notes_model_));
 }
 
 // Invoked when a node has been added.
@@ -828,10 +785,9 @@ void NotesBridge::NotesNodeRemoved(const vivaldi::NoteNode* parent,
 }
 
 void NotesBridge::ReorderChildren(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jobject>& j_note_id_obj,
-    const base::android::JavaRef<jlongArray>& arr) {
+        JNIEnv* env,
+        const base::android::JavaParamRef<jobject>& j_note_id_obj,
+        const base::android::JavaRef<jlongArray>& arr) {
   DCHECK(IsLoaded());
   // get the NoteNode* for the "parent" note parameter
   const long note_id = JavaNoteIdGetId(env, j_note_id_obj);
@@ -852,9 +808,14 @@ void NotesBridge::ReorderChildren(
 }
 
 bool NotesBridge::IsChildOfTrashNode(JNIEnv* env,
-                                     const JavaParamRef<jobject>& obj,
                                      jlong id) {
     DCHECK(IsLoaded());
     const NoteNode* node = GetNodeByID(id);
     return notes_model_->IsChildOfTrashNode(node);
 }
+
+void NotesBridge::OnProfileWillBeDestroyed(Profile* profile) {
+    weak_ptr_factory_.InvalidateWeakPtrs();
+    DestroyJavaObject();
+}
+

@@ -19,7 +19,7 @@ import mac_util
 
 LOGGER = logging.getLogger(__name__)
 
-MAX_WAIT_TIME_TO_DELETE_RUNTIME = 45  # 45 seconds
+MAX_WAIT_TIME_TO_DELETE_RUNTIME = 60  # 60 seconds
 
 SIMULATOR_DEFAULT_PATH = os.path.expanduser(
     '~/Library/Developer/CoreSimulator/Devices')
@@ -495,7 +495,18 @@ def add_simulator_runtime(runtime_dmg_path):
 def delete_simulator_runtime(runtime_id, should_wait=False):
   cmd = ['xcrun', 'simctl', 'runtime', 'delete', runtime_id]
   LOGGER.debug('Deleting runtime with command %s' % cmd)
-  subprocess.check_output(cmd)
+  try:
+    subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+  except subprocess.CalledProcessError as e:
+    # The error message contains "Cannot stage disk image" when trying to
+    # delete a runtime that is already deleted.
+    if (b'Cannot stage disk image or bundle for delete' in e.output):
+      LOGGER.warning(
+          'Error when deleting runtime %s. It may have been already deleted. '
+          'Error: %s', runtime_id, e.output.decode('utf-8', 'ignore'))
+      return
+    else:
+      raise
 
   if should_wait:
     # runtime takes a few seconds to delete
@@ -538,9 +549,28 @@ def delete_least_recently_used_simulator_runtimes(
                    (runtime_id, value['version']))
       continue
     if keep_count < max_to_keep:
-      LOGGER.debug('Runtime %s should be kept undeleted' % value)
+      LOGGER.debug('Runtime %s should be kept. Current runtime count %s', value,
+                   keep_count)
       keep_count += 1
     else:
+      LOGGER.debug(
+          'Runtime %s should be deleted due to exceeding max runtime count %s',
+          value, max_to_keep)
+      delete_simulator_runtime(runtime_id, True)
+
+
+def delete_stale_simulator_runtimes():
+  """Delete stale simulator runtimes.
+
+  Delete simulator runtimes that are unusable
+
+  """
+
+  runtimes = get_simulator_runtime_list()
+
+  for runtime_id, value in runtimes.items():
+    if value['state'] == "Unusable":
+      LOGGER.debug('Runtime %s should be deleted due to stale state', value)
       delete_simulator_runtime(runtime_id, True)
 
 

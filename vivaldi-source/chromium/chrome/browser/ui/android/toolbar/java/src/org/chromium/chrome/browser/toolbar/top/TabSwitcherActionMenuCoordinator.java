@@ -175,7 +175,7 @@ public class TabSwitcherActionMenuCoordinator {
                 BrowserUiListMenuUtils.getBasicListMenu(
                         context,
                         listItems,
-                        (model) -> {
+                        (model, view) -> {
                             onItemClicked.onResult(model.get(ListMenuItemProperties.MENU_ITEM_ID));
                         });
 
@@ -228,11 +228,11 @@ public class TabSwitcherActionMenuCoordinator {
         // Vivaldi
         if (mTabModelSelector != null && mTabModelSelector.getCurrentModel().getCount() > 1)
             itemList.add(buildListItemByMenuItemType(MenuItemType.VIVALDI_CLOSE_OTHER_TABS));
+
         itemList.add(buildListItemByMenuItemType(MenuItemType.DIVIDER));
         if (!IncognitoUtils.shouldOpenIncognitoAsWindow() || !isCurrentModelIncognito) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_TAB));
         }
-
         if (!IncognitoUtils.shouldOpenIncognitoAsWindow() || isCurrentModelIncognito) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_INCOGNITO_TAB));
         }
@@ -351,6 +351,7 @@ public class TabSwitcherActionMenuCoordinator {
                         .withMenuId(R.id.vivaldi_close_other_tabs)
                         .withStartIconRes(R.drawable.btn_close)
                         .build();
+
             case MenuItemType.DIVIDER:
             default:
                 return buildMenuDivider(mProfile.isIncognitoBranded());

@@ -7,51 +7,6 @@ if (is_ios) {
 }
 
 if (is_win) {
-  update_target("//chrome/installer/setup:setup") {
-    sources -= [
-      "setup.rc",
-      "setup_resource.h",
-    ]
-    sources += [
-      "//vivaldi/installer/win/setup/setup.rc",
-      "//vivaldi/installer/win/setup/setup_resource.h",
-    ]
-  }
-
-  update_target("//chrome/installer/setup:lib") {
-    sources += [
-      "//vivaldi/installer/util/vivaldi_install_dialog.cc",
-      "//vivaldi/installer/util/vivaldi_install_dialog.h",
-      "//vivaldi/installer/util/vivaldi_progress_dialog.cc",
-      "//vivaldi/installer/util/vivaldi_progress_dialog.h",
-      "//vivaldi/installer/util/vivaldi_setup_util.cc",
-      "//vivaldi/installer/util/vivaldi_setup_util.h",
-    ]
-  }
-
-  update_template_instance("//chrome/installer/setup:setup_exe_version") {
-    template_file =
-        "//vivaldi/installer/win/setup/setup_exe_version.rc.version"
-  }
-
-  update_target("//chrome/installer/setup:lib") {
-    sources -= [ "${branding_path_product}_behaviors.cc" ]
-    sources += [
-      "//vivaldi/installer/vivaldi_behaviors.cc",
-    ]
-    if (release_kind == "final") {
-      color = "#EF3939"
-    } else if (is_official_build) {
-      color = "#373737"
-    } else {
-      color = "#30c27c"
-    }
-    if (!defined(defines)) {
-      defines = []
-    }
-    defines += ["VIVALDI_RELEASE_BACKGROUND_COLOR=\"$color\""]
-  }
-
   update_target("//chrome/install_static:install_static_util") {
     sources -= [
       "chromium_install_modes.cc",
@@ -91,19 +46,6 @@ if (is_win) {
       ]
     }
   }
-
-  update_target("//chrome/installer/util:with_no_strings") {
-    sources += [
-      "//vivaldi/installer/util/marker_file_work_item.cc",
-      "//vivaldi/installer/util/marker_file_work_item.h",
-      "//vivaldi/installer/util/vivaldi_install_util.cc",
-      "//vivaldi/installer/util/vivaldi_install_util.h",
-      "//vivaldi/installer/win/detached_thread.cc",
-      "//vivaldi/installer/win/detached_thread.h",
-      "//vivaldi/installer/win/vivaldi_install_l10n.cc",
-      "//vivaldi/installer/win/vivaldi_install_l10n.h",
-    ]
-  }
 }
 
 if (is_linux && !is_component_build) {
@@ -126,7 +68,7 @@ if (is_linux && !is_component_build) {
       "//vivaldi/installer/linux/common/vivaldi.apt.include",
       "//vivaldi/installer/linux/common/vivaldi.info",
       "//vivaldi/installer/linux/common/vivaldi.rpm.include",
-      "//vivaldi/installer/linux/common/vivaldi_installer.include",
+      "//vivaldi/installer/linux/common/vivaldi_installer.py",
       "//vivaldi/installer/linux/common/wrapper",
       "//vivaldi/installer/linux/common/xfce-helper.template",
       "//vivaldi/installer/win/EULA.html",
@@ -146,6 +88,15 @@ if (is_mac) {
         "//vivaldi/installer/mac/app-entitlements-vivaldi-official.plist",
       ]
     }
+  }
+}
+
+if (is_posix && !is_ios) {
+  update_target("//chrome/browser/google:google") {
+    sources -= [ "google_update_settings_posix.cc" ]
+    sources += [
+      "//vivaldi/installer/mini_installer/util/vivaldi_google_update_settings_posix.cc",
+    ]
   }
 }
 

@@ -20,8 +20,8 @@
 #include "chrome/browser/password_manager/password_change/change_password_form_waiter.h"
 #include "chrome/browser/password_manager/password_change/cross_origin_navigation_observer.h"
 #include "chrome/browser/password_manager/password_change/login_state_checker.h"
-#include "chrome/browser/password_manager/password_change/model_quality_logs_uploader.h"
 #include "chrome/browser/password_manager/password_change/password_change_hats.h"
+#include "chrome/browser/password_manager/password_field_classification_model_handler_factory.h"
 #include "chrome/browser/password_manager/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_contents/tab_util.h"
@@ -60,49 +60,10 @@
 namespace {
 
 using ::password_manager::BrowserSavePasswordProgressLogger;
+using FlowStep = ModelQualityLogsUploader::FlowStep;
+using QualityStatus = ModelQualityLogsUploader::QualityStatus;
 
 constexpr base::TimeDelta kToastDisplayTime = base::Seconds(8);
-
-constexpr char kLeakDialogTimeSpentHistogram[] =
-    "PasswordManager.PasswordChange.LeakDetectionDialog.TimeSpent";
-
-void LogPasswordFormDetectedMetric(bool form_detected,
-                                   base::TimeDelta time_delta) {
-  base::UmaHistogramBoolean("PasswordManager.ChangePasswordFormDetected",
-                            form_detected);
-  if (form_detected) {
-    base::UmaHistogramMediumTimes(
-        "PasswordManager.ChangePasswordFormDetectionTime", time_delta);
-  }
-}
-
-void LogLeakDialogTimeSpent(PasswordChangeDelegate::State state,
-                            base::TimeDelta time_delta) {
-  CHECK(state == PasswordChangeDelegate::State::kWaitingForAgreement ||
-        state == PasswordChangeDelegate::State::kOfferingPasswordChange);
-
-  std::string suffix =
-      state == PasswordChangeDelegate::State::kWaitingForAgreement
-          ? ".WithPrivacyNotice"
-          : ".WithoutPrivacyNotice";
-  base::UmaHistogramMediumTimes(
-      base::StrCat({kLeakDialogTimeSpentHistogram, suffix}), time_delta);
-}
-
-// Logs whether user had any passwords saved for the website where the change
-// password was offered.
-void LogPasswordSavedOnStart(content::WebContents* web_contents) {
-  CHECK(web_contents);
-  ManagePasswordsUIController* manage_passwords_ui_controller =
-      ManagePasswordsUIController::FromWebContents(web_contents);
-  if (!manage_passwords_ui_controller) {
-    return;
-  }
-
-  base::UmaHistogramBoolean(
-      "PasswordManager.PasswordChange.UserHasPasswordSavedOnAPCLaunch",
-      !manage_passwords_ui_controller->GetCurrentForms().empty());
-}
 
 std::u16string GeneratePassword(
     const password_manager::PasswordForm& form,
@@ -173,6 +134,29 @@ std::unique_ptr<content::WebContents> CreateWebContents(Profile* profile,
   return new_web_contents;
 }
 
+void AddPasswordChangeToTabStrip(
+    content::WebContents* originator,
+    std::unique_ptr<content::WebContents> password_change_contents,
+    bool is_foreground) {
+  CHECK(originator);
+  auto* tab_interface = tabs::TabInterface::GetFromContents(originator);
+  CHECK(tab_interface);
+  TabStripModel* tab_strip_model =
+      tab_interface->GetBrowserWindowInterface()->GetTabStripModel();
+  CHECK(tab_strip_model);
+  tab_strip_model->AppendWebContents(std::move(password_change_contents),
+                                     /*foreground=*/is_foreground);
+}
+
+void FocusPasswordChangeTab(content::WebContents* executor) {
+  auto* tab_interface = tabs::TabInterface::GetFromContents(executor);
+  TabStripModel* tab_strip_model =
+      tab_interface->GetBrowserWindowInterface()->GetTabStripModel();
+  int index = tab_strip_model->GetIndexOfWebContents(executor);
+  CHECK(index != TabStripModel::kNoTab);
+  tab_strip_model->ActivateTabAt(index);
+}
+
 PasswordChangeDelegate::CoarseFinalPasswordChangeState GetCoarseState(
     PasswordChangeDelegate::State state) {
   switch (state) {
@@ -187,7 +171,6 @@ PasswordChangeDelegate::CoarseFinalPasswordChangeState GetCoarseState(
     case PasswordChangeDelegate::State::kWaitingForChangePasswordForm:
     case PasswordChangeDelegate::State::kChangingPassword:
     case PasswordChangeDelegate::State::kLoginFormDetected:
-    case PasswordChangeDelegate::State::kLoginFormDetectedUserCanContinue:
       return PasswordChangeDelegate::CoarseFinalPasswordChangeState::kCanceled;
 
     case PasswordChangeDelegate::State::kPasswordSuccessfullyChanged:
@@ -217,14 +200,21 @@ void OnLeakDialogHidden(base::WeakPtr<PasswordsModelDelegate> model_delegate) {
 
 }  // namespace
 
+char PasswordChangeDelegateImpl::kFinalPasswordChangeStatusHistogram[] =
+    "PasswordManager.FinalPasswordChangeStatus";
+char PasswordChangeDelegateImpl::kCoarseFinalPasswordChangeStatusHistogram[] =
+    "PasswordManager.CoarseFinalPasswordChangeStatus";
+char PasswordChangeDelegateImpl::kPasswordChangeTimeOverallHistogram[] =
+    "PasswordManager.PasswordChangeTimeOverall2";
+
 PasswordChangeDelegateImpl::PasswordChangeDelegateImpl(
     GURL change_password_url,
-    std::u16string username,
-    std::u16string password,
+    password_manager::PasswordForm credentials,
     tabs::TabInterface* tab_interface)
     : change_password_url_(std::move(change_password_url)),
-      username_(std::move(username)),
-      original_password_(std::move(password)),
+      username_(std::move(credentials.username_value)),
+      original_password_(std::move(credentials.password_value)),
+      password_form_info_(std::move(credentials)),
       originator_(tab_interface->GetContents()),
       profile_(Profile::FromBrowserContext(originator_->GetBrowserContext())),
       ukm_source_id_(originator_->GetPrimaryMainFrame()->GetPageUkmSourceId()) {
@@ -299,7 +289,6 @@ void PasswordChangeDelegateImpl::OnOtpNotFound() {
 
   UpdateState(IsPrivacyNoticeAcknowledged() ? State::kOfferingPasswordChange
                                             : State::kWaitingForAgreement);
-  leak_dialog_display_time_ = base::Time::Now();
 }
 
 PasswordChangeDelegateImpl::~PasswordChangeDelegateImpl() {
@@ -308,7 +297,9 @@ PasswordChangeDelegateImpl::~PasswordChangeDelegateImpl() {
   }
   base::UmaHistogramEnumeration(kFinalPasswordChangeStatusHistogram,
                                 current_state_);
-  if (current_state_ != PasswordChangeDelegate::State::kNoState) {
+  if (current_state_ != State::kNoState) {
+    base::UmaHistogramMediumTimes(kPasswordChangeTimeOverallHistogram,
+                                  base::Time::Now() - flow_start_time_);
     base::UmaHistogramEnumeration(kCoarseFinalPasswordChangeStatusHistogram,
                                   GetCoarseState(current_state_));
     ukm::builders::PasswordManager_ChangeFlowOutcome(ukm_source_id_)
@@ -316,10 +307,29 @@ PasswordChangeDelegateImpl::~PasswordChangeDelegateImpl() {
             static_cast<int>(GetCoarseState(current_state_)))
         .Record(ukm::UkmRecorder::Get());
   }
-  if (auto logger = GetLoggerIfAvailable(executor_.get())) {
+  if (auto logger = GetLoggerIfAvailable(originator_)) {
     logger->LogBoolean(
         BrowserSavePasswordProgressLogger::STRING_PASSWORD_CHANGE_FINISHED,
         current_state_ == State::kPasswordSuccessfullyChanged);
+  }
+  switch (current_state_) {
+    case State::kNoState:
+    case State::kPasswordSuccessfullyChanged:
+      break;
+    case State::kOfferingPasswordChange:
+    case State::kWaitingForAgreement:
+    case State::kWaitingForChangePasswordForm:
+    case State::kChangePasswordFormNotFound:
+    case State::kChangingPassword:
+    case State::kPasswordChangeFailed:
+    case State::kOtpDetected:
+    case State::kCanceled:
+    case State::kLoginFormDetected:
+      // Set time to throttle APC offering, as we don't want to overprompt in
+      // case of a negative experience.
+      profile_->GetPrefs()->SetTime(
+          password_manager::prefs::kLastNegativePasswordChangeTimestamp,
+          base::Time::Now());
   }
 }
 
@@ -329,63 +339,60 @@ void PasswordChangeDelegateImpl::StartPasswordChangeFlow() {
                            STRING_AUTOMATED_PASSWORD_CHANGE_START_FLOW);
   }
   flow_start_time_ = base::Time::Now();
-  LogLeakDialogTimeSpent(current_state_,
-                         flow_start_time_ - leak_dialog_display_time_);
-  LogPasswordSavedOnStart(originator_);
   UpdateState(State::kWaitingForChangePasswordForm);
   logs_uploader_ = std::make_unique<ModelQualityLogsUploader>(
       originator_.get(), change_password_url_);
+  logs_uploader_->SetLoginPasswordFormInfo(password_form_info_);
+  login_state_checker_ = std::make_unique<LoginStateChecker>(
+      originator_.get(), logs_uploader_.get(),
+      ChromePasswordManagerClient::FromWebContents(originator_),
+      base::BindRepeating(&PasswordChangeDelegateImpl::OnLoginStateCheckResult,
+                          weak_ptr_factory_.GetWeakPtr()));
+
+  // This creates FieldClassificationModelHandler and should trigger download of
+  // a local ML model for field classification.
+  // TODO(452883239): Clean this up when model is downloaded on start-up for
+  // everybody.
   if (base::FeatureList::IsEnabled(
-          password_manager::features::kCheckLoginStateBeforePasswordChange)) {
-    login_state_checker_ = std::make_unique<LoginStateChecker>(
-        originator_.get(), logs_uploader_.get(),
-        ChromePasswordManagerClient::FromWebContents(originator_),
-        base::BindRepeating(
-            &PasswordChangeDelegateImpl::OnLoginStateCheckResult,
-            weak_ptr_factory_.GetWeakPtr()));
-  } else {
-    ProceedToChangePassword();
+          password_manager::features::kDownloadModelForPasswordChange)) {
+    PasswordFieldClassificationModelHandlerFactory::GetForBrowserContext(
+        originator_->GetBrowserContext());
   }
 }
 
-void PasswordChangeDelegateImpl::OnLoginStateCheckResult(bool is_logged_in) {
-  if (is_logged_in) {
-    // User is logged in, start password change process.
-    ProceedToChangePassword();
-    return;
-  }
-
-  blocking_challenge_detected_ = true;
-  if (!login_state_checker_->ReachedAttemptsLimit()) {
-    if (current_state_ == State::kLoginFormDetectedUserCanContinue) {
+void PasswordChangeDelegateImpl::OnLoginStateCheckResult(
+    LoginCheckResult login_status) {
+  switch (login_status) {
+    case LoginCheckResult::kLoggedIn:
+      // User is logged in, start password change process.
+      ProceedToChangePassword();
       return;
-    }
-
-    // Update the UI to encourage user to complete sign in.
-    UpdateState(current_state_ == State::kLoginFormDetected
-                    ? State::kLoginFormDetectedUserCanContinue
-                    : State::kLoginFormDetected);
-    return;
+    case LoginCheckResult::kLoggedOut:
+      blocking_challenge_detected_ = true;
+      UpdateState(State::kLoginFormDetected);
+      return;
+    case LoginCheckResult::kError:
+      UpdateState(State::kChangePasswordFormNotFound);
+      login_state_checker_.reset();
+      return;
   }
-
-  // Maximum number of retries reached. Show an error dialog.
-  login_state_checker_.reset();
-  UpdateState(State::kChangePasswordFormNotFound);
 }
 
 void PasswordChangeDelegateImpl::CancelPasswordChangeFlow() {
-  if (auto logger = GetLoggerIfAvailable(executor_.get())) {
+  if (auto logger = GetLoggerIfAvailable(executor())) {
     logger->LogMessage(BrowserSavePasswordProgressLogger::
                            STRING_AUTOMATED_PASSWORD_CHANGE_CANCEL_FLOW);
   }
-  if (logs_uploader_) {
-    logs_uploader_->SetFlowInterrupted();
-  }
+  ReportFlowInterruption(
+      QualityStatus::
+          PasswordChangeQuality_StepQuality_SubmissionStatus_FLOW_INTERRUPTED);
+  login_state_checker_.reset();
   navigation_observer_.reset();
   submission_verifier_.reset();
   form_finder_.reset();
   otp_fields_detected_subscription_ = {};
-  executor_.reset();
+  hidden_executor_.reset();
+  visible_executor_ = nullptr;
 
   UpdateState(State::kCanceled);
   password_change_hats_->MaybeLaunchSurvey(
@@ -398,25 +405,20 @@ void PasswordChangeDelegateImpl::OnPasswordChangeFormFound(
     password_manager::PasswordFormManager* form_manager) {
   form_finder_.reset();
 
-  change_password_form_found_time_ = base::Time::Now();
-  LogPasswordFormDetectedMetric(
-      /*form_detected=*/form_manager,
-      change_password_form_found_time_ - flow_start_time_);
   if (!form_manager) {
     UpdateState(State::kChangePasswordFormNotFound);
     return;
   }
 
   CHECK(!submission_verifier_);
-  CHECK(executor_);
+  CHECK(executor());
   generated_password_ = GeneratePassword(
       *form_manager->GetParsedObservedForm(),
       form_manager->GetDriver()->GetPasswordGenerationHelper());
 
   submission_verifier_ =
       std::make_unique<ChangePasswordFormFillingSubmissionHelper>(
-          executor_.get(),
-          ChromePasswordManagerClient::FromWebContents(executor_.get()),
+          executor(), ChromePasswordManagerClient::FromWebContents(executor()),
           logs_uploader_.get(),
           base::BindOnce(
               &PasswordChangeDelegateImpl::OnChangeFormSubmissionVerified,
@@ -436,11 +438,12 @@ void PasswordChangeDelegateImpl::OnTabWillDetach(
     }
     base::UmaHistogramEnumeration(
         "PasswordManager.PasswordChange.UserClosedTab", current_state_);
-    if (logs_uploader_) {
-      logs_uploader_->SetFlowInterrupted();
-    }
+    ReportFlowInterruption(
+        QualityStatus::
+            PasswordChangeQuality_StepQuality_SubmissionStatus_FLOW_INTERRUPTED);
     // Reset pointers immediately to avoid keeping dangling pointer to the tab.
     originator_ = nullptr;
+    visible_executor_ = nullptr;
     navigation_observer_.reset();
     login_state_checker_.reset();
     submission_verifier_.reset();
@@ -454,7 +457,7 @@ void PasswordChangeDelegateImpl::OnTabWillDetach(
 bool PasswordChangeDelegateImpl::IsPasswordChangeOngoing(
     content::WebContents* web_contents) {
   return (originator_ == web_contents) ||
-         (executor_ && executor_.get() == web_contents);
+         (executor() && executor() == web_contents);
 }
 
 PasswordChangeDelegate::State PasswordChangeDelegateImpl::GetCurrentState()
@@ -475,13 +478,13 @@ void PasswordChangeDelegateImpl::OnPasswordFormSubmission(
 }
 
 void PasswordChangeDelegateImpl::OnOtpFieldDetected() {
-  if (auto logger = GetLoggerIfAvailable(executor_.get())) {
+  if (auto logger = GetLoggerIfAvailable(executor())) {
     logger->LogMessage(BrowserSavePasswordProgressLogger::
                            STRING_AUTOMATED_PASSWORD_CHANGE_OTP_DETECTED);
   }
-  if (logs_uploader_) {
-    logs_uploader_->SetOtpDetected();
-  }
+  ReportFlowInterruption(
+      QualityStatus::
+          PasswordChangeQuality_StepQuality_SubmissionStatus_OTP_DETECTED);
 
   form_finder_.reset();
   submission_verifier_.reset();
@@ -490,14 +493,8 @@ void PasswordChangeDelegateImpl::OnOtpFieldDetected() {
 }
 
 void PasswordChangeDelegateImpl::OpenPasswordChangeTab() {
-  CHECK(originator_);
-  auto* tab_interface = tabs::TabInterface::GetFromContents(originator_);
-  CHECK(tab_interface);
-  TabStripModel* tab_strip_model =
-      tab_interface->GetBrowserWindowInterface()->GetTabStripModel();
-  CHECK(tab_strip_model);
-  content::WebContents* web_contents = nullptr;
-  if (!executor_) {
+  content::WebContents* web_contents = executor();
+  if (!web_contents) {
     web_contents = originator_->OpenURL(
         content::OpenURLParams(GURL(change_password_url_), content::Referrer(),
                                WindowOpenDisposition::NEW_FOREGROUND_TAB,
@@ -505,10 +502,11 @@ void PasswordChangeDelegateImpl::OpenPasswordChangeTab() {
                                /* is_renderer_initiated= */ false),
         /*navigation_handle_callback=*/{});
     CHECK(web_contents);
+  } else if (!visible_executor_) {
+    AddPasswordChangeToTabStrip(originator_, std::move(hidden_executor_),
+                                /*is_foreground=*/true);
   } else {
-    web_contents = executor_.get();
-    tab_strip_model->AppendWebContents(std::move(executor_),
-                                       /*foreground=*/true);
+    FocusPasswordChangeTab(web_contents);
   }
   password_change_hats_->MaybeLaunchSurvey(
       kHatsSurveyTriggerPasswordChangeError,
@@ -569,9 +567,10 @@ void PasswordChangeDelegateImpl::OnPasswordChangeDeclined() {
                          ->GetModelDelegateProxy()));
 }
 
-void PasswordChangeDelegateImpl::OnUserSkippedLoginCheck() {
-  logs_uploader_->LoginCheckSkipped();
-  ProceedToChangePassword();
+void PasswordChangeDelegateImpl::RetryLoginCheck() {
+  CHECK(login_state_checker_);
+  login_state_checker_->RetryLoginCheck();
+  UpdateState(State::kWaitingForChangePasswordForm);
 }
 
 void PasswordChangeDelegateImpl::AddObserver(
@@ -588,17 +587,28 @@ void PasswordChangeDelegateImpl::ProceedToChangePassword() {
   login_state_checker_.reset();
   UpdateState(State::kWaitingForChangePasswordForm);
 
-  executor_ = CreateWebContents(profile_, change_password_url_);
-  CHECK(executor_);
-  auto* client = ChromePasswordManagerClient::FromWebContents(executor_.get());
+  std::unique_ptr<content::WebContents> change_password_contents =
+      CreateWebContents(profile_, change_password_url_);
+  if (base::FeatureList::IsEnabled(
+          password_manager::features::kRunPasswordChangeInBackgroundTab)) {
+    visible_executor_ = change_password_contents.get();
+    AddPasswordChangeToTabStrip(originator_,
+                                std::move(change_password_contents),
+                                /*is_foreground=*/false);
+  } else {
+    hidden_executor_ = std::move(change_password_contents);
+    CHECK(hidden_executor_);
+  }
+
+  auto* client = ChromePasswordManagerClient::FromWebContents(executor());
 
   navigation_observer_ = std::make_unique<CrossOriginNavigationObserver>(
-      executor_.get(), AffiliationServiceFactory::GetForProfile(profile_),
+      executor(), AffiliationServiceFactory::GetForProfile(profile_),
       base::BindOnce(
           &PasswordChangeDelegateImpl::OnCrossOriginNavigationDetected,
           weak_ptr_factory_.GetWeakPtr()));
   form_finder_ = std::make_unique<ChangePasswordFormFinder>(
-      executor_.get(), client, logs_uploader_.get(),
+      executor(), client, logs_uploader_.get(),
       base::BindOnce(&PasswordChangeDelegateImpl::OnPasswordChangeFormFound,
                      weak_ptr_factory_.GetWeakPtr()));
 
@@ -606,7 +616,7 @@ void PasswordChangeDelegateImpl::ProceedToChangePassword() {
   // time, they may still see an OTP during the password change flow, so watch
   // for this.
   autofill::ContentAutofillClient* autofill_client =
-      autofill::ContentAutofillClient::FromWebContents(executor_.get());
+      autofill::ContentAutofillClient::FromWebContents(executor());
   autofill::OtpFieldDetector* otp_field_detector =
       autofill_client->GetOtpFieldDetector();
   otp_fields_detected_subscription_ =
@@ -641,7 +651,7 @@ void PasswordChangeDelegateImpl::UpdateState(State new_state) {
 }
 
 void PasswordChangeDelegateImpl::OnChangeFormSubmissionVerified(bool result) {
-  if (auto logger = GetLoggerIfAvailable(executor_.get())) {
+  if (auto logger = GetLoggerIfAvailable(executor())) {
     logger->LogBoolean(BrowserSavePasswordProgressLogger::
                            STRING_AUTOMATED_PASSWORD_CHANGE_SUBMISSION_VERIFIED,
                        result);
@@ -649,11 +659,6 @@ void PasswordChangeDelegateImpl::OnChangeFormSubmissionVerified(bool result) {
   base::Time time_now = base::Time::Now();
   base::TimeDelta password_change_duration_overall =
       time_now - flow_start_time_;
-  base::UmaHistogramMediumTimes(
-      "PasswordManager.ChangingPasswordToast.TimeSpent",
-      time_now - change_password_form_found_time_);
-  base::UmaHistogramMediumTimes("PasswordManager.PasswordChangeTimeOverall",
-                                password_change_duration_overall);
 
   if (!result) {
     UpdateState(State::kPasswordChangeFailed);
@@ -688,12 +693,16 @@ std::u16string PasswordChangeDelegateImpl::GetDisplayOrigin() const {
 }
 
 void PasswordChangeDelegateImpl::OnCrossOriginNavigationDetected() {
-  if (auto logger = GetLoggerIfAvailable(executor_.get())) {
+  if (auto logger = GetLoggerIfAvailable(executor())) {
     logger->LogMessage(
         BrowserSavePasswordProgressLogger::
             STRING_AUTOMATED_PASSWORD_CHANGE_CROSS_ORIGIN_NAVIGATION);
   }
   navigation_observer_.reset();
+
+  ReportFlowInterruption(
+      QualityStatus::
+          PasswordChangeQuality_StepQuality_SubmissionStatus_CROSE_ORIGIN_NAVIGATION);
 
   // Navigation happened when looking for a change password form, password
   // change can be terminated safely with `kChangePasswordFormNotFound`.
@@ -710,6 +719,33 @@ void PasswordChangeDelegateImpl::OnCrossOriginNavigationDetected() {
 
   // This shouldn't happen, just stop the flow immediately.
   Stop();
+}
+
+void PasswordChangeDelegateImpl::ReportFlowInterruption(QualityStatus status) {
+  if (!logs_uploader_) {
+    return;
+  }
+
+  if (login_state_checker_) {
+    logs_uploader_->SetFlowInterrupted(
+        FlowStep::PasswordChangeRequest_FlowStep_IS_LOGGED_IN_STEP, status);
+    return;
+  }
+
+  if (form_finder_) {
+    logs_uploader_->SetFlowInterrupted(
+        FlowStep::PasswordChangeRequest_FlowStep_OPEN_FORM_STEP, status);
+    return;
+  }
+
+  if (submission_verifier_) {
+    logs_uploader_->SetFlowInterrupted(
+        submission_verifier_->IsPasswordFormSubmitted()
+            ? FlowStep::PasswordChangeRequest_FlowStep_VERIFY_SUBMISSION_STEP
+            : FlowStep::PasswordChangeRequest_FlowStep_SUBMIT_FORM_STEP,
+        status);
+    return;
+  }
 }
 
 base::WeakPtr<PasswordChangeDelegate> PasswordChangeDelegateImpl::AsWeakPtr() {

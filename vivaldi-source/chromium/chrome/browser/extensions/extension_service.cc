@@ -18,7 +18,6 @@
 #include "base/containers/contains.h"
 #include "base/debug/alias.h"
 #include "base/debug/dump_without_crashing.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/location.h"
@@ -51,12 +50,11 @@
 #include "chrome/browser/extensions/external_provider_impl.h"
 #include "chrome/browser/extensions/external_provider_manager.h"
 #include "chrome/browser/extensions/forced_extensions/install_stage_tracker.h"
-#include "chrome/browser/extensions/install_verifier.h"
+#include "chrome/browser/extensions/install_verifier_factory.h"
 #include "chrome/browser/extensions/installed_loader.h"
 #include "chrome/browser/extensions/manifest_v2_experiment_manager.h"
 #include "chrome/browser/extensions/mv2_experiment_stage.h"
 #include "chrome/browser/extensions/omaha_attributes_handler.h"
-#include "chrome/browser/extensions/permissions/permissions_updater.h"
 #include "chrome/browser/extensions/profile_util.h"
 #include "chrome/browser/extensions/sync/extension_sync_service.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
@@ -93,8 +91,10 @@
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/external_install_info.h"
 #include "extensions/browser/install_flag.h"
+#include "extensions/browser/install_verifier.h"
 #include "extensions/browser/management_policy.h"
 #include "extensions/browser/pending_extension_manager.h"
+#include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/browser/process_map.h"
 #include "extensions/browser/renderer_startup_helper.h"
@@ -592,7 +592,7 @@ void ExtensionService::CheckManagementPolicy() {
     // between CheckManagementPolicy() and policy providers.
     disable_reason::DisableReason install_verifier_disable_reason =
         disable_reason::DISABLE_NONE;
-    InstallVerifier::Get(GetBrowserContext())
+    InstallVerifierFactory::GetForBrowserContext(GetBrowserContext())
         ->MustRemainDisabled(extension.get(), &install_verifier_disable_reason);
     if (install_verifier_disable_reason == disable_reason::DISABLE_NONE &&
         !management->ShouldBlockForceInstalledOffstoreExtension(*extension)) {

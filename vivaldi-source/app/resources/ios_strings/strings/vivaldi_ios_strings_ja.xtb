@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">プライベートタブをロックするには、Touch ID、Face ID、またはパスコードを設定します。</translation>
 <translation id="1189137610071296104">タブスタックで開く</translation>
 <translation id="1310184829257917508">他のアプリからリンクを開く際にプライベートタブで開くかどうかを聞く</translation>
+<translation id="1624481300475123200">パスワードを自動入力</translation>
 <translation id="1743244221910283364">変更を破棄</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {新しいスタックにタブを追加する}
         other {新しいスタックにタブを追加する}}</translation>
 <translation id="207677936531967364">新しいプライベートタブページ</translation>
 <translation id="2099591136582442348">これにより、あなたのデバイスからスタックが永久に削除されます。</translation>
+<translation id="2104086191144208395">問題がありますか？</translation>
 <translation id="2181990701313127304">スタック内に新しいタブを開く</translation>
 <translation id="2351280151183279120">スタックを共有する</translation>
 <translation id="2353953000228441783">デフォルトサイトビュー</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">${url} をプライベートタブで開く</translation>
 <translation id="398477389655464998">選択箇所へのリンクをコピー</translation>
 <translation id="3993429087389909418">タブはこのデバイスで開いたままになりますが、スタックは <ph name="USER_EMAIL" /> でサインインしているすべてのデバイスから削除されます。</translation>
-<translation id="4026745073321351206">不具合を報告する</translation>
 <translation id="4216644171369573466">タブスタック、<ph name="GROUP_TITLE" />、メニュー。</translation>
 <translation id="4304713468139749426">パスワードマネージャー</translation>
 <translation id="4439281775431634915">あなたのタブスタックはここに保存されます</translation>
@@ -61,17 +62,22 @@
 <translation id="5521301883748677039">スタックを削除しますか？</translation>
 <translation id="5544011153887687593">タブスタックのタブ。<ph name="TAB_INDEX_IN_GROUP" /> の <ph name="NUMBER_OF_TABS_IN_GROUP" />。</translation>
 <translation id="5614553682702429503">パスワードを保存しますか？</translation>
+<translation id="5620163320393916465">保存されたパスワードはありません</translation>
 <translation id="570209299585559496">設定 &gt;コンテンツの設定で、デフォルトサイトビューをデスクトップに変更できます</translation>
 <translation id="5719777162751096990">タブスタックに移動する</translation>
+<translation id="5869522115854928033">保存されたパスワード</translation>
 <translation id="5962477178930921574">貼り付けて検索</translation>
 <translation id="6163856768888310791">スタックを解除する</translation>
 <translation id="6168969409902608220">スタックの名前</translation>
 <translation id="6192561334825788389">右にスワイプするとプライベートタブでブラウジングできます。</translation>
 <translation id="6233792867654386826">入力した URL を Vivaldi で開く。</translation>
 <translation id="6271462272606946663">モバイルサイトのリクエストを非表示にする</translation>
+<translation id="6309282378909663947">Vivaldi パスワードマネージャーで保存されたパスワード</translation>
 <translation id="6478587527114893588">スタックを閉じる</translation>
 <translation id="6527405730445064713">タブスタック。展開されています。</translation>
 <translation id="6532106788206463496">変更を保存</translation>
+<translation id="6636411080833380839">スタックから取り出す</translation>
+<translation id="6644512095122093795">パスワードを保存する</translation>
 <translation id="6666425778700353369">これにより、<ph name="USER_EMAIL" /> でサインインしているすべてのデバイスからスタックが削除されます。</translation>
 <translation id="6680416467695217368">メニューのカスタマイズ</translation>
 <translation id="6695835495840050460">「新しいスタックにタブを追加」をタップ</translation>
@@ -92,6 +98,7 @@
 <translation id="7585610907974664408">スタック内に新しいプライベートタブを開く</translation>
 <translation id="7661319142491611883">タブスタックを展開する</translation>
 <translation id="7706213624515206557">タブスタック内のすべてのタブを表示する</translation>
+<translation id="7937179923651776879">どのアプリからでもパスワードにアクセス</translation>
 <translation id="7961015016161918242">しない</translation>
 <translation id="8326104954595890674">新しいプライベートタブ</translation>
 <translation id="8345989863850359861">タブを削除してスタックを消去しますか？</translation>
@@ -107,6 +114,7 @@
 <translation id="8951084872625418241">スタック内に新しいタブを開く</translation>
 <translation id="9042893549633094279">プライバシーとセキュリティ</translation>
 <translation id="9094033019050270033">パスワードを更新</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">スタックを離れる</translation>
 <translation id="959061183386231608">タブはこのデバイスで開いたままになりますが、スタックは永久に削除されます。</translation>
 </translationbundle>

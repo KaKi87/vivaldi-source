@@ -112,6 +112,11 @@ using base::UserMetricsAction;
 
   /// The context in which the omnibox is presented.
   OmniboxPresentationContext _presentationContext;
+
+  /// Leading icon from autocomplete.
+  UIImage* _autocompleteLeadingIcon;
+  /// Accessibility identifier for the `_autocompleteLeadingIcon`.
+  NSString* _autocompleteLeadingIconAccessibilityIdentifier;
 }
 
 @dynamic view;
@@ -139,6 +144,7 @@ using base::UserMetricsAction;
                                                  iconTint:iconTintColor
                                       presentationContext:_presentationContext];
   self.view.layoutGuideCenter = self.layoutGuideCenter;
+  self.view.metricsRecorder = self.metricsRecorder;
   _clearButton = self.view.clearButton;
 
   self.view.shouldGroupAccessibilityChildren = YES;
@@ -156,7 +162,7 @@ using base::UserMetricsAction;
 - (void)viewDidLoad {
   [super viewDidLoad];
 
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
 
   [_clearButton addTarget:self
                    action:@selector(clearButtonPressed)
@@ -213,7 +219,7 @@ using base::UserMetricsAction;
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
-  if (_presentationContext == OmniboxPresentationContext::kAIMPrototype) {
+  if (_presentationContext == OmniboxPresentationContext::kComposebox) {
     [self.view updateTextViewHeight];
   }
 }
@@ -244,6 +250,11 @@ using base::UserMetricsAction;
   return self.view;
 }
 
+- (void)setMetricsRecorder:(OmniboxMetricsRecorder*)metricsRecorder {
+  _metricsRecorder = metricsRecorder;
+  self.view.metricsRecorder = metricsRecorder;
+}
+
 #pragma mark - public methods
 
 - (id<OmniboxTextInput>)textInput {
@@ -252,12 +263,12 @@ using base::UserMetricsAction;
 
 - (void)prepareOmniboxForScribble {
   [self.mutator prepareForScribble];
-  self.textInput.placeholder = nil;
+  [self.textInput setDefaultPlaceholderText:nil];
 }
 
 - (void)cleanupOmniboxAfterScribble {
   [self.mutator cleanupAfterScribble];
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
 }
 
 #pragma mark - OmniboxTextInputDelegate
@@ -299,6 +310,11 @@ using base::UserMetricsAction;
   self.forwardingOnDidChange = YES;
   [self.mutator textDidChangeWithUserEvent:savedProcessingUserEvent];
   self.forwardingOnDidChange = NO;
+}
+
+- (void)textInputDidUpdateUIForText:(id<OmniboxTextInput>)textInput {
+  [self updateLeadingImage];
+  [self updateClearButtonVisibility];
 }
 
 - (BOOL)textInputShouldReturn:(id<OmniboxTextInput>)textInput {
@@ -490,8 +506,9 @@ using base::UserMetricsAction;
 
 - (void)updateAutocompleteIcon:(UIImage*)icon
     withAccessibilityIdentifier:(NSString*)accessibilityIdentifier {
-  [self.view setLeadingImage:icon
-      withAccessibilityIdentifier:accessibilityIdentifier];
+  _autocompleteLeadingIcon = icon;
+  _autocompleteLeadingIconAccessibilityIdentifier = accessibilityIdentifier;
+  [self updateLeadingImage];
 }
 - (void)updateSearchByImageSupported:(BOOL)searchByImageSupported {
   self.searchByImageEnabled = searchByImageSupported;
@@ -505,7 +522,7 @@ using base::UserMetricsAction;
   [self.view setThumbnailImage:image];
   // Cancel any pending image removal if a new selection is made.
   self.view.thumbnailButton.selected = NO;
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
   [self updateReturnKeyAvailability];
 }
 
@@ -522,7 +539,7 @@ using base::UserMetricsAction;
   }
   _searchOrTypeURLPlaceholderText = [placeholderText copy];
 
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
 }
 
 - (void)setSearchOnlyPlaceholderText:(NSString*)placeholderText {
@@ -530,7 +547,7 @@ using base::UserMetricsAction;
     return;
   }
   _searchOnlyPlaceholderText = [placeholderText copy];
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
 }
 
 #pragma mark - EditViewAnimatee
@@ -552,6 +569,14 @@ using base::UserMetricsAction;
 #pragma mark - private
 
 - (void)updateLeadingImage {
+  // If autocomplete provides an icon, use this one.
+  if (_autocompleteLeadingIcon) {
+    [self.view setLeadingImage:_autocompleteLeadingIcon
+        withAccessibilityIdentifier:
+            _autocompleteLeadingIconAccessibilityIdentifier];
+    return;
+  }
+
   UIImage* image = self.textInput.text.length ? self.defaultLeadingImage
                                               : self.emptyTextLeadingImage;
   NSString* accessibilityID =
@@ -560,6 +585,11 @@ using base::UserMetricsAction;
           : kOmniboxLeadingImageEmptyTextAccessibilityIdentifier;
 
   [self.view setLeadingImage:image withAccessibilityIdentifier:accessibilityID];
+}
+
+- (void)clearAutocompleteIcon {
+  _autocompleteLeadingIcon = nil;
+  _autocompleteLeadingIconAccessibilityIdentifier = nil;
 }
 
 - (BOOL)shouldUseLensInMenu {
@@ -634,6 +664,7 @@ using base::UserMetricsAction;
 - (void)clearButtonPressed {
   [self.mutator clearText];
   [self updateClearButtonVisibility];
+  [self clearAutocompleteIcon];
   [self updateLeadingImage];
 }
 
@@ -811,10 +842,10 @@ using base::UserMetricsAction;
   [self.mutator searchEngineShortcutActivatedForURL:templateURL];
   _isSearchEngineOverridden = YES;
 
-  self.textInput.placeholder =
-      l10n_util::GetNSStringF(
-          IDS_IOS_SEARCH_OR_TYPE_WEB_ADDRESS_WITH_SEARCH_ENGINE,
-                templateURL->short_name());
+  [self.textInput setDefaultPlaceholderText:
+                      l10n_util::GetNSStringF(
+                          IDS_IOS_SEARCH_OR_TYPE_WEB_ADDRESS_WITH_SEARCH_ENGINE,
+                          templateURL->short_name())];
 
   if ([searchText length] == 0) {
     __weak __typeof(self) weakSelf = self;
@@ -840,7 +871,7 @@ using base::UserMetricsAction;
   if (!_isSearchEngineOverridden)
     return;
   [self.mutator resetActivatedSearchEngineShortcut];
-  self.textInput.placeholder = [self currentPlaceholderText];
+  [self.textInput setDefaultPlaceholderText:[self currentPlaceholderText]];
   _isSearchEngineOverridden = NO;
 }
 

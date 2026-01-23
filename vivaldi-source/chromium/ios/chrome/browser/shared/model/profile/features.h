@@ -17,8 +17,7 @@ bool AreSeparateProfilesForManagedAccountsEnabled();
 // YES if Profile-specific push notification handling is enabled.
 bool IsMultiProfilePushNotificationHandlingEnabled();
 
-// Whether the feature to have share entries (URL, image and text) per profile
-// is enabled.
-bool IsShareExtensionForMultiprofileEnabled();
+// Whether to destroy the OTR profile early in ~ProfileIOSImpl.
+BASE_DECLARE_FEATURE(kDestroyOTRProfileEarly);
 
 #endif  // IOS_CHROME_BROWSER_SHARED_MODEL_PROFILE_FEATURES_H_

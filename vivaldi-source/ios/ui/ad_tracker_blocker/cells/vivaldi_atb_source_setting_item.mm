@@ -2,10 +2,6 @@
 
 #import "ios/ui/ad_tracker_blocker/cells/vivaldi_atb_source_setting_item.h"
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
-
 @implementation VivaldiATBSourceSettingItem
 
 - (instancetype)initWithType:(NSInteger)type {

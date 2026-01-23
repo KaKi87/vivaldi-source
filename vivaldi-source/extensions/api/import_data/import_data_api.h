@@ -126,8 +126,6 @@ class ImportDataStartImportFunction : public ExtensionFunction {
 
   void StartImport(const user_data_importer::SourceProfile& source_profile);
 
-  scoped_refptr<ui::SelectFileDialog> select_file_dialog_;
-
   // Items to import
   int imported_items_ = 0;
 

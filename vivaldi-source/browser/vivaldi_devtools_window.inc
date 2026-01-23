@@ -34,10 +34,5 @@ bool DevToolsWindow::HandleContextMenu(
 
 void DevToolsWindow::ForceCloseWindow() {
   // Closing all tabs in a undocked window does the proper cleanup.
-  if (browser_) {
-    // TODO(VB-120905)
-    //browser_->OnWindowClosing();
-  } else {
-    CloseContents(main_web_contents_);
-  }
+  CloseContents(main_web_contents_);
 }

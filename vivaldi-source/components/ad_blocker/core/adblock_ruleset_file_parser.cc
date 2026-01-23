@@ -23,12 +23,6 @@ void RulesetFileParser::Parse(std::string_view file_contents) {
                               base::SPLIT_WANT_NONEMPTY)) {
     ParseLine(rule_string);
   }
-
-  if (parse_result_->request_filter_rules.empty() &&
-      parse_result_->cosmetic_rules.empty() &&
-      parse_result_->scriptlet_injection_rules.empty()) {
-    parse_result_->fetch_result = FetchResult::kFileUnsupported;
-  }
 }
 
 void RulesetFileParser::ParseLine(std::string_view string_piece) {

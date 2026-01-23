@@ -197,17 +197,12 @@ StatusCB MailClientBackend::UpdateMessage(mail_client::MessageRow message) {
 }
 
 MailSearchCB MailClientBackend::EmailSearch(std::u16string searchValue) {
-  SearchListIDs rows;
   MailSearchCB cb;
-  bool res = db_->SearchMessages(searchValue, &rows);
+  cb.success = db_->SearchMessages(searchValue, &cb.search_list_ids);
 
-  if (!res) {
+  if (!cb.success) {
     cb.message = diagnostics_string_;
   }
-
-  cb.success = res;
-  cb.search_list_ids = rows;
-
   return cb;
 }
 
@@ -313,6 +308,17 @@ int MailClientBackend::CountMailSearchMessages() {
 void MailClientBackend::DatabaseErrorCallback(int error, sql::Statement* stmt) {
   diagnostics_string_ = db_->GetDiagnosticInfo(error, stmt, &diagnostics_);
   LOG(ERROR) << "MailSearchDB error: " << diagnostics_string_;
+}
+
+MailSearchCB MailClientBackend::GetMailSearchDBSearchListIds() {
+  MailSearchCB cb;
+  cb.success = db_->GetSearchListIds(&cb.search_list_ids);
+
+  if (!cb.success) {
+    cb.message = diagnostics_string_;
+  }
+
+  return cb;
 }
 
 }  // namespace mail_client

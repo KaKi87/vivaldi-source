@@ -281,7 +281,7 @@ HRESULT UpdateProfilePictures(const std::wstring& sid,
   // FOLDERID_PublicUserTiles\\{user sid}
 
   std::wstring picture_url_path =
-      base::UTF8ToWide(GURL(base::AsStringPiece16(picture_url)).path());
+      base::UTF8ToWide(GURL(base::AsStringPiece16(picture_url)).GetPath());
   if (picture_url_path.size() <= 1) {
     LOGFN(ERROR) << "Invalid picture url=" << picture_url;
     return E_FAIL;
@@ -433,7 +433,7 @@ ScopedUserProfile::ScopedUserProfile(const std::wstring& sid,
 ScopedUserProfile::~ScopedUserProfile() = default;
 
 bool ScopedUserProfile::IsValid() {
-  return token_.IsValid();
+  return token_.is_valid();
 }
 
 HRESULT ScopedUserProfile::ExtractAssociationInformation(

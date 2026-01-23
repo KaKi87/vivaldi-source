@@ -9,8 +9,10 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/sequenced_task_runner.h"
 #import "base/task/thread_pool.h"
+#import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
+#import "components/test/ios/test_utils.h"
 #import "ios/chrome/app/application_delegate/app_init_stage.h"
 #import "ios/chrome/app/application_delegate/app_init_stage_test_utils.h"
 #import "ios/chrome/app/application_delegate/app_state+Testing.h"
@@ -218,16 +220,10 @@ class BackgroundRefreshAppAgentTest : public PlatformTest {
     OCMStub([task_scheduler_mock_ sharedScheduler])
         .andReturn(task_scheduler_mock_);
     // Stub the registration method to capture the configured block.
-    OCMStub(
-        [task_scheduler_mock_
-            registerForTaskWithIdentifier:kAppBackgroundRefreshTaskIdentifier
-                               usingQueue:[OCMArg isNil]
-                            launchHandler:OCMOCK_ANY])
-        .andDo(^(NSInvocation* invocation) {
-          __unsafe_unretained TaskHandlerBlock handler;
-          [invocation getArgument:&handler atIndex:4];
-          task_handler_ = [handler copy];
-        });
+    OCMStub([task_scheduler_mock_
+        registerForTaskWithIdentifier:kAppBackgroundRefreshTaskIdentifier
+                           usingQueue:[OCMArg isNil]
+                        launchHandler:CopyValueToVariable(task_handler_)]);
   }
 
   void BuildMockTask() {
@@ -237,23 +233,17 @@ class BackgroundRefreshAppAgentTest : public PlatformTest {
     // tests that need this captured block (specifically tests that call
     // `ExpireTask()` need to wait until this call completes before accessing
     // the expiration handler. See the ExpireTask test for an example.
-    OCMStub([task_mock_ setExpirationHandler:OCMOCK_ANY])
-        .andDo(^(NSInvocation* invocation) {
-          __unsafe_unretained TaskExpirationBlock handler;
-          [invocation getArgument:&handler atIndex:2];
-          // This write to a member variable is done on a non-main sequence;
-          // see the notes above on correctly ensuring that it completes before
-          // the member is accessed by `ExpireTask()`.
-          task_expiration_handler_ = [handler copy];
-        });
+    OCMStub([task_mock_
+        setExpirationHandler:CopyValueToVariable(task_expiration_handler_)]);
+
+    // This write to a member variable is done on a non-main sequence;
+    // see the notes above on correctly ensuring that it completes before
+    // the member is accessed by `ExpireTask()`.
+
     // Stub the task request method to capture the last task request.
-    OCMStub([task_scheduler_mock_ submitTaskRequest:OCMOCK_ANY
-                                              error:[OCMArg setTo:nil]])
-        .andDo(^(NSInvocation* invocation) {
-          __unsafe_unretained BGAppRefreshTaskRequest* request;
-          [invocation getArgument:&request atIndex:2];
-          last_task_request_ = [request copy];
-        });
+    OCMStub([task_scheduler_mock_
+        submitTaskRequest:CopyValueToVariable(last_task_request_)
+                    error:[OCMArg setTo:nil]]);
   }
 
   // Simulate the app entering the background by calling the relevant
@@ -351,6 +341,8 @@ TEST_F(BackgroundRefreshAppAgentTest, ExecuteSingleTask) {
   // Test that when a single provider is registered, that task executes and the
   // refresh is marked successful.
 
+  base::HistogramTester histogram_tester;
+
   TestRefreshProvider* provider = [[TestRefreshProvider alloc] init];
   [agent_ addAppRefreshProvider:provider];
 
@@ -365,6 +357,11 @@ TEST_F(BackgroundRefreshAppAgentTest, ExecuteSingleTask) {
   VerifyTaskCompleted(YES);
   EXPECT_TRUE(audience_.ended);
   EXPECT_TRUE([provider injectedTask].executed);
+
+  histogram_tester.ExpectTotalCount("IOS.BackgroundRefresh.ExecutionDuration",
+                                    1);
+  histogram_tester.ExpectTotalCount(
+      "IOS.BackgroundRefresh.Provider.Duration.TestRefreshProvider", 1);
 }
 
 TEST_F(BackgroundRefreshAppAgentTest, NotExecuteNotDueTask) {

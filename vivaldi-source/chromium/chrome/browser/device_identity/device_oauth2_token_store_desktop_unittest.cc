@@ -5,6 +5,7 @@
 #include "chrome/browser/device_identity/device_oauth2_token_store_desktop.h"
 
 #include "base/base64.h"
+#include "base/functional/callback_helpers.h"
 #include "base/test/bind.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -152,6 +153,44 @@ TEST_F(DeviceOAuth2TokenStoreDesktopTest, SaveToken) {
         callback_success = success;
       }));
 
+  EXPECT_TRUE(callback_success);
+
+  std::string persisted_token =
+      local_state()->GetString(kCBCMServiceAccountRefreshToken);
+
+  std::string decoded;
+  base::Base64Decode(persisted_token, &decoded);
+  std::string decrypted;
+  auto encryptor = GetTestEncryptorForTesting();
+  ASSERT_TRUE(encryptor.has_value());
+  EXPECT_TRUE(encryptor->DecryptString(decoded, &decrypted));
+
+  EXPECT_EQ(token, store.GetRefreshToken());
+  EXPECT_EQ(token, decrypted);
+}
+
+TEST_F(DeviceOAuth2TokenStoreDesktopTest, SaveTokenBeforeInit) {
+  std::string token = "test_token";
+
+  DeviceOAuth2TokenStoreDesktop store(local_state(), os_crypt_async());
+
+  EXPECT_TRUE(store.GetRefreshToken().empty());
+
+  bool callback_success = false;
+  bool callback_called = false;
+  store.SetAndSaveRefreshToken(token,
+                               base::BindLambdaForTesting([&](bool success) {
+                                 callback_success = success;
+                                 callback_called = true;
+                               }));
+
+  // Callback should not be called yet because Init hasn't been called.
+  EXPECT_FALSE(callback_called);
+
+  store.Init(base::DoNothing());
+
+  // Now it should be called.
+  EXPECT_TRUE(callback_called);
   EXPECT_TRUE(callback_success);
 
   std::string persisted_token =

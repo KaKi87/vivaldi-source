@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Para bloquear tus pestañas privadas, configura Touch ID, Face ID o un código de acceso.</translation>
 <translation id="1189137610071296104">Abrir en la pila de pestañas</translation>
 <translation id="1310184829257917508">Preguntar antes de abrir enlaces de otras aplicaciones en navegación privada</translation>
+<translation id="1624481300475123200">Autocompletar contraseñas</translation>
 <translation id="1743244221910283364">Descartar cambios</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Añadir pestaña a la pila}
         other {Añadir pestañas a la pila}}</translation>
 <translation id="207677936531967364">Nueva página de pestaña privada</translation>
 <translation id="2099591136582442348">Esto borrará permanentemente la pila de tu dispositivo.</translation>
+<translation id="2104086191144208395">¿Has encontrado un error?</translation>
 <translation id="2181990701313127304">Nueva pestaña en la pila</translation>
 <translation id="2351280151183279120">Compartir la pila</translation>
 <translation id="2353953000228441783">Vista por defecto de los sitios</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Abrir ${url} en privado</translation>
 <translation id="398477389655464998">Copiar enlace a texto seleccionado</translation>
 <translation id="3993429087389909418">Las pestañas permanecerán abiertas en este dispositivo, pero la pila se eliminará de todos los dispositivos con sesión iniciada en <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 ¿Has encontrado un error?</translation>
 <translation id="4216644171369573466">Pila de pestañas, <ph name="GROUP_TITLE" />, Menú.</translation>
 <translation id="4304713468139749426">Gestor de contraseñas</translation>
 <translation id="4439281775431634915">Tus pilas de pestañas están aquí</translation>
@@ -61,17 +62,22 @@
 <translation id="5521301883748677039">¿Eliminar pila?</translation>
 <translation id="5544011153887687593">Pila de pestañas. <ph name="TAB_INDEX_IN_GROUP" /> de <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
 <translation id="5614553682702429503">¿Quieres guardar la contraseña?</translation>
+<translation id="5620163320393916465">No hay contraseñas guardadas</translation>
 <translation id="570209299585559496">Puedes cambiar la vista por defecto de los sitios a escritorio en ajustes, luego ajustes de contenido</translation>
 <translation id="5719777162751096990">Pasar a la pila de pestañas</translation>
+<translation id="5869522115854928033">Contraseñas guardadas</translation>
 <translation id="5962477178930921574">Pegar y buscar</translation>
 <translation id="6163856768888310791">Desapilar</translation>
 <translation id="6168969409902608220">Nombre de la Pila</translation>
 <translation id="6192561334825788389">Puedes deslizar hacia la derecha para navegar en modo privado.</translation>
 <translation id="6233792867654386826">Abre las URL introducidas en Vivaldi.</translation>
 <translation id="6271462272606946663">Ocultar solicitud de sitio móvil</translation>
+<translation id="6309282378909663947">Contraseñas del gestor de contraseñas de Vivaldi</translation>
 <translation id="6478587527114893588">Cerrar apilable.</translation>
 <translation id="6527405730445064713">Pila de pestañas. Expandida.</translation>
 <translation id="6532106788206463496">Guardar cambios</translation>
+<translation id="6636411080833380839">Eliminar de la pila</translation>
+<translation id="6644512095122093795">Ofrecer que se guarden las contraseñas</translation>
 <translation id="6666425778700353369">Esto eliminará la pila de todos los dispositivos con sesión iniciada en <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Personalizar menú</translation>
 <translation id="6695835495840050460">Pulsa "Añadir pestaña a nueva pila"</translation>
@@ -92,6 +98,7 @@
 <translation id="7585610907974664408">Nueva pestaña privada en la pila</translation>
 <translation id="7661319142491611883">Expandir la pila de pestañas.</translation>
 <translation id="7706213624515206557">Mostrar todas las pestañas en la pila de pestañas</translation>
+<translation id="7937179923651776879">Accede a tus contraseñas desde cualquier app</translation>
 <translation id="7961015016161918242">Nunca</translation>
 <translation id="8326104954595890674">Nueva pestaña privada</translation>
 <translation id="8345989863850359861">¿Eliminar la pestaña y la pila?</translation>

@@ -14,6 +14,10 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "ui/vivaldi_skia_utils.h"
 
+namespace viz {
+struct CopyOutputBitmapWithMetadata;
+}  // namespace viz
+
 namespace extensions {
 namespace vivaldi {
 
@@ -41,7 +45,8 @@ class WebViewPrivateGetThumbnailFunction
   ~WebViewPrivateGetThumbnailFunction() override;
   ResponseAction Run() override;
   ResponseAction RunImpl(const web_view_private::ThumbnailParams& params);
-  void CopyFromBackingStoreComplete(const SkBitmap& bitmap);
+  void CopyFromBackingStoreComplete(
+      const viz::CopyOutputBitmapWithMetadata& bitmap);
   void ScaleAndEncodeOnWorkerThread(SkBitmap bitmap);
   void SendResult();
 

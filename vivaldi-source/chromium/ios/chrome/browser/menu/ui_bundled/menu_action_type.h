@@ -78,6 +78,10 @@ enum class MenuActionType {
   ShareLocalTabGroup = 65,
   LeaveSharedTabGroup = 66,
   DeleteSharedTabGroup = 67,
+  GeminiWithImageAttachment = 68,
+  PinSite = 69,
+  UnpinSite = 70,
+  EditPinnedSite = 71,
 
   // Vivaldi
   OpenInNewBackgroundTab,

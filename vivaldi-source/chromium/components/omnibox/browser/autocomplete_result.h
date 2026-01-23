@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/gtest_prod_util.h"
+#include "base/memory/safety_checks.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/actions/omnibox_action.h"
 #include "components/omnibox/browser/autocomplete_match.h"
@@ -38,6 +39,9 @@ class TemplateURLService;
 // what the default match should be if the user doesn't manually select another
 // match.
 class AutocompleteResult {
+  // TODO(crbug.com/449894891): Remove this macro once it gets fixed.
+  ADVANCED_MEMORY_SAFETY_CHECKS();
+
  public:
   typedef ACMatches::const_iterator const_iterator;
   typedef ACMatches::iterator iterator;
@@ -188,13 +192,6 @@ class AutocompleteResult {
   void AttachPedalsToMatches(const AutocompleteInput& input,
                              const AutocompleteProviderClient& client);
 
-#if BUILDFLAG(IS_IOS) || BUILDFLAG(IS_ANDROID)
-  // Attaches AIM action to the highest-scoring eligible match in the result
-  // set, if no other actions are present.
-  void AttachAimAction(TemplateURLService* template_url_service,
-                       AutocompleteProviderClient* client);
-#endif
-
   // Sets a takeover action on all matches to issue a contextual search.
   void AttachContextualSearchFulfillmentActionToMatches();
 
@@ -205,6 +202,11 @@ class AutocompleteResult {
   void set_smart_compose_inline_hint(
       const std::string& smart_compose_inline_hint) {
     smart_compose_inline_hint_ = smart_compose_inline_hint;
+  }
+
+  // Sets if there are contextual chips available to show.
+  void set_has_contextual_chips(bool has_contextual_chips) {
+    has_contextual_chips_ = has_contextual_chips;
   }
 
   // Sets |has_tab_match| in matches whose URL matches an open tab's URL.
@@ -275,6 +277,8 @@ class AutocompleteResult {
   const std::string smart_compose_inline_hint() const {
     return smart_compose_inline_hint_;
   }
+
+  bool has_contextual_chips() const { return has_contextual_chips_; }
 
   const SessionData& session() const { return session_; }
 
@@ -447,6 +451,7 @@ class AutocompleteResult {
   friend class AutocompleteController;
   friend class AutocompleteResultForTesting;
   friend class AutocompleteProviderTest;
+  friend class AutocompleteResultTest;
   friend class HistoryURLProviderTest;
   FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTest, Desktop_TwoColumnRealbox);
   FRIEND_TEST_ALL_PREFIXES(AutocompleteResultTest, Android_TrimOmniboxActions);
@@ -508,11 +513,10 @@ class AutocompleteResult {
       const AutocompleteMatch& match);
 
   // This method reduces the number of navigation suggestions to that of
-  // |max_url_matches| but will allow more if there are no other types to
+  // `max_url_matches_` but will allow more if there are no other types to
   // replace them.
   void LimitNumberOfURLsShown(
       size_t max_matches,
-      size_t max_url_count,
       const CompareWithDemoteByType<AutocompleteMatch>& comparing_object);
 
   // If we have SearchProvider search suggestions, demote OnDeviceProvider
@@ -531,10 +535,18 @@ class AutocompleteResult {
   // The smart compose completion, if any.
   std::string smart_compose_inline_hint_;
 
+  // Whether or not the result can show the contextual chips (e.g. "Ask about
+  // this page")
+  bool has_contextual_chips_ = false;
+
   // The map of suggestion group IDs to suggestion group information for the
   // current result set. Cleared along with `matches_` on `ClearMatches()` or
   // `Reset()`.
   omnibox::GroupConfigMap suggestion_groups_map_;
+
+  // The maximum number of URL matches that should be allowed within the Omnibox
+  // if there are search-type matches available to replace them.
+  size_t max_url_matches_ = 0;
 
   // The session data irrespective of the current result set. Cleared on
   // `Reset()`.

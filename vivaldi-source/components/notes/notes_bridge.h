@@ -4,8 +4,10 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_weak_ref.h"
 #include "base/compiler_specific.h"
-#include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/prefs/pref_change_registrar.h"
+
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_observer.h"
 
 #include "components/notes/note_id.h"
 #include "components/notes/note_node.h"
@@ -14,75 +16,69 @@
 #include "components/notes/notes_model_loaded_observer.h"
 #include "components/notes/notes_model_observer.h"
 
-// namespace notes {
-// class ScopedGroupNoteActions;
-//}
-
 class Profile;
 
 // The delegate to fetch notes information for the Android native
 // notes page. This fetches the notes, title, urls, folder
 // hierarchy.
-class NotesBridge : public vivaldi::NotesModelObserver {
+class NotesBridge : public vivaldi::NotesModelObserver,
+                    public ProfileObserver,
+                    public base::SupportsUserData::Data {
  public:
+  NotesBridge(Profile* profile, vivaldi::NotesModel* model);
   NotesBridge(JNIEnv* env,
               const base::android::JavaRef<jobject>& obj,
               const base::android::JavaRef<jobject>& j_profile);
+
+  NotesBridge(const NotesBridge&) = delete;
+  NotesBridge& operator=(const NotesBridge&) = delete;
+  ~NotesBridge() override;
   void Destroy(JNIEnv*, const base::android::JavaParamRef<jobject>&);
 
-  bool IsDoingExtensiveChanges(JNIEnv* env,
-                               const base::android::JavaParamRef<jobject>& obj);
+  bool IsDoingExtensiveChanges(JNIEnv* env);
 
-  jboolean IsEditNotesEnabled(JNIEnv* env,
-                              const base::android::JavaParamRef<jobject>& obj);
+  jboolean IsEditNotesEnabled(JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jobject> GetNoteByID(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       jlong id);
 
   void GetPermanentNodeIDs(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_result_obj);
 
   void GetTopLevelFolderParentIDs(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_result_obj);
 
   void GetTopLevelFolderIDs(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_result_obj);
 
   void GetAllFoldersWithDepths(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_folders_obj,
       const base::android::JavaParamRef<jobject>& j_depths_obj);
 
+      jni_zero::ScopedJavaGlobalRef<jobject> GetJavaNotesModel();
+
+
   base::android::ScopedJavaLocalRef<jobject> GetRootFolderId(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jobject> GetMainFolderId(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jobject> GetTrashFolderId(
       JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jobject> GetOtherFolderId(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      JNIEnv* env);
 
   base::android::ScopedJavaLocalRef<jobject> GetDesktopFolderId(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      JNIEnv* env);
 
   void GetChildIDs(JNIEnv* env,
-                   const base::android::JavaParamRef<jobject>& obj,
                    jlong id,
                    jboolean get_folders,
                    jboolean get_notes,
@@ -90,82 +86,67 @@ class NotesBridge : public vivaldi::NotesModelObserver {
                    const base::android::JavaParamRef<jobject>& j_result_obj);
 
   jint GetChildCount(JNIEnv* env,
-                     const base::android::JavaParamRef<jobject>& obj,
                      jlong id);
 
   base::android::ScopedJavaLocalRef<jobject> GetChildAt(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       jlong id,
       jint index);
 
   // Get the number of notes in the sub tree of the specified bookmark node.
   jint GetTotalNoteCount(JNIEnv* env,
-                         const base::android::JavaParamRef<jobject>& obj,
                          jlong id);
 
   void SetNoteTitle(JNIEnv* env,
-                    const base::android::JavaParamRef<jobject>& obj,
                     jlong id,
                     const base::android::JavaParamRef<jstring>& title);
 
   void SetNoteContent(JNIEnv* env,
-                      const base::android::JavaParamRef<jobject>& obj,
                       jlong id,
                       const base::android::JavaParamRef<jstring>& content);
 
   void SetNoteUrl(JNIEnv* env,
-                  const base::android::JavaParamRef<jobject>& obj,
                   jlong id,
                   const base::android::JavaParamRef<jstring>& url);
 
   bool DoesNoteExist(JNIEnv* env,
-                     const base::android::JavaParamRef<jobject>& obj,
                      jlong id);
 
   void GetNotesForFolder(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_folder_id_obj,
       const base::android::JavaParamRef<jobject>& j_callback_obj,
       const base::android::JavaParamRef<jobject>& j_result_obj);
 
   void GetCurrentFolderHierarchy(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_folder_id_obj,
       const base::android::JavaParamRef<jobject>& j_callback_obj,
       const base::android::JavaParamRef<jobject>& j_result_obj);
   void SearchNotes(JNIEnv* env,
-                   const base::android::JavaParamRef<jobject>& obj,
                    const base::android::JavaParamRef<jobject>& j_list,
                    const base::android::JavaParamRef<jstring>& j_query,
                    jint max_results);
 
   base::android::ScopedJavaLocalRef<jobject> AddFolder(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_parent_id_obj,
       jint index,
       const base::android::JavaParamRef<jstring>& j_title);
 
   void DeleteNote(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_bookmark_id_obj);
 
-  void RemoveAllUserNotes(JNIEnv* env,
-                          const base::android::JavaParamRef<jobject>& obj);
+  void RemoveAllUserNotes(JNIEnv* env);
 
   void MoveNote(JNIEnv* env,
-                const base::android::JavaParamRef<jobject>& obj,
                 const base::android::JavaParamRef<jobject>& j_bookmark_id_obj,
                 const base::android::JavaParamRef<jobject>& j_parent_id_obj,
                 jint index);
 
   base::android::ScopedJavaLocalRef<jobject> AddNote(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_parent_id_obj,
       jint index,
       const base::android::JavaParamRef<jstring>& j_title,
@@ -182,13 +163,15 @@ class NotesBridge : public vivaldi::NotesModelObserver {
   std::u16string GetContent(const vivaldi::NoteNode* node) const;
   std::u16string GetTitle(const vivaldi::NoteNode* node) const;
 
+
+  // ProfileObserver override
+  void OnProfileWillBeDestroyed(Profile* profile) override;
+
   // notes_model_observer
   // Invoked when the model has finished loading. |ids_reassigned| mirrors
   // TODO void NotesModelLoaded(bool ids_reassigned)
   // override {}
 
-  // Invoked from the destructor of the NotesModel.
-  // TODO void NotesModelBeingDeleted() override {}
 
   // Invoked when a node has moved.
   void NotesNodeMoved(const vivaldi::NoteNode* old_parent,
@@ -251,26 +234,18 @@ class NotesBridge : public vivaldi::NotesModelObserver {
   void OnWillRemoveAllNotes() override {}
 
   // Invoked when all non-permanent notes nodes have been removed.
-  void NotesAllNodesRemoved() override {}
-
-  void GroupedNotesChangesBeginning() override {}
-  void GroupedNotesChangesEnded() override {}*/
+  void NotesAllNodesRemoved() override {}*/
 
   void ReorderChildren(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& j_note_id_obj,
       const base::android::JavaRef<jlongArray>& arr);
 
   bool IsChildOfTrashNode(JNIEnv* env,
-                          const base::android::JavaParamRef<jobject>& obj,
                           jlong id);
+  void DestroyJavaObject();
 
  private:
-  ~NotesBridge() override;
-  NotesBridge(const NotesBridge&) = delete;
-  NotesBridge& operator=(const NotesBridge&) = delete;
-
   base::android::ScopedJavaLocalRef<jobject> CreateJavaNote(
       const vivaldi::NoteNode* node);
   void ExtractNoteNodeInformation(
@@ -315,9 +290,14 @@ class NotesBridge : public vivaldi::NotesModelObserver {
   void ExtensiveNoteChangesEnded();
 
   const raw_ptr<Profile> profile_;
+  base::android::ScopedJavaGlobalRef<jobject> java_notes_model_;
   const raw_ptr<vivaldi::NotesModel> notes_model_;
   JavaObjectWeakGlobalRef weak_java_ref_;
-  PrefChangeRegistrar pref_change_registrar_;
+  base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};
+
+  // Weak pointers for creating callbacks that won't call into a destroyed
+  // object.
+  base::WeakPtrFactory<NotesBridge> weak_ptr_factory_;
 };
 
 #endif  // COMPONENTS_NOTES_NOTES_BRIDGE_H_

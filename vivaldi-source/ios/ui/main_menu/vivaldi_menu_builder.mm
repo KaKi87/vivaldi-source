@@ -77,8 +77,8 @@
       UIKeyCommand.cr_stop,
       UIKeyCommand.cr_reload,
       UIKeyCommand.cr_goToTabGrid,
-
-      // TODO(tomas@vivaldi): VIB-1514 Add "Translate website" menuitem
+      UIKeyCommand.viv_showPanel,
+      UIKeyCommand.viv_translate,
     ];
     [builder replaceChildrenOfMenuForIdentifier:UIMenuView
                               fromChildrenBlock:^(NSArray<UIMenuElement*>* _) {
@@ -170,8 +170,8 @@
       UIKeyCommand.cr_stop,
       UIKeyCommand.cr_reload,
       UIKeyCommand.cr_goToTabGrid,
-
-      // TODO(tomas@vivaldi): VIB-1514 Add "Translate website" menuitem
+      UIKeyCommand.viv_showPanel,
+      UIKeyCommand.viv_translate,
     ];
     [builder replaceChildrenOfMenuForIdentifier:UIMenuView
                               fromChildrenBlock:^(NSArray<UIMenuElement*>* _) {

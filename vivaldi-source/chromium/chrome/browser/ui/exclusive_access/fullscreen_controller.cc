@@ -103,8 +103,8 @@ bool FullscreenController::IsFullscreenForBrowser() const {
 
 void FullscreenController::ToggleBrowserFullscreenMode(bool user_initiated) {
   extension_url_.reset();
-  ToggleFullscreenModeInternal(BROWSER, nullptr, display::kInvalidDisplayId,
-                               user_initiated);
+  ToggleFullscreenModeInternal(FullscreenInternalOption::kBrowser, nullptr,
+                               display::kInvalidDisplayId, user_initiated);
 }
 
 void FullscreenController::ToggleBrowserFullscreenModeWithExtension(
@@ -112,7 +112,8 @@ void FullscreenController::ToggleBrowserFullscreenModeWithExtension(
   // |extension_url_| will be reset if this causes fullscreen to
   // exit.
   extension_url_ = extension_url;
-  ToggleFullscreenModeInternal(BROWSER, nullptr, display::kInvalidDisplayId,
+  ToggleFullscreenModeInternal(FullscreenInternalOption::kBrowser, nullptr,
+                               display::kInvalidDisplayId,
                                /*user_initiated=*/false);
 }
 
@@ -229,6 +230,16 @@ void FullscreenController::EnterFullscreenModeForTab(
     // renderer doesn't know if an element in other renderer process is in
     // fullscreen.
     DCHECK(tab_fullscreen_);
+#if BUILDFLAG(IS_ANDROID)
+    // On Android it is allowed to change the fullscreen parameters options when
+    // in fullscreen.
+    DCHECK(fullscreen_parameters_.has_value());
+    if (fullscreen_parameters_.has_value() &&
+        fullscreen_tab_params != fullscreen_parameters_) {
+      EnterFullscreenModeInternal(FullscreenInternalOption::kTab,
+                                  requesting_frame, fullscreen_tab_params);
+    }
+#endif
   } else {
     ExclusiveAccessContext* exclusive_access_context =
         exclusive_access_manager()->context();
@@ -241,7 +252,8 @@ void FullscreenController::EnterFullscreenModeForTab(
 
     if (!exclusive_access_context->IsFullscreen() ||
         requesting_another_screen) {
-      EnterFullscreenModeInternal(TAB, requesting_frame, fullscreen_tab_params);
+      EnterFullscreenModeInternal(FullscreenInternalOption::kTab,
+                                  requesting_frame, fullscreen_tab_params);
       return;
     }
 
@@ -301,7 +313,7 @@ void FullscreenController::ExitFullscreenModeForTab(WebContents* web_contents) {
       display_id_prior_to_tab_fullscreen_ != display::kInvalidDisplayId &&
       display_id_prior_to_tab_fullscreen_ != GetDisplayId(*web_contents)) {
     EnterFullscreenModeInternal(
-        BROWSER, nullptr,
+        FullscreenInternalOption::kBrowser, nullptr,
         FullscreenTabParams{display_id_prior_to_tab_fullscreen_});
     return;
   }
@@ -540,22 +552,22 @@ void FullscreenController::EnterFullscreenModeInternal(
     content::RenderFrameHost* requesting_frame,
     FullscreenTabParams fullscreen_tab_params) {
 #if !BUILDFLAG(IS_MAC)
+
+  Profile* profile = exclusive_access_manager()->context()->GetProfile();
   // Do not enter fullscreen mode if disallowed by pref. This prevents the user
   // from manually entering fullscreen mode and also disables kiosk mode on
   // desktop platforms.
-  if (!exclusive_access_manager()
-           ->context()
-           ->GetProfile()
-           ->GetPrefs()
-           ->GetBoolean(prefs::kFullscreenAllowed)) {
+  if (!profile || !profile->GetPrefs()->GetBoolean(prefs::kFullscreenAllowed)) {
     return;
   }
 #endif
+  fullscreen_parameters_ = fullscreen_tab_params;
   started_fullscreen_transition_ = true;
   toggled_into_fullscreen_ = true;
-  bool entering_tab_fullscreen = option == TAB && !tab_fullscreen_;
+  bool entering_tab_fullscreen =
+      option == FullscreenInternalOption::kTab && !tab_fullscreen_;
   url::Origin origin;
-  if (option == TAB) {
+  if (option == FullscreenInternalOption::kTab) {
     origin = GetRequestingOrigin();
     tab_fullscreen_ = true;
     WebContents* web_contents =
@@ -594,7 +606,7 @@ void FullscreenController::EnterFullscreenModeInternal(
   }
 
   fullscreen_start_time_ = base::TimeTicks::Now();
-  if (option == BROWSER) {
+  if (option == FullscreenInternalOption::kBrowser) {
     base::RecordAction(base::UserMetricsAction("ToggleFullscreen"));
   }
   // TODO(scheib): Record metrics for WITH_TOOLBAR, without counting transitions
@@ -625,6 +637,7 @@ void FullscreenController::ExitFullscreenModeInternal() {
     fullscreen_start_time_.reset();
   }
 
+  fullscreen_parameters_.reset();
   toggled_into_fullscreen_ = false;
   started_fullscreen_transition_ = true;
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)

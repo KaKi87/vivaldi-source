@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "content/public/browser/content_browser_client.h"
+#include "net/ssl/ssl_info.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 
@@ -28,6 +29,8 @@ struct FilteredRequestInfo {
   FilteredRequestInfo& operator=(FilteredRequestInfo&&) = delete;
 
   ~FilteredRequestInfo();
+
+  void AddSslInfo(const std::optional<net::SSLInfo>& ssl_info);
 
   // Fill in response data for this request.
   void AddResponse(const network::mojom::URLResponseHead& added_response);
@@ -57,6 +60,9 @@ struct FilteredRequestInfo {
 
   // Valid if this request corresponds to a navigation.
   const std::optional<int64_t> navigation_id;
+
+  // For SecurityInfo object.
+  std::optional<net::SSLInfo> ssl_info;
 };
 
 }  // namespace vivaldi

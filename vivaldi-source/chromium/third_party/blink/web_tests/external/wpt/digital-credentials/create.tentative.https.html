@@ -9,7 +9,7 @@
 
 <body>
   <iframe id="same-origin"></iframe>
-  <iframe id="cross-origin"></iframe>
+  <iframe id="cross-origin" allow="digital-credentials-create"></iframe>
 </body>
 
 <script type="module">
@@ -17,7 +17,6 @@
 
   const iframeSameOrigin = document.querySelector("iframe#same-origin");
   const iframeCrossOrigin = document.querySelector("iframe#cross-origin");
-  const mediations = ["silent", "optional", "conditional", "required"];
 
   promise_setup(async () => {
     const hostInfo = get_host_info();
@@ -88,8 +87,12 @@
   }, "Calling navigator.credentials.create() without a digital member same origin.");
 
   promise_test(async (t) => {
-    for (const request of [undefined, []]) {
-      const options = makeCreateOptions(request);
+    for (const r of [undefined, []]) {
+      const options = {
+        digital: {
+          requests: r
+        },
+      };
       await test_driver.bless("user activation");
       await promise_rejects_js(t, TypeError, navigator.credentials.create(options));
     }
@@ -98,8 +101,12 @@
   promise_test(async (t) => {
     iframeSameOrigin.focus();
     const { contentWindow: iframeWindow } = iframeSameOrigin;
-    for (const request of [undefined, []]) {
-      const options = makeCreateOptions(request);
+    for (const r of [undefined, []]) {
+      const options = {
+        digital: {
+          requests: r
+        },
+      };
       await test_driver.bless("user activation");
       await promise_rejects_js(
         t,
@@ -111,8 +118,12 @@
 
   promise_test(async (t) => {
     iframeCrossOrigin.focus();
-    for (const request of [undefined, []]) {
-      const options = makeCreateOptions(request);
+    for (const r of [undefined, []]) {
+      const options = {
+        digital: {
+          requests: r
+        },
+      };
       const result = await sendMessage(iframeCrossOrigin, {
         action: "create",
         options,
@@ -197,6 +208,8 @@
   }, "navigator.credentials.create() promise is rejected if abort controller is aborted after call to create() in cross-origin iframe.");
 
   promise_test(async (t) => {
+    /** @type sequence<CredentialMediationRequirement> */
+    const mediations = ["silent", "optional", "conditional", "required"];
     const abortController = new AbortController();
     const { signal } = abortController;
     abortController.abort();
@@ -207,16 +220,7 @@
       });
       await promise_rejects_dom(t, "AbortError", requestPromise);
     }
-  }, "Adding mediations together with abort signal respects the abort signal.");
-
-  promise_test(async (t) => {
-    /** @type sequence<CredentialMediationRequirement> */
-    const disallowedMediations = [ "conditional", "optional", "silent"];
-    for (const mediation of disallowedMediations) {
-      const options = makeCreateOptions("default", mediation);
-      await promise_rejects_js(t, TypeError, navigator.credentials.create(options));
-    }
-  }, "Mediation is required to create a DigitalCredential.");
+  }, "Mediation is implicitly required and hence ignored. Request is aborted regardless.");
 
   promise_test(async (t) => {
     await promise_rejects_js(

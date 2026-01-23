@@ -11,6 +11,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
+#include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
 #include "extensions/buildflags/buildflags.h"
@@ -18,12 +19,11 @@
 #include "net/base/ip_endpoint.h"
 #include "net/cookies/site_for_cookies.h"
 #include "net/http/http_util.h"
-#include "third_party/blink/public/mojom/loader/resource_load_info.mojom-shared.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+/*#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/api/web_request/permission_helper.h"
 #include "extensions/browser/extension_navigation_ui_data.h"
-#endif
+#endif*/
 
 namespace vivaldi {
 namespace {
@@ -303,11 +303,13 @@ void RequestFilterProxyingWebSocket::OnBeforeSendHeaders(
 void RequestFilterProxyingWebSocket::OnHeadersReceived(
     const std::string& headers,
     const net::IPEndPoint& endpoint,
+    const std::optional<net::SSLInfo>& ssl_info,
     OnHeadersReceivedCallback callback) {
   DCHECK(receiver_as_header_client_.is_bound());
 
   on_headers_received_callback_ = std::move(callback);
   response_->headers = base::MakeRefCounted<net::HttpResponseHeaders>(headers);
+  ssl_info_ = &ssl_info;
 
   ContinueToHeadersReceived();
 }
@@ -470,7 +472,7 @@ void RequestFilterProxyingWebSocket::OnHeadersReceivedComplete(int error_code) {
     if (forwarding_header_client_) {
       forwarding_header_client_->OnHeadersReceived(
           headers ? *headers : response_->headers->raw_headers(),
-          response_->remote_endpoint,
+          response_->remote_endpoint, *ssl_info_,
           base::BindOnce(&ForwardOnHeaderReceivedCallback,
                          std::move(on_headers_received_callback_), headers));
     } else {
@@ -478,6 +480,7 @@ void RequestFilterProxyingWebSocket::OnHeadersReceivedComplete(int error_code) {
           .Run(net::OK, headers, std::nullopt);
     }
   }
+  ssl_info_ = nullptr;
 
   if (override_headers_) {
     response_->headers = override_headers_;

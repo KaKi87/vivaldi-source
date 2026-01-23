@@ -80,19 +80,16 @@ DuckDuckGoRulesParser::~DuckDuckGoRulesParser() = default;
 
 void DuckDuckGoRulesParser::Parse(const base::Value& root) {
   if (!root.is_dict()) {
-    parse_result_->fetch_result = FetchResult::kFileUnsupported;
     return;
   }
 
   const base::Value* trackers = root.GetDict().Find(kTrackersKey);
   if (!trackers) {
-    parse_result_->fetch_result = FetchResult::kFileUnsupported;
     return;
   }
 
   const base::Value* entities = root.GetDict().Find(kEntitiesKey);
   if (!entities) {
-    parse_result_->fetch_result = FetchResult::kFileUnsupported;
     return;
   }
 
@@ -148,10 +145,7 @@ void DuckDuckGoRulesParser::Parse(const base::Value& root) {
     }
   }
 
-  if (parse_result_->request_filter_rules.empty()) {
-    parse_result_->fetch_result = FetchResult::kFileUnsupported;
-  } else {
-    parse_result_->fetch_result = FetchResult::kSuccess;
+  if (!parse_result_->request_filter_rules.empty()) {
     parse_result_->metadata.title = kListTitle;
     parse_result_->metadata.expires = base::Hours(kValidityHours);
   }

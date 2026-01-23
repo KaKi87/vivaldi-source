@@ -75,7 +75,10 @@ inline bool IsMissingNullTerminator(const char (&str)[max_length]) {
 }
 
 // ---- Core 1.0 manual loader trampoline functions
-XRAPI_ATTR XrResult XRAPI_CALL LoaderXrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR *loaderInitInfo) XRLOADER_ABI_TRY {
+static XRAPI_ATTR XrResult XRAPI_CALL LoaderXrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR *);
+
+static XRAPI_ATTR XrResult XRAPI_CALL LoaderXrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR *loaderInitInfo)
+    XRLOADER_ABI_TRY {
     LoaderLogger::LogVerboseMessage("xrInitializeLoaderKHR", "Entering loader trampoline");
     return InitializeLoaderInitData(loaderInitInfo);
 }
@@ -756,12 +759,8 @@ XRAPI_ATTR XrResult XRAPI_CALL LoaderXrGetInstanceProcAddr(XrInstance instance, 
         *function = reinterpret_cast<PFN_xrVoidFunction>(LoaderXrGetInstanceProcAddr);
         return XR_SUCCESS;
     } else if (strcmp(name, "xrInitializeLoaderKHR") == 0) {
-#ifdef XR_KHR_LOADER_INIT_SUPPORT
         *function = reinterpret_cast<PFN_xrVoidFunction>(LoaderXrInitializeLoaderKHR);
         return XR_SUCCESS;
-#else
-        return XR_ERROR_FUNCTION_UNSUPPORTED;
-#endif
     } else if (strcmp(name, "xrEnumerateApiLayerProperties") == 0) {
         *function = reinterpret_cast<PFN_xrVoidFunction>(LoaderXrEnumerateApiLayerProperties);
         return XR_SUCCESS;
@@ -840,9 +839,3 @@ LOADER_EXPORT XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance in
                                                                    PFN_xrVoidFunction *function) {
     return LoaderXrGetInstanceProcAddr(instance, name, function);
 }
-
-#ifdef XR_KHR_LOADER_INIT_SUPPORT
-LOADER_EXPORT XRAPI_ATTR XrResult XRAPI_CALL xrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR *loaderInitInfo) {
-    return LoaderXrInitializeLoaderKHR(loaderInitInfo);
-}
-#endif

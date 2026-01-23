@@ -11,6 +11,7 @@
 #include "chrome/browser/contextual_cueing/contextual_cueing_service.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service_factory.h"
 #include "chrome/browser/contextual_cueing/mock_contextual_cueing_service.h"
+#include "chrome/browser/glic/test_support/glic_test_environment.h"
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/optimization_guide/mock_optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
@@ -25,6 +26,10 @@
 #include "components/history/core/browser/features.h"
 #include "content/public/test/mock_navigation_handle.h"
 #include "content/public/test/navigation_simulator.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/test/glic_user_session_test_helper.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace contextual_cueing {
 namespace {
@@ -42,7 +47,8 @@ std::unique_ptr<KeyedService> CreateOptimizationGuideKeyedService(
 std::unique_ptr<KeyedService> CreatePageContentExtractionService(
     content::BrowserContext* context) {
   return std::make_unique<
-      page_content_annotations::PageContentExtractionService>();
+      page_content_annotations::PageContentExtractionService>(
+      /*os_crypt_async=*/nullptr, context->GetPath());
 }
 
 std::unique_ptr<KeyedService> CreateContextualCueingService(
@@ -54,8 +60,7 @@ class ContextualCueingHelperTest : public ChromeRenderViewHostTestHarness {
  public:
   ContextualCueingHelperTest() {
     scoped_feature_list_.InitWithFeatures(
-        {features::kGlic, features::kTabstripComboButton, kContextualCueing},
-        {contextual_cueing::kGlicZeroStateSuggestions});
+        {kContextualCueing}, {contextual_cueing::kGlicZeroStateSuggestions});
   }
 
   void SetUp() override {
@@ -63,15 +68,53 @@ class ContextualCueingHelperTest : public ChromeRenderViewHostTestHarness {
         TestingBrowserProcess::GetGlobal());
     ASSERT_TRUE(profile_manager_->SetUp());
     TestingBrowserProcess::GetGlobal()->CreateGlobalFeaturesForTesting();
+#if BUILDFLAG(IS_CHROMEOS)
+    glic_user_session_test_helper_.PreProfileSetUp(
+        profile_manager_->profile_manager());
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
     ChromeRenderViewHostTestHarness::SetUp();
 
     // Bypass glic eligibility check.
     base::CommandLine::ForCurrentProcess()->AppendSwitch(::switches::kGlicDev);
+
+    glic_test_env_.SetupProfile(profile());
   }
 
   void TearDown() override {
+    // Delete profile earlier since it must be destroyed before TaskEnvironment
+    // is destroyed. NOTE: In production profile is deleted with ProfileManager.
+    {
+      DeleteContents();
+      profile_ = nullptr;
+      profile_manager_->DeleteAllTestingProfiles();
+    }
+
     ChromeRenderViewHostTestHarness::TearDown();
     TestingBrowserProcess::GetGlobal()->GetFeatures()->Shutdown();
+
+    profile_manager_.reset();
+
+#if BUILDFLAG(IS_CHROMEOS)
+    glic_user_session_test_helper_.PostProfileTearDown();
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  }
+
+  std::unique_ptr<TestingProfile> CreateTestingProfile() override {
+    CHECK(!profile_);
+    profile_ = profile_manager_->CreateTestingProfile(
+        TestingProfile::kDefaultProfileUserName, GetTestingFactories());
+    CHECK(profile_);
+
+    // NOTE: The new profile is owned by TestingProfileManager, so this cannot
+    // return it. It is returned by `GetBrowserContext()` instead.
+    return nullptr;
+  }
+
+  // content::RenderViewHostTestHarness override:
+  content::BrowserContext* GetBrowserContext() override {
+    CHECK(profile_);
+    return profile_.get();
   }
 
   TestingProfile::TestingFactories GetTestingFactories() const override {
@@ -88,8 +131,13 @@ class ContextualCueingHelperTest : public ChromeRenderViewHostTestHarness {
   }
 
  private:
-  std::unique_ptr<TestingProfileManager> profile_manager_;
+  glic::GlicUnitTestEnvironment glic_test_env_;
   base::test::ScopedFeatureList scoped_feature_list_;
+  std::unique_ptr<TestingProfileManager> profile_manager_;
+#if BUILDFLAG(IS_CHROMEOS)
+  ash::GlicUserSessionTestHelper glic_user_session_test_helper_;
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  raw_ptr<TestingProfile> profile_ = nullptr;
 };
 
 TEST_F(ContextualCueingHelperTest, TabHelperStartsUp) {
@@ -104,8 +152,7 @@ class ContextualCueingHelperResponseCodeTest
       public testing::WithParamInterface<bool> {
  public:
   ContextualCueingHelperResponseCodeTest() {
-    std::vector<base::test::FeatureRef> enabled_features = {
-        features::kGlic, features::kTabstripComboButton, kContextualCueing};
+    std::vector<base::test::FeatureRef> enabled_features = {kContextualCueing};
     std::vector<base::test::FeatureRef> disabled_features = {
         contextual_cueing::kGlicZeroStateSuggestions};
 

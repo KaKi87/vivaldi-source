@@ -113,20 +113,8 @@ bool ContainsEmailFormWithSignature(
 }
 
 FastCheckoutDelegateImpl* GetDelegate(autofill::AutofillManager& manager) {
-  #if BUILDFLAG(IS_ANDROID) && defined(VIVALDI_BUILD)
-  // NOTE(jarle@vivaldi.com): In Vivaldi for Android the BrowserAutofillManager
-  // is coexisting in the AutofillManager. Due to that we need to access it
-  // differently.
-  autofill::ContentAutofillDriver& contentAutofillDriver =
-      static_cast<autofill::ContentAutofillDriver&>(manager.driver());
-  autofill::BrowserAutofillManager* browser =
-      contentAutofillDriver.android_browser_autofill_manager();
-  return static_cast<FastCheckoutDelegateImpl*>(
-      browser->fast_checkout_delegate());
-  #else
   auto& bam = static_cast<autofill::BrowserAutofillManager&>(manager);
   return static_cast<FastCheckoutDelegateImpl*>(bam.fast_checkout_delegate());
-  #endif // BUILDFLAG(IS_ANDROID) && VIVALDI_BUILD
 }
 }  // namespace
 
@@ -174,21 +162,10 @@ void FastCheckoutClientImpl::OnContentAutofillDriverFactoryDestroyed(
 void FastCheckoutClientImpl::OnContentAutofillDriverCreated(
     autofill::ContentAutofillDriverFactory& factory,
     autofill::ContentAutofillDriver& driver) {
-  #if BUILDFLAG(IS_ANDROID) && defined(VIVALDI_BUILD)
-  // NOTE(david@vivaldi.com): In Vivaldi for Android the BrowserAutofillManager
-  // is coexisting in the AutofillManager. Due to that we need to access it
-  // differently.
-  autofill::BrowserAutofillManager* browser =
-      driver.android_browser_autofill_manager();
-  browser->set_fast_checkout_delegate(
-      std::make_unique<FastCheckoutDelegateImpl>(
-          &autofill_client_->GetWebContents(), this, browser));
-  #else
   auto& manager = static_cast<autofill::BrowserAutofillManager&>(
       driver.GetAutofillManager());
   manager.set_fast_checkout_delegate(std::make_unique<FastCheckoutDelegateImpl>(
       &autofill_client_->GetWebContents(), this, &manager));
-  #endif // BUILDFLAG(IS_ANDROID) && VIVALDI_BUILD
 }
 
 bool FastCheckoutClientImpl::TryToStart(

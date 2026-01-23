@@ -12,20 +12,22 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_consumer.h"
 
-using adblock_filter::FetchResult;
+namespace vivaldi_adblocker {
+using adblock_filter::DownloadResult;
+using adblock_filter::ReadResult;
 using adblock_filter::KnownRuleSource;
 using adblock_filter::KnownRuleSourcesHandler;
 using adblock_filter::RuleManager;
 using adblock_filter::RuleService;
 using adblock_filter::ActiveRuleSource;
 
-namespace vivaldi_adblocker {
 // A bridge that translates AdBlocker Observers C++ callbacks into ObjC
 // callbacks.
 class VivaldiATBManagerBridge : public RuleService::Observer,
                                 public RuleManager::Observer,
                                 public KnownRuleSourcesHandler::Observer {
  public:
+
   explicit VivaldiATBManagerBridge(id<VivaldiATBConsumer> observer,
                                    RuleService* ruleService);
   ~VivaldiATBManagerBridge() override;
@@ -46,7 +48,9 @@ class VivaldiATBManagerBridge : public RuleService::Observer,
   void OnKnownSourceEnabled(RuleGroup group, uint32_t source_id) override;
   void OnKnownSourceDisabled(RuleGroup group, uint32_t source_id) override;
   void StartObservingRuleSourceManager();
-  ATBFetchResult FlattenFetchResult(FetchResult fetchResult);
+  ATBFetchResult FlattenFetchResult(
+    std::optional<DownloadResult> download_result,
+    std::optional<ReadResult> read_result);
 
   __weak id<VivaldiATBConsumer> observer_;
   adblock_filter::RuleService* rule_service_ = nullptr;

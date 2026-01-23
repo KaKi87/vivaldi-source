@@ -103,3 +103,5 @@ void VivaldiSyncServiceAndroid::OnSyncCycleCompleted(
     syncer::SyncService* sync) {
   SendCycleData();
 }
+
+void VivaldiSyncServiceAndroid::OnSyncShutdown(syncer::SyncService* sync) {}

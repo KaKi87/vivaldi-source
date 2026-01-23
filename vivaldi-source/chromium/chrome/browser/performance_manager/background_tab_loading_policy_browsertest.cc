@@ -12,10 +12,12 @@
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/buildflags.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/performance_manager/public/features.h"
@@ -32,7 +34,7 @@ class BackgroundTabLoadingBrowserTest : public InProcessBrowserTest {
     features_.InitAndEnableFeature(
         performance_manager::features::
             kBackgroundTabLoadingFromPerformanceManager);
-    url_ = ui_test_utils::GetTestUrl(
+    url_ = chrome_test_utils::GetTestUrl(
         base::FilePath().AppendASCII("session_history"),
         base::FilePath().AppendASCII("bot1.html"));
   }
@@ -186,7 +188,7 @@ IN_PROC_BROWSER_TEST_F(BackgroundTabLoadingBrowserTest,
   chrome::OpenWindowWithRestoredTabs(browser()->profile());
   BrowserWindowInterface* const restored_browser =
       browser_created_observer->Wait();
-  ASSERT_EQ(2U, BrowserList::GetInstance()->size());
+  ASSERT_EQ(2U, chrome::GetTotalBrowserCount());
 
   EXPECT_EQ(kDesiredNumberOfTabs,
             restored_browser->GetTabStripModel()->count());

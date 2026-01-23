@@ -11,6 +11,7 @@
 <translation id="1276145862619442150">Hraðval</translation>
 <translation id="1281950884873973195">Dýr 6</translation>
 <translation id="1411638389238344450">Senda hlekk sem tölvupóst</translation>
+<translation id="1444961972702494601">Mistókst að lesa stillingar fyrir Opera</translation>
 <translation id="1454726940098520109">Ekki sýna staðfestingu aftur</translation>
 <translation id="1462666970065907900">Ertu alveg viss um að þú viljir loka þessum glugga?</translation>
 <translation id="1480046233931937785">Kreditlisti</translation>
@@ -26,8 +27,10 @@
 <translation id="1702758681952953055">Ef villan kemur upp aftur skaltu tilkynna hana og bæta við eftirfarandi upplýsingum:</translation>
 <translation id="1728549374069268714">Líma og heimsækja</translation>
 <translation id="1756026472674246267">Opna hlekk í nýjum flipa</translation>
+<translation id="1756609631857154536">Lykilorðsskráin (wand) er ekki til</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Eiginleikar myndar...</translation>
+<translation id="1826707182290941822">Því miður eru Crome stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Crome gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="1836997307232631937">Ekki er hægt að lesa lykilorðsskrána og hún gæti verið skemmd</translation>
 <translation id="1919345977826869612">Auglýsingar</translation>
 <translation id="1920297417712412573">Afrita á minnismiða</translation>
@@ -38,7 +41,10 @@
 <translation id="1985669426322966465">Hugbúnaðaruppfærsla</translation>
 <translation id="2079036669923635404">Smelltu hér til þess að uppfæra Vivaldi í útgáfu <ph name="VERSION" />.</translation>
 <translation id="2096375219036704155">Bókamerkjaskrá finnst ekki</translation>
+<translation id="2101054359190001133">Því miður eru Opera stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Opera gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="2141974047387702305">Það kom upp villa við niðurhal á uppfærsluskrám. Vinsamlegast athugaðu nettenginguna og prófaðu aftur síðar.</translation>
+<translation id="2142146492302700970">Fann ekki 'encrypted_key' í prófíl innflutnings</translation>
+<translation id="2209970441698102782">Fann ekki skrá að nafni 'Local State' í prófíl innflutnings</translation>
 <translation id="2225863440766607138">Rekjarar</translation>
 <translation id="2226825946708954262">⚠ Halda áfram þrátt fyrir gagnatap</translation>
 <translation id="2339641773402824483">Leita að uppfærslum...</translation>
@@ -65,6 +71,7 @@
 <translation id="2989805286512600854">Opna í nýjum flipa</translation>
 <translation id="3084011186245865060">Landslag 6</translation>
 <translation id="3085906383264247940">Opera (Beta)</translation>
+<translation id="3089483810725397237">Minnismiðaskrá er ekki til</translation>
 <translation id="3093931836425623631">Vivaldi byggir á Chromium og öðrum opnum hugbúnaði.</translation>
 <translation id="3119245580849443327">Friðhelgisskýrsla Vivaldi</translation>
 <translation id="3126903660515914763">https://vivaldi.com/blog/news/alert-no-google-topics-in-vivaldi/</translation>
@@ -83,6 +90,7 @@
 <translation id="3378346665180477942">Ógild bókamerkjaskrá</translation>
 <translation id="3383198080133834965">Hugbúnaður er uppfærður!</translation>
 <translation id="3402602684546832928">Velja Óperu bókamerkjaskrá</translation>
+<translation id="3427361875526086153">Innskráningargögn fundust ekki</translation>
 <translation id="3451317331714872347">Landslag 8</translation>
 <translation id="3457498675806041407">Staðfesta lokun</translation>
 <translation id="3470981972195599598">Uppsetningu á Vivaldi <ph name="VERSION" /> er lokið og virkjast um leið og búið er að endurræsa vafrann.</translation>
@@ -120,13 +128,16 @@
     Vinamlegast skráðu þig út, opnaðu eða gerðu við lyklahólfið þitt og prófaðu svo aftur. Ertu viss um að þú viljir halda áfram og missa þar með gögn?</translation>
 <translation id="4074744496918018786">Opna mynd í einkaglugga</translation>
 <translation id="410351446219883937">Sjálfvirk spilun</translation>
+<translation id="4241573219093785166">Ekki er hægt að flytja stillingar þínar inn úr annarri uppsetningu af Vivaldi á meðan hún er keyrandi. Lokaðu öllum gluggum sem tilheyra þeirri uppsetningu af Vivaldi og veldu svo að halda áfram með innflutninginn.</translation>
 <translation id="4281844954008187215">Notkunarskilmálar</translation>
 <translation id="430967081421617822">Alltaf</translation>
 <translation id="4324492550286218827">Landslag 2</translation>
+<translation id="436942009209245676">Ekki tókst að túlka JSON í Local State skránni</translation>
 <translation id="4406101500523955324">Opna í nýjum einkaglugga</translation>
 <translation id="4420816922321010053">Ertu alveg viss um að þú viljir hætta í Vivaldi?</translation>
 <translation id="4430019312045809116">Hljóðstyrkur</translation>
 <translation id="443008484043213881">Tól</translation>
+<translation id="4441649773969751521">Því miður eru Yandex stillingarnar þínar ekki aðgengilegar á meðan Yandex er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi vistaðu vinnuna þína og lokaðu öllum Yandex gluggum. Ýttu síðan á Halda áfram.</translation>
 <translation id="4456211719108566931">Skrímsli 6</translation>
 <translation id="4459169140545916303">Virkt fyrir <ph name="DEVICE_LAST_ACTIVATED_TIME" /> dögum síðan</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
@@ -137,6 +148,7 @@
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Opna mynd í nýjum bakgrunnsflipa</translation>
 <translation id="4582480609585453144">Opna hlekk í bakgrunnsflipa</translation>
+<translation id="461909702339733257">Því miður eru Edge stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Edge gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="4636708767492582204">Senda sem tölvupóst</translation>
 <translation id="4677434526832593569">Dýr 8</translation>
 <translation id="4729666228450010210">Gat ekki lesið hraðvalsskrána</translation>
@@ -146,6 +158,7 @@
 <translation id="4881695831933465202">Opna</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> af <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Flutt inn úr hraðvali</translation>
+<translation id="5034185370374718631">Því miður eru Opera GX stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Opera GX gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="5092656712000637858">Gera síðu að vefspjaldi</translation>
 <translation id="5106275083540628394">Túlkun dulkóða mistókst: Hætta er á gagnatapi</translation>
 <translation id="5177818338935286353">Skrímsli 7</translation>
@@ -169,6 +182,7 @@
 <translation id="5732584064771442623">Vivaldi <ph name="NEW_VERSION" /> er nú í boði (þú ert með <ph name="OLD_VERSION" />). Viltu sækja núna?</translation>
 <translation id="5741670635761443575">Viðvörun: Engin Google Topics í Vivaldi.</translation>
 <translation id="5770433027661640693">Landslag 10</translation>
+<translation id="5786053688537975020">Ekki tókst að lesa Local State af disknum</translation>
 <translation id="5857090052475505287">Ný mappa</translation>
 <translation id="588258955323874662">Útfylltur skjár</translation>
 <translation id="6040143037577758943">Loka</translation>
@@ -188,6 +202,7 @@
 <translation id="6630781781151951863">Landslag 18</translation>
 <translation id="6635049669875534328">Um uppfærsluna:</translation>
 <translation id="6653655836861174026">Með Vivaldi prófílum er leikur einn að flokka hluti. Búðu til prófíla fyrir fjölskyldu og vini, eða aðskildu vinnu og frístundir.</translation>
+<translation id="6693551000972665087">Aðallykilorðs krafist, en ekkert var gefið upp</translation>
 <translation id="6693585104974197539">Veldu Edge notendamöppu til að flytja inn</translation>
 <translation id="6726279523566323394">Veldu Brave notendamöppu til að flytja inn</translation>
 <translation id="6736243959894955139">Veffang</translation>
@@ -207,8 +222,10 @@
 <translation id="7319087656340696133">Afkóðunarlykillinn er ógildur</translation>
 <translation id="7321500017121629018">Virkt í gær</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7382439465323652245">Fann ekki 'os_crypt' í prófíl innflutnings</translation>
 <translation id="7421665776469827022">Gögn vistuð</translation>
 <translation id="7454640759045234067">Lokað á rekjara</translation>
+<translation id="7508642657131162635">Því miður eru Brave stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Brave gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="7515032462649518126">Velja sérsniðna táknmynd</translation>
 <translation id="7581266044164103589">Ekki tókst að hefja uppfærsluferlið. Vinsamlegast athugaðu hvort tölvan sé með nægt minni eða diskapláss og prófaðu aftur síðar.</translation>
 <translation id="7658239707568436148">Hætta við</translation>
@@ -250,6 +267,7 @@
 <translation id="8774017153185436870">Síður gætu hugsanlega leyft sjálfvirka spilun myndbanda</translation>
 <translation id="8813277370772331957">Fá áminningu síðar</translation>
 <translation id="8837256239226739065">Atburðaskrá fyrir bakvinnslu (service-worker)</translation>
+<translation id="8861872665418508137">Því miður eru Arc stillingarnar þínar ekki aðgengilegar þegar sá vafri er í gangi. Til þess að flytja inn stillingarnar þínar í Vivaldi þarftu að vista vinnuna þína og loka öllum Arc gluggum. Ýttu svo á halda áfram.</translation>
 <translation id="8894900864683381599">Gera hlekk að vefspjaldi</translation>
 <translation id="8912720443398351457">Ertu viss um að þú viljir hætta í Vivaldi?</translation>
 <translation id="8924818205225323428">Söguskrá er ekki til</translation>
@@ -258,6 +276,7 @@
 <translation id="9017566390391482291">Veldu möppu sem inniheldur Vivaldi notendamöppu til að flytja inn</translation>
 <translation id="9048058608784130603">Uppfærsla á bið <ph name="VERSION" /></translation>
 <translation id="9048224371732578627">Leyfi fyrir sjálfvirka spilun á myndbandi</translation>
+<translation id="9051519327745317142">Skrá fyrir stillingar í Opera fannst ekki</translation>
 <translation id="9065203028668620118">Breyta</translation>
 <translation id="9090254883741610153">Leyfðu mér að halda áfram</translation>
 <translation id="910680796491389880">Thunderbird</translation>

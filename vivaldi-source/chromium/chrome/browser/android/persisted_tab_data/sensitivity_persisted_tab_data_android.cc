@@ -5,6 +5,7 @@
 #include "chrome/browser/android/persisted_tab_data/sensitivity_persisted_tab_data_android.h"
 
 #include "chrome/browser/android/persisted_tab_data/sensitivity_data.pb.h"
+#include "components/content_capture/browser/onscreen_content_provider.h"
 
 SensitivityPersistedTabDataAndroid::SensitivityPersistedTabDataAndroid(
     TabAndroid* tab_android)
@@ -19,6 +20,10 @@ void SensitivityPersistedTabDataAndroid::RegisterPCAService(
   DCHECK(page_content_annotations_service);
   if (page_content_annotations_service_ == page_content_annotations_service) {
     return;
+  }
+  if (page_content_annotations_service_ != nullptr) {
+    page_content_annotations_service_->RemoveObserver(
+        page_content_annotations::AnnotationType::kContentVisibility, this);
   }
 
   page_content_annotations_service_ = page_content_annotations_service;
@@ -47,6 +52,10 @@ void SensitivityPersistedTabDataAndroid::From(
       std::move(from_callback));
 }
 
+const void* SensitivityPersistedTabDataAndroid::UserDataKey() {
+  return &SensitivityPersistedTabDataAndroid::kUserDataKey;
+}
+
 std::unique_ptr<const std::vector<uint8_t>>
 SensitivityPersistedTabDataAndroid::Serialize() {
   sensitivity::SensitivityData sensitivity_data;
@@ -71,12 +80,23 @@ void SensitivityPersistedTabDataAndroid::Deserialize(
 }
 
 void SensitivityPersistedTabDataAndroid::OnPageContentAnnotated(
-    const GURL& url,
+    const page_content_annotations::HistoryVisit& visit,
     const page_content_annotations::PageContentAnnotationsResult& result) {
-  if (tab_->GetURL() != url) {
+  if (tab_->GetURL() != visit.url) {
     return;
   }
   set_sensitivity_score(result.GetContentVisibilityScore());
+
+  if (!tab_->web_contents()) {
+    return;
+  }
+  content_capture::OnscreenContentProvider* onscreen_content_provider =
+      content_capture::OnscreenContentProvider::FromWebContents(
+          tab_->web_contents());
+  if (onscreen_content_provider) {
+    onscreen_content_provider->DidUpdateSensitivityScore(
+        result.GetContentVisibilityScore());
+  }
 }
 
 void SensitivityPersistedTabDataAndroid::ExistsForTesting(

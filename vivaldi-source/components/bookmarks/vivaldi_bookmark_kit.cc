@@ -121,7 +121,11 @@ class BookmarkModelLoadWaiter : public bookmarks::BaseBookmarkModelObserver {
   BookmarkModelLoadWaiter& operator=(const BookmarkModelLoadWaiter&) = delete;
 
  private:
-  ~BookmarkModelLoadWaiter() override = default;
+  ~BookmarkModelLoadWaiter() override {
+    if (bookmark_model_) {
+      bookmark_model_->RemoveObserver(this);
+    }
+  }
 
   // bookmarks::BaseBookmarkModelObserver:
   void BookmarkModelChanged() override {}
@@ -648,13 +652,22 @@ bool WriteBookmarkData(const base::Value::Dict& value,
   const std::string* speed_dial =
       meta_info->FindString(GetMetaNames().speeddial);
 
-  if (nick_name &&
-      (!write_func.Run(kNickLabel) || !write_func_att.Run(*nick_name))) {
+  const auto escape_string_and_write = [&](const std::string* str, const auto label) {
+    if (!str) {
+      return false;
+    }
+
+    const auto escaped = base::EscapeForHTML(*str);
+    std::string one_lined_escaped;
+    base::ReplaceChars(escaped, "\n", "<br>", &one_lined_escaped);
+    return write_func.Run(label) && write_func_att.Run(one_lined_escaped);
+  };
+
+  if (nick_name && !escape_string_and_write(nick_name, kNickLabel)) {
     return false;
   }
 
-  if (description && (!write_func.Run(kDescriptionLabel) ||
-                      !write_func_att.Run(*description))) {
+  if (description && !escape_string_and_write(description, kDescriptionLabel)) {
     return false;
   }
 
@@ -676,21 +689,26 @@ void ReadBookmarkAttributes(BookmarkAttributeReadFunc GetAttribute,
   static const char kDescriptionAttrName[] = "DESCRIPTION";
   static const char kSpeedDialAttrName[] = "SPEEDDIAL";
 
+  const auto unescape_string_and_write = [&](std::u16string* str, const auto label) {
+    if (!str) {
+      return;
+    }
+
+    std::optional<std::string> value = GetAttribute.Run(label);
+    if (value) {
+      CodePagetoUTF16(*value, str);
+      std::u16string multi_line_escaped = *str;
+      // only 'true' <br> must be replaced
+      base::ReplaceSubstringsAfterOffset(&multi_line_escaped, 0, u"<br>", u"\n");
+      *str = base::UnescapeForHTML(multi_line_escaped);
+    }
+  };
+
   std::optional<std::string> value;
-  if (nickname) {
-    value = GetAttribute.Run(std::string_view(kNickAttrName));
-    if (value.has_value()){
-      CodePagetoUTF16(value.value(), nickname);
-      *nickname = base::UnescapeForHTML(*nickname);
-    }
-  }
-  if (description) {
-    value = GetAttribute.Run(std::string_view(kDescriptionAttrName));
-    if (value.has_value()){
-      CodePagetoUTF16(value.value(), description);
-      *description = base::UnescapeForHTML(*description);
-    }
-  }
+
+  unescape_string_and_write(nickname, std::string_view(kNickAttrName));
+  unescape_string_and_write(description, std::string_view(kDescriptionAttrName));
+
   if (is_speeddial_folder) {
     value = GetAttribute.Run(std::string_view(kSpeedDialAttrName));
     if (value.has_value() &&

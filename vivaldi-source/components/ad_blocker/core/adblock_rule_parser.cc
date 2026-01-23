@@ -431,9 +431,9 @@ bool ParseDomains(std::string_view domain_string,
     }
 
     if (excluded)
-      excluded_domains.insert(url_for_domain->host());
+      excluded_domains.insert(url_for_domain->GetHost());
     else
-      included_domains.insert(url_for_domain->host());
+      included_domains.insert(url_for_domain->GetHost());
   }
   return true;
 }
@@ -987,7 +987,7 @@ RuleParser::Result RuleParser::ParseRequestFilterRule(
     }
     canonicalized_pattern += validation_url.host();
     if (validation_url.has_port()) {
-      canonicalized_pattern += ":" + validation_url.port();
+      canonicalized_pattern += ":" + validation_url.GetPort();
     }
   } else {
     canonicalized_pattern += potential_authority;
@@ -1428,7 +1428,7 @@ RuleParser::Result RuleParser::ParseRequestFilterRuleOptions(
             return kError;
           }
 
-          rule.ad_domains_and_query_triggers.insert(url_for_domain->host() +
+          rule.ad_domains_and_query_triggers.insert(url_for_domain->GetHost() +
                                                     "|" + query_trigger);
         }
         break;

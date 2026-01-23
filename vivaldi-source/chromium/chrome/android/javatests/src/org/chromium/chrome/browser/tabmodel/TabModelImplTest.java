@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
+
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.assertEquals;
@@ -13,12 +16,14 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static org.chromium.chrome.test.util.ChromeTabUtils.getIndexOnUiThread;
 import static org.chromium.chrome.test.util.ChromeTabUtils.getTabCountOnUiThread;
+import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -48,12 +53,14 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.media.MediaCaptureDevicesDispatcherAndroid;
 import org.chromium.chrome.browser.media.MediaCaptureDevicesDispatcherAndroidJni;
+import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.Journeys;
@@ -61,6 +68,7 @@ import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
+import org.chromium.components.browser_ui.widget.ActionConfirmationResult;
 import org.chromium.components.content_settings.ContentSetting;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.content_public.common.ResourceRequestBody;
@@ -70,7 +78,10 @@ import org.chromium.url.GURL;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Tests for {@link TabModelImpl}. */
+/**
+ * Tests for the legacy {@link TabModelImpl} that also apply to {@link TabCollectionTabModelImpl}.
+ */
+// TODO(crbug.com/454298057): Migrate these tests to TabCollectionTabModelImplTest.
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
@@ -91,6 +102,8 @@ public class TabModelImplTest {
     private MediaCaptureDevicesDispatcherAndroid.Natives mMediaCaptureDevicesDispatcherAndroidJni;
 
     @Mock private TabModelObserver mTabModelObserver;
+
+    @Mock private TabModelActionListener mTabModelActionListener;
 
     private String mTestUrl;
     private WebPageStation mPage;
@@ -159,6 +172,8 @@ public class TabModelImplTest {
 
     @Test
     @SmallTest
+    // TODO(crbug.com/457847264): Change to @Restriction(DeviceFormFactor.PHONE) after launch
+    @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void validIndexAfterRestored_FromPreviousActivity_WithIncognitoTabs() {
         mPage = Journeys.createIncognitoTabsWithWebPages(mPage, List.of(mTestUrl));
 
@@ -236,12 +251,15 @@ public class TabModelImplTest {
                     assertEquals(1, mTabModelJni.getCount());
 
                     GURL url = new GURL("https://www.chromium.org");
-                    mTabModelJni.openTabProgrammatically(url, 0);
-                    assertEquals(2, mTabModelJni.getCount());
-
-                    Tab tab = mTabModelJni.getTabAt(0);
+                    Tab tab = mTabModelJni.openTabProgrammatically(url, 0);
                     assertNotNull(tab);
                     assertEquals(url, tab.getUrl());
+                    assertEquals(2, mTabModelJni.getCount());
+
+                    Tab foundTab = mTabModelJni.getTabAt(0);
+                    assertNotNull(foundTab);
+                    assertEquals(tab, foundTab);
+                    assertEquals(url, foundTab.getUrl());
                     assertEquals(
                             TabLaunchType.FROM_TAB_LIST_INTERFACE,
                             tab.getTabLaunchTypeAtCreation());
@@ -265,7 +283,7 @@ public class TabModelImplTest {
                     Tab tab2 = mTabModelJni.getTabAt(2);
                     assertNull(tabToDuplicate.getTabGroupId());
 
-                    Tab duplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab duplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // 0:Tab0 | 1:Tab1 (tabToDuplicate) | 2:Tab3 (duplicated) | 3:Tab2
                     assertEquals(4, mTabModelJni.getCount());
                     assertEquals(tabToDuplicate.getId(), duplicatedTab.getParentId());
@@ -281,7 +299,7 @@ public class TabModelImplTest {
                     assertEquals(tab2, mTabModelJni.getTabAt(tabToDuplicateIndex + 2));
 
                     // Duplicate tab again.
-                    Tab newestDuplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab newestDuplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // 0:Tab0 | 1:Tab1 (tabToDuplicate), 2:Tab4 (newest), 3:Tab3 (oldest), 4:Tab2
                     assertEquals(5, mTabModelJni.getCount());
                     assertEquals(tabToDuplicate.getId(), newestDuplicatedTab.getParentId());
@@ -316,7 +334,7 @@ public class TabModelImplTest {
                     Tab tab3 = mTabModelJni.getTabAt(3);
                     assertNotNull(tabToDuplicate.getTabGroupId());
 
-                    Tab duplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab duplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // 0:Tab0 | Group0: 1:Tab1 (tabToDuplicate), 2:Tab4 (duplicated), 3:Tab2, 4:Tab3
                     assertEquals(5, mTabModelJni.getCount());
                     assertEquals(tabToDuplicate.getId(), duplicatedTab.getParentId());
@@ -332,7 +350,7 @@ public class TabModelImplTest {
                     assertEquals(tab3, mTabModelJni.getTabAt(tabToDuplicateIndex + 3));
 
                     // Duplicate tab again.
-                    Tab newestDuplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab newestDuplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // 0:Tab0 | Group0: 1:Tab1 (tabToDuplicate), 2:Tab5 (newest), 3:Tab4 (oldest),
                     // 4:Tab2, 5:Tab3
                     assertEquals(6, mTabModelJni.getCount());
@@ -362,7 +380,7 @@ public class TabModelImplTest {
                     Tab tabToDuplicate = mTabModelJni.getTabAt(tabToDuplicateIndex);
                     assertNotNull(tabToDuplicate.getTabGroupId());
 
-                    Tab duplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab duplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     //  0:Tab0 | Group0: 1:Tab1, 2:Tab5, 3:Tab4, 4:Tab2, 5:Tab3 (tabToDuplicate),
                     // 6:Tab7 (duplicatedTab) | 7:Tab6
                     assertEquals(8, mTabModelJni.getCount());
@@ -398,7 +416,7 @@ public class TabModelImplTest {
                     assertTrue(tabToDuplicate.getIsPinned());
                     assertTrue(tab0.getIsPinned());
 
-                    Tab duplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab duplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // [0:Tab1 (tabToDuplicate)] | [1:Tab2 (duplicatedTab) | [2:Tab0]
                     assertEquals(3, mTabModelJni.getCount());
                     assertEquals(tabToDuplicate.getId(), duplicatedTab.getParentId());
@@ -412,7 +430,7 @@ public class TabModelImplTest {
                     assertEquals(2, mTabModelJni.indexOf(tab0));
 
                     // Duplicate tab again.
-                    Tab newestDuplicatedTab = mTabModelJni.duplicateTabForTesting(tabToDuplicate);
+                    Tab newestDuplicatedTab = mTabModelJni.duplicateTab(tabToDuplicate);
                     // [0:Tab1 (tabToDuplicate)] | [1:Tab3 (newest)] | [2:Tab2 (oldest) | [3:Tab0]
                     assertEquals(4, mTabModelJni.getCount());
                     assertEquals(tabToDuplicate.getId(), newestDuplicatedTab.getParentId());
@@ -1025,6 +1043,7 @@ public class TabModelImplTest {
 
     @Test
     @SmallTest
+    @DisableFeatures(ChromeFeatureList.TAB_FREEZING_USES_DISCARD)
     public void testFreezeTabOnCloseIfCapturingForMedia() {
         MediaCaptureDevicesDispatcherAndroidJni.setInstanceForTesting(
                 mMediaCaptureDevicesDispatcherAndroidJni);
@@ -1050,6 +1069,8 @@ public class TabModelImplTest {
 
     @Test
     @SmallTest
+    // TODO(crbug.com/457847264): Change to @Restriction(DeviceFormFactor.PHONE) after launch
+    @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testCloseIncognitoTabSwitchesToNormalModelAndUpdatesIncognitoIndex() {
         TabModel incognitoTabModel =
                 mActivityTestRule.getActivity().getTabModelSelector().getModel(true);
@@ -1114,7 +1135,7 @@ public class TabModelImplTest {
                     TabModel tabModel =
                             mActivityTestRule.getActivity().getTabModelSelector().getModel(false);
                     Tab tabToPin = tabModel.getTabAt(2);
-                    tabModel.pinTab(tabToPin.getId());
+                    tabModel.pinTab(tabToPin.getId(), /* showUngroupDialog= */ false);
 
                     assertTrue(tabToPin.getIsPinned());
                     assertEquals(tabToPin.getId(), tabModel.getTabAt(0).getId());
@@ -1138,11 +1159,11 @@ public class TabModelImplTest {
                     Tab tab1 = tabModel.getTabAt(1);
                     Tab tab2 = tabModel.getTabAt(2);
 
-                    tabModel.pinTab(tab1.getId());
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
 
                     assertEquals(tab1, tabModel.getTabAt(0));
 
-                    tabModel.pinTab(tab2.getId());
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
 
                     assertEquals(tab1, tabModel.getTabAt(0));
                     assertEquals(tab2, tabModel.getTabAt(1));
@@ -1173,9 +1194,9 @@ public class TabModelImplTest {
 
                     // Pin last 3 tabs.
                     // [D], [C], [B], A.
-                    tabModel.pinTab(tab3.getId());
-                    tabModel.pinTab(tab2.getId());
-                    tabModel.pinTab(tab1.getId());
+                    tabModel.pinTab(tab3.getId(), /* showUngroupDialog= */ false);
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
 
                     // Unpin the middle tab (Tab2).
                     // [D], [B], C, A.
@@ -1210,8 +1231,8 @@ public class TabModelImplTest {
 
                     // Pin 2 tabs.
                     // [B], [C], A, D.
-                    tabModel.pinTab(tab1.getId());
-                    tabModel.pinTab(tab2.getId());
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
                     assertTrue(tab1.getIsPinned());
                     assertTrue(tab2.getIsPinned());
 
@@ -1245,13 +1266,13 @@ public class TabModelImplTest {
                     Tab tab1 = tabModel.getTabAt(1);
                     Tab tab2 = tabModel.getTabAt(2);
 
-                    tabModel.pinTab(tab2.getId());
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
 
                     verify(mTabModelObserver).didMoveTab(tab2, 0, 2);
                     verify(mTabModelObserver).willChangePinState(tab2);
                     verify(mTabModelObserver).didChangePinState(tab2);
 
-                    tabModel.pinTab(tab1.getId());
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
 
                     verify(mTabModelObserver).didMoveTab(tab1, 1, 2);
                     verify(mTabModelObserver).willChangePinState(tab1);
@@ -1391,8 +1412,9 @@ public class TabModelImplTest {
     @Test
     @SmallTest
     public void testSetMuteSetting_MultipleTabs() {
-        WebPageStation page = mPage.loadWebPageProgrammatically(mTestUrl);
-        page.openNewTabFast().loadWebPageProgrammatically("chrome://version");
+        // First tab is Chrome Scheme to test mute persistence.
+        WebPageStation page = mPage.loadWebPageProgrammatically("chrome://version");
+        page.openNewTabFast().loadWebPageProgrammatically(mTestUrl);
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
@@ -1411,6 +1433,9 @@ public class TabModelImplTest {
 
                     mTabModelJni.setMuteSetting(tabsToMute, /* mute= */ true);
 
+                    // Tab 1 should remain muted because of TabMutedReason.
+                    // SoundContentSettingObserver originally would reset the mute setting for
+                    // Chrome Schemes if there was no TabMutedReason.
                     assertTrue("Tab 1 should be muted.", tab1.getWebContents().isAudioMuted());
                     assertTrue("Tab 2 should be muted.", tab2.getWebContents().isAudioMuted());
 
@@ -1546,6 +1571,8 @@ public class TabModelImplTest {
 
     @Test
     @SmallTest
+    // TODO(crbug.com/457847264): Change to @Restriction(DeviceFormFactor.PHONE) after launch
+    @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testSetMuteSetting_Incognito() {
         WebPageStation page = mPage.loadWebPageProgrammatically(mTestUrl);
         Journeys.createIncognitoTabsWithWebPages(page, List.of(mTestUrl));
@@ -1644,7 +1671,9 @@ public class TabModelImplTest {
                 });
         if (MultiWindowUtils.isMultiInstanceApi31Enabled()) {
             CriteriaHelper.pollUiThread(
-                    () -> MultiWindowUtils.getInstanceCount() == 2,
+                    () ->
+                            MultiWindowUtils.getInstanceCountWithFallback(PersistedInstanceType.ANY)
+                                    == 2,
                     "Expected new window to be created");
         } else {
             assertEquals(
@@ -1668,17 +1697,17 @@ public class TabModelImplTest {
                     Tab tab2 = mTabModelJni.getTabAt(2);
 
                     // Pin tab1. Order should be tab1, tab0, tab2
-                    mTabModelJni.pinTab(tab1.getId());
+                    mTabModelJni.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
                     assertTrue(tab1.getIsPinned());
                     assertEquals(0, mTabModelJni.indexOf(tab1));
                     assertEquals(1, mTabModelJni.indexOf(tab0));
                     assertEquals(2, mTabModelJni.indexOf(tab2));
 
                     // Pin tab1 again. Order should not change.
-                    mTabModelJni.pinTab(tab1.getId());
+                    mTabModelJni.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
 
                     // Pin tab2. It should move to right place
-                    mTabModelJni.pinTab(tab2.getId());
+                    mTabModelJni.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
                     assertTrue(tab2.getIsPinned());
                     assertEquals(0, mTabModelJni.indexOf(tab1));
                     assertEquals(1, mTabModelJni.indexOf(tab2));
@@ -1758,10 +1787,10 @@ public class TabModelImplTest {
 
                     assertEquals(0, tabModel.getPinnedTabsCount());
 
-                    tabModel.pinTab(tab1.getId());
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
                     assertEquals(1, tabModel.getPinnedTabsCount());
 
-                    tabModel.pinTab(tab2.getId());
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
                     assertEquals(2, tabModel.getPinnedTabsCount());
 
                     tabModel.unpinTab(tab1.getId());
@@ -1788,9 +1817,9 @@ public class TabModelImplTest {
                     Tab tab2 = tabModel.getTabAt(2);
                     Tab tab3 = tabModel.getTabAt(3);
 
-                    tabModel.pinTab(tab1.getId());
-                    tabModel.pinTab(tab2.getId());
-                    tabModel.pinTab(tab3.getId());
+                    tabModel.pinTab(tab1.getId(), /* showUngroupDialog= */ false);
+                    tabModel.pinTab(tab2.getId(), /* showUngroupDialog= */ false);
+                    tabModel.pinTab(tab3.getId(), /* showUngroupDialog= */ false);
 
                     assertEquals(0, tabModel.indexOf(tab1));
                     assertEquals(1, tabModel.indexOf(tab2));
@@ -1986,11 +2015,81 @@ public class TabModelImplTest {
                                     .build();
 
                     // Pin and unpin the tab.
-                    tabModel.pinTab(tabUnderInvestigation.getId());
+                    tabModel.pinTab(tabUnderInvestigation.getId(), /* showUngroupDialog= */ false);
                     tabModel.unpinTab(tabUnderInvestigation.getId());
 
                     // Verify that the histogram was recorded.
                     histogram.assertExpected();
+                });
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
+    public void testPinTabInGroup_ActionListener_Accept() {
+        TabGroupModelFilter filter = mPage.getTabGroupModelFilter();
+        createTabGroup(1, filter); // Group with 1 tab.
+        // 0:Tab0 | Group0: 1:Tab1
+
+        Tab tab1 = ThreadUtils.runOnUiThreadBlocking(() -> mTabModelJni.getTabAt(1));
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertNotNull(tab1.getTabGroupId());
+
+                    mTabModelJni.pinTab(
+                            tab1.getId(), /* showUngroupDialog= */ true, mTabModelActionListener);
+                });
+        onViewWaiting(withText(R.string.delete_tab_group_action), /* checkRootDialog= */ true)
+                .perform(click());
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    verify(mTabModelActionListener)
+                            .onConfirmationDialogResult(
+                                    eq(TabModelActionListener.DialogType.SYNC),
+                                    eq(ActionConfirmationResult.CONFIRMATION_POSITIVE));
+                    assertTrue(tab1.getIsPinned());
+                    assertNull(tab1.getTabGroupId());
+
+                    // [1:Tab1] | 0:Tab0
+                    assertEquals(0, mTabModelJni.indexOf(tab1));
+
+                    // Cleanup
+                    mTabModelJni.unpinTab(tab1.getId());
+                });
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
+    public void testPinTabInGroup_ActionListener_Reject() {
+        TabGroupModelFilter filter = mPage.getTabGroupModelFilter();
+        createTabGroup(1, filter); // Group with 1 tab.
+        // 0:Tab0 | Group0: 1:Tab1
+
+        Tab tab1 = ThreadUtils.runOnUiThreadBlocking(() -> mTabModelJni.getTabAt(1));
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    assertNotNull(tab1.getTabGroupId());
+
+                    mTabModelJni.pinTab(
+                            tab1.getId(), /* showUngroupDialog= */ true, mTabModelActionListener);
+                });
+        onViewWaiting(withText(R.string.cancel), /* checkRootDialog= */ true).perform(click());
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    TabModel tabModel =
+                            mActivityTestRule.getActivity().getTabModelSelector().getModel(false);
+                    verify(mTabModelActionListener)
+                            .onConfirmationDialogResult(
+                                    eq(TabModelActionListener.DialogType.SYNC),
+                                    eq(ActionConfirmationResult.CONFIRMATION_NEGATIVE));
+                    assertEquals(1, mTabModelJni.indexOf(tab1));
+                    assertFalse(tab1.getIsPinned());
+                    assertNotNull(tab1.getTabGroupId());
                 });
     }
 }

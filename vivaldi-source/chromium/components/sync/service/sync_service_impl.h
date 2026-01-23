@@ -32,6 +32,7 @@
 #include "components/sync/engine/shutdown_reason.h"
 #include "components/sync/engine/sync_engine.h"
 #include "components/sync/engine/sync_engine_host.h"
+#include "components/sync/service/bookmark_sync_error_state.h"
 #include "components/sync/service/data_type_controller.h"
 #include "components/sync/service/data_type_manager.h"
 #include "components/sync/service/data_type_manager_observer.h"
@@ -134,7 +135,6 @@ class SyncServiceImpl : public SyncService,
   GoogleServiceAuthError GetAuthError() const override;
   base::Time GetAuthErrorTime() const override;
   bool HasCachedPersistentAuthErrorForMetrics() const override;
-  bool RequiresClientUpgrade() const override;
   std::unique_ptr<SyncSetupInProgressHandle> GetSetupInProgressHandle()
       override;
   bool IsSetupInProgress() const override;
@@ -182,6 +182,7 @@ class SyncServiceImpl : public SyncService,
   void SelectTypeAndMigrateLocalDataItemsWhenActive(
       DataType data_type,
       std::vector<LocalDataItemModel::DataId> items) override;
+  void AcknowledgeBookmarksLimitExceededError() override;
 
   // SyncEngineHost implementation.
   void OnEngineInitialized(bool success,
@@ -285,6 +286,9 @@ class SyncServiceImpl : public SyncService,
   // Simulates data type error reported by the bridge.
   void ReportDataTypeErrorForTest(DataType type);
 
+  // Wraps RunOrQueueTaskOnEngineInitialized() for testing.
+  void RunOrQueueTaskOnEngineInitializedForTest(base::OnceClosure task);
+
   size_t GetQueuedLocalDataMigrationItemCountForTest() const;
 
  private:
@@ -384,6 +388,14 @@ class SyncServiceImpl : public SyncService,
   // Called when a SetupInProgressHandle issued by this instance is destroyed.
   void OnSetupInProgressHandleDestroyed();
 
+  // Queues a task to be run once the engine is initialized. If the engine is
+  // already initialized, the task is run immediately.
+  void RunOrQueueTaskOnEngineInitialized(base::OnceClosure task);
+
+  // The implementation of SendExplicitPassphraseToPlatformClient, to be run
+  // once the engine is initialized.
+  void SendExplicitPassphraseToPlatformClientImpl();
+
   // Records (or may record) histograms related to trusted vault passphrase
   // type.
   void MaybeRecordTrustedVaultHistograms();
@@ -406,6 +418,8 @@ class SyncServiceImpl : public SyncService,
 
   // This profile's SyncClient.
   const std::unique_ptr<SyncClient> sync_client_;
+
+  BookmarkSyncErrorState bookmark_sync_error_state_;
 
   // Callback used to create network connections.
   const CreateHttpPostProviderFactory create_http_post_provider_factory_;
@@ -529,6 +543,9 @@ class SyncServiceImpl : public SyncService,
   std::unique_ptr<SyncFeatureStatusForMigrationsRecorder> sync_status_recorder_;
 
   std::unique_ptr<LocalDataMigrationItemQueue> local_data_migration_item_queue_;
+
+  // Tasks that should run after the engine is initialized.
+  std::vector<base::OnceClosure> tasks_waiting_for_engine_initialization_;
 
 #if BUILDFLAG(IS_ANDROID)
   // Manage and fetch the java object that wraps this SyncService on

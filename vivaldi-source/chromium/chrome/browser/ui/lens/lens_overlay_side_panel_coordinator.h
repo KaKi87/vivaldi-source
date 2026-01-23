@@ -14,6 +14,7 @@
 #include "chrome/browser/ui/chrome_web_modal_dialog_manager_delegate.h"
 #include "chrome/browser/ui/lens/lens_overlay_translate_options.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_observer.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
@@ -31,7 +32,6 @@ class GURL;
 class LensOverlayController;
 class LensOverlaySidePanelWebView;
 class SidePanelEntryScope;
-class SidePanelCoordinator;
 
 enum class SidePanelEntryHideReason;
 
@@ -103,6 +103,8 @@ class LensOverlaySidePanelCoordinator
   // Registers the side panel entry in the side panel if it doesn't already
   // exist and then shows it.
   void RegisterEntryAndShow();
+
+  SidePanelEntry::PanelType GetPanelType() const;
 
   // Cleans up the side panel entry and closes the side panel.
   void DeregisterEntryAndCleanup();
@@ -225,6 +227,9 @@ class LensOverlaySidePanelCoordinator
 
   // Suppresses the ghost loader in the side panel.
   void SuppressGhostLoader();
+
+  // Focuses the searchbox in the side panel.
+  virtual void FocusSearchbox();
 
   /////////////////////////////////////////////////////////////////////////////
   // Test only methods.
@@ -417,13 +422,6 @@ class LensOverlaySidePanelCoordinator
   // page.
   mojom::SidePanelResultStatus side_panel_result_status_ =
       mojom::SidePanelResultStatus::kUnknown;
-
-  // General side panel coordinator responsible for all side panel interactions.
-  // Separate from this class because this controls interactions to other side
-  // panels as well, not just the Lens results. The side_panel_coordinator
-  // lives with the browser view, so it should outlive this class. Therefore
-  // this can be assumed to be non-null.
-  raw_ptr<SidePanelCoordinator> side_panel_coordinator_ = nullptr;
 
   raw_ptr<LensOverlaySidePanelWebView> side_panel_web_view_;
   base::WeakPtrFactory<LensOverlaySidePanelCoordinator> weak_ptr_factory_{this};

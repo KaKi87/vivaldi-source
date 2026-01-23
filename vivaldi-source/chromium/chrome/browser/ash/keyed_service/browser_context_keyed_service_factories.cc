@@ -7,7 +7,6 @@
 #include "ash/constants/ash_features.h"
 #include "ash/webui/help_app_ui/help_app_manager_factory.h"
 #include "ash/webui/shortcut_customization_ui/shortcuts_app_manager_factory.h"
-#include "chrome/browser/accessibility/service/accessibility_service_router_factory.h"
 #include "chrome/browser/apps/app_discovery_service/app_discovery_service_factory.h"
 #include "chrome/browser/apps/app_service/publishers/arc_apps_factory.h"
 #include "chrome/browser/ash/accessibility/live_caption/system_live_caption_service_factory.h"
@@ -27,6 +26,7 @@
 #include "chrome/browser/ash/boca/boca_manager_factory.h"
 #include "chrome/browser/ash/boca/on_task/locked_quiz_session_manager_factory.h"
 #include "chrome/browser/ash/boca/on_task/locked_session_window_tracker_factory.h"
+#include "chrome/browser/ash/boca/receiver/boca_receiver_service_factory.h"
 #include "chrome/browser/ash/borealis/borealis_service_factory.h"
 #include "chrome/browser/ash/bruschetta/bruschetta_service_factory.h"
 #include "chrome/browser/ash/calendar/calendar_keyed_service_factory.h"
@@ -108,7 +108,6 @@
 #include "chrome/browser/ash/printing/print_management/printing_manager_factory.h"
 #include "chrome/browser/ash/printing/synced_printers_manager_factory.h"
 #include "chrome/browser/ash/remote_apps/remote_apps_manager_factory.h"
-#include "chrome/browser/ash/scalable_iph/scalable_iph_factory_impl.h"
 #include "chrome/browser/ash/scanning/scan_service_factory.h"
 #include "chrome/browser/ash/secure_channel/nearby_connector_factory.h"
 #include "chrome/browser/ash/smb_client/smb_service_factory.h"
@@ -128,6 +127,7 @@
 #include "chrome/browser/ui/ash/holding_space/holding_space_keyed_service_factory.h"
 #include "chrome/browser/ui/webui/ash/settings/services/hats/os_settings_hats_manager_factory.h"
 #include "chrome/browser/ui/webui/ash/settings/services/settings_manager/os_settings_manager_factory.h"
+#include "chromeos/ash/components/policy/policy_blocklist_service/ash_policy_blocklist_service_factory.h"
 #include "printing/buildflags/buildflags.h"
 
 namespace ash {
@@ -146,12 +146,14 @@ void EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   apps::ArcAppsFactory::GetInstance();
   AppSyncUIStateFactory::GetInstance();
   arc::ArcServiceLauncher::EnsureFactoriesBuilt();
+  AshPolicyBlocklistServiceFactory::GetInstance();
   AuthErrorObserverFactory::GetInstance();
-  ax::AccessibilityServiceRouterFactory::EnsureFactoryBuilt();
+
   BirchKeyedServiceFactory::GetInstance();
   bluetooth::DebugLogsManagerFactory::GetInstance();
   boca::LockedQuizSessionManagerFactory::GetInstance();
   BocaManagerFactory::GetInstance();
+  BocaReceiverServiceFactory::GetInstance();
   borealis::BorealisServiceFactory::GetInstance();
   BrowserProcessPlatformPart::EnsureFactoryBuilt();
   bruschetta::BruschettaServiceFactory::GetInstance();
@@ -237,7 +239,6 @@ void EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   quick_unlock::QuickUnlockFactory::GetInstance();
   RecentModelFactory::GetInstance();
   RemoteAppsManagerFactory::GetInstance();
-  ScalableIphFactoryImpl::BuildInstance();
   ScanServiceFactory::GetInstance();
   ScreenTimeControllerFactory::GetInstance();
   secure_channel::NearbyConnectorFactory::GetInstance();

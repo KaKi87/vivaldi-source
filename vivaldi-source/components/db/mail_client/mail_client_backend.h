@@ -99,6 +99,7 @@ class MailClientBackend : public base::RefCountedThreadSafe<MailClientBackend>,
   bool DeleteMessages(SearchListIDs ids);
   bool DeleteMailSearchDB();
   int CountMailSearchMessages();
+  MailSearchCB GetMailSearchDBSearchListIds();
 
   StatusCB UpdateMessage(mail_client::MessageRow message);
 

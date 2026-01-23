@@ -72,10 +72,6 @@
 #include "chrome/installer/setup/channel_override_work_item.h"
 #endif
 
-#include "installer/util/vivaldi_install_util.h"
-#include "installer/util/vivaldi_setup_util.h"
-#include "installer/vivaldi_install_modes.h"
-
 using base::ASCIIToWide;
 using base::win::RegKey;
 
@@ -89,7 +85,6 @@ void AddInstallerCopyTasks(const InstallParams& install_params,
 
   const InstallerState& installer_state = *install_params.installer_state;
   const base::FilePath& setup_path = *install_params.setup_path;
-  const base::FilePath& archive_path = *install_params.archive_path;
   const base::FilePath& temp_path = *install_params.temp_path;
   const base::Version& new_version = *install_params.new_version;
 
@@ -110,25 +105,6 @@ void AddInstallerCopyTasks(const InstallParams& install_params,
     base::FilePath active_setup_exe(installer_dir.Append(kActiveSetupExe));
     install_list->AddCopyTreeWorkItem(setup_path, active_setup_exe, temp_path,
                                       WorkItem::ALWAYS);
-  }
-
-  base::FilePath archive_dst(installer_dir.Append(archive_path.BaseName()));
-  if (archive_path != archive_dst) {
-    // In the past, we copied rather than moved for system level installs so
-    // that the permissions of %ProgramFiles% would be picked up.  Now that
-    // |temp_path| is in %ProgramFiles% for system level installs (and in
-    // %LOCALAPPDATA% otherwise), there is no need to do this for the archive.
-    // Setup.exe, on the other hand, is created elsewhere so it must always be
-    // copied.
-    if (temp_path.IsParent(archive_path)) {
-      install_list->AddMoveTreeWorkItem(archive_path, archive_dst, temp_path,
-                                        WorkItem::ALWAYS_MOVE);
-    } else {
-      // This may occur when setup is run out of an existing installation
-      // directory. We cannot remove the system-level archive.
-      install_list->AddCopyTreeWorkItem(archive_path, archive_dst, temp_path,
-                                        WorkItem::ALWAYS);
-    }
   }
 }
 
@@ -226,7 +202,6 @@ void AddDeleteUninstallEntryForMSIWorkItems(
 void AddChromeWorkItems(const InstallParams& install_params,
                         WorkItemList* install_list) {
   const InstallerState& installer_state = *install_params.installer_state;
-  const base::FilePath& archive_path = *install_params.archive_path;
   const base::FilePath& src_path = *install_params.src_path;
   const base::FilePath& temp_path = *install_params.temp_path;
   const base::Version& current_version = *install_params.current_version;
@@ -235,21 +210,17 @@ void AddChromeWorkItems(const InstallParams& install_params,
   const base::FilePath& target_path = installer_state.target_path();
 
   if (current_version.IsValid()) {
+    // TODO(crbug.com/441478433): Delete this cleanup some time in 2027.
     // Delete the archive from an existing install to save some disk space.
     base::FilePath old_installer_dir(
         installer_state.GetInstallerDirectory(current_version));
     base::FilePath old_archive(
         old_installer_dir.Append(installer::kChromeArchive));
-    // Don't delete the archive that we are actually installing from.
-    if (archive_path != old_archive) {
-      auto* delete_old_archive_work_item =
-          install_list->AddDeleteTreeWorkItem(old_archive, temp_path);
-      // Don't cause failure of |install_list| if this WorkItem fails.
-      delete_old_archive_work_item->set_best_effort(true);
-      // No need to roll this back; if installation fails we'll be moved to the
-      // "-full" channel anyway.
-      delete_old_archive_work_item->set_rollback_enabled(false);
-    }
+    auto* delete_old_archive_work_item =
+        install_list->AddDeleteTreeWorkItem(old_archive, temp_path);
+    // Don't cause failure of |install_list| if this WorkItem fails.
+    delete_old_archive_work_item->set_best_effort(true);
+    delete_old_archive_work_item->set_rollback_enabled(false);
   }
 
   // Delete any new_chrome.exe if present (we will end up creating a new one
@@ -258,16 +229,9 @@ void AddChromeWorkItems(const InstallParams& install_params,
 
   install_list->AddDeleteTreeWorkItem(new_chrome_exe, temp_path);
 
-  WorkItem::CopyOverWriteOption vivaldi_exe_write_option =
-      WorkItem::NEW_NAME_IF_IN_USE;
-  if (!vivaldi::IsInstallSilentUpdate()) {
-    // If this is not a live update, assume that all Vivaldi processes should be
-    // terminated at this point.
-    vivaldi_exe_write_option = WorkItem::ALWAYS;
-  }
   install_list->AddCopyTreeWorkItem(src_path.Append(installer::kChromeExe),
                                     target_path.Append(installer::kChromeExe),
-                                    temp_path, vivaldi_exe_write_option,
+                                    temp_path, WorkItem::NEW_NAME_IF_IN_USE,
                                     new_chrome_exe);
 
   // Install kVisualElementsManifest if it is present in |src_path|. No need to
@@ -328,7 +292,6 @@ void AddElevationServiceWorkItems(const base::FilePath& elevation_service_path,
       base::CommandLine(base::CommandLine::NO_PROGRAM),
       install_static::GetClientStateKeyPath(),
       {install_static::GetElevatorClsid()}, {install_static::GetElevatorIid()});
-  install_service_work_item->set_best_effort(true);
   list->AddWorkItem(install_service_work_item);
 }
 
@@ -551,11 +514,6 @@ void AddUninstallShortcutWorkItems(const InstallParams& install_params,
   std::wstring update_state_key(install_static::GetClientStateKeyPath());
   install_list->AddCreateRegKeyWorkItem(reg_root, update_state_key,
                                         KEY_WOW64_32KEY);
-  if (!kVivaldi) {
-    // Skip Chromium-specific uninstall keys that are either by Chrome update or
-    // to extract the path to setup.exe. For Vivaldi we always deduce the path
-    // from the installation directory.
-    // clang-format off
   install_list->AddSetRegValueWorkItem(
       reg_root, update_state_key, KEY_WOW64_32KEY,
       installer::kUninstallStringField, installer_path.value(), true);
@@ -563,8 +521,6 @@ void AddUninstallShortcutWorkItems(const InstallParams& install_params,
       reg_root, update_state_key, KEY_WOW64_32KEY,
       installer::kUninstallArgumentsField,
       uninstall_arguments.GetCommandLineString(), true);
-    // clang-format on
-  }
 
   // MSI installations will manage their own uninstall shortcuts.
   if (!installer_state.is_msi()) {
@@ -638,12 +594,7 @@ void AddVersionKeyWorkItems(const InstallParams& install_params,
 
   // Only set "lang" for user-level installs since for system-level, the install
   // language may not be related to a given user's runtime language.
-#if defined(VIVALDI_BUILD)
-  // This is already written by the installation dialog.
-  constexpr bool add_language_identifier = false;
-#else
   const bool add_language_identifier = !installer_state.system_install();
-#endif
 
   const std::wstring clients_key = install_static::GetClientsKeyPath();
   list->AddCreateRegKeyWorkItem(root, clients_key, KEY_WOW64_32KEY);
@@ -822,9 +773,6 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
             new ConditionRunIfFileExists(new_chrome_exe)));
     in_use_update_work_items->set_log_message("InUseUpdateWorkItemList");
 
-    if (!kVivaldi) {
-      // Vivaldi does not need the items below.
-      // clang-format off
     // |critical_version| will be valid only if this in-use update includes a
     // version considered critical relative to the version being updated.
     base::Version critical_version(
@@ -874,8 +822,6 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
           root, clients_key, KEY_WOW64_32KEY, installer::kCmdRenameChromeExe,
           product_rename_cmd.GetCommandLineString(), true);
     }
-      // clang-format on
-    }
 
     // Delay deploying the new chrome_proxy while chrome is running.
     in_use_update_work_items->AddCopyTreeWorkItem(
@@ -892,12 +838,6 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
             new Not(new ConditionRunIfFileExists(new_chrome_exe))));
     regular_update_work_items->set_log_message("RegularUpdateWorkItemList");
 
-    // Disable for Vivaldi standalone the downgrade and related functionality
-    // that depends on shared Windows Registry.
-    // TODO(igor@vivaldi.com): Figure out how to keep that functionality while
-    // allowing for multiple installations.
-    if (!vivaldi::IsInstallStandalone()) {
-      // clang-format off
     // If a channel was specified by policy, update the "channel" registry value
     // with it so that the browser knows which channel to use, otherwise delete
     // whatever value that key holds.
@@ -921,8 +861,6 @@ bool AppendPostInstallTasks(const InstallParams& install_params,
     if (!installer_state.system_install()) {
       regular_update_work_items->AddDeleteRegValueWorkItem(
           root, clients_key, KEY_WOW64_32KEY, installer::kCmdRenameChromeExe);
-    }
-      // clang-format on
     }
 
     // Only copy chrome_proxy.exe directly when chrome.exe isn't in use to avoid
@@ -1024,37 +962,15 @@ void AddInstallWorkItems(const InstallParams& install_params,
   // Copy installer in install directory
   AddInstallerCopyTasks(install_params, install_list);
 
-  // Do not create registry entries for Vivaldi standalone install.
-  if (!vivaldi::IsInstallStandalone()) {
-    // clang-format off
   AddUninstallShortcutWorkItems(install_params, install_list);
-    // clang-format on
-  }
 
-  // For Vivaldi we always read the version string from the browser
-  // executable, not the registry.
-  if (!kVivaldi) {
-    // clang-format off
   AddVersionKeyWorkItems(install_params, install_list);
 
   AddCleanupDeprecatedPerUserRegistrationsWorkItems(install_list);
-    // clang-format on
-  }
 
-  if (!vivaldi::IsInstallStandalone()) {
-    // clang-format off
   AddActiveSetupWorkItems(installer_state, new_version, install_list);
 
   AddOsUpgradeWorkItems(installer_state, setup_path, new_version, install_list);
-    // clang-format on
-  }
-
-  // Add Vivaldi items to upgrade the update notifier after everything else was
-  // copied. This way if the installer crashes before this point the older
-  // notifier will download and run the update again as it will still see a
-  // newer version available.
-  vivaldi::AddVivaldiSpecificWorkItems(install_params, install_list);
-
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   AddEnterpriseEnrollmentWorkItems(installer_state, setup_path, new_version,
                                    install_list);
@@ -1074,21 +990,13 @@ void AddInstallWorkItems(const InstallParams& install_params,
       installer_state.root_key(),
       GetNotificationHelperPath(target_path, new_version), install_list);
 
-  if (!kVivaldi) {
-    // clang-format off
   if (installer_state.system_install()) {
     AddElevationServiceWorkItems(
         GetElevationServicePath(target_path, new_version), install_list);
   }
-    // clang-format on
-  }
 
-  if (!vivaldi::IsInstallStandalone()) {
-    // clang-format off
   AddUpdateDowngradeVersionItem(installer_state.root_key(), current_version,
                                 new_version, install_list);
-    // clang-format on
-  }
 
   AddUpdateBrandCodeWorkItem(installer_state, install_list);
 
@@ -1105,27 +1013,8 @@ void AddNativeNotificationWorkItems(
     return;
   }
 
-  CLSID toast_activator_clsid;
-  // NOTE(andre@vivaldi.com) : To minimize patches navigate down from
-  // notificationhelperexe and version.
-  std::vector<base::FilePath::StringType> comps =
-      notification_helper_path.GetComponents();
-  DCHECK(!comps.empty());
-  base::FilePath target;
-  for (size_t i = 0; i < comps.size()-2; ++i) {
-    target = target.Append(comps[i]);
-  }
-
-  target = target.Append(installer::kChromeExe);
-
-  VLOG(1) << " AddNativeNotificationWorkItems using target " << target.value();
-
   std::wstring toast_activator_reg_path =
-      InstallUtil::GetToastActivatorRegistryPath(&target);
-  toast_activator_clsid = vivaldi::GetOrGenerateToastActivatorCLSID(&target);
-
-  VLOG(1) << " AddNativeNotificationWorkItems "
-          << notification_helper_path.value();
+      InstallUtil::GetToastActivatorRegistryPath();
 
   if (toast_activator_reg_path.empty()) {
     LOG(DFATAL) << "Cannot retrieve the toast activator registry path";
@@ -1144,9 +1033,9 @@ void AddNativeNotificationWorkItems(
   // Force COM to flush its cache containing the path to the old handler.
   WorkItem* item = list->AddCallbackWorkItem(
       base::BindOnce(&ProbeNotificationActivatorCallback,
-                     toast_activator_clsid),
+                     install_static::GetToastActivatorClsid()),
       base::BindOnce(base::IgnoreResult(&ProbeNotificationActivatorCallback),
-                     toast_activator_clsid));
+                     install_static::GetToastActivatorClsid()));
   item->set_best_effort(true);
 
   std::wstring toast_activator_server_path =

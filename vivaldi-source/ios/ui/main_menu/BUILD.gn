@@ -1,0 +1,39 @@
+# Merge util for strings needed by chrome_localize_strings_config.plist
+
+template("merge_plist") {
+  assert(defined(invoker.plist_templates),
+         "A list of template plist files must be specified for $target_name")
+  assert(defined(invoker.format),
+         "The plist format must be specified for $target_name")
+  assert(defined(invoker.output_name),
+         "The name of the output file must be specified for $target_name")
+
+  _output_name = invoker.output_name
+
+  action(target_name) {
+    forward_variables_from(invoker,
+                           [
+                             "deps",
+                             "testonly",
+                             "visibility",
+                           ])
+
+    script = "//vivaldi/build/apple/vivaldi_merge_strings_config_plist.py"
+    sources = invoker.plist_templates
+    outputs = [ _output_name ]
+    args = [
+             "-f=" + invoker.format,
+             "-o=" + rebase_path(_output_name, root_build_dir),
+           ] + rebase_path(invoker.plist_templates, root_build_dir)
+  }
+}
+
+
+merge_plist("merge_vivaldi_localize_strings") {
+  format = "xml1"
+  plist_templates = [
+    "//ios/chrome/app/resources/chrome_localize_strings_config.plist",
+    "vivaldi_localize_strings_config.plist"
+  ]
+  output_name = "$root_gen_dir/vivaldi/ios/vivaldi_localize_strings_config.plist"
+}

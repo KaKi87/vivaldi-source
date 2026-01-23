@@ -114,6 +114,7 @@ public final class AwBrowserProcess {
     private static String sWebViewPackageName;
     private static @ApkType int sApkType;
     private static @Nullable String sProcessDataDirSuffix;
+    private static boolean sDataDirBasePathOverridden;
 
     /**
      * Loads the native library, and performs basic static construction of objects needed to run
@@ -145,6 +146,7 @@ public final class AwBrowserProcess {
             String processDataDirSuffix) {
         LibraryLoader.getInstance().setLibraryProcessType(LibraryProcessType.PROCESS_WEBVIEW);
         sProcessDataDirSuffix = processDataDirSuffix;
+        sDataDirBasePathOverridden = (processDataDirBasePath != null);
         if (processDataDirSuffix == null) {
             PathUtils.setPrivateDirectoryPath(
                     processDataDirBasePath,
@@ -264,15 +266,10 @@ public final class AwBrowserProcess {
                 AwContentsLifecycleNotifier.initialize();
             }
 
-            try (DualTraceEvent ignored =
-                    DualTraceEvent.scoped(
-                            "AwBrowserProcess.finishBrowserProcessStart"
-                                    + ".setupSupervisedUrlClassifier")) {
-                AwSupervisedUserUrlClassifier classifier =
-                        AwSupervisedUserUrlClassifier.getInstance();
-                if (classifier != null && AwSupervisedUserSafeModeAction.isSupervisionEnabled()) {
-                    classifier.checkIfNeedRestrictedContentBlocking();
-                }
+            if (!WebViewCachedFlags.get()
+                    .isCachedFeatureEnabled(
+                            AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION)) {
+                setupSupervisedUser();
             }
 
             if (AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_CACHE_BOUNDARY_INTERFACE_METHODS)) {
@@ -345,6 +342,28 @@ public final class AwBrowserProcess {
                     DualTraceEvent.scoped("AwBrowserProcess.maybeEnableSafeBrowsingFromManifest")) {
                 AwSafeBrowsingConfigHelper.maybeEnableSafeBrowsingFromManifest();
             }
+            if (!WebViewCachedFlags.get()
+                    .isCachedFeatureEnabled(
+                            AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION)) {
+                maybeEnableSafeBrowsingFromGms();
+            }
+        }
+    }
+
+    public static void setupSupervisedUser() {
+        try (DualTraceEvent ignored =
+                DualTraceEvent.scoped("AwBrowserProcess.setupSupervisedUser")) {
+            AwSupervisedUserUrlClassifier classifier = AwSupervisedUserUrlClassifier.getInstance();
+            if (classifier != null && AwSupervisedUserSafeModeAction.isSupervisionEnabled()) {
+                classifier.checkIfNeedRestrictedContentBlocking();
+            }
+        }
+    }
+
+    public static void maybeEnableSafeBrowsingFromGms() {
+        try (DualTraceEvent e2 =
+                DualTraceEvent.scoped("AwBrowserProcess.maybeEnableSafeBrowsingFromGms")) {
+            AwSafeBrowsingConfigHelper.maybeEnableSafeBrowsingFromGms();
         }
     }
 
@@ -380,6 +399,10 @@ public final class AwBrowserProcess {
     @Nullable
     public static String getProcessDataDirSuffix() {
         return sProcessDataDirSuffix;
+    }
+
+    public static boolean isDataDirBasePathOverridden() {
+        return sDataDirBasePathOverridden;
     }
 
     public static void initializeApkType(ApplicationInfo info) {
@@ -494,9 +517,6 @@ public final class AwBrowserProcess {
         // to copy a file usually means that retrying won't succeed either,
         // because e.g. the disk is full, or the file system is corrupted.
         int fileCount = minidumpFiles.length;
-        // TODO(crbug.com/40883324): We should limit the number of crashes we upload in
-        //     order to not use too much data, and in order to minimize the chance of exhausting
-        //     file descriptors (https://crbug.com/1399777).
         ParcelFileDescriptor[] minidumpFds = new ParcelFileDescriptor[fileCount];
         Map<String, String>[] crashInfos = new Map[fileCount];
         for (int i = 0; i < fileCount; ++i) {
@@ -722,6 +742,22 @@ public final class AwBrowserProcess {
             if (componentPolicies.length == 0) {
                 return;
             }
+
+            // The origin trial component was the only component we were
+            // fetching, and we're in the process of disabling the component
+            // updater entirely. So, if fetching the origin trial component is
+            // disabled, we expect there to be no components to fetch, as no
+            // new ones should be being added to WebView.
+            // If we get here there was at least one component registered:
+            // crash on debug builds, otherwise no-op.
+            boolean componentLoadingAllowed =
+                    AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_FETCH_ORIGIN_TRIALS_COMPONENT);
+            assert componentLoadingAllowed;
+            if (!componentLoadingAllowed) {
+                Log.w(TAG, "Components were registered but component loading is disabled!");
+                return;
+            }
+
             EmbeddedComponentLoader loader =
                     new EmbeddedComponentLoader(Arrays.asList(componentPolicies));
             final Intent intent = new Intent();
@@ -744,8 +780,7 @@ public final class AwBrowserProcess {
                             && AwFeatureMap.isEnabled(
                                     AwFeatures.WEBVIEW_USE_METRICS_UPLOAD_SERVICE_ONLY_SDK_RUNTIME);
 
-            if (metricServiceEnabledOnlySdkRuntime
-                    || AwFeatureMap.isEnabled(AwFeatures.WEBVIEW_USE_METRICS_UPLOAD_SERVICE)) {
+            if (metricServiceEnabledOnlySdkRuntime) {
                 boolean isAsync =
                         AwFeatureMap.isEnabled(AwFeatures.ANDROID_METRICS_ASYNC_METRIC_LOGGING);
                 AwMetricsLogUploader uploader = new AwMetricsLogUploader(isAsync);

@@ -38,15 +38,28 @@ Profile * SidePanelCoordinator::GetProfile() {
   return browser_->GetProfile();
 }
 
-void SidePanelCoordinator::Close() {}
+void SidePanelCoordinator::Close(SidePanelEntry::PanelType panel_type,
+                                 SidePanelEntryHideReason hide_reason,
+                                 bool suppress_animations) {}
 
 void SidePanelCoordinator::Show(
     SidePanelEntryId entry_id,
-    std::optional<SidePanelOpenTrigger> open_trigger) {}
+    std::optional<SidePanelOpenTrigger> open_trigger,
+    bool suppress_animations) {
+  auto extension_id = SidePanelEntryIdToString(entry_id);
+  if (!extension_id.empty()) {
+    namespace action_utils = ::extensions::vivaldi::extension_action_utils;
+    ::vivaldi::BroadcastEvent(
+        action_utils::OnSidePanelActionRequested::kEventName,
+        action_utils::OnSidePanelActionRequested::Create(extension_id, "show"),
+        GetProfile());
+  }
+}
 
 void SidePanelCoordinator::Show(
     SidePanelEntryKey entry_key,
-    std::optional<SidePanelOpenTrigger> open_trigger) {
+    std::optional<SidePanelOpenTrigger> open_trigger,
+    bool suppress_animations) {
   auto extension_id = entry_key.extension_id();
   if (extension_id) {
     namespace action_utils = ::extensions::vivaldi::extension_action_utils;
@@ -60,20 +73,21 @@ void SidePanelCoordinator::Show(
 void SidePanelCoordinator::Toggle(SidePanelEntryKey key,
                                   SidePanelOpenTrigger open_trigger) {}
 
-void SidePanelCoordinator::OpenInNewTab() {}
-
 //void SidePanelCoordinator::UpdatePinState() {}
 
-std::optional<SidePanelEntryId> SidePanelCoordinator::GetCurrentEntryId()
+std::optional<SidePanelEntryId> SidePanelCoordinator::GetCurrentEntryId(
+    SidePanelEntry::PanelType panel_type)
     const {
   return std::optional<SidePanelEntryId>();
 }
 
-int SidePanelCoordinator::GetCurrentEntryDefaultContentWidth() const {
+int SidePanelCoordinator::GetCurrentEntryDefaultContentWidth(
+    SidePanelEntry::PanelType panel_type) const {
   return 0;
 }
 
-bool SidePanelCoordinator::IsSidePanelShowing() const {
+bool SidePanelCoordinator::IsSidePanelShowing(
+    SidePanelEntry::PanelType panel_type) const {
   return false;
 }
 
@@ -85,6 +99,18 @@ content::WebContents* SidePanelCoordinator::GetWebContentsForTest(
 bool SidePanelCoordinator::IsSidePanelEntryShowing(
     const SidePanelEntryKey& entry_key) const {
   return false;
+}
+
+bool SidePanelCoordinator::IsSidePanelEntryShowing(
+    const SidePanelEntryKey& entry_key,
+    bool for_tab) const {
+  return false;
+}
+
+base::CallbackListSubscription SidePanelCoordinator::RegisterSidePanelShown(
+    SidePanelEntry::PanelType type,
+    ShownCallback callback) {
+  return {};
 }
 
 void SidePanelCoordinator::OnPanelOptionsChanged(

@@ -16,6 +16,8 @@ NS_SWIFT_UI_ACTOR
 - (void)setPreferenceForShowXForSugggestions:(BOOL)show;
 // Updates the state with the show typed history on focus preference value.
 - (void)setPreferenceForShowTypedHistoryOnFocus:(BOOL)show;
+// Updates the state with the enable address bar swipe gesture preference value.
+- (void)setPreferenceForEnableAddressBarSwipeGesture:(BOOL)enable;
 
 // Updates the state with the enable bookmarks preference value.
 - (void)setPreferenceForEnableBookmarks:(BOOL)enable;

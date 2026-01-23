@@ -14,6 +14,7 @@
 #include "base/task/thread_pool.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/browser/browser_plugin/browser_plugin_guest.h"  // nogncheck
 #include "content/browser/renderer_host/dip_util.h"               // nogncheck
 #include "content/browser/web_contents/web_contents_impl.h"       // nogncheck
@@ -138,14 +139,14 @@ ExtensionFunction::ResponseAction WebViewPrivateGetThumbnailFunction::RunImpl(
 }
 
 void WebViewPrivateGetThumbnailFunction::CopyFromBackingStoreComplete(
-    const SkBitmap& bitmap) {
+    const viz::CopyOutputBitmapWithMetadata& bitmap) {
   base::ThreadPool::PostTaskAndReply(
       FROM_HERE,
       {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(
           &WebViewPrivateGetThumbnailFunction::ScaleAndEncodeOnWorkerThread,
-          this, bitmap),
+          this, bitmap.bitmap),
       base::BindOnce(&WebViewPrivateGetThumbnailFunction::SendResult, this));
 }
 

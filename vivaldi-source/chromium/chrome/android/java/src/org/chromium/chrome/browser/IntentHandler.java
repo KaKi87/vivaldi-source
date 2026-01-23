@@ -313,6 +313,9 @@ public class IntentHandler {
     public static final String EXTRA_ITEM_PICKER_MAX_SELECTABLE_ITEMS =
             "org.chromium.chrome.browser.extras.item_picker_max_selectable_items";
 
+    public static final String EXTRA_ITEM_PICKER_ERROR =
+            "org.chromium.chrome.browser.chrome_item_picker.EXTRA_ITEM_PICKER_ERROR";
+
     private static @Nullable Pair<Integer, String> sPendingReferrer;
     private static int sReferrerId;
     private static @Nullable String sPendingIncognitoUrl;
@@ -1154,9 +1157,11 @@ public class IntentHandler {
      * intents with action NDEF_DISCOVERED (links beamed over NFC) are handled properly.
      */
     public static @TabOpenType int getTabOpenType(Intent intent) {
-        if (IntentUtils.safeGetBooleanExtra(intent, Browser.EXTRA_CREATE_NEW_TAB, false) &&
-                IntentUtils.safeGetBooleanExtra(
-                        intent, VivaldiIntentHandler.EXTRA_SCAN_QR_CODE, false)) {
+        // Vivaldi
+        if (IntentUtils.safeGetBooleanExtra(intent, VivaldiIntentHandler.EXTRA_SCAN_QR_CODE,
+                false) && (IntentUtils.safeGetBooleanExtra(intent, Browser.EXTRA_CREATE_NEW_TAB,
+                false) || IntentUtils.safeGetBooleanExtra(intent,
+                IntentHandler.EXTRA_INVOKED_FROM_SHORTCUT, false))) {
             return TabOpenType.OPEN_NEW_TAB_AND_SCAN_QR_CODE;
         }
         if (IntentUtils.safeGetBooleanExtra(
@@ -1671,14 +1676,21 @@ public class IntentHandler {
      * @return the provided intent, if the intent is not from Android Recents. Otherwise, rewrites
      *     the intent to be a consistent MAIN intent from recents.
      */
-    public static Intent rewriteFromHistoryIntent(Intent intent) {
+    public static Intent rewriteFromHistoryIntent(
+            Intent intent, @Nullable Bundle savedInstanceState) {
         // When a self-finished Activity is created from recents, Android launches it with its
         // original base intent (with FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY added). This can lead
         // to duplicating actions when launched from recents, like re-launching tabs, or firing
         // additional app redirects, etc.
+        //
+        // Similarly, if the app is recreated with savedInstanceState (like if Chrome is started
+        // from being foreground when the device is unlocked) we don't want to re-process the
+        // previous intent.
+        //
         // Instead of teaching all of Chrome about this, just make intents consistent when Chrome is
         // created from recents.
-        if (0 != (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)) {
+        if (0 != (intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+                || savedInstanceState != null) {
             Intent newIntent = new Intent(Intent.ACTION_MAIN);
             // Make sure to carry over the FROM_HISTORY flag to avoid confusing metrics.
             newIntent.setFlags(intent.getFlags());

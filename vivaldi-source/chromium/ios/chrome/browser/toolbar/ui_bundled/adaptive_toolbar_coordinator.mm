@@ -109,6 +109,7 @@ using tab_groups::VersioningMessageController;
   self.mediator.actionFactory = [[BrowserActionFactory alloc]
       initWithBrowser:browser
              scenario:kMenuScenarioHistogramToolbarMenu];
+  self.mediator.commandDispatcher = browser->GetCommandDispatcher();
 
   _fullscreenUIUpdater = std::make_unique<FullscreenUIUpdater>(
       FullscreenController::FromBrowser(browser), self.viewController);
@@ -156,6 +157,10 @@ using tab_groups::VersioningMessageController;
 
 - (void)showPrerenderingAnimation {
   [self.viewController showPrerenderingAnimation];
+}
+
+- (void)setLocationBarHeight:(CGFloat)height {
+  [self.viewController setLocationBarHeight:height];
 }
 
 #pragma mark - AdaptiveToolbarViewControllerDelegate

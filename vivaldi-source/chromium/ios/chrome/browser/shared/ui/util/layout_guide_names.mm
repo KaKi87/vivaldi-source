@@ -38,6 +38,10 @@ GuideName* const kReaderModeOptionsEntrypointGuide =
     @"kReaderModeOptionsEntrypointGuide";
 GuideName* const kNTPIdentityDiscButtonGuide = @"kNTPIdentityDiscButtonGuide";
 GuideName* const kSelectedRegularCellGuide = @"kSelectedRegularCellGuide";
+GuideName* const kLocationBarBadgeLargeEntrypointGuide =
+    @"kLocationBarBadgeLargeEntrypointGuide";
+GuideName* const kInputAccessoryViewLayoutGuide =
+    @"kInputAccessoryViewLayoutGuide";
 
 // Vivaldi
 GuideName* const vivaldiBottomOmniboxGuide = @"vivaldiBottomOmniboxGuide";

@@ -48,6 +48,7 @@ source_set("vivaldi_ntp") {
     "//vivaldi/ios/ui/ntp/bottom_toolbar:bottom_toolbar_swift",
     "//vivaldi/ios/ui/ntp/bottom_toolbar",
     "//vivaldi/ios/ui/ntp/cells",
+    "//vivaldi/ios/ui/ntp/navigation_bar:vivaldi_custom_navigation_bar_swift",
     "//vivaldi/ios/ui/ntp/nsd",
     "//vivaldi/ios/ui/ntp/top_toolbar:top_toolbar_swift",
     "//vivaldi/ios/ui/ntp/top_toolbar",

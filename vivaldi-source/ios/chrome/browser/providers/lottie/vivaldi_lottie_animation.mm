@@ -34,17 +34,16 @@
     DCHECK(config);
     DCHECK(config.animationName);
 
-CompatibleAnimation* compatibleAnimation = [[CompatibleAnimation alloc]
-    initWithName:config.animationName
-    subdirectory:config.subdirectory
-          bundle:config.bundle == nil ? base::apple::FrameworkBundle()
-                                      : config.bundle];
+  CompatibleAnimation* compatibleAnimation = [[CompatibleAnimation alloc]
+      initWithName:config.animationName
+      subdirectory:nil
+            bundle:config.bundle == nil ? base::apple::FrameworkBundle()
+                                        : config.bundle];
 
-_lottieAnimation = [[CompatibleAnimationView alloc]
-    initWithCompatibleAnimation:compatibleAnimation];
-_lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
-_lottieAnimation.loopAnimationCount = config.loopAnimationCount;
-
+  _lottieAnimation = [[CompatibleAnimationView alloc]
+      initWithCompatibleAnimation:compatibleAnimation];
+  _lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
+  _lottieAnimation.loopAnimationCount = config.shouldLoop ? -1 : 0;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
   }
   return self;

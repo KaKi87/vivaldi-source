@@ -5,6 +5,7 @@
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_in_profile.h"
 
 #import "base/check_op.h"
+#import "base/functional/callback_helpers.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
@@ -302,9 +303,8 @@ enum class AuthenticationFlowInProfileState {
       IdentityManagerFactory::GetForProfile(profile);
   std::vector<CoreAccountInfo> accountsInProfile =
       identityManager->GetAccountsWithRefreshTokens();
-  BOOL isValidIdentityInProfile =
-      base::Contains(accountsInProfile, GaiaId(_identityToSignIn.gaiaID),
-                     &CoreAccountInfo::gaia);
+  BOOL isValidIdentityInProfile = base::Contains(
+      accountsInProfile, _identityToSignIn.gaiaId, &CoreAccountInfo::gaia);
   if (!isValidIdentityInProfile) {
     [self handleAuthenticationError:ios::provider::
                                         CreateMissingIdentitySigninError()];
@@ -373,7 +373,7 @@ enum class AuthenticationFlowInProfileState {
   CHECK(_signInCompletion);
   signin_ui::SigninCompletionCallback signInCompletion = _signInCompletion;
   _signInCompletion = nil;
-  signInCompletion(SigninCoordinatorResult::SigninCoordinatorResultSuccess);
+  signInCompletion(signin_ui::CancelationReason::kNotCanceled);
   [self continueFlow];
 }
 
@@ -421,7 +421,7 @@ enum class AuthenticationFlowInProfileState {
   signin_ui::SigninCompletionCallback signInCompletion = _signInCompletion;
   _signInCompletion = nil;
   // If the sign-in failed, the result is `SigninCoordinatorResultInterrupted`.
-  signInCompletion(SigninCoordinatorResult::SigninCoordinatorResultInterrupted);
+  signInCompletion(signin_ui::CancelationReason::kFailed);
   [self continueFlow];
 }
 

@@ -179,8 +179,9 @@ MostVisitedSitesBridge::MostVisitedSitesBridge(Profile* profile,
       profile_(profile) {
   DCHECK(!profile->IsOffTheRecord());
   most_visited_->EnableTileTypes(
-      ntp_tiles::MostVisitedSites::EnableTileTypesOptions().with_custom_links(
-          enable_custom_links));
+      ntp_tiles::MostVisitedSites::EnableTileTypesOptions()
+          .with_top_sites(true)
+          .with_custom_links(enable_custom_links));
 }
 
 MostVisitedSitesBridge::~MostVisitedSitesBridge() = default;
@@ -311,3 +312,6 @@ static jlong JNI_MostVisitedSitesBridge_Init(JNIEnv* env,
       new MostVisitedSitesBridge(profile, enable_custom_links);
   return reinterpret_cast<intptr_t>(most_visited_sites);
 }
+
+DEFINE_JNI(MostVisitedSitesBridge)
+DEFINE_JNI(MostVisitedSites)

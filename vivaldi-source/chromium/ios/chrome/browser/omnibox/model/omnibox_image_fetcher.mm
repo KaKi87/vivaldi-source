@@ -81,15 +81,17 @@ const CGFloat kFaviconIconSize = 16;
 
   if (vivaldi::IsVivaldiRunning()) {
     _faviconLoader->FaviconForPageUrlOrHost(
-        pageURL, kFaviconIconSize, ^(FaviconAttributes* attributes) {
-          if (attributes.faviconImage && !attributes.usesDefaultImage)
+        pageURL, kFaviconIconSize,
+        ^(FaviconAttributes* attributes, bool cached) {
+          if (attributes.faviconImage)
             completion(attributes.faviconImage);
         });
   } else {
   _faviconLoader->FaviconForPageUrl(
       pageURL, kFaviconIconSize, kFaviconIconSize,
-      /*fallback_to_google_server=*/false, ^(FaviconAttributes* attributes) {
-        if (attributes.faviconImage && !attributes.usesDefaultImage) {
+      /*fallback_to_google_server=*/false,
+      ^(FaviconAttributes* attributes, bool cached) {
+        if (attributes.faviconImage) {
           completion(attributes.faviconImage);
         }
       });

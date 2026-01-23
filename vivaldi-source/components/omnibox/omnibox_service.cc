@@ -20,7 +20,9 @@ namespace vivaldi_omnibox {
 OmniboxService::OmniboxService(Profile* profile) : profile_(profile) {
   controller_ = std::make_unique<AutocompleteController>(
       std::make_unique<ChromeAutocompleteProviderClient>(profile_),
-      AutocompleteClassifier::DefaultOmniboxProviders(), false);
+      AutocompleteControllerConfig(
+          {.provider_types =
+               AutocompleteClassifier::DefaultOmniboxProviders()}));
 
   controller_->AddObserver(this);
 }
@@ -31,9 +33,9 @@ void OmniboxService::Shutdown() {
 }
 
 void OmniboxService::StartSearch(
-        std::u16string input_text,
-        OmniboxPrivateInput input,
-        metrics::OmniboxEventProto::PageClassification page_classification) {
+    std::u16string input_text,
+    OmniboxPrivateInput input,
+    metrics::OmniboxEventProto::PageClassification page_classification) {
   AutocompleteInput autocomplete_input(
       input_text, page_classification,
       ChromeAutocompleteSchemeClassifier(profile_));
@@ -45,10 +47,12 @@ void OmniboxService::StartSearch(
   TemplateURLService* template_URL_service =
       std::make_unique<ChromeAutocompleteProviderClient>(profile_)
           ->GetTemplateURLService();
-  const bool has_keyword =
-      !controller_->keyword_provider()
-           ->GetKeywordForText(input_text, template_URL_service)
-           .empty();
+  auto temp_url = controller_->keyword_provider()->GetTemplateUrlForText(
+      input_text, template_URL_service);
+  bool has_keyword = false;
+  if (temp_url) {
+    has_keyword = true;
+  }
   const TemplateURL* template_url =
       template_URL_service->GetTemplateURLForGUID(input.search_engine_guid);
   if (template_url &&

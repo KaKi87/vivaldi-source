@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.omnibox.suggestions;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.ui.base.KeyNavigationUtil.isTabNavigation;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -19,6 +20,7 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
 
+import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -110,6 +112,8 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         private @Nullable Runnable mSuggestionDropdownScrollListener;
         private @Nullable Runnable mSuggestionDropdownOverscrolledToTopListener;
         private boolean mToolbarOnTop = true;
+        // Vivaldi
+        private boolean mShouldAnchorToBottom;
 
         public SuggestionLayoutScrollListener(Context context) {
             super(context);
@@ -163,6 +167,9 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         @VisibleForTesting
         /* package */ int updateKeyboardVisibilityAndScroll(
                 int resultingDeltaY, int requestedDeltaY) {
+            // Vivaldi: This avoids the blinking of suggestion results as the keyboard goes on and
+            // off when address bar is at the bottom.
+            if (mShouldAnchorToBottom) mCurrentGestureAffectedKeyboardState = true;
             // Change keyboard visibility only once per gesture.
             // This helps in situations where the user interacts with the horizontal caoursel (e.g.
             // the Most Visited Sites), where a horizontal finger swipe could result in a series of
@@ -265,6 +272,11 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
         public void setSuggestionDropdownOverscrolledToTopListener(Runnable listener) {
             mSuggestionDropdownOverscrolledToTopListener = listener;
         }
+
+        // Vivaldi
+        public void shouldAnchorToBottom(boolean anchorToBottom) {
+            mShouldAnchorToBottom = anchorToBottom;
+        }
     }
 
     /**
@@ -311,9 +323,15 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
                 : resources.getDimensionPixelOffset(R.dimen.search_accelerator_height_padding); // Vivaldi
         this.setPaddingRelative(0, paddingTop, 0, mBaseBottomPadding);
 
+        // Disable the scrollbar since it causes the hover events happening near the
+        // scrollbar not dispatched to the underlying views.
+        setVerticalScrollBarEnabled(false);
+
         if (OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
             setRecycledViewPool(new PreWarmingRecycledViewPool(mAdapter, context));
         }
+        // Vivaldi
+        mLayoutScrollListener.shouldAnchorToBottom(shouldAnchorToBottom());
     }
 
     @Override
@@ -453,7 +471,7 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
             return true;
         }
 
-        if (keyCode == KeyEvent.KEYCODE_TAB) {
+        if (isTabNavigation(event)) {
             boolean maybeProcessed = super.onKeyDown(keyCode, event);
             if (maybeProcessed) return true;
             if (event.isShiftPressed()) {
@@ -505,6 +523,13 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
 
     public void emitWindowContentChangedAnnouncement() {
         cancelWindowContentChangedAnnouncement();
+
+        @StringRes
+        int announcedStringRes =
+                mToolbarOnTop
+                        ? R.string.accessibility_omnibox_suggested_items
+                        : R.string.accessibility_omnibox_suggested_items_above;
+
         // Note: can't use postDelayed until minSdk is 28.
         mHandler.postAtTime(
                 () -> {
@@ -512,7 +537,7 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
                     setContentDescription(
                             getContext()
                                     .getString(
-                                            R.string.accessibility_omnibox_suggested_items,
+                                            announcedStringRes,
                                             mAdapter == null ? 0 : mAdapter.getItemCount()));
                     sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED);
                     setAccessibilityLiveRegion(ACCESSIBILITY_LIVE_REGION_NONE);
@@ -520,9 +545,10 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
                 TOKEN_ACCESSIBILITY_FOCUS,
                 TimeUtils.uptimeMillis() + LIST_COMPOSITION_ACCESSIBILITY_ANNOUNCEMENT_DELAY_MS);
 
-        // Vivaldi - Note(nagamani@vivaldi.com): Scroll to the first element for the
+        // Vivaldi - Note(nagamani@vivaldi.com): Scroll to the last element for the
         // suggestions to be clearly visible when reverse search suggestion is enabled.
-        if (shouldReverseSuggestionsList()) scrollToPosition(getEndScrollPosition());
+        if (shouldReverseSuggestionsList() && getLayoutManager() != null)
+            getLayoutManager().smoothScrollToPosition(this, null, getEndScrollPosition());
     }
 
     /* package */ void cancelWindowContentChangedAnnouncement() {
@@ -608,8 +634,7 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
     /** Vivaldi: Helps getting the correct position to scroll when using reversed list */
     public int getEndScrollPosition() {
         if (mLocationBarLayout == null) return 0;
-        final LinearLayoutManager layoutManager = (LinearLayoutManager) getLayoutManager();
-        if (layoutManager != null) return layoutManager.getItemCount() - 1;
+        if (mAdapter != null) return mAdapter.getItemCount();
         else return 0;
     }
     // End Vivaldi

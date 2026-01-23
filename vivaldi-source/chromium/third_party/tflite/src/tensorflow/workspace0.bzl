@@ -19,38 +19,6 @@ def _tf_bind():
     # If that ends up being the case, please leave a comment explaining
     # why we can't depend on the canonical build target.
 
-    # Needed by Protobuf
-    native.bind(
-        name = "grpc_cpp_plugin",
-        actual = "@com_github_grpc_grpc//src/compiler:grpc_cpp_plugin",
-    )
-    native.bind(
-        name = "grpc_python_plugin",
-        actual = "@com_github_grpc_grpc//src/compiler:grpc_python_plugin",
-    )
-
-    native.bind(
-        name = "grpc_lib",
-        actual = "@com_github_grpc_grpc//:grpc++",
-    )
-
-    native.bind(
-        name = "grpc_lib_unsecure",
-        actual = "@com_github_grpc_grpc//:grpc++_unsecure",
-    )
-
-    # Needed by Protobuf
-    native.bind(
-        name = "python_headers",
-        actual = str(Label("@local_xla//third_party/python_runtime:headers")),
-    )
-
-    # Needed by Protobuf
-    native.bind(
-        name = "six",
-        actual = "@six_archive//:six",
-    )
-
 def workspace():
     http_archive(
         name = "inception_v1",
@@ -140,10 +108,10 @@ def workspace():
     # Details: https://github.com/google-ml-infra/rules_ml_toolchain
     http_archive(
         name = "rules_ml_toolchain",
-        sha256 = "59d7eb36a02cbe3c2e2fa67fda5e8f1ab7e274bc4773bbd207c51fe199e11c19",
-        strip_prefix = "rules_ml_toolchain-ffd9e3d7b84e43c2686c803cb08ce790ffd58baa",
+        sha256 = "5f17275397752b666adbf8f0a81a3ebfb1e26a970b459cac33a06a8f03caa537",
+        strip_prefix = "rules_ml_toolchain-a2626615e1277a635b43dd268e1d4bc892afea10",
         urls = [
-            "https://github.com/google-ml-infra/rules_ml_toolchain/archive/ffd9e3d7b84e43c2686c803cb08ce790ffd58baa.tar.gz",
+            "https://github.com/google-ml-infra/rules_ml_toolchain/archive/a2626615e1277a635b43dd268e1d4bc892afea10.tar.gz",
         ],
     )
 

@@ -52,7 +52,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/test/test_utils.h"
 #include "ui/display/display_switches.h"
 #include "ui/display/manager/display_manager.h"
@@ -66,6 +65,7 @@
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/vector3d_f.h"
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/message_center/message_center.h"
 #include "ui/ozone/public/ozone_switches.h"
 #include "ui/views/test/native_widget_factory.h"
@@ -657,9 +657,9 @@ TEST_F(TabletModeControllerTest, TabletModeWithDifferentPrimaryDisplay) {
 TEST_F(TabletModeControllerTest, DisplayDisconnectionDuringOverview) {
   UpdateDisplay("800x600,800x600");
   std::unique_ptr<aura::Window> w1(
-      CreateTestWindowInShellWithBounds(gfx::Rect(0, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {100, 100}}));
   std::unique_ptr<aura::Window> w2(
-      CreateTestWindowInShellWithBounds(gfx::Rect(800, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {800, 0, 100, 100}}));
   ASSERT_NE(w1->GetRootWindow(), w2->GetRootWindow());
   ASSERT_FALSE(display::Screen::Get()->InTabletMode());
 
@@ -838,7 +838,7 @@ TEST_F(TabletModeControllerInitedFromPowerManagerClientTest,
 TEST_F(TabletModeControllerTest, RestoreAfterExit) {
   UpdateDisplay("1000x600");
   std::unique_ptr<aura::Window> w1(
-      CreateTestWindowInShellWithBounds(gfx::Rect(10, 10, 900, 300)));
+      CreateTestWindowInShell({.bounds = {10, 10, 900, 300}}));
   tablet_mode_controller()->SetEnabledForTest(true);
   Shell::Get()->screen_orientation_controller()->SetLockToRotation(
       display::Display::ROTATE_90);
@@ -1543,8 +1543,8 @@ TEST_F(TabletModeControllerTest,
 TEST_F(TabletModeControllerTest,
        StartTabletActiveDesktopOnlyLeftSnapPreviousRightSnap) {
   aura::test::TestWindowDelegate left_window_delegate;
-  std::unique_ptr<aura::Window> left_window(CreateTestWindowInShellWithDelegate(
-      &left_window_delegate, /*id=*/-1, /*bounds=*/gfx::Rect(0, 0, 400, 400)));
+  std::unique_ptr<aura::Window> left_window(CreateTestWindowInShell(
+      {.delegate = &left_window_delegate, .bounds = {400, 400}}));
   const gfx::Rect display_bounds =
       screen_util::GetDisplayWorkAreaBoundsInScreenForActiveDeskContainer(
           left_window.get());
@@ -1572,10 +1572,8 @@ TEST_F(TabletModeControllerTest,
        StartTabletActiveDesktopOnlyRightSnapPreviousLeftSnap) {
   std::unique_ptr<aura::Window> left_window = CreateDesktopWindowSnappedLeft();
   aura::test::TestWindowDelegate right_window_delegate;
-  std::unique_ptr<aura::Window> right_window(
-      CreateTestWindowInShellWithDelegate(
-          &right_window_delegate, /*id=*/-1,
-          /*bounds=*/gfx::Rect(0, 0, 400, 400)));
+  std::unique_ptr<aura::Window> right_window(CreateTestWindowInShell(
+      {.delegate = &right_window_delegate, .bounds = {400, 400}}));
   const gfx::Rect display_bounds =
       screen_util::GetDisplayWorkAreaBoundsInScreenForActiveDeskContainer(
           right_window.get());
@@ -1602,10 +1600,8 @@ TEST_F(TabletModeControllerTest,
        StartTabletActiveLeftSnapPreviousDesktopOnlyRightSnap) {
   std::unique_ptr<aura::Window> left_window = CreateDesktopWindowSnappedLeft();
   aura::test::TestWindowDelegate right_window_delegate;
-  std::unique_ptr<aura::Window> right_window(
-      CreateTestWindowInShellWithDelegate(
-          &right_window_delegate, /*id=*/-1,
-          /*bounds=*/gfx::Rect(0, 0, 400, 400)));
+  std::unique_ptr<aura::Window> right_window(CreateTestWindowInShell(
+      {.delegate = &right_window_delegate, .bounds = {400, 400}}));
   const gfx::Rect display_bounds =
       screen_util::GetDisplayWorkAreaBoundsInScreenForActiveDeskContainer(
           right_window.get());
@@ -1633,8 +1629,8 @@ TEST_F(TabletModeControllerTest,
 TEST_F(TabletModeControllerTest,
        StartTabletActiveRightSnapPreviousDesktopOnlyLeftSnap) {
   aura::test::TestWindowDelegate left_window_delegate;
-  std::unique_ptr<aura::Window> left_window(CreateTestWindowInShellWithDelegate(
-      &left_window_delegate, /*id=*/-1, /*bounds=*/gfx::Rect(0, 0, 400, 400)));
+  std::unique_ptr<aura::Window> left_window(CreateTestWindowInShell(
+      {.delegate = &left_window_delegate, .bounds = {400, 400}}));
   const gfx::Rect display_bounds =
       screen_util::GetDisplayWorkAreaBoundsInScreenForActiveDeskContainer(
           left_window.get());
@@ -1775,8 +1771,8 @@ TEST_F(TabletModeControllerTest, DoNotObserverInputDeviceChangeDuringSuspend) {
 // Tests that we get no animation smoothness histograms when entering or
 // exiting tablet mode with no windows.
 TEST_F(TabletModeControllerTest, TabletModeTransitionHistogramsNotLogged) {
-  ui::ScopedAnimationDurationScaleMode test_duration_mode(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode test_duration_mode(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   base::HistogramTester histogram_tester;
 
   SCOPED_TRACE("No window");
@@ -1792,8 +1788,8 @@ TEST_F(TabletModeControllerTest, TabletModeTransitionHistogramsNotLogged) {
 // TODO(crbug.com/40877227): Flaky on Linux Chromium OS ASan LSan Tests.
 TEST_F(TabletModeControllerTest,
        DISABLED_TabletModeTransitionHistogramsLogged) {
-  ui::ScopedAnimationDurationScaleMode test_duration_mode(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode test_duration_mode(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   base::HistogramTester histogram_tester;
   // We have two windows, which both animated into tablet mode, but we only
   // observe and record smoothness for one.
@@ -1824,8 +1820,8 @@ TEST_F(TabletModeControllerTest,
 }
 
 TEST_F(TabletModeControllerTest, TabletModeTransitionHistogramsSnappedWindows) {
-  ui::ScopedAnimationDurationScaleMode test_duration_mode(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode test_duration_mode(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
   base::HistogramTester histogram_tester;
 
   // Snap a window on either side.
@@ -1848,8 +1844,8 @@ TEST_F(TabletModeControllerTest, TabletModeTransitionHistogramsSnappedWindows) {
 TEST_F(TabletModeControllerTest, CloseWindowDuringEnterAnimation) {
   std::unique_ptr<aura::Window> window = CreateAppWindow(gfx::Rect(250, 100));
 
-  ui::ScopedAnimationDurationScaleMode test_duration_mode(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode test_duration_mode(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   tablet_mode_controller()->SetEnabledForTest(true);
   window.reset();
@@ -1861,8 +1857,8 @@ TEST_F(TabletModeControllerTest, CloseWindowDuringExitAnimation) {
   std::unique_ptr<aura::Window> window = CreateAppWindow(gfx::Rect(250, 100));
   tablet_mode_controller()->SetEnabledForTest(true);
 
-  ui::ScopedAnimationDurationScaleMode test_duration_mode(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode test_duration_mode(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   tablet_mode_controller()->SetEnabledForTest(false);
   window.reset();
@@ -2064,8 +2060,8 @@ class TabletModeControllerScreenshotTest : public TabletModeControllerTest {
     // enter/exit. With a NONZERO_DURATION, occasionally they may trigger too
     // quickly in tests so use NORMAL_DURATION.
     scoped_animation_duration_scale_mode_ =
-        std::make_unique<ui::ScopedAnimationDurationScaleMode>(
-            ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+        std::make_unique<gfx::ScopedAnimationDurationScaleMode>(
+            gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
 
     // PowerManagerClient callback is a posted task.
     base::RunLoop().RunUntilIdle();
@@ -2078,7 +2074,7 @@ class TabletModeControllerScreenshotTest : public TabletModeControllerTest {
   }
 
  private:
-  std::unique_ptr<ui::ScopedAnimationDurationScaleMode>
+  std::unique_ptr<gfx::ScopedAnimationDurationScaleMode>
       scoped_animation_duration_scale_mode_;
 };
 

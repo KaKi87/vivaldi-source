@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/tab_ui_helper.h"
 
+#include "base/callback_list.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "build/build_config.h"
@@ -38,10 +39,8 @@ TabUIHelper::TabUIHelper(tabs::TabInterface& tab_interface)
 TabUIHelper::~TabUIHelper() = default;
 
 std::u16string TabUIHelper::GetTitle() const {
-  tabs::TabInterface* const tab_interface =
-      tabs::TabInterface::GetFromContents(web_contents());
   const tab_groups::SavedTabGroupWebContentsListener* wc_listener =
-      tab_interface->GetTabFeatures()->saved_tab_group_web_contents_listener();
+      tab().GetTabFeatures()->saved_tab_group_web_contents_listener();
   if (wc_listener) {
     if (const std::optional<tab_groups::DeferredTabState>& deferred_tab_state =
             wc_listener->deferred_tab_state()) {
@@ -62,10 +61,8 @@ std::u16string TabUIHelper::GetTitle() const {
 }
 
 ui::ImageModel TabUIHelper::GetFavicon() const {
-  tabs::TabInterface* const tab_interface =
-      tabs::TabInterface::GetFromContents(web_contents());
   const tab_groups::SavedTabGroupWebContentsListener* wc_listener =
-      tab_interface->GetTabFeatures()->saved_tab_group_web_contents_listener();
+      tab().GetTabFeatures()->saved_tab_group_web_contents_listener();
   if (wc_listener) {
     if (const std::optional<tab_groups::DeferredTabState>& deferred_tab_state =
             wc_listener->deferred_tab_state()) {
@@ -92,6 +89,15 @@ void TabUIHelper::SetWasActiveAtLeastOnce() {
   if (!base::FeatureList::IsEnabled(kSessionRestoreShowThrobberOnVisible)) {
     was_active_at_least_once_ = true;
   }
+}
+
+base::CallbackListSubscription TabUIHelper::AddTitleUpdatedCallback(
+    TitleUpdatedCallbackList::CallbackType callback) {
+  return title_change_callbacks_.Add(std::move(callback));
+}
+
+void TabUIHelper::TitleWasSet(content::NavigationEntry* entry) {
+  title_change_callbacks_.Notify(GetTitle());
 }
 
 void TabUIHelper::DidStopLoading() {

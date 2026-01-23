@@ -84,6 +84,7 @@ const DeviceInfo* LocalDeviceInfoProviderImpl::GetLocalDeviceInfo() const {
     local_device_info_->set_full_hardware_class(full_hardware_class_);
   }
 
+  // Vivaldi
   local_device_info_->set_vivaldi_total_synced_files_size(
       sync_client_->VivaldiGetSyncedFileStorageSize());
 
@@ -93,6 +94,7 @@ const DeviceInfo* LocalDeviceInfoProviderImpl::GetLocalDeviceInfo() const {
     // be used when propagating it to other devices.
     local_device_info_->set_client_name(session_name_override);
   }
+  // End Vivaldi
 
   return local_device_info_.get();
 }

@@ -2,12 +2,15 @@
 
 #import "ios/chrome/browser/browser_state/vivaldi_post_browser_state_init.h"
 
+#import "base/apple/backup_util.h"
 #import "base/memory/raw_ptr.h"
 #import "browser/removed_partners_tracker.h"
 #import "browser/search_engines/vivaldi_search_engines_updater.h"
 #import "browser/vivaldi_default_bookmarks.h"
+#import "components/ad_blocker/core/utils.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/bookmarks/browser/bookmark_model.h"
+#import "components/datasource/vivaldi_image_store_constants.h"
 #import "components/keyed_service/core/service_access_type.h"
 #import "components/search_engines/default_search_engine_observer.h"
 #import "ios/chrome/browser/ad_blocker/adblock_rule_service_factory.h"
@@ -16,6 +19,7 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/snapshots/model/constants.h"
 #import "ios/notes/notes_factory.h"
 #import "ios/translate/vivaldi_ios_translate_client.h"
 #import "ios/translate/vivaldi_ios_translate_service.h"
@@ -99,5 +103,28 @@ void PostBrowserStateInit(ProfileIOS* profile) {
   vivaldi::DefaultSearchEngineObserver::Create(
       ios::TemplateURLServiceFactory::GetForProfile(profile),
       profile->GetPrefs());
+
+  // iCloud backup exclusions:
+  base::FilePath profile_path = profile->GetStatePath();
+
+  base::FilePath adblock_rules_path =
+      profile_path.Append(adblock_filter::GetRulesFolderName());
+  base::apple::SetBackupExclusion(adblock_rules_path);
+
+  base::FilePath webkit_content_rule_lists_path =
+      profile_path.DirName().DirName().DirName().Append("WebKit").Append(
+          "ContentRuleLists");
+  base::apple::SetBackupExclusion(webkit_content_rule_lists_path);
+
+  base::FilePath direct_match_icons_path = profile_path.DirName().Append(
+      vivaldi_image_store::kDirectMatchImageDirectory);
+  base::apple::SetBackupExclusion(direct_match_icons_path);
+
+  base::FilePath sync_data_path = profile_path.Append("Sync Data");
+  base::apple::SetBackupExclusion(sync_data_path);
+
+  base::FilePath snapshots_path = profile_path.Append(kSnapshotsDirName);
+  base::apple::SetBackupExclusion(snapshots_path);
+  // End iCloud backup exclusions
 }
 }  // namespace vivaldi

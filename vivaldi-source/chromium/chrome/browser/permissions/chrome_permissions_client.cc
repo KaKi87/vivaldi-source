@@ -92,6 +92,7 @@
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/permissions/permission_blocked_message_delegate_android.h"
 #include "chrome/browser/permissions/permission_update_message_controller_android.h"
+#include "components/permissions/android/permissions_android_feature_map.h"
 #include "components/permissions/permission_request_manager.h"
 #else
 #include "chrome/browser/ui/browser.h"
@@ -434,10 +435,19 @@ void ChromePermissionsClient::TriggerPromptHatsSurveyIfEnabled(
   auto survey_data = permissions::PermissionHatsTriggerHelper::
       SurveyProductSpecificData::PopulateFrom(prompt_parameters);
 
+#if !BUILDFLAG(IS_ANDROID)
   hats_service->LaunchSurvey(
       kHatsSurveyTriggerPermissionsPrompt, std::move(hats_shown_callback),
       base::DoNothing(), survey_data.survey_bits_data,
       survey_data.survey_string_data, survey_parameters->supplied_trigger_id,
+#else
+  // Launching surveys on android requires an active web contents.
+  hats_service->LaunchSurveyForWebContents(
+      kHatsSurveyTriggerPermissionsPrompt, web_contents,
+      survey_data.survey_bits_data, survey_data.survey_string_data,
+      std::move(hats_shown_callback), base::DoNothing(),
+      survey_parameters->supplied_trigger_id,
+#endif
       HatsService::SurveyOptions(survey_parameters->custom_survey_invitation,
                                  survey_parameters->message_identifier));
 }
@@ -607,7 +617,7 @@ ChromePermissionsClient::GetAutoApprovalStatus(
           permissions::features::kAllowMultipleOriginsForWebKioskPermissions)) {
     Profile* profile = Profile::FromBrowserContext(browser_context);
     if (IsWebKioskOriginAllowed(profile->GetPrefs(), origin)) {
-      return permissions::PermissionAction::GRANTED;
+      return permissions::PermissionAction::GRANTED_ONCE;
     }
   }
 
@@ -694,7 +704,12 @@ ChromePermissionsClient::MaybeCreateMessageUI(
     content::WebContents* web_contents,
     ContentSettingsType type,
     base::WeakPtr<permissions::PermissionPromptAndroid> prompt) {
-  if (ShouldUseQuietUI(web_contents, type)) {
+  if (ShouldUseQuietUI(web_contents, type) ||
+      // The quiet UI is enabled for both Notifications and Geolocation but the
+      // Loud Clapper supports only Notifications.
+      (type == ContentSettingsType::NOTIFICATIONS &&
+       base::FeatureList::IsEnabled(
+           permissions::kPermissionsAndroidClapperLoud))) {
     auto delegate =
         std::make_unique<PermissionBlockedMessageDelegate::Delegate>(
             std::move(prompt));

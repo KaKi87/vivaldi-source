@@ -85,6 +85,8 @@ class BookmarkToolbarProperties {
     static final WritableBooleanPropertyKey CLOSE_BUTTON_VISIBLE = new WritableBooleanPropertyKey();
     static final WritableBooleanPropertyKey ADD_TO_READING_LIST_BUTTON_VISIBLE =
             new WritableBooleanPropertyKey();
+    static final WritableBooleanPropertyKey EXPORT_IMPORT_BOOKMARKS_VISIBLE =
+            new WritableBooleanPropertyKey();
 
     static final PropertyKey[] ALL_KEYS = {
         SELECTION_DELEGATE,
@@ -117,6 +119,7 @@ class BookmarkToolbarProperties {
         , // adding comma here to avoid modifying code above
         SORT_BUTTON_VISIBLE,
         CLOSE_BUTTON_VISIBLE,
-        ADD_TO_READING_LIST_BUTTON_VISIBLE
+        ADD_TO_READING_LIST_BUTTON_VISIBLE,
+        EXPORT_IMPORT_BOOKMARKS_VISIBLE,
     };
 }

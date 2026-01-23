@@ -27,6 +27,10 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.tabmodel.TabGroupUtils;
+
 /** Handles the flow of creating a new tab group through the UI. */
 @NullMarked
 public class TabGroupCreationUiDelegate {

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import fnmatch
 import importlib
 import inspect
 import json
@@ -42,6 +41,7 @@ for path in (dir_above_typ, dir_cov):
 
 from typ import artifacts
 from typ import json_results
+from typ import reduced_glob
 from typ import result_sink
 from typ.arg_parser import ArgumentParser
 from typ.expectations_parser import TestExpectations, Expectation
@@ -1033,7 +1033,7 @@ class Runner(object):
         test_name = test_case.id()[len(self.args.test_name_prefix):]
         if self.args.test_filter:
             return any(
-                fnmatch.fnmatch(test_name, glob)
+                reduced_glob.get_cached_instance(glob).matchcase(test_name)
                 for glob in self.args.test_filter.split('::'))
         if self.args.partial_match_filter:
             return any(
@@ -1045,7 +1045,7 @@ class Runner(object):
         _validate_test_starts_with_prefix(
             self.args.test_name_prefix, test_case.id())
         test_name = test_case.id()[len(self.args.test_name_prefix):]
-        return any(fnmatch.fnmatch(test_name, glob)
+        return any(reduced_glob.get_cached_instance(glob).matchcase(test_name)
                    for glob in self.args.isolate)
 
     def should_skip(self, test_case):
@@ -1060,7 +1060,8 @@ class Runner(object):
             expected_results = {ResultType.Pass}
         return (
             ResultType.Skip in expected_results or
-            any(fnmatch.fnmatch(test_name, glob) for glob in self.args.skip))
+            any(reduced_glob.get_cached_instance(glob).matchcase(test_name)
+                for glob in self.args.skip))
 
 
 def _test_adder(test_set, classifier):
@@ -1124,6 +1125,7 @@ class _Child(object):
 
 
 def _setup_process(host, worker_num, child):
+    host.setup_stdio_for_process()
     child.host = host
     child.result_sink_reporter = result_sink.ResultSinkReporter(
             host, child.disable_resultsink, child.result_sink_output_file)
@@ -1284,6 +1286,9 @@ def _run_one_test(child, test_input):
     additional_tags = None
     test_location = inspect.getsourcefile(test_case.__class__)
     test_method = getattr(test_case, test_case._testMethodName)
+    if real_test_func := getattr(test_method, 'real_test_func', None):
+        test_location = inspect.getsourcefile(real_test_func)
+        test_method = real_test_func
     # Test methods are often wrapped by decorators such as @mock. Try to get to
     # the actual test method instead of the wrapper.
     if hasattr(test_method, '__wrapped__'):
@@ -1316,7 +1321,8 @@ def _run_one_test(child, test_input):
         should_retry_on_failure = (should_retry_on_failure
                                    or test_case.retryOnFailure)
     result = _result_from_test_result(test_result, test_name, started, took, out,
-                                    err, child.worker_num, pid, test_case,
+                                    err, child.worker_num, pid,
+                                    test_location, test_line,
                                     expected_results, child.has_expectations,
                                     art.artifacts, art.in_memory_text_artifacts,
                                     associated_bugs)
@@ -1340,8 +1346,8 @@ def _run_under_debugger(host, test_case, suite,
 
 
 def _result_from_test_result(test_result, test_name, started, took, out, err,
-                             worker_num, pid, test_case, expected_results,
-                             has_expectations, artifacts,
+                             worker_num, pid, test_location, test_line,
+                             expected_results, has_expectations, artifacts,
                              in_memory_text_artifacts,
                              associated_bugs):
     failure_reason = None
@@ -1385,14 +1391,10 @@ def _result_from_test_result(test_result, test_name, started, took, out, err,
         unexpected = actual not in expected_results
 
     flaky = False
-    test_func = getattr(test_case, test_case._testMethodName)
-    test_func = getattr(test_func, 'real_test_func', test_func)
-    file_path = inspect.getsourcefile(test_func)
-    line_number = inspect.getsourcelines(test_func)[1]
     return Result(test_name, actual, started, took, worker_num,
                   expected_results, unexpected, flaky, code, out, err, pid,
-                  file_path, line_number, artifacts, in_memory_text_artifacts,
-                  failure_reason, associated_bugs)
+                  test_location, test_line, artifacts,
+                  in_memory_text_artifacts, failure_reason, associated_bugs)
 
 
 def _failure_reason_from_traceback(traceback):

@@ -6,6 +6,7 @@
 #define SYNC_NOTES_NOTE_DATA_TYPE_PROCESSOR_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -115,6 +116,10 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // entities.
   void NudgeForCommitIfNeeded();
 
+  // Returns true if the given `count` of notes exceeds the sync limit. An
+  // `offset` can be provided for cases where the exact count is not known.
+  bool DoesCountExceedNotesSyncLimit(size_t count, size_t offset = 0) const;
+
   // Performs the required clean up when note model is being deleted.
   void OnNotesModelBeingDeleted();
 
@@ -122,6 +127,16 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // initial merge of notes (e.g. was just enabled).
   void OnInitialUpdateReceived(const sync_pb::DataTypeState& type_state,
                                syncer::UpdateResponseDataList updates);
+
+  // Handles any incremental updates received from the server.
+  void OnIncrementalUpdateReceived(const sync_pb::DataTypeState& type_state,
+                                   syncer::UpdateResponseDataList updates);
+
+  // Handles a full update (i.e. an update with a "clear all" GC directive) as
+  // an incremental update.
+  void ApplyFullUpdateAsIncrementalUpdate(
+      const sync_pb::DataTypeState& type_state,
+      syncer::UpdateResponseDataList updates);
 
   // Instantiates the required objects to track metadata and starts observing
   // changes from the note model. Note that this does not include tracking
@@ -137,6 +152,34 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // Honors `wipe_model_upon_sync_disabled_behavior_`, i.e. deletes all
   // notes in the model depending on the selected behavior.
   void TriggerWipeModelUponSyncDisabledBehavior();
+
+  // Migrates the legacy `last_initial_merge_remote_updates_exceeded_limit` bool
+  // to the timestamp representation.
+  void MigrateLegacyExceededLimitError(
+      sync_pb::NotesModelMetadata* model_metadata);
+
+  // Resets the error for exceeding note limit if enough time has passed.
+  void MaybeResetExceededLimitError(
+      sync_pb::NotesModelMetadata* model_metadata);
+
+  // Handles the error state from the given `model_metadata` if a previous sync
+  // cycle reported an error. Returns true if there was an error to be handled.
+  [[nodiscard]] bool HandlePreviousErrorState(
+      const sync_pb::NotesModelMetadata& model_metadata);
+
+  // Handles the case where metadata needs to be cleared when the model is
+  // ready. Returns true if there was a pending clear metadata operation.
+  [[nodiscard]] bool HandlePendingClearMetadata(
+      const std::string& metadata_str);
+
+  // Parses and validates the metadata. Returns the metadata if it is valid and
+  // there was no previous error.
+  std::optional<sync_pb::NotesModelMetadata> ParseAndValidateMetadata(
+      const std::string& metadata_str);
+
+  // Initializes the tracker.
+  void InitTracker(sync_pb::NotesModelMetadata model_metadata,
+                   const std::string& metadata_str);
 
   // Creates a DictionaryValue for local and remote debugging information about
   // `node` and appends it to `all_nodes`. It does the same for child nodes
@@ -187,13 +230,13 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // note-loading process.
   std::unique_ptr<SyncedNoteTracker> note_tracker_;
 
-  // Maintains whether the count of remote updates downloaded on the latest
-  // initial merge exceeded the limit. Note that this is set only when limit is
-  // active, i.e. the feature is enabled. Also note that this would only be
-  // relevant where note_tracker is null, since this can be set only in an
-  // error case and in an error case, we clear the tracker(or it remains
-  // uninitialized).
-  bool last_initial_merge_remote_updates_exceeded_limit_ = false;
+  // Stores the timestamp when the number of remote updates downloaded during
+  // the latest initial merge exceeded the configured limit. This can be
+  // populated from a proto for modern clients, or populated with a recent
+  // timestamp for legacy clients (who only stored a boolean). If this is set,
+  // `note_tracker_` is not initialized and an error is reported instead.
+  std::optional<base::Time>
+      initial_merge_remote_updates_exceeded_limit_timestamp_;
 
   // UUID string that identifies the sync client and is received from the sync
   // engine.
@@ -202,7 +245,7 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   std::unique_ptr<NotesModelObserverImpl> notes_model_observer_;
 
   // This member variable exists only to allow tests to override the limit.
-  size_t max_notes_till_sync_enabled_;
+  std::optional<size_t> sync_notes_limit_for_tests_;
 
   // Marks whether metadata should be cleared upon ModelReadyToSync(). True if
   // ClearMetadataIfStopped() is called before ModelReadyToSync().

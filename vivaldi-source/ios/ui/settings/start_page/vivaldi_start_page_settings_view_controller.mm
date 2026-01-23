@@ -8,7 +8,6 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -158,50 +157,6 @@ NSString* const kStartPageShowAddSettingsCellId =
 }
 
 
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-  NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
-
-  if (itemType == SettingsItemTypeShowFrequentlyVisited) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView
-        addTarget:self
-            action:@selector(displayFrequentlyVisitedSwitchToggled:)
-                forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == SettingsItemTypeDisplaySpeedDials) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(displaySpeedDialsSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == SettingsItemTypeCustomizeStartPage) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-          action:@selector(showCustomizeStartPageSwitchToggled:)
-                forControlEvents:UIControlEventValueChanged];
-  }
-
-  if (itemType == SettingsItemTypeShowAdd) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-          action:@selector(showAddSwitchToggled:)
-                forControlEvents:UIControlEventValueChanged];
-  }
-
-  return cell;
-}
-
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView
@@ -350,6 +305,9 @@ NSString* const kStartPageShowAddSettingsCellId =
     _displayFrequentlyVisitedPagesItem.text =
         GetNSString(IDS_IOS_START_PAGE_SETTINGS_TOP_SITES_TITLE);
     _displayFrequentlyVisitedPagesItem.on = self.showFrequentlyVisitedPages;
+    _displayFrequentlyVisitedPagesItem.target = self;
+    _displayFrequentlyVisitedPagesItem.selector =
+        @selector(displayFrequentlyVisitedSwitchToggled:);
     _displayFrequentlyVisitedPagesItem.accessibilityIdentifier =
         kStartPageShowFrequentlyVisitedSettingsCellId;
   }
@@ -363,6 +321,9 @@ NSString* const kStartPageShowAddSettingsCellId =
     _displaySpeedDialsItem.text =
         GetNSString(IDS_IOS_START_PAGE_SETTINGS_SPEED_DIALS_TITLE);
     _displaySpeedDialsItem.on = self.displaySpeedDials;
+    _displaySpeedDialsItem.target = self;
+    _displaySpeedDialsItem.selector =
+        @selector(displaySpeedDialsSwitchToggled:);
     _displaySpeedDialsItem.accessibilityIdentifier =
         kStartPageShowSpeedDialsSettingsCellId;
   }
@@ -411,6 +372,9 @@ NSString* const kStartPageShowAddSettingsCellId =
     _customizeStartPageItem.text =
         GetNSString(IDS_IOS_SHOW_START_PAGE_SETTINGS_CUSTOMIZE_TITLE);
     _customizeStartPageItem.on = self.customizeStartPage;
+    _customizeStartPageItem.target = self;
+    _customizeStartPageItem.selector =
+        @selector(showCustomizeStartPageSwitchToggled:);
     _customizeStartPageItem.accessibilityIdentifier =
         kStartPageCustomizeStartPageSettingsCellId;
   }
@@ -424,6 +388,8 @@ NSString* const kStartPageShowAddSettingsCellId =
     _showAddItem.text =
         GetNSString(IDS_IOS_START_PAGE_SETTINGS_SHOW_ADD_TITLE);
     _showAddItem.on = self.showAddButton;
+    _showAddItem.target = self;
+    _showAddItem.selector = @selector(showAddSwitchToggled:);
     _showAddItem.accessibilityIdentifier = kStartPageShowAddSettingsCellId;
   }
   return _showAddItem;

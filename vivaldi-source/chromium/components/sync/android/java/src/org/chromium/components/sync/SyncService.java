@@ -73,10 +73,6 @@ public interface SyncService {
      */
     boolean isSyncDisabledByEnterprisePolicy();
 
-    boolean hasUnrecoverableError();
-
-    boolean requiresClientUpgrade();
-
     @Nullable CoreAccountInfo getAccountInfo();
 
     /**
@@ -277,6 +273,12 @@ public interface SyncService {
      * <p>Can be called whether or not sync is initialized.
      */
     void markPassphrasePromptMutedForCurrentProductVersion();
+
+    /**
+     * Acknowledges the bookmarks limit exceeded error. The error will not be shown to the user
+     * again.
+     */
+    void acknowledgeBookmarksLimitExceededError();
 
     /**
      * @return Whether the user should be offered to opt in to trusted vault encryption.

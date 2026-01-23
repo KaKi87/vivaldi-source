@@ -15,7 +15,6 @@
 #include "browser/translate/vivaldi_translate_client.h"
 #include "build/build_config.h"
 #include "calendar/calendar_service_factory.h"
-#include "update/update_service_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
@@ -41,6 +40,7 @@
 #include "content/public/common/content_switches.h"
 #include "extensions/browser/api/content_settings/content_settings_helpers.h"
 #include "extensions/buildflags/buildflags.h"
+#include "installer/util/vivaldi_install_constants.h"
 #include "media/base/media_switches.h"
 #include "menus/context_menu_service_factory.h"
 #include "menus/main_menu_service_factory.h"
@@ -50,6 +50,7 @@
 #include "translate_history/th_service_factory.h"
 #include "ui/lazy_load_service_factory.h"
 #include "ui/window_registry_service_factory.h"
+#include "update/vivaldi_update_service_factory.h"
 
 #include "app/vivaldi_apptools.h"
 #include "browser/search_engines/vivaldi_search_engines_updater.h"
@@ -150,7 +151,7 @@ void VivaldiBrowserMainExtraParts::
   vivaldi::NotesModelFactory::GetInstance();
   calendar::CalendarServiceFactory::GetInstance();
 #ifndef VIVALDI_SPARKLE_DISABLED
-  update::UpdateServiceFactory::GetInstance();
+  update::VivaldiUpdateServiceFactory::GetInstance();
 #endif
   vivaldi_omnibox::OmniboxServiceFactory::GetInstance();
   contact::ContactServiceFactory::GetInstance();
@@ -334,6 +335,19 @@ void VivaldiBrowserMainExtraParts::PreMainMessageLoopRun() {
       g_browser_process->shared_url_loader_factory());
   vivaldi::SearchEnginesUpdater::UpdateSearchEnginesPrompt(
       g_browser_process->shared_url_loader_factory());
+
+#if BUILDFLAG(IS_WIN)
+  // If we have been launched by the installer and crashlogging was enabled
+  // there.
+  if (cmd_line.HasSwitch(vivaldi::constants::kVivaldiEnableCrashlogUpload)) {
+    const auto switch_value = cmd_line.GetSwitchValueASCII(
+        vivaldi::constants::kVivaldiEnableCrashlogUpload);
+    bool crashlog_upload_allowed = switch_value == "1";
+    PrefService* pref_service = g_browser_process->local_state();
+    pref_service->SetBoolean(vivaldiprefs::kVivaldiCrashReportingConsentGranted,
+                             crashlog_upload_allowed);
+  }
+#endif // IS_WIN
 }
 
 void VivaldiBrowserMainExtraParts::PostMainMessageLoopRun() {

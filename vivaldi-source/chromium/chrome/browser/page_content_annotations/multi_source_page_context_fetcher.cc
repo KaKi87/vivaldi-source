@@ -19,31 +19,39 @@
 #include "base/timer/elapsed_timer.h"
 #include "base/types/expected.h"
 #include "base/types/expected_macros.h"
+#include "chrome/browser/page_content_annotations/annotate_page_content_request.h"
 #include "chrome/browser/page_content_annotations/page_content_screenshot_service.h"
 #include "chrome/browser/page_content_annotations/page_content_screenshot_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/content_extraction/content/browser/inner_text.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/content/browser/page_content_proto_util.h"
 #include "components/optimization_guide/content/browser/page_context_eligibility.h"
 #include "components/paint_preview/common/mojom/paint_preview_types.mojom.h"
 #include "components/paint_preview/common/redaction_params.h"
-#include "components/pdf/browser/pdf_document_helper.h"
 #include "components/pdf/common/constants.h"
 #include "components/tabs/public/tab_interface.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/base/proto_wrapper.h"
 #include "net/base/schemeful_site.h"
-#include "pdf/mojom/pdf.mojom.h"
+#include "third_party/abseil-cpp/absl/strings/str_format.h"
 #include "third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/base_window.h"
 #include "ui/gfx/codec/jpeg_codec.h"
+#include "ui/gfx/codec/png_codec.h"
+#include "ui/gfx/codec/webp_codec.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "url/origin.h"
+
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck
+#include "components/pdf/browser/pdf_document_helper.h"
+#include "pdf/mojom/pdf.mojom.h"
+#endif
 
 namespace page_content_annotations {
 
@@ -107,10 +115,47 @@ double GetScreenshotScaleFactor(const gfx::Size& original_size,
 
 int GetScreenshotJpegQuality() {
   if (!base::FeatureList::IsEnabled(kGlicTabScreenshotExperiment)) {
-    return 100;
+    return 40;
   }
   // Must be an int from 0 to 100.
-  return std::max(0, std::min(100, kScreenshotJpegQuality.Get()));
+  return std::max(0, std::min(100, kScreenshotQuality.Get()));
+}
+
+int GetScreenshotWebPQuality() {
+  return GetScreenshotJpegQuality();
+}
+
+// Png only has two modes exposed, so we use the quality to determine if it is
+// low quality or not by checking if it is 50 or lower.
+bool ShouldPngScreenshotBeLowQuality() {
+  if (!base::FeatureList::IsEnabled(kGlicTabScreenshotExperiment)) {
+    return false;
+  }
+  return kScreenshotQuality.Get() < 50;
+}
+
+enum class ScreenshotImageType {
+  kUnknown = 0,
+  kJpeg = 1,
+  kPng = 2,
+  kWebp = 3,
+  kMaxValue = kWebp,
+};
+
+ScreenshotImageType GetScreenshotImageType() {
+  if (!base::FeatureList::IsEnabled(kGlicTabScreenshotExperiment)) {
+    return ScreenshotImageType::kJpeg;
+  }
+  if (kScreenshotImageType.Get() == "jpeg") {
+    return ScreenshotImageType::kJpeg;
+  }
+  if (kScreenshotImageType.Get() == "png") {
+    return ScreenshotImageType::kPng;
+  }
+  if (kScreenshotImageType.Get() == "webp") {
+    return ScreenshotImageType::kWebp;
+  }
+  return ScreenshotImageType::kJpeg;
 }
 
 base::expected<paint_preview::RedactionParams, std::string> GetRedactionParams(
@@ -148,6 +193,7 @@ enum class PdfRequestStates {
   kMaxValue = kNonPdfMainDoc_PdfNotFound,
 };
 
+#if !BUILDFLAG(IS_ANDROID)
 void RecordPdfRequestState(bool is_pdf_document, bool pdf_found) {
   PdfRequestStates state;
   if (is_pdf_document) {
@@ -159,6 +205,7 @@ void RecordPdfRequestState(bool is_pdf_document, bool pdf_found) {
   }
   UMA_HISTOGRAM_ENUMERATION("Glic.TabContext.PdfContentsRequested", state);
 }
+#endif
 
 // Coordinates fetching multiple types of page context.
 class PageContextFetcher : public content::WebContentsObserver {
@@ -201,6 +248,7 @@ class PageContextFetcher : public content::WebContentsObserver {
     }
 
     pdf_done_ = true;  // Will not fetch PDF contents by default.
+#if !BUILDFLAG(IS_ANDROID)
     if (options.pdf_size_limit > 0) {
       bool is_pdf_document =
           web_contents()->GetContentsMimeType() == pdf::kPDFMimeType;
@@ -220,6 +268,7 @@ class PageContextFetcher : public content::WebContentsObserver {
         pdf_done_ = false;  // Will fetch PDF contents.
       }
     }
+#endif
 
     if (options.annotated_page_content_options) {
       blink::mojom::AIPageContentOptionsPtr ai_page_content_options =
@@ -242,6 +291,8 @@ class PageContextFetcher : public content::WebContentsObserver {
     RunCallbackIfComplete();
   }
 
+  // TODO: Enable pdf fetching for Android.
+#if !BUILDFLAG(IS_ANDROID)
   void ReceivedPdfBytes(const url::Origin& pdf_origin,
                         uint32_t pdf_size_limit,
                         pdf::mojom::PdfListener::GetPdfBytesStatus status,
@@ -264,6 +315,7 @@ class PageContextFetcher : public content::WebContentsObserver {
     }
     RunCallbackIfComplete();
   }
+#endif
 
   void GetTabScreenshot(content::WebContents& web_contents,
                         const ScreenshotOptions& screenshot_options) {
@@ -273,7 +325,7 @@ class PageContextFetcher : public content::WebContentsObserver {
     }
 
     if (!view || !view->IsSurfaceAvailableForCopy()) {
-      ReceivedJpegScreenshot(
+      ReceivedEncodedScreenshot(
           base::unexpected("Could not retrieve RenderWidgetHostView."));
       return;
     }
@@ -285,7 +337,7 @@ class PageContextFetcher : public content::WebContentsObserver {
           PageContentScreenshotServiceFactory::GetForProfile(
               Profile::FromBrowserContext(web_contents.GetBrowserContext()));
       if (!service) {
-        ReceivedJpegScreenshot(
+        ReceivedEncodedScreenshot(
             base::unexpected("Could not get PageContentScreenshotService."));
         return;
       }
@@ -296,7 +348,7 @@ class PageContextFetcher : public content::WebContentsObserver {
                              screenshot_options.paint_preview_options()
                                  ->iframe_redaction_scope),
           [&](std::string error) {
-            ReceivedJpegScreenshot(base::unexpected(std::move(error)));
+            ReceivedEncodedScreenshot(base::unexpected(std::move(error)));
             return;
           });
 
@@ -355,13 +407,13 @@ class PageContextFetcher : public content::WebContentsObserver {
     // long. b/431837630.
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE,
-        base::BindOnce(&PageContextFetcher::ReceivedJpegScreenshot,
+        base::BindOnce(&PageContextFetcher::ReceivedEncodedScreenshot,
                        GetWeakPtr(), base::unexpected("ScreenshotTimeout")),
         kScreenshotTimeout.Get());
   }
 
-  void ReceivedViewportBitmap(const SkBitmap& bitmap) {
-    ReceivedViewportBitmapOrError(&bitmap);
+  void ReceivedViewportBitmap(const viz::CopyOutputBitmapWithMetadata& result) {
+    ReceivedViewportBitmapOrError(&result.bitmap);
   }
 
   void ReceivedViewportBitmapOrError(
@@ -380,8 +432,28 @@ class PageContextFetcher : public content::WebContentsObserver {
           FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
           base::BindOnce(
               [](const SkBitmap& bitmap) {
-                std::optional<std::vector<uint8_t>> encoded =
-                    gfx::JPEGCodec::Encode(bitmap, GetScreenshotJpegQuality());
+                std::optional<std::vector<uint8_t>> encoded;
+                switch (GetScreenshotImageType()) {
+                  case ScreenshotImageType::kJpeg:
+                    encoded = gfx::JPEGCodec::Encode(
+                        bitmap, GetScreenshotJpegQuality());
+                    break;
+                  case ScreenshotImageType::kPng:
+                    if (ShouldPngScreenshotBeLowQuality()) {
+                      encoded = gfx::PNGCodec::FastEncodeBGRASkBitmap(
+                          bitmap, /*discard_transparency=*/true);
+                    } else {
+                      encoded = gfx::PNGCodec::EncodeBGRASkBitmap(
+                          bitmap, /*discard_transparency=*/true);
+                    }
+                    break;
+                  case ScreenshotImageType::kWebp:
+                    encoded = gfx::WebpCodec::Encode(
+                        bitmap, GetScreenshotWebPQuality());
+                    break;
+                  default:
+                    break;
+                }
                 base::expected<std::vector<uint8_t>, std::string> reply;
                 if (encoded) {
                   reply.emplace(std::move(encoded.value()));
@@ -395,10 +467,11 @@ class PageContextFetcher : public content::WebContentsObserver {
               EmitTimingHistogram<std::vector<uint8_t>, std::string>,
               "Glic.PageContextFetcher.GetEncodedScreenshot.TimeoutAgnostic",
               elapsed_timer_)
-              .Then(base::BindOnce(&PageContextFetcher::ReceivedJpegScreenshot,
-                                   GetWeakPtr())));
+              .Then(
+                  base::BindOnce(&PageContextFetcher::ReceivedEncodedScreenshot,
+                                 GetWeakPtr())));
     } else {
-      ReceivedJpegScreenshot(base::unexpected(bitmap_result.error()));
+      ReceivedEncodedScreenshot(base::unexpected(bitmap_result.error()));
     }
   }
 
@@ -408,8 +481,8 @@ class PageContextFetcher : public content::WebContentsObserver {
     RunCallbackIfComplete();
   }
 
-  void ReceivedJpegScreenshot(
-      base::expected<std::vector<uint8_t>, std::string> screenshot_jpeg_data) {
+  void ReceivedEncodedScreenshot(
+      base::expected<std::vector<uint8_t>, std::string> screenshot_data) {
     // This function can be called multiple times, for timeout behavior. Early
     // exit if it's already been called.
     if (screenshot_done_) {
@@ -418,9 +491,22 @@ class PageContextFetcher : public content::WebContentsObserver {
     auto elapsed = elapsed_timer_.Elapsed();
     screenshot_done_ = true;
     capture_count_lock_ = {};
-    if (screenshot_jpeg_data.has_value()) {
-      pending_result_->screenshot_result.value().jpeg_data =
-          std::move(screenshot_jpeg_data.value());
+    if (screenshot_data.has_value()) {
+      pending_result_->screenshot_result.value().screenshot_data =
+          std::move(screenshot_data.value());
+      switch (GetScreenshotImageType()) {
+        case ScreenshotImageType::kJpeg:
+          pending_result_->screenshot_result.value().mime_type = "image/jpeg";
+          break;
+        case ScreenshotImageType::kPng:
+          pending_result_->screenshot_result.value().mime_type = "image/png";
+          break;
+        case ScreenshotImageType::kWebp:
+          pending_result_->screenshot_result.value().mime_type = "image/webp";
+          break;
+        default:
+          NOTREACHED();
+      }
       base::UmaHistogramTimes("Glic.PageContextFetcher.GetEncodedScreenshot",
                               elapsed);
       if (progress_listener_) {
@@ -428,11 +514,11 @@ class PageContextFetcher : public content::WebContentsObserver {
       }
     } else {
       pending_result_->screenshot_result =
-          base::unexpected(screenshot_jpeg_data.error());
+          base::unexpected(screenshot_data.error());
       base::UmaHistogramTimes(
           "Glic.PageContextFetcher.GetEncodedScreenshot.Failure", elapsed);
       if (progress_listener_) {
-        progress_listener_->EndScreenshot(screenshot_jpeg_data.error());
+        progress_listener_->EndScreenshot(screenshot_data.error());
       }
     }
     if (pending_result_->screenshot_result.has_value()) {
@@ -464,11 +550,14 @@ class PageContextFetcher : public content::WebContentsObserver {
   }
 
   void ReceivedAnnotatedPageContent(
-      std::optional<optimization_guide::AIPageContentResult> content) {
+      optimization_guide::AIPageContentResultOrError content) {
     const bool has_result = content.has_value();
     if (has_result) {
       pending_result_->annotated_page_content_result.emplace(
-          std::move(*content));
+          std::move(content.value()));
+    } else {
+      pending_result_->annotated_page_content_result =
+          base::unexpected(content.error());
     }
     annotated_page_content_done_ = true;
     base::UmaHistogramTimes("Glic.PageContextFetcher.GetAnnotatedPageContent",
@@ -477,7 +566,8 @@ class PageContextFetcher : public content::WebContentsObserver {
       if (has_result) {
         progress_listener_->EndAPC(std::nullopt);
       } else {
-        progress_listener_->EndAPC("Error");
+        progress_listener_->EndAPC(
+            absl::StrFormat("Failed: %s", content.error()));
       }
     }
 
@@ -553,25 +643,27 @@ std::string ToString(FetchPageContextError error) {
 BASE_FEATURE(kGlicTabScreenshotExperiment, base::FEATURE_DISABLED_BY_DEFAULT);
 
 const base::FeatureParam<int> kMaxScreenshotWidthParam{
-    &kGlicTabScreenshotExperiment, "max_screenshot_width", 1024};
+    &kGlicTabScreenshotExperiment, "max_screenshot_width", 0};
 
 const base::FeatureParam<int> kMaxScreenshotHeightParam{
-    &kGlicTabScreenshotExperiment, "max_screenshot_height", 1024};
+    &kGlicTabScreenshotExperiment, "max_screenshot_height", 0};
 
-const base::FeatureParam<int> kScreenshotJpegQuality{
-    &kGlicTabScreenshotExperiment, "screenshot_jpeg_quality", 40};
+const base::FeatureParam<int> kScreenshotQuality{&kGlicTabScreenshotExperiment,
+                                                 "screenshot_quality", 40};
+
+const base::FeatureParam<std::string> kScreenshotImageType{
+    &kGlicTabScreenshotExperiment, "screenshot_image_type", "jpeg"};
 
 const base::FeatureParam<base::TimeDelta> kScreenshotTimeout{
     &kGlicTabScreenshotExperiment, "screenshot_timeout_ms", base::Seconds(5)};
-
-BASE_FEATURE(kGlicPageContextEligibility, base::FEATURE_DISABLED_BY_DEFAULT);
 
 FetchPageContextOptions::FetchPageContextOptions() = default;
 
 FetchPageContextOptions::~FetchPageContextOptions() = default;
 
 FetchPageContextResult::FetchPageContextResult()
-    : screenshot_result(base::unexpected("Uninitialized")) {}
+    : screenshot_result(base::unexpected("Uninitialized")),
+      annotated_page_content_result(base::unexpected("Uninitialized")) {}
 
 FetchPageContextResult::~FetchPageContextResult() = default;
 

@@ -9,7 +9,6 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/browser_window.h"
-#include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_key.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -39,7 +38,6 @@ class WebUILocationBar;
 // A BrowserWindow implementation that uses WebUI for its primary UI. It still
 // uses views::Widget for windowing management.
 class WebUIBrowserWindow : public BrowserWindow,
-                           public ExclusiveAccessContext,
                            public ui::ColorProviderSource,
                            public ui::AcceleratorProvider,
                            public ui::AcceleratorTarget,
@@ -53,9 +51,9 @@ class WebUIBrowserWindow : public BrowserWindow,
   static WebUIBrowserWindow* FromWebShellWebContents(
       content::WebContents* web_contents);
 
-  // Returns the WebUIBrowserWindow for a Browser. If browser does not use
-  // WebUIBrowserWindow, returns nullptr.
-  static WebUIBrowserWindow* FromBrowser(Browser* browser);
+  // Returns the WebUIBrowserWindow for a BrowserWindowInterface. If browser
+  // does not use WebUIBrowserWindow, returns nullptr.
+  static WebUIBrowserWindow* FromBrowser(BrowserWindowInterface* browser);
 
   // Returns the WebUIBrowserWindow for the given `window`.
   static WebUIBrowserWindow* FromNativeWindow(gfx::NativeWindow window);
@@ -148,7 +146,6 @@ class WebUIBrowserWindow : public BrowserWindow,
       content::WebContents* contents,
       bool show_signin_button) override;
 #if BUILDFLAG(IS_CHROMEOS)
-  views::Button* GetSharingHubIconButton() override;
   void ToggleMultitaskMenu() override;
 #else
   sharing_hub::SharingHubBubbleView* ShowSharingHubBubble(
@@ -167,8 +164,6 @@ class WebUIBrowserWindow : public BrowserWindow,
   void ShowOneClickSigninConfirmation(
       const std::u16string& email,
       base::OnceCallback<void(bool)> confirmed_callback) override;
-  views::View* GetTopContainer() override;
-  views::View* GetLensOverlayView() override;
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
@@ -218,7 +213,6 @@ class WebUIBrowserWindow : public BrowserWindow,
   bool GetCanResize() override;
   ui::mojom::WindowShowState GetWindowShowState() const override;
   void ShowChromeLabs() override;
-  views::WebView* GetContentsWebView() override;
   BrowserView* AsBrowserView() override;
 
   // ui::BaseWindow:
@@ -251,21 +245,6 @@ class WebUIBrowserWindow : public BrowserWindow,
       ui::ColorProviderKey::ColorMode color_mode,
       ui::ColorProviderKey::ForcedColors forced_colors) const override;
 
-  // ExclusiveAccessContext:
-  Profile* GetProfile() override;
-  void EnterFullscreen(const url::Origin& origin,
-                       ExclusiveAccessBubbleType bubble_type,
-                       FullscreenTabParams fullscreen_tab_params) override;
-  void ExitFullscreen() override;
-  void UpdateExclusiveAccessBubble(
-      const ExclusiveAccessBubbleParams& params,
-      ExclusiveAccessBubbleHideCallback first_hide_callback) override;
-  bool IsExclusiveAccessBubbleDisplayed() const override;
-  void OnExclusiveAccessUserInput() override;
-  content::WebContents* GetWebContentsForExclusiveAccess() override;
-  bool CanUserEnterFullscreen() const override;
-  bool CanUserExitFullscreen() const override;
-
   // ui::AcceleratorProvider:
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override;
@@ -292,6 +271,10 @@ class WebUIBrowserWindow : public BrowserWindow,
 
  private:
   class WidgetDelegate;
+  friend class WebUIBrowserExclusiveAccessContext;
+
+  // Called by ExclusiveAccessContext to enter or exit fullscreen.
+  void ProcessFullscreen(bool fullscreen);
 
   // Creates and returns the native widget.
   // Note that this class uses CLIENT_OWNS_WIDGET ownership model whereby

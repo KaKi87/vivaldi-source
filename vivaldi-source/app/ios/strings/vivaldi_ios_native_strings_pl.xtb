@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Poziom powiększenia dla <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Przeglądarka Vivaldi działa wolno, zawiesza się lub urządzenie się nagrzewa</translation>
 <translation id="1929299157575856072">DOMYŚLNY POZIOM BLOKOWANIA</translation>
+<translation id="1933618400514506228">Serbsko-chorwacki (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Otwórz obraz w karcie w tle</translation>
 <translation id="1986733655397734221">Żadne z powyższych</translation>
 <translation id="1994506778397655062">Otwórz w nowej karcie w tle</translation>
@@ -167,7 +168,6 @@ reklama</translation>
 <translation id="309084557304084991">Nie chcę fabrycznych zakładek i elementów szybkiego wybierania</translation>
 <translation id="3091563570137981919">Blokowanie trackerów i reklam</translation>
 <translation id="3097968995088564986">Pokazuj przycisk dodawania</translation>
-<translation id="3102790820790869053">Przeszukaj ostatnio używane karty</translation>
 <translation id="3134385238404760368">Brak ostatnio otwartych kart</translation>
 <translation id="3142562627629111859">Nowa grupa</translation>
 <translation id="3157931365184549694">Przywróć</translation>
@@ -228,6 +228,7 @@ reklama</translation>
 <translation id="383723620494271391">Czy chcesz coś jeszcze dodać?</translation>
 <translation id="3842727926262967527">Wybierz położenie paska kart i adresu.</translation>
 <translation id="3845564230651302310">Stosowanie nowych ustawień blokowania...</translation>
+<translation id="385051799172605136">Wstecz</translation>
 <translation id="3858860766373142691">Nazwa</translation>
 <translation id="3861379244432690245">Włącz Direct Match</translation>
 <translation id="3866249974567520381">Opis</translation>
@@ -312,7 +313,6 @@ trackerów</translation>
 <translation id="462860218383788109">Data edycji</translation>
 <translation id="4640946580087069269">Kopiuj do notatki</translation>
 <translation id="4643117005422448078">Najczęściej odwiedzane strony</translation>
-<translation id="4654428449690716275">Nie pokazuj banerów przed i po tłumaczeniu strony</translation>
 <translation id="4654578955713250802">Blokowanie reklam i trackerów</translation>
 <translation id="4655510151391078468">Ten kod nie pasuje do tego, który Ci wysłaliśmy.
          Liczba pozostałych prób: <ph name="ATTEMPTS" />.</translation>
@@ -498,6 +498,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="6946395294519639514">Dzięki panelom możesz mieć łatwo dostępne narzędzia na pasku bocznym przeglądarki.</translation>
 <translation id="6951435330868954105">Zarządzaj ustawieniami</translation>
 <translation id="6951948201878750661">Dotknij, aby wybrać ten kolor</translation>
+<translation id="6954630860045222581">Pokaż panel</translation>
 <translation id="6967884871145366229">Zarządzaj ustawieniami prywatności</translation>
 <translation id="6973630695168034713">Foldery</translation>
 <translation id="7000227144065890583">Adres URL sugestii</translation>
@@ -665,6 +666,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="8948792607467387336">Wybierz jako tapetę</translation>
 <translation id="8964449607824577665">Bez Twojego aktualnego hasła szyfrowania nie będziemy w stanie odszyfrować Twoich danych. Zresetowanie tego hasła wymaga usunięcia wszystkich istniejących danych synchronizacji na serwerach Vivaldi.</translation>
 <translation id="8965371804397726192">Rozpocznij synchronizację wszystkich danych</translation>
+<translation id="896787570003733070">Nie pokazuj banerów przed lub po udostępnieniu tłumaczenia</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Zakładka została przeniesiona do „{title}”}
           other {Zakładki zostały przeniesione do „{title}”}}</translation>

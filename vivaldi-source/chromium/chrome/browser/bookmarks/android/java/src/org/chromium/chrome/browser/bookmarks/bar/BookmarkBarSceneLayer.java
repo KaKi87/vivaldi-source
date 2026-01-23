@@ -11,16 +11,12 @@ import org.jni_zero.NativeMethods;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.OffsetTag;
-import org.chromium.chrome.browser.layouts.EventFilter;
 import org.chromium.chrome.browser.layouts.SceneOverlay;
-import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.ResourceManager;
-
-import java.util.List;
 
 /**
  * The Java-side representation of the scene layer for drawing snapshots of the Android widgets of
@@ -67,6 +63,9 @@ public class BookmarkBarSceneLayer extends SceneOverlayLayer implements SceneOve
 
     /** Push all information about the scene layer / snapshot to native-side code at once. */
     public void updateProperties(PropertyModel model) {
+        if (mNativePtr == 0) return;
+        if (!mIsVisible) return;
+
         BookmarkBarSceneLayerJni.get()
                 .updateBookmarkBarLayer(
                         mNativePtr,
@@ -102,6 +101,7 @@ public class BookmarkBarSceneLayer extends SceneOverlayLayer implements SceneOve
 
     @Override
     public void setContentTree(SceneLayer contentTree) {
+        if (mNativePtr == 0) return;
         BookmarkBarSceneLayerJni.get().setContentTree(mNativePtr, contentTree);
     }
 
@@ -109,7 +109,7 @@ public class BookmarkBarSceneLayer extends SceneOverlayLayer implements SceneOve
 
     @Override
     public @Nullable SceneOverlayLayer getUpdatedSceneOverlayTree(
-            RectF viewport, RectF visibleViewport, ResourceManager resourceManager, float yOffset) {
+            RectF viewport, RectF visibleViewport, ResourceManager resourceManager) {
         return this;
     }
 
@@ -121,34 +121,6 @@ public class BookmarkBarSceneLayer extends SceneOverlayLayer implements SceneOve
     @Override
     public void onSizeChanged(
             float width, float height, float visibleViewportOffsetY, int orientation) {}
-
-    @Override
-    public @Nullable EventFilter getEventFilter() {
-        return null;
-    }
-
-    @Override
-    public void getVirtualViews(List<VirtualView> views) {}
-
-    @Override
-    public boolean shouldHideAndroidBrowserControls() {
-        return false;
-    }
-
-    @Override
-    public boolean updateOverlay(long time, long dt) {
-        return false;
-    }
-
-    @Override
-    public boolean onBackPressed() {
-        return false;
-    }
-
-    @Override
-    public boolean handlesTabCreating() {
-        return false;
-    }
 
     @NativeMethods
     public interface Natives {

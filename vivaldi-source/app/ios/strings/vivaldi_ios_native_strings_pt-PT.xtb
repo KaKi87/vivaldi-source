@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Nível de ampliação para <ph name="HOST" /></translation>
 <translation id="1921508034244765766">O Vivaldi é lento, crasha ou aquece o equipamento</translation>
 <translation id="1929299157575856072">NÍVEL DE BLOQUEIO PREDEFINIDO</translation>
+<translation id="1933618400514506228">Servo-Croata (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Abrir imagem num separador em segundo plano</translation>
 <translation id="1986733655397734221">Nenhum destes</translation>
 <translation id="1994506778397655062">Abrir num novo separador em segundo plano</translation>
@@ -167,7 +168,6 @@ bloqueado</translation>
 <translation id="309084557304084991">Não quero favoritos nem Speed Dials pré-carregados</translation>
 <translation id="3091563570137981919">Bloqueio de rastreios e anúncios</translation>
 <translation id="3097968995088564986">Mostrar botão Adicionar</translation>
-<translation id="3102790820790869053">Procurar separadores recentes</translation>
 <translation id="3134385238404760368">Sem separadores recentes</translation>
 <translation id="3142562627629111859">Novo grupo</translation>
 <translation id="3157931365184549694">Repor</translation>
@@ -226,6 +226,7 @@ bloqueado</translation>
 <translation id="383723620494271391">Há mais alguma coisa que queira adicionar?</translation>
 <translation id="3842727926262967527">Escolha onde prefere ter a barra de separadores e o campo de endereços.</translation>
 <translation id="3845564230651302310">A aplicar novas definições de bloqueio...</translation>
+<translation id="385051799172605136">Voltar</translation>
 <translation id="3858860766373142691">Nome</translation>
 <translation id="3861379244432690245">Ativar correspondência direta</translation>
 <translation id="3866249974567520381">Descrição</translation>
@@ -310,7 +311,6 @@ bloqueados</translation>
 <translation id="462860218383788109">Data de edição</translation>
 <translation id="4640946580087069269">Copiar para nota</translation>
 <translation id="4643117005422448078">Principais websites</translation>
-<translation id="4654428449690716275">Não mostrar mensagens antes nem depois de oferecer traduções</translation>
 <translation id="4654578955713250802">Bloquear anúncios e rastreadores</translation>
 <translation id="4655510151391078468">Este código não corresponde ao que lhe enviámos.
         Tem mais <ph name="ATTEMPTS" /> tentativas.</translation>
@@ -496,6 +496,7 @@ bloqueado</translation>
 <translation id="6946395294519639514">Com os painéis pode manter as suas ferramentas habituais à mão, na barra lateral do navegador.</translation>
 <translation id="6951435330868954105">Gerir definições predefinidas</translation>
 <translation id="6951948201878750661">Toque para escolher esta cor</translation>
+<translation id="6954630860045222581">Mostrar painel</translation>
 <translation id="6967884871145366229">Gerir definições de privacidade</translation>
 <translation id="6973630695168034713">Pastas</translation>
 <translation id="7000227144065890583">URL de sugestões</translation>
@@ -663,6 +664,7 @@ bloqueado</translation>
 <translation id="8948792607467387336">Usar como imagem de fundo</translation>
 <translation id="8964449607824577665">Sem a sua palavra-passe de encriptação atual, não podemos desencriptar os seus dados. A reposição desta palavra-passe requer a eliminação de todos os dados de sincronização existentes nos servidores Vivaldi.</translation>
 <translation id="8965371804397726192">Começar a sincronizar todos os dados</translation>
+<translation id="896787570003733070">Não mostrar banners antes nem depois da tradução ser oferecida</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Favorito movido para "{title}"}
           other {Favoritos movidos para "{title}"}}</translation>

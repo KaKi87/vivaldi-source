@@ -9,6 +9,7 @@
 
 @protocol VivaldiTableViewSyncUserInfoViewDelegate <NSObject>
 - (void)didTapSessionEditButtonWithCurrentSession:(NSString*)sessionName;
+- (void)didTapProfilePhoto;
 @end
 
 @interface VivaldiTableViewSyncUserInfoItem : TableViewHeaderFooterItem

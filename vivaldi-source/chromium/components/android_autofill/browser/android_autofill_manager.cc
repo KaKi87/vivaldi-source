@@ -30,13 +30,6 @@ AndroidAutofillManager::AndroidAutofillManager(AutofillDriver* driver)
     : AutofillManager(driver) {
   StartNewLoggingSession();
   autofill_manager_observation.Observe(this);
-
-  // Note(david@vivaldi.com): In Vivaldi the |BrowserAutoFillManager| is
-  // coexisting in the |AndroidAutofillManager|.
-  ContentAutofillDriver* contentAutofillDriver =
-      static_cast<ContentAutofillDriver*>(driver);
-  contentAutofillDriver->set_browser_autofill_manager(
-    std::make_unique<BrowserAutofillManager>(contentAutofillDriver));
 }
 
 AndroidAutofillManager::~AndroidAutofillManager() {
@@ -60,10 +53,6 @@ void AndroidAutofillManager::OnFormSubmittedImpl(
   password_logger_->OnWillSubmitForm();
   if (auto* provider = GetAutofillProvider())
     provider->OnFormSubmitted(this, form, source);
-
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnFormSubmitted(form, source);
 }
 
 void AndroidAutofillManager::OnTextFieldValueChangedImpl(
@@ -85,10 +74,6 @@ void AndroidAutofillManager::OnTextFieldValueChangedImpl(
 
   provider->OnTextFieldValueChanged(this, form, *field, timestamp);
 
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnTextFieldValueChanged(form, field_id, timestamp);
-
   if (auto* logger = GetEventFormLogger(form.global_id(), field_id)) {
     if (cached_is_autofilled) {
       logger->OnEditedAutofilledField();
@@ -104,10 +89,6 @@ void AndroidAutofillManager::OnTextFieldDidScrollImpl(
   if (auto* provider = GetAutofillProvider())
     if (const FormFieldData* field = form.FindFieldByGlobalId(field_id)) {
       provider->OnTextFieldDidScroll(this, form, *field);
-
-      // Vivaldi
-      if (auto* manager = GetBrowserAutofillManager())
-        manager->OnTextFieldDidScroll(form, field_id);
     }
 }
 
@@ -128,10 +109,6 @@ void AndroidAutofillManager::OnAskForValuesToFillImpl(
 
   provider->OnAskForValuesToFill(this, form, *field, trigger_source);
 
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnAskForValuesToFill(form, field_id, caret_bounds, trigger_source, password_request);
-
   if (auto* logger = GetEventFormLogger(form.global_id(), field_id)) {
     logger->OnDidInteractWithAutofillableForm();
   }
@@ -143,10 +120,6 @@ void AndroidAutofillManager::OnFocusOnFormFieldImpl(
   if (auto* provider = GetAutofillProvider()) {
     if (const FormFieldData* field = form.FindFieldByGlobalId(field_id)) {
       provider->OnFocusOnFormField(this, form, *field);
-
-      // Vivaldi
-      if (auto* manager = GetBrowserAutofillManager())
-        manager->OnFocusOnFormField(form, field_id);
     }
   }
 }
@@ -157,10 +130,6 @@ void AndroidAutofillManager::OnSelectControlSelectionChangedImpl(
   if (auto* provider = GetAutofillProvider()) {
     if (const FormFieldData* field = form.FindFieldByGlobalId(field_id)) {
       provider->OnSelectControlSelectionChanged(this, form, *field);
-
-      // Vivaldi
-      if (auto* manager = GetBrowserAutofillManager())
-        manager->OnSelectControlSelectionChanged(form, field_id);
     }
   }
 }
@@ -172,30 +141,16 @@ bool AndroidAutofillManager::ShouldParseForms() {
 void AndroidAutofillManager::OnFocusOnNonFormFieldImpl() {
   if (auto* provider = GetAutofillProvider())
     provider->OnFocusOnNonFormField(this);
-
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnFocusOnNonFormField();
 }
 
-void AndroidAutofillManager::OnDidAutofillFormImpl(
-    const FormData& form,
-    const base::TimeTicks timestamp) {
+void AndroidAutofillManager::OnDidAutofillFormImpl(const FormData& form) {
   if (auto* provider = GetAutofillProvider())
-    provider->OnDidAutofillForm(this, form, timestamp);
-
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnDidAutofillForm(form, timestamp);
+    provider->OnDidAutofillForm(this, form);
 }
 
 void AndroidAutofillManager::OnHidePopupImpl() {
   if (auto* provider = GetAutofillProvider())
     provider->OnHidePopup(this);
-
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->OnHidePopup();
 }
 
 void AndroidAutofillManager::OnFormProcessed(
@@ -224,10 +179,6 @@ void AndroidAutofillManager::Reset() {
   AutofillManager::Reset();
   forms_with_server_predictions_.clear();
   StartNewLoggingSession();
-
-  // Vivaldi
-  if (auto* manager = GetBrowserAutofillManager())
-    manager->Reset();
 }
 
 void AndroidAutofillManager::OnFieldTypesDetermined(AutofillManager& manager,
@@ -256,6 +207,15 @@ AutofillProvider* AndroidAutofillManager::GetAutofillProvider() {
       }
     }
   }
+  return nullptr;
+}
+
+CreditCardAccessManager* AndroidAutofillManager::GetCreditCardAccessManager() {
+  return nullptr;
+}
+
+const CreditCardAccessManager*
+AndroidAutofillManager::GetCreditCardAccessManager() const {
   return nullptr;
 }
 
@@ -332,14 +292,6 @@ AndroidFormEventLogger* AndroidAutofillManager::GetEventFormLogger(
       return nullptr;
   }
   NOTREACHED();
-}
-
-/** Vivaldi **/
-BrowserAutofillManager* AndroidAutofillManager::GetBrowserAutofillManager() {
-   ContentAutofillDriver& contentAutofillDriver =
-        static_cast<ContentAutofillDriver&>(driver());
-    return static_cast<BrowserAutofillManager*>(
-        contentAutofillDriver.android_browser_autofill_manager());
 }
 
 }  // namespace autofill

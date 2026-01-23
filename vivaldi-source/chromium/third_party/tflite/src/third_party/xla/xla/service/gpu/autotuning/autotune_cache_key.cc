@@ -55,12 +55,12 @@ std::string AutotuneCacheKey::HloInstructionToCanonicalString(
 std::string AutotuneCacheKey::DeviceDescriptionToCacheKey(
     const se::DeviceDescription& device_description) {
   std::string compute_capability;
-  if (auto* ccc = std::get_if<se::CudaComputeCapability>(
-          &device_description.gpu_compute_capability())) {
+  if (auto* ccc = device_description.gpu_compute_capability()
+                      .cuda_compute_capability()) {
     compute_capability = absl::StrCat("CUDA: ", ccc->major, ".", ccc->minor);
   } else {
-    auto* rcc = std::get_if<se::RocmComputeCapability>(
-        &device_description.gpu_compute_capability());
+    auto* rcc =
+        device_description.gpu_compute_capability().rocm_compute_capability();
     CHECK(rcc != nullptr) << "Unknown compute capability type";
     compute_capability = absl::StrCat("ROCM: ", rcc->gfx_version());
   }
@@ -86,11 +86,12 @@ std::string AutotuneCacheKey::DeviceDescriptionToCacheKey(
   constexpr double kBytesPerMegabyte = 1 << 20;
   double l2_cache_size = device_description.l2_cache_size() / kBytesPerMegabyte;
 
-  return absl::StrCat(compute_capability,
-                      ", Cores: ", device_description.core_count(),
-                      ", GPU clock: ", device_description.clock_rate_ghz(),
-                      " GHz, Memory bandwidth: ", memory_bandwidth,
-                      " GB/s, L2 cache: ", l2_cache_size, " MB");
+  return absl::StrCat(
+      compute_capability, ", Cores: ", device_description.core_count(),
+      ", GPU clock: ", device_description.clock_rate_ghz(),
+      " GHz, Memory bandwidth: ", memory_bandwidth,
+      " GB/s, L2 cache: ", l2_cache_size,
+      " MB, DNN version: ", device_description.dnn_version().ToString());
 }
 
 AutotuneCacheKey::AutotuneCacheKey(

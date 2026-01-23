@@ -1120,7 +1120,7 @@ DEF_TEST(Codec_wbmp_restrictive, r) {
     }
 
     // Modify the stream to contain a second byte with some bits set.
-    auto data = SkCopyStreamToData(stream.get());
+    auto data = SkStreamPriv::CopyStreamToData(stream.get());
     uint8_t* writeableData = static_cast<uint8_t*>(data->writable_data());
     writeableData[1] = static_cast<uint8_t>(~0x9F);
 
@@ -2177,7 +2177,7 @@ DEF_TEST(Codec_gif_can_preserve_original_data, r) {
 
     // The whole point of DeferredFromCodec is that it allows the client
     // to hold onto the original image data for later.
-    sk_sp<SkData> encodedData = image->refEncodedData();
+    auto encodedData = image->refEncodedData();
     REPORTER_ASSERT(r, encodedData != nullptr);
     // The returned data should the same as what went in.
     REPORTER_ASSERT(r, encodedData->size() == data->size());
@@ -2210,7 +2210,7 @@ DEF_TEST(Codec_jpeg_can_return_data_from_original_stream, r) {
 
     // The whole point of DeferredFromCodec is that it allows the client
     // to hold onto the original image data for later.
-    sk_sp<SkData> encodedData = image->refEncodedData();
+    auto encodedData = image->refEncodedData();
     REPORTER_ASSERT(r, encodedData != nullptr);
     // The returned data should the same as what went in.
     REPORTER_ASSERT(r, encodedData->size() == expectedBytes);
@@ -2552,82 +2552,26 @@ DEF_TEST(LibpngCodec_f16_trc_tables, r) {
     REPORTER_ASSERT(r, result == SkCodec::Result::kSuccess);
 }
 
-DEF_TEST(HdrMetadata_ParseSerialize_ContentLightLevelInformation, r) {
-    uint8_t data[] = {
-        0x03, 0xE8,
-        0x00, 0xFA,
-    };
-    // Data taken from:
-    // https://www.w3.org/TR/png-3/#example-13
-    // https://www.w3.org/TR/png-3/#example-14
-    uint8_t dataPng[] = {
-        0x00, 0x98, 0x96, 0x80,
-        0x00, 0x26, 0x25, 0xA0,
-    };
-    skhdr::ContentLightLevelInformation clliExpected = {
-        1000.f, 250.f,
-    };
-    auto skData = SkData::MakeWithoutCopy(data, sizeof(data));
-    auto skDataPng = SkData::MakeWithoutCopy(dataPng, sizeof(dataPng));
+// TODO(b/464028670)
+// #if defined(SK_CODEC_DECODES_PNG_WITH_LIBPNG) && defined(SK_CODEC_ENCODES_PNG_WITH_LIBPNG) && !defined(SK_PNG_DISABLE_TESTS)
+// DEF_TEST(PngHdrMetadataRoundTrip, r) {
+//     SkBitmap bm;
+//     bm.allocPixels(SkImageInfo::MakeN32Premul(10, 10));
 
-    skhdr::ContentLightLevelInformation clli;
-    REPORTER_ASSERT(r, clli.parse(skData.get()));
-    REPORTER_ASSERT(r, clli == clliExpected);
-    REPORTER_ASSERT(r, skData->equals(clli.serialize().get()));
+//     SkPngEncoder::Options options;
+//     options.fHdrMetadata.setMasteringDisplayColorVolume(
+//         skhdr::MasteringDisplayColorVolume({SkNamedPrimaries::kRec2020, 500.f, 0.0005f}));
+//     options.fHdrMetadata.setContentLightLevelInformation(
+//         skhdr::ContentLightLevelInformation({1000.f, 150.f}));
 
-    skhdr::ContentLightLevelInformation clliPng;
-    REPORTER_ASSERT(r, clliPng.parsePngChunk(skDataPng.get()));
-    REPORTER_ASSERT(r, clliPng == clliExpected);
-    REPORTER_ASSERT(r, skDataPng->equals(clli.serializePngChunk().get()));
-}
+//     sk_sp<SkData> data = SkPngEncoder::Encode(bm.pixmap(), options);
 
-DEF_TEST(HdrMetadata_ParseSerialize_MasteringDisplayColorVolume, r) {
-    // Data taken from:
-    // https://www.w3.org/TR/png-3/#example-5
-    // https://www.w3.org/TR/png-3/#example-6
-    // https://www.w3.org/TR/png-3/#example-7
-    // https://www.w3.org/TR/png-3/#example-8
-    uint8_t data[] = {
-        0x8A, 0x48, 0x39, 0x08, // Red
-        0x21, 0x34, 0x9B, 0xAA, // Green
-        0x19, 0x96, 0x08, 0xFC, // Blue
-        0x3D, 0x13, 0x40, 0x42, // White
-        0x02, 0x62, 0x5A, 0x00, // Maximum luminance
-        0x00, 0x00, 0x00, 0x05, // Minimum luminance
-    };
-    skhdr::MasteringDisplayColorVolume mdcvExpected = {
-        {0.708f, 0.292f, 0.17f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.329f},
-        4000.f, 0.0005f,
-    };
-    auto skData = SkData::MakeWithoutCopy(data, sizeof(data));
+//     SkCodec::Result result;
+//     auto codec = SkPngDecoder::Decode(data, &result);
 
-    skhdr::MasteringDisplayColorVolume mdcv;
-    REPORTER_ASSERT(r, mdcv.parse(skData.get()));
-    REPORTER_ASSERT(r, mdcv == mdcvExpected);
-    REPORTER_ASSERT(r, skData->equals(mdcv.serialize().get()));
-}
-
-#if defined(SK_CODEC_DECODES_PNG_WITH_LIBPNG) && \
-    defined(SK_CODEC_ENCODES_PNG_WITH_LIBPNG) && \
-    !defined(SK_PNG_DISABLE_TESTS)
-DEF_TEST(PngHdrMetadataRoundTrip, r) {
-    SkBitmap bm;
-    bm.allocPixels(SkImageInfo::MakeN32Premul(10, 10));
-
-    SkPngEncoder::Options options;
-    options.fHdrMetadata.setMasteringDisplayColorVolume(
-        skhdr::MasteringDisplayColorVolume({SkNamedPrimaries::kRec2020, 500.f, 0.0005f}));
-    options.fHdrMetadata.setContentLightLevelInformation(
-        skhdr::ContentLightLevelInformation({1000.f, 150.f}));
-
-    sk_sp<SkData> data = SkPngEncoder::Encode(bm.pixmap(), options);
-
-    SkCodec::Result result;
-    auto codec = SkPngDecoder::Decode(data, &result);
-
-    REPORTER_ASSERT(r, options.fHdrMetadata == codec->getHdrMetadata());
-}
-#endif
+//     REPORTER_ASSERT(r, options.fHdrMetadata == codec->getHdrMetadata());
+// }
+// #endif
 
 #if defined(SK_CODEC_DECODES_PNG_WITH_RUST) && \
     defined(SK_CODEC_ENCODES_PNG_WITH_LIBPNG) && \

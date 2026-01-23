@@ -16,10 +16,6 @@ import org.chromium.components.bookmarks.BookmarkItem;
 
 import java.util.Locale;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-// End Vivaldi
-
 /** Shows an undo bar when the user modifies bookmarks, allowing them to undo their changes. */
 // TODO(crbug.com/40900777): Write tests for this class.
 @NullMarked

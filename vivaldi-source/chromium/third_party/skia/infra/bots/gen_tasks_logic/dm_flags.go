@@ -232,6 +232,12 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 			if b.Model("Pixel3a", "Pixel5") {
 				sampleCount = 0
 			}
+
+			// Disable failing OpenGLES SkSL test for Pixel 10 devices (b/452352214).
+			// Also see b/370739986; could be an issue on all IMG GPUs.
+			if b.Model("Pixel10") {
+				skip(ALL, "test", ALL, "SkSLIntrinsicModf_Ganesh")
+			}
 		} else if b.MatchGpu("Intel") {
 			// MSAA doesn't work well on Intel GPUs chromium:527565, chromium:983926
 			if b.GPU("IntelIrisXe") && b.MatchOs("Win") && b.ExtraConfig("ANGLE") {
@@ -326,7 +332,36 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 			skip(ALL, "test", ALL, "MultisampleRetainTest")
 			skip(ALL, "test", ALL, "MultisampleClearThenLoad")
 			skip(ALL, "test", ALL, "MutableImagesTest")
-			skip(ALL, "test", ALL, "NotifyInUseTestBlend")
+			skip(ALL, "test", ALL, "NotifyInUseTestAsImage")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerClear")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerColor")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerColorBurn")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerColorDodge")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDarken")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDifference")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDst")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDstATop")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDstIn")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDstOut")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerDstOver")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerExclusion")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerHardLight")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerHue")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerLighten")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerLuminosity")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerModulate")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerMultiply")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerOverlay")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerPlus")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSaturation")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerScreen")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSoftLight")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSrc")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSrcATop")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSrcIn")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSrcOut")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerSrcOver")
+			skip(ALL, "test", ALL, "NotifyInUseTestLayerXor")
 			skip(ALL, "test", ALL, "NotifyInUseTestSnapshot")
 			skip(ALL, "test", ALL, "OpsTaskFlushCount")
 			skip(ALL, "test", ALL, "OverdrawSurface_Gpu")
@@ -549,23 +584,41 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 					skip(ALL, "test", ALL, "ThreadedPipelinePrecompileCompileTest")
 					skip(ALL, "test", ALL, "ThreadedPipelinePrecompileCompilePurgingTest")
 					skip(ALL, "test", ALL, "ThreadedPipelinePrecompilePurgingTest")
+
+					if b.GPU("QuadroP400") || b.MatchOs("Ubuntu24.04") {
+						// Neither the nVidia driver on the P400s nor the Ubuntu24.04 driver
+						// correctly support pipeline caching control (i.e., they *never* return
+						// VK_PIPELINE_COMPILE_REQUIRED from CreateGraphicsPipelines)
+						skip(ALL, "test", ALL, "PersistentPipelineStorageTest")
+					}
+
+					if b.MatchOs("Win11") &&
+						(b.GPU("RTX3060") || b.GPU("GTX1660") || b.GPU("IntelIrisXe")) {
+						// These 3 GPUs are failing this test on Win11 (b/462240488)
+						skip(ALL, "test", ALL, "PersistentPipelineStorageTest")
+					}
 				}
 			}
+		} else {
+			if b.GPU("QuadroP400") && b.MatchOs("Ubuntu24.04") {
+				if b.ExtraConfig("Vulkan") {
+					// skbug.com/40045530
+					skip(ALL, "test", ALL, "VkYCbcrSampler_DrawImageWithYcbcrSampler")
+				} else {
+					// skbug.com/458193911
+					skip(ALL, "test", ALL, "SkRuntimeBlender_Ganesh")
+				}
+			}
+
 		}
 
-		// ANGLE bot *only* runs the angle configs
+		// ANGLE bot *only* runs the angle ES3 configs
 		if b.ExtraConfig("ANGLE") {
 			if b.MatchOs("Win") {
-				configs = []string{"angle_d3d11_es2", "angle_d3d11_es3"}
+				configs = []string{"angle_d3d11_es3"}
 				if sampleCount > 0 {
-					configs = append(configs, fmt.Sprintf("angle_d3d11_es2_msaa%d", sampleCount))
-					configs = append(configs, fmt.Sprintf("angle_d3d11_es2_dmsaa"))
 					configs = append(configs, fmt.Sprintf("angle_d3d11_es3_msaa%d", sampleCount))
 					configs = append(configs, fmt.Sprintf("angle_d3d11_es3_dmsaa"))
-				}
-				if !b.MatchGpu("GTX", "Quadro", "GT610") {
-					// See skbug.com/40041499
-					configs = append(configs, "angle_d3d9_es2")
 				}
 				if b.Model("NUC5i7RYH") {
 					// skbug.com/40038570
@@ -580,7 +633,7 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 					skip(ALL, "test", ALL, "FilterResult")
 				}
 			} else if b.MatchOs("Mac") {
-				configs = []string{"angle_mtl_es2", "angle_mtl_es3"}
+				configs = []string{"angle_mtl_es3"}
 
 				// anglebug.com/7245
 				skip("angle_mtl_es3", "gm", ALL, "runtime_intrinsics_common_es3")
@@ -629,21 +682,6 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 			skip(ALL, "test", ALL, "SkSLIntrinsicMixFloatES3_Ganesh")
 		}
 
-		if b.Model("Spin513") {
-			// skbug.com/40042971
-			skip(ALL, "test", ALL, "Programs")
-			// skbug.com/40043570
-			skip(ALL, "test", ALL, "TestMockContext")
-			skip(ALL, "test", ALL, "TestGpuRenderingContexts")
-			skip(ALL, "test", ALL, "TestGpuAllContexts")
-			skip(ALL, "test", ALL, "TextBlobCache")
-			skip(ALL, "test", ALL, "OverdrawSurface_Gpu")
-			skip(ALL, "test", ALL, "ReplaceSurfaceBackendTexture")
-			skip(ALL, "test", ALL, "SurfaceAttachStencil_Gpu")
-			skip(ALL, "test", ALL, "SurfacePartialDraw_Gpu")
-			skip(ALL, "test", ALL, "SurfaceWrappedWithRelease_Gpu")
-		}
-
 		// skbug.com/40040327 - these devices render this test incorrectly
 		// when opList splitting reduction is enabled
 		if b.GPU() && b.ExtraConfig("Vulkan") && (b.GPU("RadeonR9M470X", "RadeonHD7770")) {
@@ -654,9 +692,14 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 			// MSAA doesn't work well on Intel GPUs chromium:527565, chromium:983926, skbug.com/40040308
 			// MSAA4 is not supported on the MotoG73
 			//     "Configuration 'vkmsaa4' sample count 4 is not a supported sample count."
-			if !b.MatchGpu("Intel") && !b.Model("MotoG73") {
+			// In Ganesh we currently disable msaa on imagination GPUs. Newer GPUs
+			// probably support MSAA fine, but we currently don't plan on enabling
+			// MSAA at all for Ganesh to reduce correctness and performance churn on
+			// clients as we're trying to move away from Ganesh.
+			if !b.MatchGpu("Intel") && !b.Model("MotoG73") && !b.MatchGpu("IMG") {
 				configs = append(configs, "vkmsaa4")
 			}
+
 			// Temporarily limit the machines we test dynamic MSAA on.
 			if b.GPU("QuadroP400", "MaliG77") && !b.ExtraConfig("TSAN") {
 				configs = append(configs, "vkdmsaa")
@@ -900,10 +943,6 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 
 	// Eventually I'd like these to pass, but for now just skip 'em.
 	if b.ExtraConfig("SK_FORCE_RASTER_PIPELINE_BLITTER") {
-		removeFromArgs("tests")
-	}
-
-	if b.Model("Spin513") {
 		removeFromArgs("tests")
 	}
 
@@ -1333,34 +1372,41 @@ func (b *TaskBuilder) dmFlags(internalHardwareLabel string) {
 		skip(ALL, "tests", ALL, "ImageFilterCropRect_Gpu") // b/294080402
 	}
 
-	if !b.ExtraConfig("Graphite") && b.MatchOs("Mac15") && b.MatchGpu("IntelUHDGraphics630") {
-		if b.ExtraConfig("ANGLE") {
-			// b/405918638
-			skip(ALL, "tests", ALL, "TransferPixelsFromTextureTest")
-			skip(ALL, "tests", ALL, "ImageAsyncReadPixels_Renderable_BottomLeft")
-			skip(ALL, "tests", ALL, "ImageAsyncReadPixels_Renderable_TopLeft")
-			skip(ALL, "tests", ALL, "ImageAsyncReadPixels_NonRenderable_BottomLeft")
-			skip(ALL, "tests", ALL, "ImageAsyncReadPixels_NonRenderable_TopLeft")
-			skip(ALL, "tests", ALL, "SurfaceAsyncReadPixels")
-			skip(ALL, "tests", ALL, "TransferPixelsToTextureTest")
-		} else if b.ExtraConfig("Metal") {
-			// b/438450848
-			skip(ALL, "tests", ALL, "DMSAA_aa_dst_read_after_dmsaa")
-			skip(ALL, "tests", ALL, "DMSAA_dst_read")
-			skip(ALL, "tests", ALL, "SurfacePartialDraw_Gpu")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithColorFilter")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithTransform")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithTileMode")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_ColorFilterBetweenCrops")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_TransformAndTile")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_PeriodicTileCrops")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_IntersectingCrops")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_CropDisjointFromSourceAndOutput")
-			skip(ALL, "tests", ALL, "FilterResult_ganesh_Crop")
+	if b.MatchOs("Mac15") && b.MatchGpu("IntelUHDGraphics630") {
+		if !b.ExtraConfig("Graphite") {
+			if b.ExtraConfig("ANGLE") {
+				// b/405918638
+				skip(ALL, "tests", ALL, "TransferPixelsFromTextureTest")
+				skip(ALL, "tests", ALL, "ImageAsyncReadPixels_Renderable_BottomLeft")
+				skip(ALL, "tests", ALL, "ImageAsyncReadPixels_Renderable_TopLeft")
+				skip(ALL, "tests", ALL, "ImageAsyncReadPixels_NonRenderable_BottomLeft")
+				skip(ALL, "tests", ALL, "ImageAsyncReadPixels_NonRenderable_TopLeft")
+				skip(ALL, "tests", ALL, "SurfaceAsyncReadPixels")
+				skip(ALL, "tests", ALL, "TransferPixelsToTextureTest")
+			} else if b.ExtraConfig("Metal") {
+				// b/438450848
+				skip(ALL, "tests", ALL, "DMSAA_aa_dst_read_after_dmsaa")
+				skip(ALL, "tests", ALL, "DMSAA_dst_read")
+				skip(ALL, "tests", ALL, "SurfacePartialDraw_Gpu")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithColorFilter")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithTransform")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_RescaleWithTileMode")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_ColorFilterBetweenCrops")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_TransformAndTile")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_PeriodicTileCrops")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_IntersectingCrops")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_CropDisjointFromSourceAndOutput")
+				skip(ALL, "tests", ALL, "FilterResult_ganesh_Crop")
+			} else {
+				// These two are also broken for OpenGL configs b/405918638
+				skip(ALL, "tests", ALL, "TransferPixelsFromTextureTest")
+				skip(ALL, "tests", ALL, "TransferPixelsToTextureTest")
+			}
 		} else {
-			// These two are also broken for OpenGL configs b/405918638
-			skip(ALL, "tests", ALL, "TransferPixelsFromTextureTest")
-			skip(ALL, "tests", ALL, "TransferPixelsToTextureTest")
+			if b.ExtraConfig("Metal") {
+				skip(ALL, "tests", ALL, "NotifyInUseTestLayerDarken")  // b/449171614
+				skip(ALL, "tests", ALL, "NotifyInUseTestLayerLighten") // b/449171614
+			}
 		}
 	}
 

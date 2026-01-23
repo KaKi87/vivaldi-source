@@ -386,7 +386,13 @@ void RenderFrameHostImpl::TearDownMojoConnection() {
 
   vivaldi_frame_service_.reset();
 
-  broker_receiver_.reset();
+  if (broker_holder_) {
+    if (base::FeatureList::IsEnabled(features::kLazyBrowserInterfaceBroker)) {
+      broker_holder_.reset();
+    } else {
+      broker_holder_->broker_receiver().reset();
+    }
+  }
 
   render_accessibility_.reset();
   render_accessibility_host_.Reset();

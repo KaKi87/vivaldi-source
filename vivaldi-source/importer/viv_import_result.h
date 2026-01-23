@@ -30,7 +30,7 @@ inline ImportValue<T> Error(int message_id) {
   return base::unexpected{message_id};
 }
 
-// Helper to automatically notify bridge based on result
+// Helper to automatically notify bridge based on result.
 inline void NotifyBridge(const ImportResult& r,
                          ImporterBridge* bridge,
                          user_data_importer::ImportItem item) {

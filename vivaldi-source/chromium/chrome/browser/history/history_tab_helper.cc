@@ -319,8 +319,21 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
   const bool status_code_qualifies_for_ntp_most_visited =
       !(base::FeatureList::IsEnabled(history::kVisitedLinksOn404) &&
         http_response_code == 404);
+
+  // If the visit was initiated by an actor, it should not contribute to the
+  // Most Visited tiles in the NTP.
+  bool has_actor_task_id = chrome_ui_data && chrome_ui_data->actor_task_id();
+  bool visit_source_qualifies_for_ntp_most_visited = true;
+#if !BUILDFLAG(IS_ANDROID)
+  visit_source_qualifies_for_ntp_most_visited =
+      !(base::FeatureList::IsEnabled(
+            history::kBrowsingHistoryActorIntegrationM2) &&
+        has_actor_task_id);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
   const bool should_consider_for_ntp_most_visited =
       status_code_qualifies_for_ntp_most_visited &&
+      visit_source_qualifies_for_ntp_most_visited &&
       ShouldConsiderForNtpMostVisited(*web_contents(), navigation_handle);
 
   // Reloads do not result in calling TitleWasSet() (which normally sets
@@ -399,7 +412,7 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
       frame_url = referrer_url;
     }
   }
-  bool has_actor_task_id = chrome_ui_data && chrome_ui_data->actor_task_id();
+
   const history::VisitResponseCodeCategory response_code_category =
       http_response_code == 404 ? history::VisitResponseCodeCategory::k404
                                 : history::VisitResponseCodeCategory::kNot404;
@@ -437,9 +450,9 @@ history::HistoryAddPageArgs HistoryTabHelper::CreateHistoryAddPageArgs(
   return add_page_args;
 }
 
-void HistoryTabHelper::OnURLVisited(history::HistoryService* history_service,
-                                    const history::URLRow& url_row,
-                                    const history::VisitRow& new_visit) {
+void HistoryTabHelper::OnURLVisited(
+    history::HistoryService* history_service,
+    const history::VisitedURLInfo& visited_url_info) {
   if (clear_app_id_after_first_commit_) {
     app_id_ = std::nullopt;
   }
@@ -705,3 +718,7 @@ JNI_HistoryTabHelper_GetAppIdForTestingNative(
 }
 #endif
 WEB_CONTENTS_USER_DATA_KEY_IMPL(HistoryTabHelper);
+
+#if BUILDFLAG(IS_ANDROID)
+DEFINE_JNI(HistoryTabHelper)
+#endif

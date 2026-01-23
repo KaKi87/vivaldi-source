@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,33 +7,60 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/check_deref.h"
 #include "base/check_op.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
-#include "chrome/browser/ash/notifications/request_pin_view.h"
+#include "base/functional/bind.h"
+#include "build/build_config.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/views/notifications/request_pin_view_chromeos.h"
+#include "chromeos/ash/components/browser_context_helper/annotated_account_id.h"
+#include "chromeos/ui/wm/desks/desks_helper.h"
 #include "ui/aura/window.h"
-#include "ui/gfx/native_widget_types.h"
+#include "ui/gfx/native_ui_types.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
 
-namespace ash {
+namespace chromeos {
 
 namespace {
 
 gfx::NativeWindow GetBrowserParentWindow() {
-  if (LoginDisplayHost::default_host())
-    return LoginDisplayHost::default_host()->GetNativeWindow();
+  if (ash::LoginDisplayHost::default_host())
+    return ash::LoginDisplayHost::default_host()->GetNativeWindow();
 
-  Browser* browser =
-      chrome::FindTabbedBrowser(ProfileManager::GetPrimaryUserProfile(), true);
-  if (browser)
-    return browser->window()->GetNativeWindow();
+  // TODO(crbug.com/450116701): Avoid profile (another chrome/browser
+  // dependency) altogether and use SessionManager::GetPrimarySession()
+  // and Session::account_id().
+  AccountId primary_user_profile_account_id =
+      CHECK_DEREF(ash::AnnotatedAccountId::Get(
+          ProfileManager::GetPrimaryUserProfile()->GetOriginalProfile()));
 
-  return nullptr;
+  gfx::NativeWindow window = nullptr;
+  ash::BrowserController::GetInstance()->ForEachBrowser(
+      ash::BrowserController::BrowserOrder::kAscendingActivationTime,
+      [&](ash::BrowserDelegate& browser) {
+        if (browser.GetAccountId() != primary_user_profile_account_id) {
+          return ash::BrowserController::kContinueIteration;
+        }
+        if (browser.GetType() != ash::BrowserType::kNormal) {
+          return ash::BrowserController::kContinueIteration;
+        }
+        if (aura::Window* native_window = browser.GetNativeWindow();
+            !chromeos::DesksHelper::Get(native_window)
+                 ->BelongsToActiveDesk(native_window)) {
+          return ash::BrowserController::kContinueIteration;
+        }
+        if (browser.IsAttemptingToClose() || browser.IsClosing()) {
+          return ash::BrowserController::kContinueIteration;
+        }
+
+        window = browser.GetNativeWindow();
+        return ash::BrowserController::kBreakIteration;
+      });
+  return window;
 }
 
 }  // namespace
@@ -50,7 +77,7 @@ void SecurityTokenPinDialogHostPopupImpl::ShowSecurityTokenPinDialog(
     bool enable_user_input,
     security_token_pin::ErrorLabel error_label,
     int attempts_left,
-    const absl::optional<AccountId>& /*authenticating_user_account_id*/,
+    const std::optional<AccountId>& /*authenticating_user_account_id*/,
     SecurityTokenPinEnteredCallback pin_entered_callback,
     SecurityTokenPinDialogClosedCallback pin_dialog_closed_callback) {
   DCHECK(!caller_extension_name.empty());
@@ -109,4 +136,4 @@ void SecurityTokenPinDialogHostPopupImpl::OnViewDestroyed() {
     std::move(pin_dialog_closed_callback_).Run();
 }
 
-}  // namespace ash
+}  // namespace chromeos

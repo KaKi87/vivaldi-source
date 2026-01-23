@@ -182,7 +182,7 @@
 
   // Updating favicon and URL
   GURL url = _activeWebState->GetLastCommittedURL();
-  NSString* stringUrl = base::SysUTF8ToNSString(url.host().c_str());
+  NSString* stringUrl = base::SysUTF8ToNSString(url.GetHost().c_str());
   [_consumer setCurrentHostURL:
     [VivaldiGlobalHelpers hostOfURLString: stringUrl]];
   const web::FaviconStatus& favicon_status =

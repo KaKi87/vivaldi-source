@@ -4,11 +4,9 @@
 
 #include "base/base64.h"
 #include "base/lazy_instance.h"
-#include "base/task/thread_pool.h"
-#include "base/task/thread_pool/thread_pool_instance.h"
+#include "chrome/browser/profiles/profile.h"
 #include "components/os_crypt/sync/os_crypt.h"
 #include "components/prefs/pref_service.h"
-#include "extensions/api/extension_action_utils/extension_action_utils_api.h"
 #include "extensions/schema/vivaldi_account.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "prefs/vivaldi_pref_names.h"
@@ -213,38 +211,17 @@ VivaldiAccountSetPendingRegistrationFunction::Run() {
     prefs->ClearPref(vivaldiprefs::kVivaldiAccountPendingRegistration);
     return RespondNow(NoArguments());
   }
-  std::string password = params->registration->password;
-  auto encrypted_password = std::make_unique<std::string>();
-  // encrypted_password_ptr is expected to be valid as long as
-  // encrypted_password is valid, which should be at least until OnEncryptDone
-  // is called. So, it should be safe to use during OSCrypt:EncryptString
-  std::string* encrypted_password_ptr = encrypted_password.get();
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock()},
-      base::BindOnce(&OSCrypt::EncryptString, password, encrypted_password_ptr),
-      base::BindOnce(
-          &VivaldiAccountSetPendingRegistrationFunction::OnEncryptDone, this,
-          std::move(params->registration), std::move(encrypted_password)));
-  return RespondLater();
-}
-
-void VivaldiAccountSetPendingRegistrationFunction::OnEncryptDone(
-    std::optional<vivaldi::vivaldi_account::PendingRegistration>
-        pending_registration,
-    std::unique_ptr<std::string> encrypted_password,
-    bool result) {
-  if (!result) {
-    Respond(Error("Failed to encrypt pending registration password"));
-    return;
+  std::string encrypted_password;
+  if (!OSCrypt::EncryptString(params->registration->password,
+                              &encrypted_password)) {
+    return RespondNow(Error("Failed to encrypt pending registration password"));
   }
 
-  pending_registration->password = base::Base64Encode(*encrypted_password);
-  PrefService* prefs =
-      Profile::FromBrowserContext(browser_context())->GetPrefs();
+  params->registration->password = base::Base64Encode(encrypted_password);
   prefs->SetDict(vivaldiprefs::kVivaldiAccountPendingRegistration,
-                 pending_registration->ToValue());
+                 params->registration->ToValue());
 
-  Respond(NoArguments());
+  return RespondNow(NoArguments());
 }
 
 ExtensionFunction::ResponseAction
@@ -252,9 +229,11 @@ VivaldiAccountGetPendingRegistrationFunction::Run() {
   PrefService* prefs =
       Profile::FromBrowserContext(browser_context())->GetPrefs();
 
-  auto pending_registration =
-      vivaldi::vivaldi_account::PendingRegistration::FromValue(
-          prefs->GetValue(vivaldiprefs::kVivaldiAccountPendingRegistration));
+  std::optional<vivaldi::vivaldi_account::PendingRegistration>
+      pending_registration =
+          vivaldi::vivaldi_account::PendingRegistration::FromValue(
+              prefs->GetValue(
+                  vivaldiprefs::kVivaldiAccountPendingRegistration));
 
   if (!pending_registration) {
     return RespondNow(ArgumentList({}));
@@ -265,26 +244,11 @@ VivaldiAccountGetPendingRegistrationFunction::Run() {
       encrypted_password.empty()) {
     return RespondNow(Error("Failed to decode pending registration password"));
   }
-  std::string* password_ptr = &pending_registration->password;
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock()},
-      base::BindOnce(&OSCrypt::DecryptString, encrypted_password, password_ptr),
-      base::BindOnce(
-          &VivaldiAccountGetPendingRegistrationFunction::OnDecryptDone, this,
-          std::move(pending_registration)));
-  return RespondLater();
-}
-
-void VivaldiAccountGetPendingRegistrationFunction::OnDecryptDone(
-    std::optional<vivaldi::vivaldi_account::PendingRegistration>
-        pending_registration,
-    bool result) {
-  if (!result) {
-    Respond(Error("Failed to decrypt pending registration password"));
-    return;
+  if (!OSCrypt::DecryptString(encrypted_password,
+                              &pending_registration->password)) {
+    return RespondNow(Error("Failed to decrypt pending registration password"));
   }
-
-  Respond(ArgumentList(
+  return RespondNow(ArgumentList(
       vivaldi::vivaldi_account::GetPendingRegistration::Results::Create(
           *pending_registration)));
 }

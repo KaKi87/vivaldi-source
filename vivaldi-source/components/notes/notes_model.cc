@@ -110,10 +110,8 @@ void NotesModel::Load(const base::FilePath& profile_path) {
 void NotesModel::DoneLoading(std::unique_ptr<NoteLoadDetails> details) {
   DCHECK(details);
   DCHECK(!loaded_);
-
   next_node_id_ = details->max_id();
-  if (details->computed_checksum() != details->stored_checksum() ||
-      details->ids_reassigned() || details->uuids_reassigned()) {
+  if (details->ids_reassigned() || details->uuids_reassigned()) {
     // If notes file changed externally, the IDs may have changed
     // externally. In that case, the decoder may have reassigned IDs to make
     // them unique. So when the file has changed externally, we should save the
@@ -149,8 +147,9 @@ void NotesModel::OnSyncedFilesStoreLoaded(
   }
 
   // Notify our direct observers.
-  for (auto& observer : observers_)
+  for (auto& observer : observers_) {
     observer.NotesModelLoaded(details->ids_reassigned());
+  }
 
   if (details->has_deprecated_attachments()) {
     BeginExtensiveChanges();
@@ -744,8 +743,9 @@ void NotesModel::Move(const NoteNode* node,
   if (store_.get())
     store_->ScheduleSave();
 
-  for (auto& observer : observers_)
+  for (auto& observer : observers_) {
     observer.NotesNodeMoved(old_parent, old_index, new_parent, index);
+  }
 }
 
 void NotesModel::SortChildren(const NoteNode* parent) {
@@ -819,7 +819,7 @@ void NotesModel::GetNotesMatching(const std::u16string& text,
       match = base::i18n::StringSearchIgnoringCaseAndAccents(
           text, node->GetContent(), NULL, NULL);
       if (!match && node->GetURL().is_valid()) {
-        std::string value = node->GetURL().host() + node->GetURL().path();
+        std::string value = node->GetURL().GetHost() + node->GetURL().GetPath();
         match = base::i18n::StringSearchIgnoringCaseAndAccents(
             text, base::UTF8ToUTF16(value), NULL, NULL);
       }

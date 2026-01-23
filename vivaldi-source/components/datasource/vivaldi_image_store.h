@@ -13,6 +13,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/uuid.h"
 #include "content/public/browser/url_data_source.h"
+#include "components/datasource/vivaldi_image_store_constants.h"
 
 class Profile;
 
@@ -48,9 +49,6 @@ enum class BatchItemState {
   kOk,
   kError,
 };
-
-const base::FilePath::StringViewType kDirectMatchImageDirectory =
-    FILE_PATH_LITERAL("VivaldiDirectMatchIcons");
 
 struct BatchItem {
   using State = vivaldi_image_store::BatchItemState;

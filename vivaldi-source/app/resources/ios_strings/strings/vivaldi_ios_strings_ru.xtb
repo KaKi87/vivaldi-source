@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Для защиты ваших приватных вкладок установите Touch ID, Face ID или Passcode.</translation>
 <translation id="1189137610071296104">Открыть в группе</translation>
 <translation id="1310184829257917508">Предлагать открытие ссылок из других приложений приватно</translation>
+<translation id="1624481300475123200">Автоввод паролей</translation>
 <translation id="1743244221910283364">Отменить изменения</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Добавить вкладку в группу}
         other {Добавить вкладки в группу}}</translation>
 <translation id="207677936531967364">Страница новой приватной вкладки</translation>
 <translation id="2099591136582442348">Группа будет полностью удалена с устройства.</translation>
+<translation id="2104086191144208395">Столкнулись с проблемой?</translation>
 <translation id="2181990701313127304">Новая вкладка в группе</translation>
 <translation id="2351280151183279120">Поделиться группой</translation>
 <translation id="2353953000228441783">Вид сайтов по умолчанию</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Открыть ${url} приватно</translation>
 <translation id="398477389655464998">Копировать ссылку на выделенное</translation>
 <translation id="3993429087389909418">Вкладки останутся открытыми на устройстве, но группа будет удалена со всех устройств привязанных к <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Столкнулись с проблемой?</translation>
 <translation id="4216644171369573466">Группа, <ph name="GROUP_TITLE" />, Меню.</translation>
 <translation id="4304713468139749426">Менеджер паролей</translation>
 <translation id="4439281775431634915">Ваши группы вкладок сохранены здесь</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">Прочитанные страницы</translation>
 <translation id="5521301883748677039">Удалить группу?</translation>
 <translation id="5544011153887687593">Вкладка в группе. <ph name="TAB_INDEX_IN_GROUP" /> из <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Функция Handoff позволяет начать просмотр веб-сайта на этом устройстве, а затем легко продолжить его на Mac. Текущий открытый веб-сайт появится в Dock вашего Mac.
+
+Функция Handoff также должна быть включена в разделе «Основные» настроек, а на ваших устройствах должна использоваться одна и та же учётная запись iCloud.</translation>
 <translation id="5614553682702429503">Сохранить пароль?</translation>
+<translation id="5620163320393916465">Нет сохранённых паролей</translation>
 <translation id="570209299585559496">Чтобы изменить вид сайтов по умолчанию, откройте меню Настройки и выберите Настройки контента</translation>
 <translation id="5719777162751096990">Переместить в группу</translation>
+<translation id="5869522115854928033">Сохранённые пароли</translation>
 <translation id="5962477178930921574">Вставить и найти</translation>
 <translation id="6163856768888310791">Разгруппировать</translation>
 <translation id="6168969409902608220">Имя группы</translation>
 <translation id="6192561334825788389">Сдвиньте экран вправо для перехода в приватный режим.</translation>
 <translation id="6233792867654386826">Открывать вводимые адреса в Vivaldi.</translation>
 <translation id="6271462272606946663">Скрыть запрос мобильного сайта</translation>
+<translation id="6309282378909663947">Пароли из менеджера паролей Vivaldi</translation>
 <translation id="6478587527114893588">Закрыть группу.</translation>
 <translation id="6527405730445064713">Группа. Развёрнута.</translation>
 <translation id="6532106788206463496">Сохранить изменения</translation>
+<translation id="6636411080833380839">Убрать из группы</translation>
+<translation id="6644512095122093795">Предлагать сохранить пароли</translation>
 <translation id="6666425778700353369">Группа будет удалена со всех устройств привязанных к <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Настройка меню</translation>
 <translation id="6695835495840050460">Нажмите "Группировать с активной"</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">Новая приватная вкладка в группе</translation>
 <translation id="7661319142491611883">Раскрыть группу.</translation>
 <translation id="7706213624515206557">Показать все вкладки в группе</translation>
+<translation id="7937179923651776879">Доступ к вашим паролям из любого приложения</translation>
 <translation id="7961015016161918242">Никогда</translation>
 <translation id="8326104954595890674">Новая приватная вкладка</translation>
 <translation id="8345989863850359861">Убрать вкладку и удалить группу?</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">Новая вкладка в группе</translation>
 <translation id="9042893549633094279">Приватность и безопасность</translation>
 <translation id="9094033019050270033">Обновить пароль</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Покинуть группу</translation>
 <translation id="959061183386231608">Вкладки останутся открытыми на устройстве, но группа будет полностью удалена.</translation>
+<translation id="988141524645182168">Другие устройства</translation>
 </translationbundle>

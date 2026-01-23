@@ -151,11 +151,11 @@ import java.util.stream.Stream;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE, "show-autofill-signatures"})
 @DoNotBatch(reason = "Tests cannot run batched because they launch a Settings activity.")
-@DisableFeatures(ChromeFeatureList.DATA_SHARING)
+@DisableFeatures({ChromeFeatureList.DATA_SHARING, ChromeFeatureList.SETTINGS_MULTI_COLUMN})
 public class MainSettingsFragmentTest {
     private static final String SEARCH_ENGINE_SHORT_NAME = "Google";
 
-    private static final int RENDER_TEST_REVISION = 13;
+    private static final int RENDER_TEST_REVISION = 14;
     private static final String RENDER_TEST_DESCRIPTION =
             "Alert icon on identity error for signed in users";
 
@@ -224,6 +224,12 @@ public class MainSettingsFragmentTest {
     @Test
     @LargeTest
     @Feature({"RenderTest"})
+    // TODO(crbug.com/433576895): Re-enable containment and multi-column feature
+    // once the test is fixed.
+    @DisableFeatures({
+        ChromeFeatureList.ANDROID_SETTINGS_CONTAINMENT,
+        ChromeFeatureList.SETTINGS_MULTI_COLUMN
+    })
     public void testRenderSignedOutAccountManagementRows() throws IOException {
         startSettings();
         waitForOptionsMenu();
@@ -246,6 +252,12 @@ public class MainSettingsFragmentTest {
     @LargeTest
     @Feature({"RenderTest"})
     @Policies.Add({@Policies.Item(key = "BrowserSignin", string = "0")})
+    // TODO(crbug.com/433576895): Re-enable containment and multi-column feature
+    // once the test is fixed.
+    @DisableFeatures({
+        ChromeFeatureList.ANDROID_SETTINGS_CONTAINMENT,
+        ChromeFeatureList.SETTINGS_MULTI_COLUMN
+    })
     public void testRenderSigninDisabledByPolicyAccountRow() throws IOException {
         startSettings();
         waitForOptionsMenu();
@@ -469,6 +481,7 @@ public class MainSettingsFragmentTest {
     @Test
     @LargeTest
     @Feature({"RenderTest"})
+    @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
     public void testRenderOnIdentityErrorForSignedInUsers() throws IOException {
         FakeSyncServiceImpl fakeSyncService =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -595,7 +608,6 @@ public class MainSettingsFragmentTest {
 
     @Test
     @SmallTest
-    @DisabledTest(message = "crbug.com/362211398")
     public void
             testAccountManagementRowForChildAccountWithNonDisplayableAccountEmailWithEmptyDisplayName()
                     throws InterruptedException {
@@ -604,8 +616,10 @@ public class MainSettingsFragmentTest {
         // Account set up.
         // If both fullName and givenName are empty, accountCapabilities is ignored.
         final SigninTestRule signinTestRule = mSyncTestRule.getSigninTestRule();
-        signinTestRule.addAccountThenSignin(
-                TestAccounts.TEST_ACCOUNT_NON_DISPLAYABLE_EMAIL_AND_NO_NAME);
+        AccountInfo accountInfo = TestAccounts.TEST_ACCOUNT_NON_DISPLAYABLE_EMAIL_AND_NO_NAME;
+        signinTestRule.addAccount(accountInfo);
+        // Child accounts are signed-in automatically in the background.
+        signinTestRule.waitForSignin(accountInfo);
 
         SignInPreference signInPreference = mMainSettings.findPreference(MainSettings.PREF_SIGN_IN);
         CriteriaHelper.pollUiThread(
@@ -656,7 +670,7 @@ public class MainSettingsFragmentTest {
                                 hasDescendant(withText(R.string.password_manager_settings_title)),
                                 hasDescendant(managedStrMatcher)))
                 .check(matches(isDisplayed()));
-        ;
+
         Assert.assertTrue(mMainSettings.findPreference(MainSettings.PREF_PASSWORDS).isEnabled());
         Assert.assertNotNull(
                 mMainSettings
@@ -852,7 +866,6 @@ public class MainSettingsFragmentTest {
         Preference preference = mMainSettings.findPreference(MainSettings.PREF_SETTINGS_PROMO_CARD);
         Assert.assertNotNull(
                 "Settings promo preference exist when feature flag is enabled", preference);
-        Assert.assertTrue("Settings promo card is not showing", preference.isVisible());
     }
 
     @Test

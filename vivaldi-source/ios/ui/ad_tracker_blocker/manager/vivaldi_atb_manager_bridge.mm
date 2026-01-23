@@ -67,7 +67,8 @@ void VivaldiATBManagerBridge::OnRuleSourceUpdated(
   if ([observer respondsToSelector:@selector
                 (ruleSourceDidUpdate:group:fetchResult:)]) {
     ATBFetchResult fetchResult =
-        this->FlattenFetchResult(rule_source.last_fetch_result);
+        this->FlattenFetchResult(rule_source.last_download_result,
+            rule_source.last_read_result);
     [observer ruleSourceDidUpdate:rule_source.core.id()
                             group:group
                       fetchResult:fetchResult];
@@ -168,24 +169,27 @@ void VivaldiATBManagerBridge::StartObservingRuleSourceManager() {
 }
 
 ATBFetchResult VivaldiATBManagerBridge::FlattenFetchResult(
-    FetchResult fetchResult) {
-  switch (fetchResult) {
-    case FetchResult::kSuccess:
-      return FetchResultSuccess;
-    case FetchResult::kDownloadFailed:
+    std::optional<DownloadResult> download_result,
+    std::optional<ReadResult> read_result) {
+  if (!read_result || !download_result) {
+      return FetchResultUnknown;
+  }
+
+  if (*download_result != DownloadResult::kSuccess) {
       return FetchResultDownloadFailed;
-    case FetchResult::kFileNotFound:
+  }
+
+  switch (*read_result) {
+    case ReadResult::kSuccess:
+      return FetchResultSuccess;
+    case ReadResult::kFileNotFound:
       return FetchResultFileNotFound;
-    case FetchResult::kFileReadError:
+    case ReadResult::kFileReadError:
       return FetchResultFileReadError;
-    case FetchResult::kFileUnsupported:
+    case ReadResult::kFileUnsupported:
       return FetchResultFileUnsupported;
-    case FetchResult::kFailedSavingParsedRules:
+    case ReadResult::kFailedSavingParsedRules:
       return FetchResultFailedSavingParsedRules;
-    case FetchResult::kUnknown:
-      return FetchResultUnknown;
-    default:
-      return FetchResultUnknown;
   }
 }
 

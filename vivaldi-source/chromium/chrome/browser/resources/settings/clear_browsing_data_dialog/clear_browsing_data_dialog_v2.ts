@@ -8,6 +8,8 @@
  */
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/cr_elements/cr_spinner_style.css.js';
 import '../controls/settings_checkbox.js';
 import '../settings_shared.css.js';
@@ -21,6 +23,7 @@ import './other_google_data_dialog.js';
 import type {SyncBrowserProxy, SyncStatus} from '/shared/settings/people_page/sync_browser_proxy.js';
 import {SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+import {CrSettingsPrefs} from '/shared/settings/prefs/prefs_types.js';
 import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import type {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
@@ -255,8 +258,6 @@ export class SettingsClearBrowsingDataDialogV2Element extends
     this.syncBrowserProxy_.getSyncStatus().then(
         this.handleSyncStatus_.bind(this));
 
-    this.setUpDataTypeOptionLists_();
-
     this.addEventListener(
         'settings-boolean-control-change',
         this.updateDeleteButtonState_.bind(this));
@@ -269,9 +270,13 @@ export class SettingsClearBrowsingDataDialogV2Element extends
         (event: UpdateSyncStateEvent) =>
             this.updateDseStatus_(event.isNonGoogleDse));
 
-    // afterNextRender is needed to wait for checkbox lists to be populated via
-    // dom-repeat before checking if the delete button should be disabled.
-    afterNextRender(this, () => this.updateDeleteButtonState_());
+    CrSettingsPrefs.initialized.then(() => {
+      this.setUpDataTypeOptionLists_();
+      // afterNextRender() is needed to wait for checkbox lists to be populated
+      // via dom-repeat before checking if the delete button should be
+      // disabled.
+      afterNextRender(this, () => this.updateDeleteButtonState_());
+    });
   }
 
   private updateDseStatus_(isNonGoogleDse: boolean) {

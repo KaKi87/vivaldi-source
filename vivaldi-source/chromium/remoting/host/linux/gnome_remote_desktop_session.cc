@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -72,6 +73,21 @@ GnomeRemoteDesktopSession::~GnomeRemoteDesktopSession() {
   }
 }
 
+// static
+bool GnomeRemoteDesktopSession::IsRunningUnderGnome() {
+  const char* xdg_current_desktop = getenv("XDG_CURRENT_DESKTOP");
+
+  // Fall back to using GNOME APIs if the variable is not set. This addresses
+  // the upgrade path from an older M143 host - see crbug.com/468353722. The
+  // package upgrade would run the new host against the old Python script which
+  // does not set this environment variable.
+  if (!xdg_current_desktop) {
+    return true;
+  }
+  return std::string_view{xdg_current_desktop} == "GNOME";
+}
+
+// static
 GnomeRemoteDesktopSession* GnomeRemoteDesktopSession::GetInstance() {
   static base::NoDestructor<GnomeRemoteDesktopSession> instance;
   return instance.get();
@@ -138,6 +154,16 @@ void GnomeRemoteDesktopSession::OnConnectionCreated(
     GDBusConnectionRef connection) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   connection_ = std::move(connection);
+
+  headless_detector_.Start(
+      connection_,
+      base::BindOnce(&GnomeRemoteDesktopSession::OnHeadlessDetection,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void GnomeRemoteDesktopSession::OnHeadlessDetection(bool is_headless) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  is_headless_ = is_headless;
 
   // One of the gLinux patches modifies the method signature of CreateSession.
   // To ease the transition, try the patched signature if the upstream signature

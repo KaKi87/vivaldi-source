@@ -1,0 +1,15 @@
+# Copyright 2023 Vivaldi Technologies. All rights reserved.
+
+source_set("vivaldi_symbols") {
+  sources = [
+    "vivaldi_symbol_names.h",
+    "vivaldi_symbol_names.mm",
+  ]
+
+  deps = ["resources:vivaldi_symbol_assets"]
+
+  frameworks = [
+    "Foundation.framework",
+    "UIKit.framework",
+  ]
+}

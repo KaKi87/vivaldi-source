@@ -148,15 +148,6 @@ class AutocompleteInput {
   };
   static FeaturedKeywordMode GetFeaturedKeywordMode(std::u16string_view text);
 
-  // If the input is in the keyword mode for a starter pack engine, returns the
-  // starter pack's `TemplateURL` or nullptr. E.g. for "@Gemini text", Gemini
-  // `TemplateURL` is returned. If the matching keyword was found, updates
-  // `input` with the keyword stripped.
-  // `model` must be non-null.
-  static const TemplateURL* AdjustInputForStarterPackEngines(
-      TemplateURLService* model,
-      AutocompleteInput* input);
-
   // Returns the matching substituting keyword for `input`, or NULL if there
   // is no keyword for the specified input.  If the matching keyword was found,
   // updates `input`'s text and cursor position.
@@ -255,6 +246,10 @@ class AutocompleteInput {
       case metrics::OmniboxEventProto::LENS_SIDE_PANEL_SEARCHBOX:
         return SearchTermsData::RequestSource::LENS_OVERLAY;
       case metrics::OmniboxEventProto::NTP_COMPOSEBOX:
+      case metrics::OmniboxEventProto::LENS_SIDE_PANEL_COMPOSEBOX:
+      case metrics::OmniboxEventProto::NTP_OMNIBOX_COMPOSEBOX:
+      case metrics::OmniboxEventProto::SRP_OMNIBOX_COMPOSEBOX:
+      case metrics::OmniboxEventProto::OTHER_OMNIBOX_COMPOSEBOX:
         return SearchTermsData::RequestSource::NTP_COMPOSEBOX;
       default:
         return SearchTermsData::RequestSource::SEARCHBOX;
@@ -367,6 +362,15 @@ class AutocompleteInput {
     lens_overlay_suggest_inputs_ = lens_overlay_suggest_inputs;
   }
 
+  // Variant of the set_lens_overlay_suggest_inputs that doesn't make copies
+  // and is better aligned with the value returned by ComposeboxQueryController.
+  void set_lens_overlay_suggest_inputs(
+      std::unique_ptr<lens::proto::LensOverlaySuggestInputs>
+          lens_overlay_suggest_inputs) {
+    lens_overlay_suggest_inputs_.emplace(
+        std::move(*lens_overlay_suggest_inputs.release()));
+  }
+
   omnibox::ChromeAimToolsAndModels aim_tool_mode() const {
     return aim_tool_mode_;
   }
@@ -375,6 +379,15 @@ class AutocompleteInput {
       const omnibox::ChromeAimToolsAndModels& aim_tool_mode) {
     aim_tool_mode_ = aim_tool_mode;
   }
+  std::u16string context_tab_title() const { return context_tab_title_; }
+
+  void set_context_tab_title(std::u16string title) {
+    context_tab_title_ = title;
+  }
+
+  GURL context_tab_url() const { return context_tab_url_; }
+
+  void set_context_tab_url(GURL url) { context_tab_url_ = url; }
 
   // Resets all internal variables to the null-constructed state.
   void Clear();
@@ -464,6 +477,8 @@ class AutocompleteInput {
   // actually an HTTP server that pretends to serve HTTPS responses. Should only
   // be true on iOS.
   bool use_fake_https_for_https_upgrade_testing_;
+  std::u16string context_tab_title_;
+  GURL context_tab_url_;
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_AUTOCOMPLETE_INPUT_H_

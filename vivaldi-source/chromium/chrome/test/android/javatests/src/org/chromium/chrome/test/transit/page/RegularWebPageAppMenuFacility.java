@@ -23,13 +23,6 @@ public class RegularWebPageAppMenuFacility extends PageAppMenuFacility<WebPageSt
             mAddToGroup = declareMenuItem(items, ADD_TO_GROUP_ID);
         }
 
-        if (ChromeFeatureList.sAndroidPinnedTabsTabletTabStrip.isEnabled()
-                || ChromeFeatureList.sAndroidPinnedTabs.isEnabled()) {
-            // At most one of these exist.
-            mPinTab = declarePossibleMenuItem(items, PIN_TAB);
-            mUnpinTab = declarePossibleMenuItem(items, UNPIN_TAB);
-        }
-
         mNewWindow = declarePossibleMenuItem(items, NEW_WINDOW_ID);
         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
             mNewIncognitoWindow = declareMenuItem(items, NEW_INCOGNITO_WINDOW_ID);
@@ -38,12 +31,13 @@ public class RegularWebPageAppMenuFacility extends PageAppMenuFacility<WebPageSt
         declareMenuItem(items, HISTORY_ID);
         mQuickDelete = declareMenuItem(items, DELETE_BROWSING_DATA_ID);
         declareMenuItem(items, DOWNLOADS_ID);
-        declareMenuItem(items, BOOKMARKS_ID);
+        mBookmarks = declareMenuItem(items, BOOKMARKS_ID);
         declareMenuItem(items, RECENT_TABS_ID);
 
         declareMenuItem(items, SHARE_ID);
         declareMenuItem(items, FIND_IN_PAGE_ID);
         declarePossibleStubMenuItem(items, TRANSLATE_ID);
+        mReaderMode = declarePossibleMenuItem(items, READER_MODE_ID);
 
         // At most one of these exist.
         declarePossibleStubMenuItem(items, ADD_TO_HOME_SCREEN_UNIVERSAL_INSTALL_ID);

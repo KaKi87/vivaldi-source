@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Lås dine private faner ved at indstille Touch ID, Face ID eller adgangskode.</translation>
 <translation id="1189137610071296104">Åbn i fanestak</translation>
 <translation id="1310184829257917508">Bed om at åbne links fra andre apps privat</translation>
+<translation id="1624481300475123200">Autoudfyld adgangskoder</translation>
 <translation id="1743244221910283364">Kassér ændringer</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Føj fane til stak}
         other {Føj faner til stak}}</translation>
 <translation id="207677936531967364">Ny privat faneside</translation>
 <translation id="2099591136582442348">Dette sletter stakken permanent fra din enhed.</translation>
+<translation id="2104086191144208395">Har du opdaget et problem?</translation>
 <translation id="2181990701313127304">Ny fane i stak</translation>
 <translation id="2351280151183279120">Del stak</translation>
 <translation id="2353953000228441783">Websitets standardvisning</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Åbn ${url} privat</translation>
 <translation id="398477389655464998">Kopiér link til fremhævning</translation>
 <translation id="3993429087389909418">Fanerne forbliver åbne på denne enhed, men stakken slettes fra alle enheder, der er logget ind på <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Opdaget et problem?</translation>
 <translation id="4216644171369573466">Fanestak, <ph name="GROUP_TITLE" />, menu.</translation>
 <translation id="4304713468139749426">Adgangskodeadministrator</translation>
 <translation id="4439281775431634915">Dine fanestakke gemmes her</translation>
@@ -61,17 +62,22 @@
 <translation id="5521301883748677039">Slet stak?</translation>
 <translation id="5544011153887687593">Fane i fanestak. <ph name="TAB_INDEX_IN_GROUP" /> af <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
 <translation id="5614553682702429503">Gem adgangskode?</translation>
+<translation id="5620163320393916465">Ingen gemte adgangskoder</translation>
 <translation id="570209299585559496">Du kan ændre standardvisningen til computer i indstillinger og derefter indholdsindstillinger</translation>
 <translation id="5719777162751096990">Flyt til fanestak</translation>
+<translation id="5869522115854928033">Gemte adgangskoder</translation>
 <translation id="5962477178930921574">Indsæt og søg</translation>
 <translation id="6163856768888310791">Opløs fanestak</translation>
 <translation id="6168969409902608220">Navngiv stak</translation>
 <translation id="6192561334825788389">Du kan stryge til højre for at browse i Privat.</translation>
 <translation id="6233792867654386826">Åbner de indtastede URL’er i Vivaldi.</translation>
 <translation id="6271462272606946663">Skjul anmodning om mobilside</translation>
+<translation id="6309282378909663947">Adgangskoder fra Vivaldi Adgangskodeadministrator</translation>
 <translation id="6478587527114893588">Luk stak.</translation>
 <translation id="6527405730445064713">Fanestak. Udvidet.</translation>
 <translation id="6532106788206463496">Gem ændringer</translation>
+<translation id="6636411080833380839">Fjern fra stak</translation>
+<translation id="6644512095122093795">Tilbyd at gemme adgangskoder</translation>
 <translation id="6666425778700353369">Dette sletter stakken fra alle enheder, der er logget på <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Tilpas menu</translation>
 <translation id="6695835495840050460">Tryk på “Føj fane til ny stak”</translation>
@@ -92,6 +98,7 @@
 <translation id="7585610907974664408">Ny privat fane i stak</translation>
 <translation id="7661319142491611883">Udvid fanestak.</translation>
 <translation id="7706213624515206557">Vis alle faner i fanestak</translation>
+<translation id="7937179923651776879">Tilgå dine adgangskoder fra enhver app</translation>
 <translation id="7961015016161918242">Aldrig</translation>
 <translation id="8326104954595890674">Ny privat fane</translation>
 <translation id="8345989863850359861">Fjern fane og slet stak?</translation>

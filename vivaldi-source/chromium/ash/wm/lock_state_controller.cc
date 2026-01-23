@@ -216,6 +216,12 @@ bool ShouldTakeInformedRestoreScreenshot() {
         ScreenshotOnShutdownStatus::kFailedInLockScreen);
     return false;
   }
+  if (session_controller->GetSessionState() !=
+      session_manager::SessionState::ACTIVE) {
+    RecordScreenshotOnShutdownStatus(
+        ScreenshotOnShutdownStatus::kFailedSessionIsNotActive);
+    return false;
+  }
   if (session_controller->IsUserGuest() ||
       session_controller->IsUserPublicAccount()) {
     RecordScreenshotOnShutdownStatus(
@@ -601,6 +607,10 @@ void LockStateController::OnLockStateChanged(bool locked) {
   } else {
     StartUnlockAnimationAfterLockUIDestroyed();
   }
+
+  for (auto& rwc : Shell::GetAllRootWindowControllers()) {
+    rwc->ForceOccludeWindowsInAlwaysOnTop(locked);
+  }
 }
 
 void LockStateController::CancelUnlockAnimation() {
@@ -927,7 +937,6 @@ void LockStateController::OnDlpRestrictionCheckedAtScreenCapture(
     return;
   }
 
-  // TODO(b/319921650): Finalize the expected behavior on multi-display.
   auto* root = Shell::GetRootWindowForNewWindows();
 
   // Create a new layer that mirrors the painted wallpaper view layer. Adds it

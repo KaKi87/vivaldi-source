@@ -15,6 +15,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "chromeos/ash/components/boca/notifications/boca_notification_handler.h"
 #include "chromeos/ash/components/boca/proto/receiver.pb.h"
 #include "chromeos/ash/components/boca/proto/roster.pb.h"
 #include "chromeos/ash/components/boca/teacher_screen_presenter.h"
@@ -51,10 +52,13 @@ class TeacherScreenPresenterImpl : public TeacherScreenPresenter {
 
   // TeacherScreenPresenter:
   void Start(std::string_view receiver_id,
+             std::string_view receiver_name,
              ::boca::UserIdentity teacher_identity,
+             const bool is_session_active,
              base::OnceCallback<void(bool)> success_cb,
              base::OnceClosure disconnected_cb) override;
   void Stop(base::OnceCallback<void(bool)> success_cb) override;
+  bool IsPresenting() override;
 
  private:
   void OnGetReceiverResponse(::boca::UserIdentity teacher_identity,
@@ -70,11 +74,14 @@ class TeacherScreenPresenterImpl : public TeacherScreenPresenter {
   void Reset();
 
   const std::string teacher_device_id_;
+  BocaNotificationHandler notification_handler_;
   const std::unique_ptr<SharedCrdSessionWrapper> shared_crd_session_;
   const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   const raw_ptr<signin::IdentityManager> identity_manager_;
 
   std::optional<std::string> receiver_id_;
+  std::optional<std::string> receiver_name_;
+  bool is_session_active_;
   base::OnceCallback<void(bool)> start_success_cb_;
   base::OnceClosure disconnected_cb_;
   std::unique_ptr<google_apis::RequestSender> get_receiver_request_sender_;

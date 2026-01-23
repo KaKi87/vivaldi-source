@@ -6,6 +6,7 @@
 
 #import "base/ios/ios_util.h"
 #import "components/strings/grit/components_strings.h"
+#import "ios/chrome/browser/omnibox/public/omnibox_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/rtl_geometry.h"
@@ -26,9 +27,11 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/ui/helpers/vivaldi_colors_helper.h"
 #import "ios/ui/settings/vivaldi_settings_constants.h"
 #import "ios/ui/toolbar/vivaldi_toolbar_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -53,6 +56,10 @@ const CGFloat kDiamondButtonSize = 38;
 const CGFloat kDiamondTintAlpha = 0.9;
 // Corner radius of the button with diamond.
 const CGFloat kDiamondCornerRadius = 13;
+/// The size for the close button.
+const CGFloat kCloseButtonSize = 30.0f;
+/// The alpha for the close button.
+const CGFloat kCloseButtonAlpha = 0.6f;
 
 }  // namespace
 
@@ -76,7 +83,9 @@ const CGFloat kDiamondCornerRadius = 13;
                                                  : kSymbolToolbarPointSize);
 
     if (IsVivaldiRunning())
-      backImage = [UIImage imageNamed:vToolbarBackButtonIcon]; // End Vivaldi
+      backImage =
+          CustomSymbolWithPointSize(
+              vToolbarBackButtonIcon, kSymbolToolbarPointSize); // End Vivaldi
 
     return [backImage imageFlippedForRightToLeftLayoutDirection];
   };
@@ -108,7 +117,9 @@ const CGFloat kDiamondCornerRadius = 13;
                                                     : kSymbolToolbarPointSize);
 
     if (IsVivaldiRunning())
-      forwardImage = [UIImage imageNamed:vToolbarForwardButtonIcon];
+      forwardImage =
+        CustomSymbolWithPointSize(
+            vToolbarForwardButtonIcon, kSymbolToolbarPointSize); // End Vivaldi
 
     return [forwardImage imageFlippedForRightToLeftLayoutDirection];
   };
@@ -140,11 +151,13 @@ const CGFloat kDiamondCornerRadius = 13;
     if (IsVivaldiRunning()) {
       switch (tabGroupState) {
         case ToolbarTabGroupState::kNormal:
-          return [UIImage imageNamed:vToolbarTabSwitcherButtonIcon];
+          return CustomSymbolWithPointSize(vToolbarTabSwitcherButtonIcon,
+                                           kSymbolToolbarPointSize);
         case ToolbarTabGroupState::kTabGroup:
-          return [UIImage imageNamed:vToolbarTabSwitcherStackButtonIcon];
+          return CustomSymbolWithPointSize(vToolbarTabSwitcherStackButtonIcon,
+                                           kSymbolToolbarPointSize);
       }
-    } // End Vivaldi
+    }  // End Vivaldi
 
     switch (tabGroupState) {
       case ToolbarTabGroupState::kNormal:
@@ -243,17 +256,21 @@ const CGFloat kDiamondCornerRadius = 13;
 
     // The system share image has uneven vertical padding. Add a small bottom
     // padding to balance it.
-    // TODO(crbug.com/411039614): Replace UIGraphicsBeginImageContextWithOptions
-    // with UIGraphicsImageRenderer.
-    UIGraphicsBeginImageContextWithOptions(
-        CGSizeMake(image.size.width,
-                   image.size.height + kShareIconBalancingHeightPadding),
-        NO, 0.0);
-    [image drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
-    UIImage* newImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
+    UIGraphicsImageRendererFormat* format =
+        [UIGraphicsImageRendererFormat preferredFormat];
+    format.scale = 0.0;
+    format.opaque = NO;
+    UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc]
+        initWithSize:CGSizeMake(
+                         image.size.width,
+                         image.size.height + kShareIconBalancingHeightPadding)
+              format:format];
 
-    return newImage;
+    return
+        [renderer imageWithActions:^(UIGraphicsImageRendererContext* context) {
+          [image
+              drawInRect:CGRectMake(0, 0, image.size.width, image.size.height)];
+        }];
   };
 
   ToolbarButton* shareButton =
@@ -338,7 +355,7 @@ const CGFloat kDiamondCornerRadius = 13;
   if (IsVivaldiRunning()) {
     auto iconImageBlock = ^UIImage* {
       UIImage* newTabButtonImage =
-          [[UIImage imageNamed:vToolbarNTPButtonIcon]
+          [CustomSymbolWithPointSize(vMenuNewTab, kSymbolToolbarPointSize)
               imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
       return [newTabButtonImage imageFlippedForRightToLeftLayoutDirection];
     };
@@ -409,6 +426,10 @@ const CGFloat kDiamondCornerRadius = 13;
 }
 
 - (UIButton*)cancelButton {
+  return [self cancelButtonWithStyle:ToolbarCancelButtonStyle::kCancelLabel];
+}
+
+- (UIButton*)cancelButtonWithStyle:(ToolbarCancelButtonStyle)style {
   UIButton* cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
   cancelButton.tintColor = [UIColor colorNamed:kBlueColor];
   [cancelButton setContentHuggingPriority:UILayoutPriorityRequired
@@ -417,32 +438,52 @@ const CGFloat kDiamondCornerRadius = 13;
       setContentCompressionResistancePriority:UILayoutPriorityRequired
                                       forAxis:UILayoutConstraintAxisHorizontal];
 
-  UIButtonConfiguration* buttonConfiguration =
-      [UIButtonConfiguration plainButtonConfiguration];
-  buttonConfiguration.contentInsets = NSDirectionalEdgeInsetsMake(
-      0, kCancelButtonHorizontalInset, 0, kCancelButtonHorizontalInset);
-  UIFont* font = [UIFont systemFontOfSize:kLocationBarFontSize];
-  NSDictionary* attributes = @{NSFontAttributeName : font};
-  NSMutableAttributedString* attributedString =
-      [[NSMutableAttributedString alloc]
-          initWithString:l10n_util::GetNSString(IDS_CANCEL)
-              attributes:attributes];
-  buttonConfiguration.attributedTitle = attributedString;
-  cancelButton.configuration = buttonConfiguration;
+  if (style == ToolbarCancelButtonStyle::kXCircle) {
+    UIImageSymbolConfiguration* symbolConfiguration =
+        [UIImageSymbolConfiguration
+            configurationWithPointSize:kCloseButtonSize
+                                weight:UIImageSymbolWeightRegular
+                                 scale:UIImageSymbolScaleMedium];
+    UIImage* buttonImage =
+        SymbolWithPalette(DefaultSymbolWithConfiguration(kXMarkCircleFillSymbol,
+                                                         symbolConfiguration),
+                          @[
+                            [[UIColor tertiaryLabelColor]
+                                colorWithAlphaComponent:kCloseButtonAlpha],
+                            [UIColor tertiarySystemFillColor]
+                          ]);
+    [cancelButton setImage:buttonImage forState:UIControlStateNormal];
+  } else {
+    UIButtonConfiguration* buttonConfiguration =
+        [UIButtonConfiguration plainButtonConfiguration];
+    buttonConfiguration.contentInsets = NSDirectionalEdgeInsetsMake(
+        0, kCancelButtonHorizontalInset, 0, kCancelButtonHorizontalInset);
+    UIFont* font = [UIFont systemFontOfSize:kLocationBarFontSize];
+    NSDictionary* attributes = @{NSFontAttributeName : font};
+    NSMutableAttributedString* attributedString =
+        [[NSMutableAttributedString alloc]
+            initWithString:l10n_util::GetNSString(IDS_CANCEL)
+                attributes:attributes];
+    buttonConfiguration.attributedTitle = attributedString;
+    cancelButton.configuration = buttonConfiguration;
+  }
 
   cancelButton.hidden = YES;
   [cancelButton addTarget:self.actionHandler
                    action:@selector(cancelOmniboxFocusAction)
          forControlEvents:UIControlEventTouchUpInside];
   cancelButton.accessibilityIdentifier =
-      kToolbarCancelOmniboxEditButtonIdentifier;
+      kOmniboxCancelButtonAccessibilityIdentifier;
   return cancelButton;
 }
 
 #pragma mark: - VIVALDI
 - (ToolbarButton*)panelButton {
   auto iconImageBlock = ^UIImage* {
-    UIImage* panelImage = [UIImage imageNamed:vToolbarPanelButtonIcon];
+    UIImage* panelImage =
+        [CustomSymbolWithPointSize(vToolbarPanelButtonIcon,
+                                   kSymbolToolbarPointSize)
+            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     return [panelImage imageFlippedForRightToLeftLayoutDirection];
   };
   ToolbarButton* panelButton =
@@ -460,7 +501,8 @@ const CGFloat kDiamondCornerRadius = 13;
 // Vivaldi search button -> Visible only on new tab page.
 - (ToolbarButton*)vivaldiSearchButton {
   auto iconImageBlock = ^UIImage* {
-    UIImage* searchImage = [UIImage imageNamed:vToolbarSearchButtonIcon];
+    UIImage* searchImage =
+        CustomSymbolWithPointSize(vSearch, kSymbolToolbarPointSize);
     return [searchImage imageFlippedForRightToLeftLayoutDirection];
   };
 
@@ -479,7 +521,10 @@ const CGFloat kDiamondCornerRadius = 13;
   // Vivaldi Homepage Buttton
 - (ToolbarButton*)vivaldiHomeButton {
   auto iconImageBlock = ^UIImage* {
-    UIImage* homeImage = [UIImage imageNamed:vToolbarHomeButtonIcon];
+    UIImage* homeImage =
+        [CustomSymbolWithPointSize(vToolbarHomeButtonIcon,
+                                   kSymbolToolbarPointSize)
+            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     return [homeImage imageFlippedForRightToLeftLayoutDirection];
   };
 
@@ -498,7 +543,10 @@ const CGFloat kDiamondCornerRadius = 13;
 // state.
 - (ToolbarButton*)vivaldiMoreButton {
   auto iconImageBlock = ^UIImage* {
-    UIImage* moreImage = [UIImage imageNamed:vToolbarMoreButtonIcon];
+    UIImage* moreImage =
+        [CustomSymbolWithPointSize(vToolbarMoreButtonIcon,
+                                   kSymbolToolbarPointSize)
+            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     return [moreImage imageFlippedForRightToLeftLayoutDirection];
   };
 
@@ -540,7 +588,9 @@ const CGFloat kDiamondCornerRadius = 13;
 - (UIAction*)panelAction {
   NSString* buttonTitle = GetNSString(IDS_IOS_TOOLBAR_VIVALDI_PANEL);
   UIImage* buttonIcon =
-      [self toolbarButtonWithImage:vToolbarPanelButtonIcon];
+      [CustomSymbolWithPointSize(vToolbarPanelButtonIcon,
+                                 kSymbolToolbarPointSize)
+          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   UIAction* panelAction =
       [UIAction actionWithTitle:buttonTitle
                           image:buttonIcon
@@ -556,7 +606,9 @@ const CGFloat kDiamondCornerRadius = 13;
 - (UIAction*)navigationForwardAction {
   NSString* buttonTitle = GetNSString(IDS_IOS_TOOLBAR_OVERFLOW_FORWARD);
   UIImage* buttonIcon =
-      [self toolbarButtonWithImage:vToolbarForwardButtonIcon];
+      [CustomSymbolWithPointSize(vToolbarForwardButtonIcon,
+                                 kSymbolToolbarPointSize)
+          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   UIAction* forwardAction =
       [UIAction actionWithTitle:buttonTitle
                           image:buttonIcon
@@ -572,7 +624,9 @@ const CGFloat kDiamondCornerRadius = 13;
 - (UIAction*)navigationBackwordAction {
   NSString* buttonTitle = GetNSString(IDS_IOS_TOOLBAR_OVERFLOW_BACK);
   UIImage* buttonIcon =
-      [self toolbarButtonWithImage:vToolbarBackButtonIcon];
+      [CustomSymbolWithPointSize(vToolbarBackButtonIcon,
+                                 kSymbolToolbarPointSize)
+          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   UIAction* backAction =
       [UIAction actionWithTitle:buttonTitle
                           image:buttonIcon
@@ -588,7 +642,9 @@ const CGFloat kDiamondCornerRadius = 13;
 - (UIAction*)tabSwitcherAction {
   NSString* buttonTitle = GetNSString(IDS_IOS_TOOLBAR_OVERFLOW_TAB_SWITCHER);
   UIImage* buttonIcon =
-      [self toolbarButtonWithImage:vToolbarTabSwitcherOveflowButtonIcon];
+      [CustomSymbolWithPointSize(vToolbarTabSwitcherOveflowButtonIcon,
+                                 kSymbolToolbarPointSize)
+          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   UIAction* tabSwitcherAction =
       [UIAction actionWithTitle:buttonTitle
                           image:buttonIcon
@@ -606,9 +662,9 @@ const CGFloat kDiamondCornerRadius = 13;
 - (UIImage*)toolbarButtonWithImage:(NSString*)image {
   UIColor* tintColor = [UIColor colorNamed:vToolbarButtonColor];
   UIImage* buttonIcon =
-      [[UIImage imageNamed:image]
+      [CustomSymbolWithPointSize(image, kSymbolToolbarPointSize)
           imageWithTintColor:tintColor
-               renderingMode:UIImageRenderingModeAlwaysOriginal];
+               renderingMode:UIImageRenderingModeAlwaysTemplate];
   return buttonIcon;
 }
 

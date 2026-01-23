@@ -96,6 +96,9 @@ public class SelectableListLayout<E> extends FrameLayout
     public static final int TAG_SEARCH = 1;
     public static final int TAG_NORMAL = 2;
 
+    // Vivaldi
+    private boolean mAlwaysShowRecyclerView;
+
     private final AdapterDataObserver mAdapterObserver =
             new AdapterDataObserver() {
                 @Override
@@ -335,6 +338,7 @@ public class SelectableListLayout<E> extends FrameLayout
         mToolbarShadow.init(
                 getContext().getColor(R.color.toolbar_shadow_color), FadingShadow.POSITION_TOP);
 
+        mToolbar.hasSearchTextSupplier().addObserver((hasText) -> onBackPressStateChanged());
         delegate.addObserver(this);
         setToolbarShadowVisibility();
 
@@ -432,6 +436,11 @@ public class SelectableListLayout<E> extends FrameLayout
      */
     public void ignoreItemTypeForEmptyState(int type) {
         mIgnoredTypesForEmptyState.add(type);
+    }
+
+    /** Hides the loading UI. */
+    public void hideLoadingUi() {
+        mLoadingView.hideLoadingUi();
     }
 
     /** Called when the view that owns the SelectableListLayout is destroyed. */
@@ -576,6 +585,7 @@ public class SelectableListLayout<E> extends FrameLayout
 
     private void updateLayout() {
         updateEmptyViewVisibility();
+        if (!BuildConfig.IS_VIVALDI || !mAlwaysShowRecyclerView)
         if (mAdapter.getItemCount() == 0) {
             mRecyclerView.setVisibility(View.GONE);
         } else {
@@ -591,8 +601,9 @@ public class SelectableListLayout<E> extends FrameLayout
 
     /**
      * Called when the user presses the back key. Note that this method is not called automatically.
-     * The embedding UI must call this method
-     * when a backpress is detected for the event to be handled.
+     * The embedding UI must call this method when a backpress is detected for the event to be
+     * handled.
+     *
      * @return Whether this event is handled.
      */
     public boolean onBackPressed() {
@@ -602,9 +613,16 @@ public class SelectableListLayout<E> extends FrameLayout
             return true;
         }
 
-        if (mToolbar.isSearching() && !mToolbar.isLargeScreenWithKeyboard()) {
-            mToolbar.hideSearchView();
-            return true;
+        if (mToolbar.isLargeScreenWithKeyboard()) {
+            if (mToolbar.hasSearchText()) {
+                mToolbar.clearSearch();
+                return true;
+            }
+        } else {
+            if (mToolbar.isSearching()) {
+                mToolbar.hideSearchView();
+                return true;
+            }
         }
 
         return false;
@@ -627,8 +645,15 @@ public class SelectableListLayout<E> extends FrameLayout
             mBackPressStateSupplier.set(false);
             return;
         }
+
+        boolean canHandleSearch = false;
+        if (mToolbar.isLargeScreenWithKeyboard()) {
+            canHandleSearch = mToolbar.hasSearchText();
+        } else if (mToolbar.isSearching()) {
+            canHandleSearch = true;
+        }
         mBackPressStateSupplier.set(
-                mToolbar.getSelectionDelegate().isSelectionEnabled() || mToolbar.isSearching());
+                mToolbar.getSelectionDelegate().isSelectionEnabled() || canHandleSearch);
     }
 
     public RecyclerView getRecyclerViewForTesting() {
@@ -646,6 +671,10 @@ public class SelectableListLayout<E> extends FrameLayout
 
     public void setFixedSize(boolean fixed) {
         mRecyclerView.setHasFixedSize(fixed);
+    }
+
+    public void setAlwaysShowRecyclerView() {
+        mAlwaysShowRecyclerView = true;
     }
     // End Vivaldi
 }

@@ -29,8 +29,13 @@
 // The delegate to handle Search With button selection.
 @property(nonatomic, weak) id<EditMenuBuilder> searchWithDelegate;
 
+// The delegate for updating the Edit menu according to enterprise Data
+// Controls.
+@property(nonatomic, weak) id<EditMenuBuilder> dataControlsDelegate;
+
 #if defined(VIVALDI_BUILD)
 @property(nonatomic, weak) id<CopyToNoteDelegate> vivaldiCopyToNoteDelegate;
+@property(nonatomic, weak) id<EditMenuBuilder> vivaldiAddSearchDelegate;
 #endif // End Vivaldi
 
 @end

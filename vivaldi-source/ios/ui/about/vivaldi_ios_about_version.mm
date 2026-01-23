@@ -37,7 +37,7 @@ void UpdateVersionUIIOSDataSource(web::WebUIIOSDataSource* html_source) {
                          u"https://www.chromium.org/");
 
   html_source->AddString("productLicenseCreditsURL",
-                         base::UTF8ToUTF16(kChromeUICreditsURL));
+                         kChromeUICreditsURL);
 
   html_source->AddLocalizedString("productTOS",
                                   IDS_VIVALDI_ABOUT_TERMS_OF_SERVICE);

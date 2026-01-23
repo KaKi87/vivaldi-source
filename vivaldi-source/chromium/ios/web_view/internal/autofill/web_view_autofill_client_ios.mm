@@ -249,15 +249,17 @@ void WebViewAutofillClientIOS::HideAutofillSuggestions(
 }
 
 bool WebViewAutofillClientIOS::IsAutofillEnabled() const {
-  return IsAutofillProfileEnabled() || IsAutofillPaymentMethodsEnabled();
+  return IsAutofillProfileEnabled() ||
+         AutofillClient::GetPaymentsAutofillClient()
+             ->IsAutofillPaymentMethodsEnabled();
 }
 
 bool WebViewAutofillClientIOS::IsAutofillProfileEnabled() const {
   return prefs::IsAutofillProfileEnabled(GetPrefs());
 }
 
-bool WebViewAutofillClientIOS::IsAutofillPaymentMethodsEnabled() const {
-  return prefs::IsAutofillPaymentMethodsEnabled(GetPrefs());
+bool WebViewAutofillClientIOS::IsWalletStorageEnabled() const {
+  return false;
 }
 
 bool WebViewAutofillClientIOS::IsAutocompleteEnabled() const {

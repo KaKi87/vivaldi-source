@@ -20,6 +20,8 @@ NS_SWIFT_UI_ACTOR
 - (void)searchEngineBackendWillChange;
 @optional
 - (void)searchEngineBackendDidChange;
+@optional
+- (void)searchEngineEditorDefaultToggleDidChange:(BOOL)isOn;
 @end
 
 #endif  // IOS_UI_SETTINGS_SEARCH_ENGINE_EDITOR_VIVALDI_SEARCH_ENGINE_EDITOR_CONSUMER_H_

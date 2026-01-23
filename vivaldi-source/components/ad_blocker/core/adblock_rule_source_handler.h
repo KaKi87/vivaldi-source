@@ -48,7 +48,12 @@ class RuleSourceHandler {
 
   const ActiveRuleSource& rule_source() const { return rule_source_; }
 
-  void FetchNow();
+  // Trigger an immediate attempt to download an updated version of the list. If
+  // recompile needed is set and downloading fail, the last successful download
+  // will be used for recompiling instead, to ensure continuity in situation
+  // where compiled rules are obsoleted by an update. If a download was already
+  // in progress, its result will be used and a new one won't be triggered.
+  void FetchNow(bool recompile_needed);
 
   // Remove the rules list file associated with this data source.
   void Clear();
@@ -61,8 +66,10 @@ class RuleSourceHandler {
   void DoFetch();
   void DownloadRules();
   void OnRulesDownloaded(base::FilePath file);
-  void ReadRulesFromFile(const base::FilePath& file, bool delete_after_read);
-  void OnRulesRead(RulesReadResult result);
+  void OnDownloadReplaced(bool success);
+  void ReadRulesFromFile(bool from_previous_download,
+                         const base::FilePath& file);
+  void OnRulesRead(bool from_previous_download, RulesReadResult result);
   void OnTrackerInfosLoaded(std::optional<base::Value::Dict> tracker_infos);
 
   static RulesReadResult ReadRules(
@@ -70,8 +77,7 @@ class RuleSourceHandler {
       const base::FilePath& output_path,
       const base::FilePath& tracker_info_output_path,
       RulesCompiler rules_compiler,
-      RuleSourceSettings source_settings,
-      bool delete_after_read);
+      RuleSourceSettings source_settings);
 
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
   RulesCompiler rules_compiler_;
@@ -81,6 +87,9 @@ class RuleSourceHandler {
   RuleGroup group_;
   base::FilePath rules_list_path_;
   base::FilePath tracker_infos_path_;
+  std::optional<base::FilePath> download_path_;
+
+  bool try_recompile_from_previous_download_;
 
   std::unique_ptr<network::SimpleURLLoader> url_loader_;
   base::OneShotTimer update_timer_;

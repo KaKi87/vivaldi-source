@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
@@ -29,8 +30,8 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
-#include "chrome/browser/ui/views/frame/browser_view_layout.h"
 #include "chrome/browser/ui/views/frame/browser_widget.h"
+#include "chrome/browser/ui/views/frame/layout/browser_view_layout.h"
 #include "chrome/browser/ui/views/frame/tab_strip_view_interface.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
@@ -211,7 +212,7 @@ TEST_F(BrowserViewTest, MAYBE_UpdateActiveBrowser) {
   // `BrowserView::Show()` has to be called first.
   ScopedBrowser scoped_browser(profile());
   Browser* browser2 = scoped_browser.browser();
-  EXPECT_EQ(2u, BrowserList::GetInstance()->size());
+  EXPECT_EQ(2u, chrome::GetTotalBrowserCount());
   EXPECT_EQ(browser(), GetLastActiveBrowserWindowInterfaceWithAnyProfile());
 
   browser2->window()->Show();
@@ -435,35 +436,6 @@ TEST_F(BrowserViewTest, DISABLED_RepeatedAccelerators) {
   EXPECT_TRUE(browser_view()->AcceleratorPressed(kNextTabRepeatAccel));
 }
 #endif  // !BUILDFLAG(IS_MAC)
-
-// Test that bookmark bar view becomes invisible when closing the browser.
-// TODO(crbug.com/40097152): Flaky on Linux.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_BookmarkBarInvisibleOnShutdown \
-  DISABLED_BookmarkBarInvisibleOnShutdown
-#else
-#define MAYBE_BookmarkBarInvisibleOnShutdown BookmarkBarInvisibleOnShutdown
-#endif
-TEST_F(BrowserViewTest, MAYBE_BookmarkBarInvisibleOnShutdown) {
-  BookmarkBarView::DisableAnimationsForTesting(true);
-
-  Browser* browser = browser_view()->browser();
-  TabStripModel* tab_strip_model = browser->tab_strip_model();
-  EXPECT_EQ(0, tab_strip_model->count());
-
-  AddTab(browser, GURL("about:blank"));
-  EXPECT_EQ(1, tab_strip_model->count());
-
-  BookmarkBarView* bookmark_bar = browser_view()->GetBookmarkBarView();
-  chrome::ExecuteCommand(browser, IDC_SHOW_BOOKMARK_BAR);
-  EXPECT_TRUE(bookmark_bar->GetVisible());
-
-  tab_strip_model->CloseWebContentsAt(tab_strip_model->active_index(), 0);
-  EXPECT_EQ(0, tab_strip_model->count());
-  EXPECT_FALSE(bookmark_bar->GetVisible());
-
-  BookmarkBarView::DisableAnimationsForTesting(false);
-}
 
 TEST_F(BrowserViewTest, UpdateWindowTitle) {
   AddTab(browser(), GURL("about:blank"));
@@ -720,8 +692,7 @@ TEST_F(BrowserViewHostedAppTest, Layout) {
   // Add a tab because the browser starts out without any tabs at all.
   AddTab(browser(), GURL("about:blank"));
 
-  const int contents_container_y = browser_view()->main_container()->y() -
-                                   browser_view()->contents_container()->y();
+  const int contents_container_y = browser_view()->contents_container()->y();
 
   // The tabstrip, toolbar and bookmark bar should not be visible for hosted
   // apps.

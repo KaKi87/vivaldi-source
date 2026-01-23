@@ -5,7 +5,7 @@
 #include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/os_crypt/sync/keychain_password_mac.h"
+#include "components/os_crypt/common/keychain_password_mac.h"
 #include "components/os_crypt/sync/os_crypt_metrics.h"
 #include "crypto/aes_cbc.h"
 #include "crypto/apple/keychain.h"
@@ -31,13 +31,6 @@ base::LazyInstance<base::Lock>::Leaky importLock = LAZY_INSTANCE_INITIALIZER;
 bool OSCryptImpl::DeriveImportEncryptionKey(const std::string& service_name,
                                             const std::string& account_name) {
   base::AutoLock auto_lock(importLock.Get());
-
-  // Fast fail if this object is pretending to have a locked keychain.
-  // TODO(https://crbug.com/389737048): Replace this with a setter on the mock
-  // keychain once it's possible to inject a mock keychain.
-  if (use_mock_keychain_ && use_locked_mock_keychain_) {
-    return false;
-  }
 
   if (import_key_is_cached)
     return true;

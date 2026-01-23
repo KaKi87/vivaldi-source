@@ -1,4 +1,5 @@
 
+[numthreads(1, 1, 1)]
 void a() {
   int a_1 = int(0);
   switch(a_1) {
@@ -12,13 +13,9 @@ void a() {
     }
     default:
     {
-      a_1 = (a_1 + int(2));
+      a_1 = asint((asuint(a_1) + asuint(int(2))));
       break;
     }
   }
-}
-
-[numthreads(1, 1, 1)]
-void unused_entry_point() {
 }
 

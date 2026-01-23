@@ -10,6 +10,7 @@
 
 #import "base/allocator/partition_alloc_support.h"
 #import "base/check_op.h"
+#import "base/debug/asan_service.h"
 #import "base/feature_list.h"
 #import "base/features.h"
 #import "base/files/file_path.h"
@@ -23,6 +24,7 @@
 #import "base/task/single_thread_task_runner.h"
 #import "base/task/task_traits.h"
 #import "base/task/thread_pool.h"
+#import "base/time/default_clock.h"
 #import "base/time/default_tick_clock.h"
 #import "build/blink_buildflags.h"
 #import "components/content_settings/core/common/content_settings_pattern.h"
@@ -101,19 +103,6 @@ using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
 namespace {
-
-// Sets `level` value for NSURLFileProtectionKey key for the URL with given
-// `local_state_path`.
-void SetProtectionLevel(const base::FilePath& file_path, id level) {
-  NSString* file_path_string = base::SysUTF8ToNSString(file_path.value());
-  NSURL* file_path_url = [NSURL fileURLWithPath:file_path_string
-                                    isDirectory:NO];
-  NSError* error = nil;
-  BOOL protection_set = [file_path_url setResourceValue:level
-                                                 forKey:NSURLFileProtectionKey
-                                                  error:&error];
-  DCHECK(protection_set) << base::SysNSStringToUTF8(error.localizedDescription);
-}
 
 // Initializes OSCrypt.
 void EnsureOSCryptInitialized() {
@@ -224,10 +213,8 @@ void IOSChromeMainParts::ApplyFeatureList() {
   // initialization is handled in PreMainMessageLoopRun since it posts tasks.
   SetUpFieldTrials(command_line_variation_ids);
 
-  // Initialize //base features that depend on the `FeatureList`. Don't force
-  // emitting profiler metadata since the profiler doesn't run on iOS.
-  base::features::Init(
-      base::features::EmitThreadControllerProfilerMetadata::kFeatureDependent);
+  // Initialize //base features that depend on the `FeatureList`.
+  base::features::Init();
 }
 
 void IOSChromeMainParts::PreCreateThreads() {
@@ -306,22 +293,6 @@ void IOSChromeMainParts::PreCreateThreads() {
 
   metrics::EnableExpiryChecker(::kExpiredHistogramsHashes);
 
-  // TODO(crbug.com/40163579): Remove code below some time after February 2021.
-  NSString* const kRemoveProtectionFromPrefFileKey =
-      @"RemoveProtectionFromPrefKey";
-  if ([NSUserDefaults.standardUserDefaults
-          boolForKey:kRemoveProtectionFromPrefFileKey]) {
-    base::FilePath local_state_path;
-    CHECK(base::PathService::Get(ios::FILE_LOCAL_STATE, &local_state_path));
-
-    // Restore default protection level when user is no longer in the
-    // experimental group.
-    SetProtectionLevel(local_state_path,
-                       NSFileProtectionCompleteUntilFirstUserAuthentication);
-    [NSUserDefaults.standardUserDefaults
-        removeObjectForKey:kRemoveProtectionFromPrefFileKey];
-  }
-
   application_context_->PreCreateThreads();
 }
 
@@ -387,6 +358,13 @@ void IOSChromeMainParts::PreMainMessageLoopRun() {
       .StartObservation();
   } // End Vivaldi
 
+  // The AsanService causes ASAN errors to emit additional information. It is
+  // helpful on its own. It is also required by ASAN BackupRefPtr when
+  // reconfiguring PartitionAlloc below.
+#if defined(ADDRESS_SANITIZER)
+  base::debug::AsanService::GetInstance()->Initialize();
+#endif
+
 #if PA_BUILDFLAG(USE_PARTITION_ALLOC)
   base::allocator::PartitionAllocSupport::Get()
       ->ReconfigureAfterFeatureListInit("");
@@ -444,8 +422,11 @@ void IOSChromeMainParts::SetUpFieldTrials(
 // This will occur inside //content for blink.
 #if !BUILDFLAG(USE_BLINK)
   // FeatureList requires VariationsIdsProvider to be created.
+  // TODO: crbug.com/442849530 - Use VariationsNetworkClock instead of
+  // base::DefaultClock.
   variations::VariationsIdsProvider::CreateInstance(
-      variations::VariationsIdsProvider::Mode::kUseSignedInState);
+      variations::VariationsIdsProvider::Mode::kUseSignedInState,
+      std::make_unique<base::DefaultClock>());
 #endif
 
   // Initialize FieldTrialList to support FieldTrials that use one-time

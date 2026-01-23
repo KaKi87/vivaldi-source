@@ -8,13 +8,17 @@
 #include <memory>
 #include <string>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "chrome/browser/devtools/devtools_ui_bindings.h"
+#include "components/policy/core/common/policy_service.h"
 #include "content/public/browser/child_process_host.h"
+#include "content/public/browser/devtools_manager_delegate.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
 
@@ -100,7 +104,8 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
 #if !BUILDFLAG(IS_ANDROID)
                        public BrowserListObserver,
 #endif
-                       public infobars::InfoBarManager::Observer {
+                       public infobars::InfoBarManager::Observer,
+                       public policy::PolicyService::Observer {
  public:
   static const char kDevToolsApp[];
 
@@ -133,7 +138,6 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
       content::WebContents* inspected_tab,
       DevToolsContentsResizingStrategy* out_strategy);
 
-
   static bool IsDevToolsWindow(content::WebContents* web_contents);
   static DevToolsWindow* AsDevToolsWindow(content::WebContents* web_contents);
   static DevToolsWindow* AsDevToolsWindow(BrowserWindowInterface* browser);
@@ -151,15 +155,22 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   // ToggleDevToolsWindow().
   static void OpenDevToolsWindow(content::WebContents* inspected_web_contents,
                                  DevToolsOpenedByAction opened_by);
-  static void OpenDevToolsWindow(content::WebContents* inspected_web_contents,
-                                 Profile* profile,
-                                 DevToolsOpenedByAction opened_by);
+  static void OpenDevToolsWindow(
+      content::WebContents* inspected_web_contents,
+      Profile* profile,
+      DevToolsOpenedByAction opened_by,
+      const content::DevToolsManagerDelegate::DevToolsOptions&
+          devtools_options);
 
   // Open or reveal DevTools window, with no special action. Use |profile| to
   // open client window in, default to |host|'s profile if none given.
-  static void OpenDevToolsWindow(scoped_refptr<content::DevToolsAgentHost> host,
-                                 Profile* profile,
-                                 DevToolsOpenedByAction opened_by);
+  static void OpenDevToolsWindow(
+      scoped_refptr<content::DevToolsAgentHost> host,
+      Profile* profile,
+      DevToolsOpenedByAction opened_by,
+      const content::DevToolsManagerDelegate::DevToolsOptions&
+          devtools_options =
+              content::DevToolsManagerDelegate::DevToolsOptions());
   // Similar to previous one, but forces the bundled frontend to be used.
   static void OpenDevToolsWindowWithBundledFrontend(
       scoped_refptr<content::DevToolsAgentHost> host,
@@ -309,10 +320,10 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
       content::RenderFrameHost* new_frame);
 
   raw_ptr<content::WebContents> GetDevToolsWebContents();
+  bool IsDocked() { return is_docked_; }
 
   // Vivaldi methods:
   bool IsClosing() { return life_stage_ == kClosing; }
-  bool IsDocked() { return is_docked_; }
   // Given the inspected web contents, returns the main web contents used
   // to host devtools.
   static content::WebContents* GetDevtoolsWebContentsForInspectedWebContents(
@@ -401,10 +412,14 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
       bool use_bundled_frontend,
       DevToolsOpenedByAction opened_by);
 
-  static void OpenDevToolsWindow(scoped_refptr<content::DevToolsAgentHost> host,
-                                 Profile* profile,
-                                 bool use_bundled_frontend,
-                                 DevToolsOpenedByAction opened_by);
+  static void OpenDevToolsWindow(
+      scoped_refptr<content::DevToolsAgentHost> host,
+      Profile* profile,
+      bool use_bundled_frontend,
+      DevToolsOpenedByAction opened_by,
+      const content::DevToolsManagerDelegate::DevToolsOptions&
+          devtools_options =
+              content::DevToolsManagerDelegate::DevToolsOptions());
 
   static DevToolsWindow* Create(Profile* profile,
                                 content::WebContents* inspected_web_contents,
@@ -430,7 +445,10 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
       bool force_open,
       const DevToolsToggleAction& action,
       const std::string& settings,
-      DevToolsOpenedByAction opened_by = DevToolsOpenedByAction::kUnknown);
+      DevToolsOpenedByAction opened_by = DevToolsOpenedByAction::kUnknown,
+      const content::DevToolsManagerDelegate::DevToolsOptions&
+          devtools_options =
+              content::DevToolsManagerDelegate::DevToolsOptions());
   static Profile* GetProfileForDevToolsWindow(
       content::WebContents* web_contents);
 
@@ -472,7 +490,6 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
                              const blink::WebGestureEvent& event) override;
   void Close(DevToolsClosedByAction closed_by);
 
-
   // content::DevToolsUIBindings::Delegate overrides
   void CloseWindow() override;
   void Inspect(scoped_refptr<content::DevToolsAgentHost> host) override;
@@ -502,6 +519,8 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   // content::WebContentsObserver
   using content::WebContentsObserver::BeforeUnloadFired;
   void PrimaryPageChanged(content::Page& page) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
 
 #if !BUILDFLAG(IS_ANDROID)
   // BrowserListObserver:
@@ -534,8 +553,18 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
   // a very short period of time (until this handler has reset it again).
   void OnLocaleChanged();
   void OverrideAndSyncDevToolsRendererPrefs();
+  void OnDevToolsPolicyChanged();
+
+  // policy::PolicyService::Observer:
+  void OnPolicyUpdated(const policy::PolicyNamespace& ns,
+                       const policy::PolicyMap& previous,
+                       const policy::PolicyMap& current) override;
 
   void MaybeShowSharedProcessInfobar();
+
+#if !BUILDFLAG(IS_ANDROID)
+  void ActivateInspectedTab();
+#endif
 
   // Vivaldi
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
@@ -617,10 +646,14 @@ class DevToolsWindow : public DevToolsUIBindings::Delegate,
 
   base::ScopedClosureRunner capture_handle_;
 
+  base::CallbackListSubscription policy_checker_callback_subscription_;
+
   // Vivaldi:
   extensions::DevtoolsConnectorItem* connector_item_ = nullptr;
 
   friend class DevToolsEventForwarder;
+
+  base::WeakPtrFactory<DevToolsWindow> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_DEVTOOLS_DEVTOOLS_WINDOW_H_

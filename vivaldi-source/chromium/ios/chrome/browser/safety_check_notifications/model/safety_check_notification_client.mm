@@ -12,7 +12,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "base/task/bind_post_task.h"
 #import "components/prefs/pref_service.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/utils.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/model/safety_check_utils.h"
 #import "ios/chrome/browser/push_notification/model/constants.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_client.h"
 #import "ios/chrome/browser/push_notification/model/push_notification_client_id.h"
@@ -601,13 +601,12 @@ void SafetyCheckNotificationClient::ShowUIForNotificationMetadata(
         AuthenticationServiceFactory::GetForProfile(browser->GetProfile());
     id<SystemIdentity> identity =
         authService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
-    const GaiaId gaiaID(identity.gaiaID);
     if (!push_notification_settings::
             GetMobileNotificationPermissionStatusForClient(
-                PushNotificationClientId::kSafetyCheck, gaiaID)) {
+                PushNotificationClientId::kSafetyCheck, identity.gaiaId)) {
       PushNotificationService* service =
           GetApplicationContext()->GetPushNotificationService();
-      service->SetPreference(gaiaID.ToNSString(),
+      service->SetPreference(identity.gaiaId,
                              PushNotificationClientId::kSafetyCheck, true);
     }
   }

@@ -1,9 +1,14 @@
 // Copyright 2025 Vivaldi Technologies. All rights reserved.
 
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
+
 #import "ios/chrome/browser/keyboard/ui_bundled/key_command_actions.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
+// TODO(tomas@vivaldi): panel icon, add one to vivaldi_symbols and use that
+#import "ios/ui/toolbar/vivaldi_toolbar_constants.h"
+// TODO(tomas@vivaldi): translate icon, add one to vivaldi_symbols and use that
+#import "ios/panel/panel_constants.h"
 
 namespace {
 
@@ -25,7 +30,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 #pragma mark - Specific Keyboard Commands
 
 + (UIKeyCommand*)cr_openNewTab {
-  UIImage* image = [UIImage imageNamed:vMenuNewTab];
+  UIImage* image = CustomSymbolWithConfiguration(vMenuNewTab, nil);
   return [self cr_commandWithInput:@"t"
                      modifierFlags:Command
                             action:@selector(keyCommand_openNewTab)
@@ -97,7 +102,6 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_openLocation {
-  // TODO(tomas@vivaldi): VIB-1511 Decide what this item should be named
   UIImage* image = DefaultSymbolWithConfiguration(kGlobeSymbol, nil);
   return [self cr_commandWithInput:@"l"
                      modifierFlags:Command
@@ -107,7 +111,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_closeTab {
-  UIImage* image = [UIImage imageNamed:vMenuClose];
+  UIImage* image = CustomSymbolWithConfiguration(vMenuClose, nil);
   return [self cr_commandWithInput:@"w"
                      modifierFlags:Command
                             action:@selector(keyCommand_closeTab)
@@ -181,7 +185,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_addToBookmarks {
-  UIImage* image = [UIImage imageNamed:vMenuAddBookmark];
+  UIImage* image = CustomSymbolWithConfiguration(vMenuAddBookmark, nil);
   return [self cr_commandWithInput:@"d"
                      modifierFlags:Command
                             action:@selector(keyCommand_addToBookmarks)
@@ -296,7 +300,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_showDownloads {
-  UIImage* image = DefaultSymbolWithConfiguration(kDownloadSymbol, nil);
+  UIImage* image = CustomSymbolWithConfiguration(vMenuSave, nil);
   return [self cr_commandWithInput:@"l"
                      modifierFlags:AltCommand
                             action:@selector(keyCommand_showDownloads)
@@ -311,7 +315,6 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_select1 {
-  // TODO(tomas@vivaldi): Replace icon if needed
   UIImage* image =
       DefaultSymbolWithConfiguration(kArrowLeftToLineSquareSymbol, nil);
   UIKeyCommand* keyCommand =
@@ -399,7 +402,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
 }
 
 + (UIKeyCommand*)cr_addToReadingList {
-  UIImage* image = [UIImage imageNamed:vMenuAddToReadingList];
+  UIImage* image = CustomSymbolWithConfiguration(vMenuAddToReadingList, nil);
   return [self cr_commandWithInput:@"d"
                      modifierFlags:ShiftCommand
                             action:@selector(keyCommand_addToReadingList)
@@ -450,6 +453,27 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
                          action:@selector(keyCommand_undo)];
   keyCommand.wantsPriorityOverSystemBehavior = YES;
   return keyCommand;
+}
+
++ (UIKeyCommand*)viv_showPanel {
+  // TODO(tomas@vivaldi): use icon from vivaldi_symbols
+  UIImage* image = [UIImage imageNamed:vToolbarPanelButtonIcon];
+  return [self cr_commandWithInput:@"p"
+                     modifierFlags:AltCommand
+                            action:@selector(keyCommand_vivShowPanel)
+                   titleIDAsString:@"IDS_VIVALDI_IOS_MAIN_MENU_SHOW_PANEL"
+                             image:image];
+}
+
++ (UIKeyCommand*)viv_translate {
+  // TODO(tomas@vivaldi): use icon from vivaldi_symbols
+  UIImage* image = [[UIImage imageNamed:vPanelTranslate]
+      imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+  return [self cr_commandWithInput:@"t"
+                     modifierFlags:AltShiftCommand
+                            action:@selector(keyCommand_vivTranslate)
+                   titleIDAsString:@"IDS_VIVALDI_IOS_MAIN_MENU_TRANSLATE"
+                             image:image];
 }
 
 #pragma mark - Symbolic Description

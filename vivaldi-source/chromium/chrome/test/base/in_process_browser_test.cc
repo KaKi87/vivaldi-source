@@ -12,7 +12,6 @@
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
@@ -35,7 +34,6 @@
 #include "chrome/browser/chrome_browser_main.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/chrome_content_browser_client.h"
-#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
@@ -61,6 +59,7 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar_controller_util.h"
 #include "chrome/common/chrome_constants.h"
@@ -77,7 +76,6 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/captive_portal/core/buildflags.h"
-#include "components/custom_handlers/test_protocol_handler_registry_delegate.h"
 #include "components/feature_engagement/public/feature_list.h"
 #include "components/google/core/common/google_util.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -155,6 +153,10 @@
 #include "ui/views/views_delegate.h"
 #include "ui/views/widget/widget.h"
 #endif
+
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+#include "chrome/browser/ui/ui_features.h"
+#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 
 namespace {
 
@@ -355,6 +357,10 @@ void InProcessBrowserTest::Initialize() {
   disabled_features.push_back(
       extensions_features::kExtensionDisableUnsupportedDeveloper);
 
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+  // Disable session restore infobar the experiment as it causes test failures.
+  disabled_features.push_back(features::kSessionRestoreInfobar);
+#endif
   // In-product help can conflict with tests' expected window activation and
   // focus. Individual tests can re-enable IPH.
   block_all_iph_feature_list_.InitWithNoFeaturesAllowed();
@@ -595,10 +601,8 @@ void InProcessBrowserTest::CreatedBrowserMainParts(
       std::make_unique<OSCryptAsyncExtraSetUp>());
 }
 
-void InProcessBrowserTest::SelectFirstBrowser() {
-  const BrowserList* browser_list = BrowserList::GetInstance();
-  if (!browser_list->empty())
-    browser_ = browser_list->get(0);
+void InProcessBrowserTest::SetBrowser(BrowserWindowInterface* browser) {
+  browser_ = browser ? browser->GetBrowserForMigrationOnly() : nullptr;
 }
 
 void InProcessBrowserTest::RecordPropertyFromMap(
@@ -665,7 +669,7 @@ void InProcessBrowserTest::RunUntilBrowserProcessQuits() {
 // navigation to tests, which should make sure navigations succeed when
 // appropriate. See https://crbug.com/425335
 bool InProcessBrowserTest::AddTabAtIndexToBrowser(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     int index,
     const GURL& url,
     ui::PageTransition transition,
@@ -674,7 +678,7 @@ bool InProcessBrowserTest::AddTabAtIndexToBrowser(
 }
 
 bool InProcessBrowserTest::AddTabAtIndexToBrowser(
-    Browser* browser,
+    BrowserWindowInterface* browser,
     int index,
     const GURL& url,
     ui::PageTransition transition) {
@@ -834,7 +838,7 @@ void InProcessBrowserTest::PreRunTestOnMainThread() {
   // Pump startup related events.
   content::RunAllPendingInMessageLoop();
 
-  SelectFirstBrowser();
+  SetBrowser(GetLastActiveBrowserWindowInterfaceWithAnyProfile());
   if (browser_ && !browser_->tab_strip_model()->empty()) {
     base::WeakPtr<content::WebContents> tab =
         browser_->tab_strip_model()->GetActiveWebContents()->GetWeakPtr();
@@ -926,20 +930,5 @@ void InProcessBrowserTest::QuitBrowsers() {
 
 void InProcessBrowserTest::OnWillCreateBrowserContextKeyedServices(
     content::BrowserContext* context) {
-  SetUpProtocolHandlerTestFactories(context);
   SetUpBrowserContextKeyedServices(context);
-}
-
-void InProcessBrowserTest::SetUpProtocolHandlerTestFactories(
-    content::BrowserContext* context) {
-  // Use TestProtocolHandlerRegistryDelegate to prevent OS integration during
-  // the protocol registration process.
-  ProtocolHandlerRegistryFactory::GetInstance()->SetTestingFactory(
-      context, base::BindRepeating([](content::BrowserContext* context)
-                                       -> std::unique_ptr<KeyedService> {
-        return custom_handlers::ProtocolHandlerRegistry::Create(
-            Profile::FromBrowserContext(context)->GetPrefs(),
-            std::make_unique<
-                custom_handlers::TestProtocolHandlerRegistryDelegate>());
-      }));
 }

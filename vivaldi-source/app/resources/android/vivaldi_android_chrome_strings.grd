@@ -232,7 +232,10 @@ Touch to Search is a feature that is only available when Google is set as the de
       <message name="IDS_ACCESSIBILITY_TABSTRIP_INCOGNITO_IDENTIFIER" desc="Content description for tabs that are not selected in Private mode">
         Private tab
       </message>
-
+    <!-- App menu -->
+      <message name="IDS_APPMENU_TOOLTIP" desc="The tooltip to show for the browser menu">
+        Customize and control Vivaldi
+      </message>
     <!-- Bookmark snackbar -->
       <message name="IDS_BOOKMARK_PAGE_SAVED" desc="App-based message shown after user adds a new bookmark. [CHAR-LIMIT=32]">
         Bookmark saved in <ph name="PRODUCT_NAME">%1$s<ex>Vivaldi</ex></ph>
@@ -285,6 +288,20 @@ Touch to Search is a feature that is only available when Google is set as the de
       </message>
       <message name="IDS_SHARING_CREATE_SUMMARY" desc="Label of Reader view button.">
         Reader view
+      </message>
+      <!-- Multi-instance Switcher Dialog strings -->
+      <message name="IDS_INSTANCE_SWITCHER_TITLE_INCOGNITO_WINDOW" desc="Title of an instance entry that has private tabs in it.">
+        Private window
+      </message>
+      <message name="IDS_INSTANCE_SWITCHER_DESC_INCOGNITO" desc="Description of an instance entry with private tab(s) only.">
+        {TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE">%1$s</ph> private tab}
+          other {<ph name="TAB_COUNT_NORMAL">%1$s<ex>2</ex></ph> private tabs}}
+      </message>
+      <message name="IDS_INSTANCE_SWITCHER_DESC_MIXED" desc="Description of an instance entry showing both normal and private tabs.">
+        {TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE">%1$s</ph> tab}
+          other {<ph name="TAB_COUNT_MANY">%2$s<ex>1</ex></ph> tabs, <ph name="TAB_COUNT_INCOGNITO">%1$s</ph> private}}
       </message>
     </messages>
   </release>

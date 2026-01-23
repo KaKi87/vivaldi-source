@@ -44,6 +44,7 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
 
   // Please keep all methods below in the same order as the @NativeMethods in
   // SyncServiceImpl.java.
+  void AcknowledgeBookmarksLimitExceededError(JNIEnv* env);
   jboolean IsSyncFeatureEnabled(JNIEnv* env);
   jboolean IsSyncFeatureActive(JNIEnv* env);
   jboolean IsSyncDisabledByEnterprisePolicy(JNIEnv* env);
@@ -91,8 +92,6 @@ class SyncServiceAndroidBridge : public SyncServiceObserver {
   void GetAllNodes(JNIEnv* env,
                    const base::android::JavaParamRef<jobject>& callback);
   GoogleServiceAuthError GetAuthError(JNIEnv* env);
-  jboolean HasUnrecoverableError(JNIEnv* env);
-  jboolean RequiresClientUpgrade(JNIEnv* env);
   base::android::ScopedJavaLocalRef<jobject> GetAccountInfo(JNIEnv* env);
   jboolean HasSyncConsent(JNIEnv* env);
   jboolean IsPassphrasePromptMutedForCurrentProductVersion(JNIEnv* env);

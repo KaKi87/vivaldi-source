@@ -21,7 +21,8 @@
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
@@ -60,18 +61,9 @@ size_t g_max_loaded_tab_count_for_testing = 0;
 base::RepeatingCallback<void(TabLoader*)>* g_construction_callback = nullptr;
 
 // Determines if the given browser (can be null) is closing.
-bool IsBrowserClosing(Browser* browser) {
-  if (g_browser_process->IsShuttingDown())
-    return true;
-  if (!browser)
-    return true;
-  if (browser->tab_strip_model()->closing_all())
-    return true;
-  const auto& closing_browsers =
-      BrowserList::GetInstance()->currently_closing_browsers();
-  if (base::Contains(closing_browsers, browser))
-    return true;
-  return false;
+bool IsBrowserClosing(BrowserWindowInterface* browser) {
+  return g_browser_process->IsShuttingDown() || !browser ||
+         browser->GetTabStripModel()->closing_all();
 }
 
 }  // namespace
@@ -221,11 +213,10 @@ void TabLoader::SetAllTabsScored(bool all_tabs_scored) {
 }
 
 TabLoader::TabLoader()
-    : memory_pressure_listener_(
+    : memory_pressure_listener_registration_(
           FROM_HERE,
           base::MemoryPressureListenerTag::kTabLoader,
-          base::BindRepeating(&TabLoader::OnMemoryPressure,
-                              base::Unretained(this))),
+          this),
       clock_(GetDefaultTickClock()) {
   shared_tab_loader_ = this;
   this_retainer_ = this;
@@ -373,7 +364,7 @@ void TabLoader::OnStopTracking(WebContents* web_contents,
 }
 
 void TabLoader::OnMemoryPressure(
-    base::MemoryPressureListener::MemoryPressureLevel memory_pressure_level) {
+    base::MemoryPressureLevel memory_pressure_level) {
   ReentrancyHelper lifetime_helper(this);
   TRACE_EVENT_INSTANT(
       "browser", "TabLoader::OnMemoryPressure",
@@ -385,10 +376,10 @@ void TabLoader::OnMemoryPressure(
       });
 
   switch (memory_pressure_level) {
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE:
+    case base::MEMORY_PRESSURE_LEVEL_NONE:
       break;
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE:
-    case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL:
+    case base::MEMORY_PRESSURE_LEVEL_MODERATE:
+    case base::MEMORY_PRESSURE_LEVEL_CRITICAL:
       StopLoadingTabs();
       break;
   }
@@ -405,7 +396,7 @@ bool TabLoader::ShouldStopLoadingTabs() const {
   if (base::MemoryPressureMonitor::Get()) {
     return base::MemoryPressureMonitor::Get()->GetCurrentPressureLevel(
                base::MemoryPressureMonitorTag::kTabLoader) !=
-           base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE;
+           base::MEMORY_PRESSURE_LEVEL_NONE;
   }
   return false;
 }
@@ -624,7 +615,7 @@ void TabLoader::StopLoadingTabs() {
     auto* contents = score_content_pair.second;
     delegate_->RemoveTabForScoring(contents);
   }
-  }
+  } // End Vivaldi
 
   // Clear out the remaining tabs to load and clean ourselves up.
   tabs_to_load_.clear();
@@ -674,13 +665,13 @@ void TabLoader::LoadNextTab(bool due_to_timeout) {
 
   // Get the browser associated with this contents and determine if its in the
   // process of being closed.
-  Browser* browser = chrome::FindBrowserWithTab(contents);
+  BrowserWindowInterface* const browser = chrome::FindBrowserWithTab(contents);
   if (IsBrowserClosing(browser)) {
     RemoveTab(contents);
     StartTimerIfNeeded();
     return;
   }
-  DCHECK(browser);
+  CHECK(browser);
 
   MarkTabAsLoadInitiated(contents);
   StartTimerIfNeeded();
@@ -688,7 +679,7 @@ void TabLoader::LoadNextTab(bool due_to_timeout) {
   // This is done last as the calls out of us can be reentrant. To make life
   // easier we ensure the timer invariant is valid before calling out.
   contents->GetController().LoadIfNecessary();
-  if (browser->tab_strip_model()->GetActiveWebContents() != contents) {
+  if (browser->GetTabStripModel()->GetActiveWebContents() != contents) {
     // By default tabs are marked as visible. As only the active tab is
     // visible we need to explicitly tell non-active tabs they are hidden.
     // Without this call non-active tabs are not marked as backgrounded.

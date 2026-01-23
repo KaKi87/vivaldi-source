@@ -63,7 +63,7 @@ void ChromiumImporter::StartImport(
 
   if ((items & user_data_importer::HISTORY) && !cancelled()) {
     bridge_->NotifyItemStarted(user_data_importer::HISTORY);
-    auto res = ImportHistory();
+    const auto res = ImportHistory();
     import_result::NotifyBridge(res, bridge_.get(),
                                 user_data_importer::HISTORY);
   }
@@ -199,6 +199,22 @@ ImportResult ChromiumImporter::ReadAndParseSignons(
     std::vector<user_data_importer::ImportedPasswordForm>* forms,
     user_data_importer::ImporterType importer_type,
     bool* failed_decrypt) {
+#if BUILDFLAG(IS_LINUX)
+  // Flush the Config to be on the safe side
+  OSCryptImpl::GetInstance()->ClearCacheForTesting();
+  // Set up crypt config. Need to do this just once for each import
+  const base::CommandLine& command_line =
+      *base::CommandLine::ForCurrentProcess();
+  std::unique_ptr<os_crypt::Config> config(new os_crypt::Config());
+  config->store =
+      command_line.GetSwitchValueASCII(password_manager::kPasswordStore);
+  config->product_name = l10n_util::GetStringUTF8(IDS_PRODUCT_NAME);
+  config->should_use_preference =
+      command_line.HasSwitch(password_manager::kEnableEncryptionSelection);
+  chrome::GetDefaultUserDataDirectory(&config->user_data_path);
+  OSCryptImpl::GetInstance()->SetConfig(std::move(config));
+#endif  // IS_LINUX
+
   sql::Database db("Importer");
   auto db_result = ImportDatabaseOperations::OpenDatabase(
       sqlite_file, &db, IDS_IMPORT_ERROR_LOGIN_DATABASE_OPEN_FAILED);
@@ -271,17 +287,6 @@ ImportResult ChromiumImporter::ReadAndParseSignons(
     }
 #else  // IS_MAC
 #if BUILDFLAG(IS_LINUX)
-    // Set up crypt config.
-    const base::CommandLine& command_line =
-        *base::CommandLine::ForCurrentProcess();
-    std::unique_ptr<os_crypt::Config> config(new os_crypt::Config());
-    config->store =
-        command_line.GetSwitchValueASCII(password_manager::kPasswordStore);
-    config->product_name = l10n_util::GetStringUTF8(IDS_PRODUCT_NAME);
-    config->should_use_preference =
-        command_line.HasSwitch(password_manager::kEnableEncryptionSelection);
-    chrome::GetDefaultUserDataDirectory(&config->user_data_path);
-    OSCryptImpl::GetInstance()->SetConfig(std::move(config));
     if (!OSCryptImpl::GetInstance()->DecryptString16(cipher_text,
                                                      &plain_text)) {
       *failed_decrypt = true;

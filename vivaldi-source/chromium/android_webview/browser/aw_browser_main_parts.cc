@@ -347,7 +347,9 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
       variations::SyntheticTrialAnnotationMode::kCurrentLog);
 
   variations::VariationsIdsProvider::GetInstance()->ForceVariationIds(
-      getIdsForWebViewApkType(apk_type), "");
+      base::PassKey<AwBrowserMainParts>(),
+      /*variation_ids=*/getIdsForWebViewApkType(apk_type),
+      /*command_line_variation_ids=*/"");
 
   // Set up experiment for 64-bit WebView.
   //
@@ -402,8 +404,6 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
   bool use_webview_context = Java_AwBrowserMainParts_getUseWebViewContext(env);
   bool partitioned_cookies_enablement_state =
       Java_AwBrowserMainParts_getPartitionedCookiesDefaultState(env);
-  bool webview_startup_tasks_experiment_enabled =
-      isWebViewStartupTasksExperimentEnabled();
   AwMetricsServiceAccessor::RegisterSyntheticFieldTrial(
       metrics, "WebViewSeparateResourceContextMetrics",
       use_webview_context ? "Enabled" : "Control",
@@ -412,17 +412,12 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
       metrics, "WebViewPartitionedCookiesMetrics",
       partitioned_cookies_enablement_state ? "Control" : "Disabled",
       variations::SyntheticTrialAnnotationMode::kCurrentLog);
-  AwMetricsServiceAccessor::RegisterSyntheticFieldTrial(
-      metrics, "WebViewStartupTasksMetrics",
-      webview_startup_tasks_experiment_enabled ? "Enabled" : "Control",
-      variations::SyntheticTrialAnnotationMode::kCurrentLog);
 
-  bool in_seed_experiment = base::FeatureList::GetStateIfOverridden(
-                                features::kWebViewReducedSeedExpiration)
-                                .has_value() ||
-                            base::FeatureList::GetStateIfOverridden(
-                                features::kWebViewReducedSeedRequestPeriod)
-                                .has_value();
+  bool in_seed_experiment =
+      android_webview::CachedFlags::IsCachedFeatureOverridden(
+          features::kWebViewReducedSeedExpiration) ||
+      android_webview::CachedFlags::IsCachedFeatureOverridden(
+          features::kWebViewReducedSeedRequestPeriod);
   bool reduced_seed_expiration = android_webview::CachedFlags::IsEnabled(
       features::kWebViewReducedSeedExpiration);
   bool reduced_seed_request_period = android_webview::CachedFlags::IsEnabled(
@@ -442,6 +437,31 @@ void AwBrowserMainParts::RegisterSyntheticTrials() {
   }
   AwMetricsServiceAccessor::RegisterSyntheticFieldTrial(
       metrics, "WebViewFasterFinchSeed", group,
+      variations::SyntheticTrialAnnotationMode::kCurrentLog);
+
+  // The experiment config overrides all the flags for each arm, so we can check
+  // just one flag to see if the device is in the experiment.
+  bool in_startup_tasks_experiment =
+      android_webview::CachedFlags::IsCachedFeatureOverridden(
+          features::kWebViewUseStartupTasksLogic);
+  std::string_view startup_tasks_experiment_group;
+  if (!in_startup_tasks_experiment) {
+    startup_tasks_experiment_group = "Default";
+  } else if (android_webview::CachedFlags::IsEnabled(
+                 features::kWebViewUseStartupTasksLogic)) {
+    startup_tasks_experiment_group = "Enabled_Phase1";
+  } else if (android_webview::CachedFlags::IsEnabled(
+                 features::kWebViewUseStartupTasksLogicP2)) {
+    startup_tasks_experiment_group = "Enabled_Phase2";
+  } else if (android_webview::CachedFlags::IsEnabled(
+                 features::kWebViewStartupTasksYieldToNative)) {
+    startup_tasks_experiment_group = "Enabled_Phase3";
+  } else {
+    startup_tasks_experiment_group = "Control";
+  }
+
+  AwMetricsServiceAccessor::RegisterSyntheticFieldTrial(
+      metrics, "WebViewStartupTasksMetrics2", startup_tasks_experiment_group,
       variations::SyntheticTrialAnnotationMode::kCurrentLog);
 }
 
@@ -499,3 +519,6 @@ bool AwBrowserMainParts::isStartupTaskYieldToNativeExperimentEnabled() {
 }
 
 }  // namespace android_webview
+
+DEFINE_JNI(AwBrowserMainParts)
+DEFINE_JNI(AwInterfaceRegistrar)

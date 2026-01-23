@@ -326,6 +326,59 @@ class LuciContextAuthenticatorTest(unittest.TestCase):
         mock_authenticate.assert_called_once_with(conn)
 
 
+class GitCredsAuthenticatorTest(unittest.TestCase):
+
+    def setUp(self):
+        super(GitCredsAuthenticatorTest, self).setUp()
+        self.authenticator = gerrit_util.ChainedAuthenticator(
+            [gerrit_util.GitCredsAuthenticator()])
+
+    @mock.patch('auth.GerritAuthenticator.get_access_token',
+                return_value="Bearer abcd")
+    def testEnsureAuthenticated(self, mock_get_access_token):
+        bypassable, err_msg = self.authenticator.ensure_authenticated(
+            gerrit_host='chromium-review.googlesource.com',
+            git_host="chromium.googlesource.com")
+        mock_get_access_token.assert_called_once()
+        mock_get_authorization_header.assert_not_called()
+        self.assertTrue(bypassable)
+        self.assertEqual(err_msg, "")
+
+    @mock.patch('auth.GerritAuthenticator.get_authorization_header',
+                return_value="BearerReAuth xyz")
+    def testEnsureAuthenticated(self, mock_get_authorization_header):
+        reauth_context = auth.ReAuthContext(
+            host="chromium-review.googlesource.com", project="chromium/src")
+        gerrit_host = "chromium-review.googlesource.com"
+        git_host = "chromium.googlesource.com"
+
+        bypassable, err_msg = self.authenticator.ensure_authenticated(
+            gerrit_host=gerrit_host,
+            git_host=git_host,
+            reauth_context=reauth_context)
+
+        mock_get_authorization_header.assert_called_once_with(reauth_context)
+        self.assertTrue(bypassable)
+        self.assertEqual(err_msg, "")
+
+    @mock.patch('auth.GerritAuthenticator.get_authorization_header',
+                side_effect=auth.GitReAuthRequiredError())
+    def testEnsureAuthenticatedMissingReAuth(self,
+                                             mock_get_authorization_header):
+        gerrit_host = "chromium-review.googlesource.com"
+        git_host = "chromium.googlesource.com"
+        reauth_context = auth.ReAuthContext(
+            host="chromium-review.googlesource.com", project="chromium/src")
+
+        bypassable, err_msg = self.authenticator.ensure_authenticated(
+            gerrit_host=gerrit_host,
+            git_host=git_host,
+            reauth_context=reauth_context)
+
+        mock_get_authorization_header.assert_called_once_with(reauth_context)
+        self.assertFalse(bypassable)
+        self.assertRegex(err_msg, "You have not done ReAuth")
+
 class GerritUtilTest(unittest.TestCase):
     def setUp(self):
         super(GerritUtilTest, self).setUp()
@@ -722,8 +775,32 @@ class GerritUtilTest(unittest.TestCase):
     @mock.patch('gerrit_util.CreateHttpConn')
     @mock.patch('gerrit_util.ReadHttpJsonResponse')
     @mock.patch('gerrit_util.GetChangeDetail')
-    def testSetReview_ReAuthNotNeeded(self, mockGetChangeDetail,
-                                      mockJsonResponse, mockCreateHttpConn):
+    def testSetReview_ReAuthNotNeededForCQLabel(self, mockGetChangeDetail,
+                                                mockJsonResponse,
+                                                mockCreateHttpConn):
+        mockJsonResponse.return_value = {
+            "ready": True,
+            "labels": {
+                "Commit-Queue": 1
+            },
+        }
+
+        gerrit_util.SetReview('chromium',
+                              123456,
+                              msg="test",
+                              labels={"Commit-Queue": 1})
+
+        # ReAuth not needed.
+        mockGetChangeDetail.assert_not_called()
+        httpConnKwargs = mockCreateHttpConn.call_args[1]
+        self.assertIsNone(httpConnKwargs.get('reauth_context', None))
+
+    @mock.patch('gerrit_util.CreateHttpConn')
+    @mock.patch('gerrit_util.ReadHttpJsonResponse')
+    @mock.patch('gerrit_util.GetChangeDetail')
+    def testSetReview_ReAuthNotNeededWithoutLabels(self, mockGetChangeDetail,
+                                                   mockJsonResponse,
+                                                   mockCreateHttpConn):
         mockJsonResponse.return_value = {"ready": True}
 
         gerrit_util.SetReview('chromium', 123456, msg="test")

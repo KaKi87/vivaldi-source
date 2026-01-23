@@ -35,12 +35,8 @@ BrandedNavigationItemTitleView* CreatePasswordManagerTitleView(
           initWithFont:ios::provider::GetBrandedProductRegularFont(
                            UIFont.labelFontSize)];
   title_view.title = title;
-
-  if (!vivaldi::IsVivaldiRunning()) {
   title_view.imageLogo = MakeSymbolMulticolor(
       CustomSymbolWithPointSize(kPasswordManagerSymbol, kSymbolPointSize));
-  } // End Vivaldi
-
   title_view.accessibilityLabel = l10n_util::GetNSString(
       IDS_IOS_PASSWORD_MANAGER_TITLE_VIEW_ACCESSIBILITY_LABEL);
   title_view.titleLogoSpacing = kHorizontalSpacing;

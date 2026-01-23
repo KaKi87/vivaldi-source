@@ -13,17 +13,22 @@
         </settings-clear-browsing-data-dialog-v2>
       </template>
     </template>
+
+    <if expr="_google_chrome">
     <template is="dom-if" if="[[showPrivacyGuideDialog_]]" restamp>
       <settings-privacy-guide-dialog id="privacyGuideDialog" prefs="{{prefs}}"
           on-close="onPrivacyGuideDialogClosed_">
       </settings-privacy-guide-dialog>
     </template>
+    </if> <!-- Vivaldi -->
+
     <cr-link-row id="clearBrowsingData"
         start-icon="cr:delete"
         label="$i18n{clearBrowsingData}"
         sub-label="$i18n{clearBrowsingDataDescription}"
         on-click="onClearBrowsingDataClick_"></cr-link-row>
-    <!-- template is="dom-if" if="[[isPrivacyGuideAvailable]]">
+    <if expr="_google_chrome">
+    <template is="dom-if" if="[[isPrivacyGuideAvailable]]">
       <cr-link-row id="privacyGuideLinkRow" class="hr"
           start-icon="privacy20:signpost"
           label="$i18n{privacyGuideLabel}"
@@ -31,7 +36,8 @@
           on-click="onPrivacyGuideClick_"
           role-description="$i18n{subpageArrowRoleDescription}">
       </cr-link-row>
-    </template -->
+    </template>
+    </if> <!-- Vivaldi -->
     <cr-link-row id="thirdPartyCookiesLinkRow"
         start-icon="privacy:cookie"
         class="hr" label="$i18n{thirdPartyCookiesLinkRowLabel}"
@@ -42,16 +48,8 @@
         on-click="onCookiesClick_"
         role-description="$i18n{subpageArrowRoleDescription}">
     </cr-link-row>
-    <!-- template is="dom-if" if="[[enableIncognitoTrackingProtections_]]">
-      <cr-link-row id="incognitoTrackingProtectionsLinkRow" class="hr"
-          start-icon="settings:visibility-off"
-          label="$i18n{incognitoTrackingProtectionsPageEntrypointLabel}"
-          sub-label="$i18n{incognitoTrackingProtectionsPageEntrypointSublabel}"
-          on-click="onIncognitoTrackingProtectionsClick_"
-          role-description="$i18n{subpageArrowRoleDescription}">
-      </cr-link-row>
-    </template -->
-    <!-- template is="dom-if" if=
+    <if expr="_google_chrome">
+    <template is="dom-if" if=
         "[[shouldShowAdPrivacy_(
             isPrivacySandboxRestricted_,
             isPrivacySandboxRestrictedNoticeEnabled_)]]">
@@ -65,16 +63,17 @@
           on-click="onPrivacySandboxClick_"
           role-description="$i18n{subpageArrowRoleDescription}">
       </cr-link-row>
-    </template -->
+    </template>
+    </if> <!-- Vivaldi -->
     <cr-link-row id="securityLinkRow" start-icon="privacy:lock"
         class="hr" label="$i18n{securityPageTitle}"
         sub-label="$i18n{securityPageDescription}"
         on-click="onSecurityPageClick_"
         role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
-    <cr-link-row id="permissionsLinkRow" start-icon="privacy:page-info"
+    <cr-link-row id="siteSettingsLinkRow" start-icon="privacy:page-info"
         class="hr" label="$i18n{siteSettings}"
-        sub-label="$i18n{permissionsPageDescription}"
-        on-click="onPermissionsPageClick_"
+        sub-label="$i18n{siteSettingsSublabel}"
+        on-click="onSiteSettingsLinkRowClick_"
         role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
     <cr-toast id="deleteBrowsingDataToast" duration="5000">
       <div>[[dbdDeletionConfirmationToastLabel_]]</div>

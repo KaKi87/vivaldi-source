@@ -13,7 +13,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
-#include "chrome/browser/android/webapk/webapk_sync_service_factory.h"
+#include "chrome/browser/autofill/account_setting_service_factory.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -193,6 +193,8 @@ syncer::DataTypeController::TypeVector CreateCommonControllers(
 #endif  // DCHECK_IS_ON()
 
   browser_sync::CommonControllerBuilder builder;
+  builder.SetAccountSettingService(
+      autofill::AccountSettingServiceFactory::GetForBrowserContext(profile));
   // A callback is needed here because `autofill::PersonalDataManagerFactory`
   // already depends on `SyncServiceFactory`.
   builder.SetAddressDataManagerGetter(
@@ -437,8 +439,6 @@ std::unique_ptr<KeyedService> BuildSyncService(
     // being signed out.
     gcm::GCMProfileServiceFactory::GetForProfile(profile);
 
-    // TODO(atwilson): Change AboutSigninInternalsFactory to load on startup
-    // once http://crbug.com/171406 has been fixed.
     AboutSigninInternalsFactory::GetForProfile(profile);
     }
   }
@@ -544,6 +544,7 @@ SyncServiceFactory::SyncServiceFactory()
   // destruction order. Note that some of the dependencies are listed here but
   // actually plumbed in ChromeSyncClient, which this factory constructs.
   DependsOn(AboutSigninInternalsFactory::GetInstance());
+  DependsOn(autofill::AccountSettingServiceFactory::GetInstance());
   DependsOn(AccountBookmarkSyncServiceFactory::GetInstance());
   DependsOn(AccountPasswordStoreFactory::GetInstance());
   DependsOn(BookmarkModelFactory::GetInstance());
@@ -688,3 +689,7 @@ JNI_SyncServiceFactory_GetForProfile(JNIEnv* env, Profile* profile) {
   return sync_service->GetJavaObject();
 }
 #endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_ANDROID)
+DEFINE_JNI(SyncServiceFactory)
+#endif

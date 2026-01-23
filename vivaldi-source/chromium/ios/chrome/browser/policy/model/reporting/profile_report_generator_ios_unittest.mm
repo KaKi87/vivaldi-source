@@ -18,6 +18,7 @@
 #import "components/enterprise/browser/controller/fake_browser_dm_token_storage.h"
 #import "components/enterprise/browser/enterprise_switches.h"
 #import "components/enterprise/browser/identifiers/profile_id_service.h"
+#import "components/enterprise/browser/reporting/report_generation_config.h"
 #import "components/enterprise/browser/reporting/report_type.h"
 #import "components/policy/core/common/cloud/cloud_external_data_manager.h"
 #import "components/policy/core/common/cloud/cloud_policy_service.h"
@@ -209,6 +210,7 @@ class ProfileReportGeneratorIOSTest : public PlatformTest,
     base::test::TestFuture<std::unique_ptr<em::ChromeUserProfileInfo>>
         test_future;
     generator_.MaybeGenerate(path, ReportType::kFull,
+                             SecuritySignalsMode::kSignalsAttached,
                              test_future.GetCallback());
     auto report = test_future.Take();
 
@@ -264,7 +266,7 @@ TEST_P(ProfileReportGeneratorIOSTest, SignedInProfile) {
   EXPECT_TRUE(report->has_chrome_signed_in_user());
   EXPECT_EQ(base::SysNSStringToUTF8(fake_identity.userEmail),
             report->chrome_signed_in_user().email());
-  EXPECT_EQ(base::SysNSStringToUTF8(fake_identity.gaiaID),
+  EXPECT_EQ(fake_identity.gaiaId.ToString(),
             report->chrome_signed_in_user().obfuscated_gaia_id());
 }
 

@@ -32,6 +32,7 @@ import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntent
 import org.chromium.chrome.browser.browserservices.permissiondelegation.InstalledWebappPermissionManager;
 import org.chromium.chrome.browser.browsing_data.BrowsingDataBridge;
 import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
+import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
@@ -43,7 +44,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.chrome.browser.settings.FaviconLoader;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
-import org.chromium.chrome.browser.tab.RequestDesktopUtils;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.webapps.WebappRegistry;
@@ -55,6 +55,7 @@ import org.chromium.components.browsing_data.content.BrowsingDataModel;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.components.favicon.LargeIconBridge;
+import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.permissions.PermissionUtil;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
@@ -64,6 +65,7 @@ import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.media.MediaFeatures;
+import org.chromium.ui.display.DisplayAndroidManager;
 import org.chromium.url.GURL;
 
 import java.util.List;
@@ -175,7 +177,8 @@ public class ChromeSiteSettingsDelegate implements SiteSettingsDelegate {
             case SiteSettingsCategory.Type.LOCAL_NETWORK_ACCESS:
                 return ChromeFeatureList.isEnabled(ChromeFeatureList.LOCAL_NETWORK_ACCESS);
             case SiteSettingsCategory.Type.WINDOW_MANAGEMENT:
-                return ChromeFeatureList.sAndroidWindowManagementWebApi.isEnabled();
+                return ChromeFeatureList.sAndroidWindowManagementWebApi.isEnabled()
+                        && DisplayAndroidManager.isDisplayTopologyAvailable();
             default:
                 return true;
         }
@@ -205,11 +208,6 @@ public class ChromeSiteSettingsDelegate implements SiteSettingsDelegate {
     @Override
     public boolean isPermissionSiteSettingsRadioButtonFeatureEnabled() {
         return ChromeFeatureList.isEnabled(ChromeFeatureList.PERMISSION_SITE_SETTING_RADIO_BUTTON);
-    }
-
-    @Override
-    public boolean isDisplayWildcardInContentSettingsEnabled() {
-        return ChromeFeatureList.isEnabled(ChromeFeatureList.DISPLAY_WILDCARD_CONTENT_SETTINGS);
     }
 
     @Override
@@ -391,14 +389,17 @@ public class ChromeSiteSettingsDelegate implements SiteSettingsDelegate {
     public void launchClearBrowsingDataDialog(Activity currentActivity) {
         SettingsNavigationFactory.createSettingsNavigation()
                 .startSettings(
-                        currentActivity, SettingsNavigation.SettingsFragment.CLEAR_BROWSING_DATA);
+                        currentActivity,
+                        SettingsNavigation.SettingsFragment.CLEAR_BROWSING_DATA,
+                        /* addToBackStack= */ true);
     }
 
     @Override
     // TODO(crbug.com/40880723): Look into a more scalable pattern like
     // notifyPageOpened(String className).
     public void notifyRequestDesktopSiteSettingsPageOpened() {
-        RequestDesktopUtils.notifyRequestDesktopSiteSettingsPageOpened(mProfile);
+        TrackerFactory.getTrackerForProfile(mProfile)
+                .notifyEvent(EventConstants.DESKTOP_SITE_SETTINGS_PAGE_OPENED);
     }
 
     @Override

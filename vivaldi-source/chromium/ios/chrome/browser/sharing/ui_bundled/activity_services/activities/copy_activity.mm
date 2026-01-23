@@ -15,7 +15,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 // End Vivaldi
 
 namespace {
@@ -55,9 +55,9 @@ NSString* const kCopyActivityType = @"com.google.chrome.copyActivity";
 }
 
 - (UIImage*)activityImage {
-
   if (vivaldi::IsVivaldiRunning())
-    return [UIImage imageNamed:vMenuCopy]; // End Vivaldi
+    return CustomSymbolWithPointSize(vMenuCopy,
+                                     kSymbolActionPointSize);  // End Vivaldi
 
   return DefaultSymbolWithPointSize(kCopyActionSymbol, kSymbolActionPointSize);
 }

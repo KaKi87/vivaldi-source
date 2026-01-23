@@ -37,19 +37,23 @@ class ClipboardJavaScriptFeature : public JavaScriptFeature {
   std::optional<std::string> GetScriptMessageHandlerName() const override;
   // Handles messages sent from the injected JavaScript.
   // This message is sent whenever a clipboard API is called.
-  // Expected arguments in `message` body:
-  // - command: (string) "read" or "write".
-  // - requestId: (double) The unique ID for this clipboard request.
-  // - frameId: (string) The ID of the frame sending the request.
   void ScriptMessageReceived(WebState* web_state,
                              const ScriptMessage& message) override;
+
+  // Handles a "read" or "write" command from the web page.
+  void HandleClipboardRequest(WebState* web_state,
+                              WebFrame* web_frame,
+                              int request_id,
+                              const std::string& command);
 
   // Calls the JavaScript function `__gCrWeb.clipboard.resolveRequest` to settle
   // the promise for the given `request_id`.
   // `web_frame` is the frame where the script should be executed.
+  // `command` is the clipboard command ("read" or "write").
   // `allowed` indicates whether the clipboard operation was permitted.
   void ResolveClipboardRequest(int request_id,
                                base::WeakPtr<WebFrame> web_frame,
+                               const std::string& command,
                                bool allowed);
 };
 

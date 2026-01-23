@@ -8,6 +8,9 @@
 
 const char kReaderModeStateHistogram[] = "IOS.ReaderMode.State";
 
+const char kReaderModeDeactivationReasonHistogram[] =
+    "IOS.ReaderMode.DeactivationReason";
+
 const char kReaderModeHeuristicResultHistogram[] =
     "IOS.ReaderMode.Heuristic.Result";
 
@@ -36,6 +39,9 @@ const char kReaderModeAccessPointHistogram[] = "IOS.ReaderMode.AccessPoint";
 
 const char kReaderModeAccessPointWithModeHistogram[] =
     "IOS.ReaderMode.AccessPointWithMode";
+
+const char kReaderModeRecentlyUsedTimestampsPref[] =
+    "reader_mode.recently_used_timestamps";
 
 NSString* GetReaderModeSymbolName() {
   if (@available(iOS 18, *)) {

@@ -22,6 +22,10 @@ namespace content {
 class BrowserContext;
 }  // namespace content
 
+namespace viz {
+struct CopyOutputBitmapWithMetadata;
+}  // namespace viz
+
 // Owns and controls a sandboxed WebContents instance hosting the rendering
 // engine for an offscreen tab generating a thumbnail.  Since the offscreen tab
 // does not interact with the user in any direct way, the WebContents is not
@@ -106,7 +110,7 @@ class ThumbnailCaptureContents : protected content::WebContentsDelegate,
   // second.
   void TryCapture(bool last_try);
 
-  void OnCopyImageReady(const SkBitmap& bitmap);
+  void OnCopyImageReady(const viz::CopyOutputBitmapWithMetadata& bitmap);
 
   void CaptureViaIpc();
 

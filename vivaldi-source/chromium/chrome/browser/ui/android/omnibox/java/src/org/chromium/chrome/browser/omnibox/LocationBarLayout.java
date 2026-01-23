@@ -13,7 +13,6 @@ import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageButton;
-import android.widget.LinearLayout;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.DrawableRes;
@@ -44,8 +43,10 @@ public class LocationBarLayout extends ConstraintLayout {
     protected ImageButton mDeleteButton;
     protected ImageButton mMicButton;
     protected ImageButton mLensButton;
+    protected ImageButton mZoomButton;
     protected ImageButton mInstallButton;
     protected ImageButton mComposeplateButton;
+    private final @Nullable View mNavigateButton;
     protected UrlBar mUrlBar;
 
     protected UrlBarCoordinator mUrlCoordinator;
@@ -56,10 +57,6 @@ public class LocationBarLayout extends ConstraintLayout {
     protected StatusCoordinator mStatusCoordinator;
 
     protected boolean mNativeInitialized;
-    protected boolean mHidingActionContainerForNarrowWindow;
-    private final int mMinimumActionContainerWidthPx;
-
-    protected LinearLayout mUrlActionContainer;
     private final View mMarginSpacer;
 
     protected @Nullable CompositeTouchDelegate mCompositeTouchDelegate;
@@ -68,9 +65,21 @@ public class LocationBarLayout extends ConstraintLayout {
     private final int mStatusIconAndUrlBarOffset;
     private int mUrlActionContainerEndMargin;
 
+    private boolean mHidingActionContainerForNarrowWindow;
+    private boolean mShowUrlButtons = true;
+    private boolean mShowComposeplateButton;
+    private boolean mShowInstallButton;
+    private boolean mShowZoomButton;
+    private boolean mShowMicButton;
+    private boolean mShowLensButton;
+    private boolean mShowDeleteButton;
+    private boolean mShowNavigateButton;
+
     /** Vivaldi */
     protected ImageButton mQrCodeButton;
     protected ImageButton mReloadButton;
+    private boolean mShowQrCodeButton;
+    private boolean mShowReloadButton;
 
     public LocationBarLayout(Context context, AttributeSet attrs) {
         this(context, attrs, R.layout.location_bar);
@@ -88,12 +97,11 @@ public class LocationBarLayout extends ConstraintLayout {
         mUrlBar = findViewById(R.id.url_bar);
         mMicButton = findViewById(R.id.mic_button);
         mLensButton = findViewById(R.id.lens_camera_button);
+        mZoomButton = findViewById(R.id.zoom_button);
         mInstallButton = findViewById(R.id.install_button);
         mComposeplateButton = findViewById(R.id.composeplate_button);
-        mUrlActionContainer = findViewById(R.id.url_action_container);
+        mNavigateButton = findViewById(R.id.navigate_button);
         mMarginSpacer = findViewById(R.id.margin_spacer);
-        mMinimumActionContainerWidthPx =
-                context.getResources().getDimensionPixelSize(R.dimen.min_touch_target_size);
         mStatusIconAndUrlBarOffset =
                 OmniboxResourceProvider.getToolbarSidePaddingForNtp(context)
                         - OmniboxResourceProvider.getToolbarSidePadding(context);
@@ -201,6 +209,10 @@ public class LocationBarLayout extends ConstraintLayout {
         ImageViewCompat.setImageTintList(mInstallButton, colorStateList);
     }
 
+    /* package */ void setZoomButtonTint(ColorStateList colorStateList) {
+        ImageViewCompat.setImageTintList(mZoomButton, colorStateList);
+    }
+
     @Override
     protected void dispatchRestoreInstanceState(SparseArray<Parcelable> container) {
         // Don't restore the state of the location bar, it can lead to all kind of bad states with
@@ -215,69 +227,81 @@ public class LocationBarLayout extends ConstraintLayout {
     }
 
     /**
+     * Apply the X translation to the LocationBar buttons to match the NTP fakebox -> omnibox
+     * transition.
+     *
+     * @param translationX the desired translation to be applied to appropriate LocationBar buttons.
+     */
+    /* package */ void setLocationBarButtonTranslationForNtpAnimation(float translationX) {
+        mMicButton.setTranslationX(translationX);
+        mLensButton.setTranslationX(translationX);
+        mDeleteButton.setTranslationX(translationX);
+        mZoomButton.setTranslationX(translationX);
+        mInstallButton.setTranslationX(translationX);
+        mComposeplateButton.setTranslationX(translationX);
+    }
+
+    /**
      * Hides the url action container if the window is too narrow to show it alongside the url bar,
      * or shows it if the window is now wide enough.
      */
     void checkUrlContainerWidth() {
-        int actionContainerWidth = mUrlActionContainer.getMeasuredWidth();
+        mHidingActionContainerForNarrowWindow =
+                getWidth()
+                        < getResources()
+                                .getDimensionPixelSize(
+                                        R.dimen.location_bar_minimalistic_ui_threshold);
+        setUrlActionContainerVisibility(mShowUrlButtons);
+    }
 
-        // Vivaldi - We don't hide the action container since we show the reload button when the
-        // url bar is unfocused.
-        if (BuildConfig.IS_VIVALDI && actionContainerWidth > 0) {
-            mHidingActionContainerForNarrowWindow = false;
-            mUrlActionContainer.setVisibility(VISIBLE);
-            ConstraintLayout.LayoutParams layoutParams =
-                    (LayoutParams) mUrlActionContainer.getLayoutParams();
-            layoutParams.startToEnd = mUrlBar.getId();
-            layoutParams.endToEnd = mMarginSpacer.getId();
-            return;
-        }
-        if (!mHidingActionContainerForNarrowWindow
-                && actionContainerWidth > 0
-                && actionContainerWidth < mMinimumActionContainerWidthPx) {
-            mHidingActionContainerForNarrowWindow = true;
-            mUrlActionContainer.setVisibility(INVISIBLE);
-            ConstraintLayout.LayoutParams layoutParams =
-                    (LayoutParams) mUrlActionContainer.getLayoutParams();
-            layoutParams.startToEnd = LayoutParams.PARENT_ID;
-            layoutParams.endToEnd = LayoutParams.UNSET;
-            mUrlActionContainer.setLayoutParams(layoutParams);
-        } else if (mHidingActionContainerForNarrowWindow
-                && mUrlActionContainer.getVisibility() != VISIBLE
-                && actionContainerWidth >= mMinimumActionContainerWidthPx) {
-            mHidingActionContainerForNarrowWindow = false;
-            mUrlActionContainer.setVisibility(VISIBLE);
-            ConstraintLayout.LayoutParams layoutParams =
-                    (LayoutParams) mUrlActionContainer.getLayoutParams();
-            layoutParams.startToEnd = mUrlBar.getId();
-            layoutParams.endToEnd = mMarginSpacer.getId();
-            mUrlActionContainer.setLayoutParams(layoutParams);
-        }
+    private void setButtonVisibility(@Nullable View button, boolean wantShow) {
+        if (button == null) return;
+        button.setVisibility(
+                (wantShow && mShowUrlButtons && !mHidingActionContainerForNarrowWindow)
+                        ? VISIBLE
+                        : GONE);
     }
 
     /** Sets the visibility of the delete URL content button. */
     /* package */ void setDeleteButtonVisibility(boolean shouldShow) {
-        mDeleteButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowDeleteButton = shouldShow;
+        setButtonVisibility(mDeleteButton, shouldShow);
+    }
+
+    /** Sets the visibility of the Navigate. */
+    /* package */ void setNavigateButtonVisibility(boolean shouldShow) {
+        mShowNavigateButton = shouldShow;
+        setButtonVisibility(mNavigateButton, shouldShow);
     }
 
     /** Sets the visibility of the mic button. */
     /* package */ void setMicButtonVisibility(boolean shouldShow) {
-        mMicButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowMicButton = shouldShow;
+        setButtonVisibility(mMicButton, shouldShow);
     }
 
     /** Sets the visibility of the lens button. */
     /* package */ void setLensButtonVisibility(boolean shouldShow) {
-        mLensButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowLensButton = shouldShow;
+        setButtonVisibility(mLensButton, shouldShow);
+    }
+
+    /** Sets the visibility of the zoom button. */
+    /* package */ void setZoomButtonVisibility(boolean shouldShow) {
+        mShowZoomButton = shouldShow;
+        setButtonVisibility(mZoomButton, shouldShow);
     }
 
     /** Sets the visibility of the install button. */
     /* package */ void setInstallButtonVisibility(boolean shouldShow) {
-        mInstallButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowInstallButton = shouldShow;
+        setButtonVisibility(mInstallButton, shouldShow);
     }
 
     /** Sets the visibility of the composeplate button. */
     /* package */ void setComposeplateButtonVisibility(boolean shouldShow) {
-        mComposeplateButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowComposeplateButton = shouldShow;
+        setButtonVisibility(mComposeplateButton, shouldShow);
     }
 
     protected void setUnfocusedWidth(int unfocusedWidth) {
@@ -288,14 +312,29 @@ public class LocationBarLayout extends ConstraintLayout {
         return mStatusCoordinator;
     }
 
+    public boolean getLocationBarButtonsVisibilityForTesting() {
+        return mShowUrlButtons;
+    }
+
     public void setStatusCoordinatorForTesting(StatusCoordinator statusCoordinator) {
         mStatusCoordinator = statusCoordinator;
     }
 
-    /* package */ void setUrlActionContainerVisibility(int visibility) {
-        if(BuildConfig.IS_VIVALDI) return;
-        if (mHidingActionContainerForNarrowWindow && visibility == VISIBLE) return;
-        mUrlActionContainer.setVisibility(visibility);
+    /* package */ void setUrlActionContainerVisibility(boolean shouldShow) {
+        if(BuildConfig.IS_VIVALDI) shouldShow = true;
+
+        mShowUrlButtons = shouldShow;
+
+        setComposeplateButtonVisibility(mShowComposeplateButton);
+        setInstallButtonVisibility(mShowInstallButton);
+        setZoomButtonVisibility(mShowZoomButton);
+        setMicButtonVisibility(mShowMicButton);
+        setLensButtonVisibility(mShowLensButton);
+        setDeleteButtonVisibility(mShowDeleteButton);
+        setNavigateButtonVisibility(mShowNavigateButton);
+        // Vivaldi
+        setReloadButtonVisibility(mShowReloadButton);
+        setQrCodeButtonVisibility(mShowQrCodeButton);
     }
 
     /** Returns the increase in StatusView end padding, when the Url bar is focused. */
@@ -501,7 +540,7 @@ public class LocationBarLayout extends ConstraintLayout {
     public void updateUrlActionContainerEndMargin(boolean useDefaultUrlActionContainerEndMargin) {
         // ConstraintLayout doesn't trivially support negative margins. We emulate one here by
         // positioning a spacer view past the end of the layout and constraining the url action
-        // container to start at the end of this view.
+        // container to end at the end of this view.
         mUrlActionContainerEndMargin =
                 useDefaultUrlActionContainerEndMargin
                         ? getResources()
@@ -527,11 +566,18 @@ public class LocationBarLayout extends ConstraintLayout {
     /** Vivaldi */
     /* package */ void setQrCodeButtonVisibility(boolean shouldShow) {
         if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) return; // No camera on automotive, no QR button.
-        mQrCodeButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowQrCodeButton = shouldShow;
+        setButtonVisibility(mQrCodeButton, shouldShow);
+    }
+
+    /** Vivaldi */
+    void setReloadButtonTint(ColorStateList colorStateList) {
+        mReloadButton.setImageTintList(colorStateList);
     }
 
     /** Vivaldi */
     void setReloadButtonVisibility(boolean shouldShow) {
-        mReloadButton.setVisibility(shouldShow ? VISIBLE : GONE);
+        mShowReloadButton = shouldShow;
+        setButtonVisibility(mReloadButton, shouldShow);
     }
 }

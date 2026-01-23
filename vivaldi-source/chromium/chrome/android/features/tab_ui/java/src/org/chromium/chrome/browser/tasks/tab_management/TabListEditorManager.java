@@ -148,7 +148,8 @@ public class TabListEditorManager {
                             mEdgeToEdgeSupplier,
                             CreationMode.FULL_SCREEN,
                             /* undoBarExplicitTrigger= */ null,
-                            /* componentName= */ null);
+                            /* componentName= */ null,
+                            TabListEditorCoordinator.UNLIMITED_SELECTION);
             mControllerSupplier.set(mTabListEditorCoordinator.getController());
         }
     }
@@ -207,6 +208,14 @@ public class TabListEditorManager {
                             ShowMode.MENU_ONLY,
                             ButtonType.ICON_AND_TEXT,
                             IconPosition.START));
+            if (ChromeFeatureList.sAndroidPinnedTabs.isEnabled()) {
+                mTabListEditorActions.add(
+                        TabListEditorPinAction.createAction(
+                                mActivity,
+                                ShowMode.MENU_ONLY,
+                                ButtonType.ICON_AND_TEXT,
+                                IconPosition.START));
+            }
         }
 
         var controller = mControllerSupplier.get();

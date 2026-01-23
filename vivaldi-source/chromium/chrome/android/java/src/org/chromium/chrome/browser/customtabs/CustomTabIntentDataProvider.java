@@ -91,6 +91,7 @@ import org.chromium.chrome.browser.browserservices.intents.ColorProvider;
 import org.chromium.chrome.browser.browserservices.intents.CustomButtonParams;
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.customtabs.CustomTabsFeatureUsage.CustomTabsFeature;
+import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.share.ShareUtils;
@@ -325,7 +326,7 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     private final @Nullable Intent mKeepAliveServiceIntent;
     private final @Nullable Bundle mAnimationBundle;
 
-    private final int mUiType;
+    private int mUiType;
     private final int mTitleVisibilityState;
     private final @Nullable String mMediaViewerUrl;
     private final boolean mEnableEmbeddedMediaExperience;
@@ -393,6 +394,12 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
      * If true, open CCT in immersive fullscreen mode.
      */
     private final boolean mIsCinemaMode;
+
+    /**
+     * Vivaldi OEM
+     * Holds the current individual zoom factor for the custom tab.
+     */
+    private final float mInitialZoomFactor;
 
     /** Add extras to customize menu items for opening Reader Mode UI custom tab from Chrome. */
     public static void addReaderModeUiExtras(Intent intent) {
@@ -599,11 +606,6 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
             }
         }
 
-        mOpenInBrowserState =
-                IntentUtils.safeGetIntExtra(
-                        intent,
-                        EXTRA_OPEN_IN_BROWSER_STATE,
-                        OpenInBrowserButtonState.OPEN_IN_BROWSER_STATE_DEFAULT);
         if (mUiType == CustomTabsUiType.POPUP) {
             mShareState = CustomTabsIntent.SHARE_STATE_OFF;
         } else {
@@ -621,12 +623,21 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         List<Bundle> menuItems =
                 IntentUtils.getParcelableArrayListExtra(intent, CustomTabsIntent.EXTRA_MENU_ITEMS);
 
-        addOpenInBrowserOption(intent, context);
-        updateExtraMenuItems(menuItems);
-        // Disable CCT share options for automotive. See b/300292495.
-        if (ShareUtils.enableShareForAutomotive(true)) {
-            addShareOption(intent, context);
+        int openInBrowserState =
+                IntentUtils.safeGetIntExtra(
+                        intent,
+                        EXTRA_OPEN_IN_BROWSER_STATE,
+                        OpenInBrowserButtonState.OPEN_IN_BROWSER_STATE_DEFAULT);
+        if (isOpenInBrowserDisallowed(
+                getUiType(), getCustomTabMode() == CustomTabProfileType.INCOGNITO)) {
+            openInBrowserState = CustomTabsButtonState.BUTTON_STATE_OFF;
         }
+        mOpenInBrowserState = openInBrowserState;
+
+        int oibState = adjustOpenInBrowserOption(intent);
+        maybeAddOpenInBrowserOption(context, oibState);
+        updateExtraMenuItems(menuItems);
+        maybeAddShareOption(intent, context);
 
         boolean isTwa =
                 mSession != null
@@ -649,6 +660,9 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         mTrustedWebActivityDisplayMode = resolveTwaDisplayMode();
         mTrustedWebActivityDisplayOverrideMode = resolveTwaDisplayOverrideMode();
 
+        // After TWA checks, update custom tabs ui types. Order seems to matter
+        // here.
+        mUiType = getCustomTabsUiType(requestedUiType);
         int intentVisibilityState =
                 IntentUtils.safeGetIntExtra(
                         intent,
@@ -732,6 +746,9 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         //!! TODO(jarle@vivaldi): check if calling package name is valid
         mIsCinemaMode = IntentUtils.safeGetBooleanExtra(intent,
                 VivaldiIntentHandler.EXTRA_CUSTOMTAB_CINEMA_MODE, false);
+
+        mInitialZoomFactor =
+                intent.getFloatExtra(VivaldiIntentHandler.EXTRA_CUSTOMTAB_ZOOM_FACTOR, 0.0f);
     }
 
     /** Returns the toolbar corner radius in px. */
@@ -833,12 +850,12 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     }
 
     /**
-     * Get the verified custom tabs UI type, according to the intent extras, and whether
-     * the intent is trusted.
+     * Get the verified custom tabs UI type, according to the intent extras, and whether the intent
+     * is trusted.
      *
-     * If the intent extras include a valid EXTRA_NETWORK, consider that the custom tab is
-     * used for captive portal scenarios especially and the UI hides the "Open in Chrome browser"
-     * menu item accordingly.
+     * <p>If the intent extras include a valid EXTRA_NETWORK, consider that the custom tab is used
+     * for captive portal scenarios especially and the UI hides the "Open in Chrome browser" menu
+     * item accordingly.
      *
      * @param requestedUiType requested UI type in the intent, unqualified
      * @return verified UI type
@@ -846,6 +863,9 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     @BrowserServicesIntentDataProvider.CustomTabsUiType
     private int getCustomTabsUiType(int requestedUiType) {
         if (mNetwork != null) return CustomTabsUiType.NETWORK_BOUND_TAB;
+        if (isTrustedWebActivity() && resolveDisplayMode() == DisplayMode.MINIMAL_UI) {
+            return CustomTabsUiType.TRUSTED_WEB_ACTIVITY;
+        }
         if (!isTrustedIntent()) {
             if (VersionInfo.isLocalBuild()) Log.w(TAG, FIRST_PARTY_PITFALL_MSG);
             return CustomTabsUiType.DEFAULT;
@@ -957,10 +977,12 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
      *       {@link CustomTabsIntent#EXTRA_DEFAULT_SHARE_MENU_ITEM}.
      * </ul>
      */
-    private void addShareOption(Intent intent, Context context) {
+    private void maybeAddShareOption(Intent intent, Context context) {
+        // Disable CCT share options for automotive. See crbug.com/300292495.
+        if (!ShareUtils.enableShareForAutomotive(true)) return;
+
         if (mShareState == CustomTabsIntent.SHARE_STATE_DEFAULT) {
-            if (mToolbarButtons.isEmpty()
-                    || (isCpaOnlyOpenInBrowserDefault() && canAddMoreToolbarItems())) {
+            if (canAddShareAction()) {
                 mToolbarButtons.add(
                         CustomButtonParamsImpl.createShareButton(
                                 context, getColorProvider().getToolbarColor()));
@@ -968,8 +990,7 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
                 mShowShareItemInMenu = true;
             }
         } else if (mShareState == CustomTabsIntent.SHARE_STATE_ON) {
-            if (mToolbarButtons.isEmpty()
-                    || (isCpaOnlyOpenInBrowserDefault() && canAddMoreToolbarItems())) {
+            if (canAddShareAction()) {
                 mToolbarButtons.add(
                         CustomButtonParamsImpl.createShareButton(
                                 context, getColorProvider().getToolbarColor()));
@@ -985,15 +1006,25 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
         }
     }
 
-    private void addOpenInBrowserOption(Intent intent, Context context) {
+    private boolean canAddShareAction() {
+        if (!ChromeFeatureList.sCctAdaptiveButton.isEnabled()) return mToolbarButtons.isEmpty();
+
+        if (!canAddMoreToolbarItems()) return false;
+
+        if (mShareState == CustomTabsIntent.SHARE_STATE_OFF) {
+            return false;
+        } else if (mShareState == CustomTabsIntent.SHARE_STATE_ON) {
+            return true;
+        } else { // mShareState == CustomTabsIntent.SHARE_STATE_DEFAULT
+            return mToolbarButtons.isEmpty();
+        }
+    }
+
+    private int adjustOpenInBrowserOption(Intent intent) {
         boolean usingInteractiveOmnibox =
                 CustomTabsConnection.getInstance().shouldEnableOmniboxForIntent(this);
 
-        int openInBrowserState =
-                IntentUtils.safeGetIntExtra(
-                        intent,
-                        EXTRA_OPEN_IN_BROWSER_STATE,
-                        CustomTabsButtonState.BUTTON_STATE_DEFAULT);
+        int openInBrowserState = mOpenInBrowserState;
 
         if (openInBrowserState == CustomTabsButtonState.BUTTON_STATE_ON
                 && !ChromeFeatureList.sCctOpenInBrowserButtonIfEnabledByEmbedder.isEnabled()) {
@@ -1007,18 +1038,71 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
                     && IntentUtils.safeGetBooleanExtra(
                             intent, EXTRA_OPEN_IN_BROWSER_BUTTON_ALLOWED, false)) {
                 openInBrowserState = CustomTabsButtonState.BUTTON_STATE_ON;
-            } else {
+            } else if (!isCpaOnlyOpenInBrowserDefault()) {
                 openInBrowserState = CustomTabsButtonState.BUTTON_STATE_OFF;
             }
         }
 
-        if (openInBrowserState == CustomTabsButtonState.BUTTON_STATE_ON) {
-            if (mToolbarButtons.isEmpty()
-                    || (isCpaOnlyOpenInBrowserDefault() && canAddMoreToolbarItems())) {
-                mToolbarButtons.add(
-                        CustomButtonParamsImpl.createOpenInBrowserButton(
-                                context, getColorProvider().getToolbarColor()));
-            }
+        return openInBrowserState;
+    }
+
+    private void maybeAddOpenInBrowserOption(Context context, int oibState) {
+        if (canAddOpenInBrowserAction(oibState)) {
+            mToolbarButtons.add(
+                    CustomButtonParamsImpl.createOpenInBrowserButton(
+                            context, getColorProvider().getToolbarColor()));
+        }
+    }
+
+    private boolean canAddOpenInBrowserAction(int oibState) {
+        if (!ChromeFeatureList.sCctAdaptiveButton.isEnabled()
+                && oibState == CustomTabsButtonState.BUTTON_STATE_ON) {
+            return mToolbarButtons.isEmpty();
+        }
+
+        if (!canAddMoreToolbarItems()) return false;
+
+        if (oibState == CustomTabsButtonState.BUTTON_STATE_OFF) {
+            return false;
+        } else if (oibState == CustomTabsButtonState.BUTTON_STATE_ON) {
+            return mToolbarButtons.isEmpty() || mShareState != CustomTabsIntent.SHARE_STATE_ON;
+        } else { // oibState == CustomTabsButtonState.BUTTON_STATE_DEFAULT
+            // Give SHARE a higher precedence than OIB. OIB is visible only in CPA+OIB
+            // experiment arm where SHARE is explicitly off.
+            return mToolbarButtons.isEmpty()
+                    && isCpaOnlyOpenInBrowserDefault()
+                    && mShareState == CustomTabsIntent.SHARE_STATE_OFF;
+        }
+    }
+
+    /**
+     * Returns {@code true} if open-in-browser (action button/menu item) should not be presented on
+     * the UI surface.
+     *
+     * @param type {@link CustomTabsUiType} value.
+     * @param incognito Whether the {@link CustomTabProfileType} is incongnito.
+     */
+    public static boolean isOpenInBrowserDisallowed(int type, boolean incognito) {
+        return !isOpenInBrowserAllowedForType(type)
+                || incognito
+                || !FirstRunStatus.getFirstRunFlowComplete();
+    }
+
+    private static boolean isOpenInBrowserAllowedForType(int type) {
+        switch (type) {
+            case CustomTabsUiType.MEDIA_VIEWER:
+            case CustomTabsUiType.READER_MODE:
+            case CustomTabsUiType.MINIMAL_UI_WEBAPP:
+            case CustomTabsUiType.OFFLINE_PAGE:
+            case CustomTabsUiType.AUTH_TAB:
+            case CustomTabsUiType.NETWORK_BOUND_TAB:
+            case CustomTabsUiType.POPUP:
+                return false;
+            case CustomTabsUiType.TRUSTED_WEB_ACTIVITY:
+                return !ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled();
+            case CustomTabsUiType.DEFAULT:
+            default:
+                return true;
         }
     }
 
@@ -1705,10 +1789,7 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
 
     @Override
     public boolean isInteractiveOmniboxEnabled() {
-        return ChromeFeatureList.sSearchInCCT.isEnabled()
-                && isPackageNameInList(
-                        getClientPackageName(),
-                        ChromeFeatureList.sSearchinCctOmniboxAllowedPackageNames.getValue());
+        return ChromeFeatureList.sSearchInCCT.isEnabled();
     }
 
     @Override
@@ -1872,7 +1953,8 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     }
 
     private boolean isCpaOnlyOpenInBrowserDefault() {
-        return ChromeFeatureList.sCctAdaptiveButtonContextualOnly.getValue()
+        return ChromeFeatureList.sCctAdaptiveButton.isEnabled()
+                && ChromeFeatureList.sCctAdaptiveButtonContextualOnly.getValue()
                 && ChromeFeatureList.sCctAdaptiveButtonDefaultVariant.getValue()
                         == AdaptiveToolbarButtonVariant.OPEN_IN_BROWSER;
     }
@@ -1898,5 +1980,14 @@ public class CustomTabIntentDataProvider extends BrowserServicesIntentDataProvid
     public boolean isCinemaMode() {
         return mIsCinemaMode;
     }
-    // End Vivaldi
+
+    /**
+     * Vivaldi OEM
+     * @return The initial zoom factor for the page, where 1.0 is 100%. If 0.0, the default
+     *         zoom will be used.
+     */
+    @Override
+    public float getInitialZoomFactor() {
+        return mInitialZoomFactor;
+    }
 }

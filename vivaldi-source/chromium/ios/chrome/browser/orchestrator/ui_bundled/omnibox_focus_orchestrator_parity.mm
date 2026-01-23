@@ -338,14 +338,14 @@
     // Use UIView animateWithDuration instead of UIViewPropertyAnimator to
     // avoid UIKit bug. See https://crbug.com/856155.
     self.inProgressAnimationCount += 1;
-    if (ShouldEnlargeLogoAndFakebox()) {
+    if (ShouldEnlargeNTPFakeboxForMIA()) {
       // Set the location bar height to the default.
       [self.toolbarAnimatee setLocationBarHeightExpanded];
     }
     [self.toolbarAnimatee setToolbarFaded:NO];
     switch (_trigger) {
       case OmniboxFocusTrigger::kPinnedFakebox:
-        if (ShouldEnlargeLogoAndFakebox()) {
+        if (ShouldEnlargeNTPFakeboxForMIA()) {
           [self.toolbarAnimatee setLocationBarHeightToMatchFakeOmnibox];
         }
         break;
@@ -361,7 +361,8 @@
         animations:^{
           BOOL isLowerThan17 = !base::ios::IsRunningOnOrLater(17, 0, 0);
           BOOL isHigherThan17_2 = base::ios::IsRunningOnOrLater(17, 2, 0);
-          if (isLowerThan17 || isHigherThan17_2) {
+          BOOL isLowerThan26 = !base::ios::IsRunningOnOrLater(26, 0, 0);
+          if (isLowerThan17 || (isHigherThan17_2 && isLowerThan26)) {
             [UIView addKeyframeWithRelativeStartTime:0
                                     relativeDuration:1
                                           animations:^{
@@ -377,6 +378,7 @@
           } else {
             // This is a workaround for a crash that is mostly happening on
             // iOS 17.0-17.1. See crbug.com/369988988.
+            // Same crash occurs on iOS 26 (crbug.com/445914120).
             [self expansion];
             [self.toolbarAnimatee hideControlButtons];
           }
@@ -406,7 +408,8 @@
         animations:^{
           BOOL isLowerThan17 = !base::ios::IsRunningOnOrLater(17, 0, 0);
           BOOL isHigherThan17_2 = base::ios::IsRunningOnOrLater(17, 2, 0);
-          if (isLowerThan17 || isHigherThan17_2) {
+          BOOL isLowerThan26 = !base::ios::IsRunningOnOrLater(26, 0, 0);
+          if (isLowerThan17 || (isHigherThan17_2 && isLowerThan26)) {
             [UIView addKeyframeWithRelativeStartTime:0
                                     relativeDuration:relativeDurationAnimation1
                                           animations:^{
@@ -422,6 +425,7 @@
           } else {
             // This is a workaround for a crash that is mostly happening on
             // iOS 17.0-17.1. See crbug.com/369988988.
+            // Same crash occurs on iOS 26 (crbug.com/445839307).
             [self contraction];
             [self.toolbarAnimatee showControlButtons];
           }
@@ -463,7 +467,7 @@
   } else if (_completion) {
     _completion();
     _completion = nil;
-    if (ShouldEnlargeLogoAndFakebox()) {
+    if (ShouldEnlargeNTPFakeboxForMIA()) {
       // Reset the location bar height back to the default.
       [self.toolbarAnimatee setLocationBarHeightExpanded];
     }
@@ -480,7 +484,7 @@
   [self.toolbarAnimatee showCancelButton];
   switch (_trigger) {
     case OmniboxFocusTrigger::kPinnedFakebox:
-      if (ShouldEnlargeLogoAndFakebox()) {
+      if (ShouldEnlargeNTPFakeboxForMIA()) {
         [self.toolbarAnimatee setLocationBarHeightExpanded];
       }
       break;
@@ -496,7 +500,7 @@
 - (void)contraction {
   [self.toolbarAnimatee contractLocationBar];
   if (_trigger == OmniboxFocusTrigger::kPinnedFakebox &&
-      ShouldEnlargeLogoAndFakebox()) {
+      ShouldEnlargeNTPFakeboxForMIA()) {
     [self.toolbarAnimatee setLocationBarHeightToMatchFakeOmnibox];
   }
 }

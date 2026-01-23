@@ -419,18 +419,10 @@ public class BookmarkManagerCoordinator
     @Override
     public void onViewAttachedToWindow(View view) {
         mMediator.onAttachedToWindow();
-
-        if (mBackPressManager != null) {
-            mBackPressManager.addHandler(this, BackPressHandler.Type.NATIVE_PAGE);
-        }
     }
 
     @Override
     public void onViewDetachedFromWindow(View view) {
-        if (mBackPressManager != null) {
-            mBackPressManager.removeHandler(this);
-        }
-
         mMediator.onDetachedFromWindow();
     }
 
@@ -669,7 +661,6 @@ public class BookmarkManagerCoordinator
         }
         return false;
     }
-    public void openSearchUI() {}
     public BookmarkModel getModel() { return mBookmarkModel; }
     public @Nullable String getCurrentUrl() { return mMediator.getCurrentUrl(); }
     public @Nullable BookmarkId getCurrentFolder() { return mMediator.getCurrentFolder(); }

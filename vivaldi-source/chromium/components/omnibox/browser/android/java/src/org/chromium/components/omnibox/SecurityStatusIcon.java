@@ -8,16 +8,27 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
 
 import org.chromium.build.annotations.NullMarked;
-import org.chromium.build.annotations.Nullable;
+import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
+
+import java.util.function.Supplier;
+
+// Vivaldi
+import org.chromium.build.annotations.Nullable;
 
 /** Utility class to get security state info for the omnibox. */
 @NullMarked
 public class SecurityStatusIcon {
-    /** @return the id of the resource identifying the icon corresponding to the securityLevel. */
+
+    private static final String TAG = "cr_SecurityIcon";
+
+    /**
+     * @return the id of the resource identifying the icon corresponding to the securityLevel.
+     */
     @DrawableRes
     public static int getSecurityIconResource(
             @ConnectionSecurityLevel int securityLevel,
+            Supplier<@ConnectionMaliciousContentStatus Integer> maliciousContentStatus,
             boolean isSmallDevice,
             boolean skipIconForNeutralState,
             boolean useLockIconForSecureState,
@@ -30,14 +41,21 @@ public class SecurityStatusIcon {
             case ConnectionSecurityLevel.NONE:
                 if (isSmallDevice && skipIconForNeutralState) return 0;
                 return R.drawable.omnibox_info;
-            case ConnectionSecurityLevel.WARNING:
-                return R.drawable.omnibox_not_secure_warning;
-            case ConnectionSecurityLevel.DANGEROUS:
-                return R.drawable.omnibox_dangerous;
             case ConnectionSecurityLevel.SECURE:
                 return useLockIconForSecureState
                         ? R.drawable.omnibox_https_valid_lock
                         : validRefreshIcon; // Vivaldi
+            case ConnectionSecurityLevel.WARNING:
+                return R.drawable.omnibox_not_secure_warning;
+            case ConnectionSecurityLevel.DANGEROUS:
+                return switch (maliciousContentStatus.get()) {
+                    case ConnectionMaliciousContentStatus.MANAGED_POLICY_WARN,
+                            ConnectionMaliciousContentStatus.MANAGED_POLICY_BLOCK ->
+                            R.drawable.enterprise_management;
+                    case ConnectionMaliciousContentStatus.BILLING ->
+                            R.drawable.omnibox_not_secure_warning;
+                    default -> R.drawable.omnibox_dangerous;
+                };
             default:
                 assert false;
         }

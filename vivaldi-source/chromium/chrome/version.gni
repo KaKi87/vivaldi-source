@@ -50,7 +50,6 @@ if (target_os == "android") {
       "chrome_version_code = " + "\"@CHROME_VERSION_CODE@\" " +
       "chrome_beta_version_code = " + "\"@CHROME_MODERN_VERSION_CODE@\" " +
       "chrome_auto_version_code = " + "\"@MONOCHROME_VERSION_CODE@\" " +
-      "chrome_desktop_version_code = \"@CHROME_DESKTOP_VERSION_CODE@\" " +
       "monochrome_version_code = \"@MONOCHROME_VERSION_CODE@\" " +
       "trichrome_version_code = \"@TRICHROME_VERSION_CODE@\" " +
       "trichrome_auto_version_code = \"@TRICHROME_AUTO_VERSION_CODE@\" " +
@@ -62,6 +61,12 @@ if (target_os == "android") {
   # Generate hybrid configurations for target_cpu's that can run in hybrid configurations.
   # i.e. "riscv64" does not show up in this list, as it's a 64-bit-only target_cpu.
   if (target_cpu == "arm64" || target_cpu == "x64") {
+    if (is_desktop_android) {
+      _version_dictionary_template +=
+          "chrome_desktop_version_code = \"@CHROME_DESKTOP_VERSION_CODE@\" "
+      _version_dictionary_template +=
+          "chrome_desktop_beta_version_code = \"@CHROME_DESKTOP_BETA_VERSION_CODE@\" "
+    }
     _version_dictionary_template +=
         "chrome_32_version_code = \"@CHROME_32_VERSION_CODE@\" "
     _version_dictionary_template +=
@@ -87,9 +92,13 @@ if (target_os == "android") {
     _version_dictionary_template +=
         "trichrome_auto_64_version_code = \"@TRICHROME_AUTO_64_VERSION_CODE@\" "
     _version_dictionary_template += "trichrome_desktop_64_version_code = \"@TRICHROME_DESKTOP_64_VERSION_CODE@\" "
+    if (!(defined(is_vivaldi) && is_vivaldi)) {
     if (target_cpu == "arm64") {
+      _version_dictionary_template += "chrome_high_version_code = \"@CHROME_HIGH_VERSION_CODE@\" "
+      _version_dictionary_template += "chrome_high_beta_version_code = \"@CHROME_HIGH_BETA_VERSION_CODE@\" "
       _version_dictionary_template += "trichrome_64_32_high_version_code = \"@TRICHROME_64_32_HIGH_VERSION_CODE@\" "
       _version_dictionary_template += "trichrome_auto_64_32_high_version_code = \"@TRICHROME_AUTO_64_32_HIGH_VERSION_CODE@\" "
+    }
     }
     _version_dictionary_template +=
         "trichrome_32_beta_version_code = \"@TRICHROME_32_BETA_VERSION_CODE@\" "
@@ -179,9 +188,12 @@ if (is_mac && !(defined(is_vivaldi) && is_vivaldi)) {
   forward_variables_from(_result,
                          [
                            "chrome_version_code",
+                           "chrome_high_version_code",
+                           "chrome_high_beta_version_code",
                            "chrome_beta_version_code",
                            "chrome_auto_version_code",
                            "chrome_desktop_version_code",
+                           "chrome_desktop_beta_version_code",
                            "chrome_32_version_code",
                            "monochrome_version_code",
                            "monochrome_32_version_code",
@@ -237,6 +249,8 @@ if (is_mac && !(defined(is_vivaldi) && is_vivaldi)) {
     webview_64_32_high_beta_version_code = webview_64_32_beta_version_code
     webview_64_32_high_stable_version_code = webview_64_32_stable_version_code
     webview_auto_64_32_high_version_code = webview_auto_64_32_version_code
+    chrome_high_version_code = chrome_version_code
+    chrome_high_beta_version_code = chrome_beta_version_code
   }
 }
 
@@ -256,9 +270,17 @@ if (is_android && current_toolchain == default_toolchain) {
     "AndroidWebviewAuto: $webview_auto_version_code",
   ]
 
-  if (android_64bit_target_cpu) {
+  if (defined(chrome_desktop_version_code)) {
     lines_to_write += [
       "ChromeDesktop: $chrome_desktop_version_code",
+      "ChromeDesktopOpenBeta: $chrome_desktop_beta_version_code"
+    ]
+  }
+
+  if (target_cpu == "arm64" && !(defined(is_vivaldi) && is_vivaldi)) {
+    lines_to_write += [
+      "ChromeHigh: $chrome_high_version_code",
+      "ChromeHighOpenBeta: $chrome_high_beta_version_code",
     ]
   }
 
@@ -286,7 +308,7 @@ if (is_android && current_toolchain == default_toolchain) {
       "AndroidWebviewAuto64: $webview_auto_64_version_code",
       "AndroidWebviewAuto6432: $webview_auto_64_32_version_code",
     ]
-    if (target_cpu == "arm64") {
+    if (target_cpu == "arm64" && !(defined(is_vivaldi) && is_vivaldi)) {
       lines_to_write += [
         "TrichromeChrome6432High: $trichrome_64_32_high_version_code",
         "TrichromeChromeAuto6432High: $trichrome_auto_64_32_high_version_code",
@@ -336,6 +358,22 @@ if (is_android) {
   _use_stable_package_name_for_trichrome =
       use_stable_package_name_for_trichrome && android_channel == "beta"
 
+  # Changing chrome_version_code here to prevent different output
+  # in the android_chrome_versions.txt above
+  if (_use_stable_package_name_for_trichrome) {
+    if (defined(chrome_desktop_beta_version_code)) {
+      chrome_version_code = chrome_desktop_beta_version_code
+    } else if (is_high_end_android) {
+      chrome_version_code = chrome_high_beta_version_code
+    } else {
+      chrome_version_code = chrome_beta_version_code
+    }
+  } else if (defined(chrome_desktop_version_code)) {
+    chrome_version_code = chrome_desktop_version_code
+  } else if (is_high_end_android && !(defined(is_vivaldi) && is_vivaldi)) {
+    chrome_version_code = chrome_high_version_code
+  }
+
   # Lookup tables for version codes.
   # For the list of configurations that exist, see:
   #     https://chromium.googlesource.com/chromium/src/+/main/docs/android_native_libraries.md#build-variants-eg_monochrome_64_32_apk
@@ -359,7 +397,7 @@ if (is_android) {
           true_false_false_true = trichrome_32_beta_version_code
           true_false_true_true = trichrome_32_64_beta_version_code
         } else {
-          if (is_high_end_android) {
+          if (is_high_end_android && !(defined(is_vivaldi) && is_vivaldi)) {
             true_true_true_true = trichrome_64_32_high_version_code
           } else {
             true_true_true_true = trichrome_64_32_version_code

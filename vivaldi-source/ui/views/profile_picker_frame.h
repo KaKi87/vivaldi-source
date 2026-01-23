@@ -3,18 +3,18 @@
 #ifndef UI_VIEW_PROFILE_PICKER_FRAME_H_
 #define UI_VIEW_PROFILE_PICKER_FRAME_H_
 
-#include "ui/views/window/non_client_view.h"
+#include "ui/views/window/frame_view.h"
 
 class ProfilePickerView;
 
 namespace vivaldi {
 
-class PickerFrame : public views::NonClientFrameView {
+class PickerFrame : public views::FrameView {
  public:
   PickerFrame(ProfilePickerView* profile_picker);
 
  protected:
-  // NonClientFrameView implementation
+  // FrameView implementation
   gfx::Rect GetBoundsForClientView() const override;
   int NonClientHitTest(const gfx::Point& point) override;
   void OnPaint(gfx::Canvas* canvas) override;

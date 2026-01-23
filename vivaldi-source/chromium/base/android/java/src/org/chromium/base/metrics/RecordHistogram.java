@@ -10,6 +10,9 @@ import org.chromium.build.annotations.NullMarked;
 
 import java.util.List;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Java API for recording UMA histograms. */
 @NullMarked
 public class RecordHistogram {
@@ -22,6 +25,8 @@ public class RecordHistogram {
      * @param sample sample to be recorded, either true or false
      */
     public static void recordBooleanHistogram(String name, boolean sample) {
+        // Vivaldi - Disable recording user actions
+        if (BuildConfig.IS_VIVALDI) return;
         UmaRecorderHolder.get().recordBooleanHistogram(name, sample);
     }
 
@@ -36,6 +41,8 @@ public class RecordHistogram {
      *            lower than or equal to {@code max}. This value should be 1000 or less.
      */
     public static void recordEnumeratedHistogram(String name, int sample, int max) {
+        // Vivaldi - Disable recording user actions
+        if (BuildConfig.IS_VIVALDI) return;
         // While recordExactLinearHistogram’s documentation states that the third argument
         // should be 100 or less, a value up to 1000 is actually accepted.
         recordExactLinearHistogram(name, sample, max);
@@ -231,6 +238,8 @@ public class RecordHistogram {
      */
     public static void recordCustomTimesHistogram(
             String name, long durationMs, long min, long max, int numBuckets) {
+        // Vivaldi - Disable recording user actions
+        if (BuildConfig.IS_VIVALDI) return;
         recordCustomTimesHistogramMilliseconds(name, durationMs, min, max, numBuckets);
     }
 

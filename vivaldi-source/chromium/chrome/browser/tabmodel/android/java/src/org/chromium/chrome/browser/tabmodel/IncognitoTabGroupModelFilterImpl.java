@@ -405,8 +405,6 @@ public class IncognitoTabGroupModelFilterImpl implements TabGroupModelFilterInte
 
     // Vivaldi
     @Override
-    public void maybeDissolveTabStacks() {
-        assert false : "[CHR140] maybeDissolveTabStacks() NOT IMPLEMENTED";
-    }
+    public void maybeDissolveTabStacks() {}
     // End Vivaldi
 }

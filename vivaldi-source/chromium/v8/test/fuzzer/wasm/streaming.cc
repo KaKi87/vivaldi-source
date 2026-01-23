@@ -85,19 +85,18 @@ CompilationResult CompileStreaming(v8_fuzzer::FuzzerSupport* support,
   {
     HandleScope handle_scope{i_isolate};
     auto resolver = std::make_shared<TestResolver>(i_isolate);
-    DirectHandle<Context> context =
-        v8::Utils::OpenDirectHandle(*support->GetContext());
     std::shared_ptr<StreamingDecoder> stream =
         GetWasmEngine()->StartStreamingCompilation(
-            i_isolate, enabled_features, CompileTimeImports{}, context,
-            "wasm-streaming-fuzzer", resolver);
+            enabled_features, CompileTimeImports{}, "wasm-streaming-fuzzer",
+            resolver);
+    stream->InitializeIsolateSpecificInfo(i_isolate);
 
     if (data.size() > 0) {
       size_t split = config % data.size();
       stream->OnBytesReceived(data.SubVector(0, split));
       stream->OnBytesReceived(data.SubVectorFrom(split));
     }
-    stream->Finish();
+    stream->Finish({});
 
     // Wait for the promise to resolve or reject.
     while (!resolver->done()) {

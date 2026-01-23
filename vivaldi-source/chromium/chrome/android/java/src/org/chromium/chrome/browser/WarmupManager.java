@@ -482,7 +482,8 @@ public class WarmupManager {
             ControlContainer controlContainer = mainView.findViewById(R.id.control_container);
 
             if (toolbarId != ActivityUtils.NO_RESOURCE_ID && controlContainer != null) {
-                controlContainer.initWithToolbar(toolbarId);
+                controlContainer.initWithToolbar(
+                        toolbarId, R.dimen.custom_tabs_control_container_height);
             }
             return mainView;
         } catch (InflateException e) {
@@ -658,8 +659,7 @@ public class WarmupManager {
      * @param url The url to be prefetched for future navigations.
      * @param usePrefetchProxy The flag whether the private prefetch proxy is used in requested
      *     prefetch.
-     * @param verifiedSourceOrigin The origin that prefetch is requested from. Currently, this is
-     *     always null.
+     * @param verifiedSourceOrigin The origin that prefetch is requested from.
      */
     public void startPrefetchFromCct(
             String url, boolean usePrefetchProxy, @Nullable String verifiedSourceOrigin) {

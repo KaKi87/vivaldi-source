@@ -24,6 +24,7 @@ namespace page_actions {
 struct SuggestionChipConfig;
 class PageActionController;
 class PageActionModelObserver;
+enum class PageActionColorSource;
 
 // Interface to PageActionModel, used for either the concrete implementation
 // or a mock for testing.
@@ -56,7 +57,8 @@ class PageActionModelInterface {
       const std::optional<std::u16string>& override_accessible_name) = 0;
   virtual void SetOverrideImage(
       base::PassKey<PageActionController>,
-      const std::optional<ui::ImageModel>& override_image) = 0;
+      const std::optional<ui::ImageModel>& override_image,
+      PageActionColorSource color_source) = 0;
   virtual void SetOverrideTooltip(
       base::PassKey<PageActionController>,
       const std::optional<std::u16string>& override_tooltip) = 0;
@@ -73,7 +75,8 @@ class PageActionModelInterface {
   virtual bool GetVisible() const = 0;
   virtual bool IsChipShowing() const = 0;
   virtual bool ShouldShowSuggestionChip() const = 0;
-  virtual bool GetShouldAnimateChip() const = 0;
+  virtual bool GetShouldAnimateChipOut() const = 0;
+  virtual bool GetShouldAnimateChipIn() const = 0;
   virtual bool GetShouldAnnounceChip() const = 0;
   virtual const ui::ImageModel& GetImage() const = 0;
   virtual const std::u16string& GetText() const = 0;
@@ -81,6 +84,7 @@ class PageActionModelInterface {
   virtual const std::u16string& GetAccessibleName() const = 0;
   virtual bool GetActionItemIsShowingBubble() const = 0;
   virtual bool GetActionActive() const = 0;
+  virtual PageActionColorSource GetColorSource() const = 0;
 
   virtual bool IsEphemeral() const = 0;
 };
@@ -119,9 +123,9 @@ class PageActionModel : public PageActionModelInterface {
       base::PassKey<PageActionController>,
       const std::optional<std::u16string>& override_accessible_name) override;
 
-  void SetOverrideImage(
-      base::PassKey<PageActionController>,
-      const std::optional<ui::ImageModel>& override_image) override;
+  void SetOverrideImage(base::PassKey<PageActionController>,
+                        const std::optional<ui::ImageModel>& override_image,
+                        PageActionColorSource color_source) override;
 
   void SetOverrideTooltip(
       base::PassKey<PageActionController>,
@@ -143,7 +147,8 @@ class PageActionModel : public PageActionModelInterface {
   bool GetVisible() const override;
   bool IsChipShowing() const override;
   bool ShouldShowSuggestionChip() const override;
-  bool GetShouldAnimateChip() const override;
+  bool GetShouldAnimateChipOut() const override;
+  bool GetShouldAnimateChipIn() const override;
   bool GetShouldAnnounceChip() const override;
 
   const ui::ImageModel& GetImage() const override;
@@ -152,6 +157,7 @@ class PageActionModel : public PageActionModelInterface {
   const std::u16string& GetTooltipText() const override;
   bool GetActionItemIsShowingBubble() const override;
   bool GetActionActive() const override;
+  PageActionColorSource GetColorSource() const override;
 
   bool IsEphemeral() const override;
 
@@ -183,6 +189,9 @@ class PageActionModel : public PageActionModelInterface {
   // animation is completed). Therefore, it should not be animating.
   bool is_chip_showing_ = false;
 
+  // Whether the chip was shown for a given `SetShouldShowSuggestion` request.
+  bool did_show_chip_ = false;
+
   // Represents whether suggestion chips should be announced by a screen
   // reader.
   bool should_announce_chip_ = false;
@@ -198,6 +207,7 @@ class PageActionModel : public PageActionModelInterface {
   ui::ImageModel action_item_image_;
   // When set, it will always take precedence over `action_item_image_`.
   std::optional<ui::ImageModel> override_image_;
+  std::optional<PageActionColorSource> color_source_;
 
   // When set, it will always take precedence over `text_`.
   std::optional<std::u16string> override_text_;

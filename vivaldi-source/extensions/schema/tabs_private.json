@@ -325,9 +325,61 @@
             "description": "Sharing time."
           }
         }
+      },
+      {
+        "id": "CloneTabInfo",
+        "type": "object",
+        "description" :  "Information of a cloned tab.",
+        "properties": {
+          "id": {"type": "integer", "minimum": -1, "optional": false },
+          "index": {"type": "integer", "minimum": -1, "description": "The zero-based index of the tab within its window."}
+        }
       }
     ],
     "functions": [
+      {
+        "name": "clone",
+        "type": "function",
+        "description": "Duplicates one or more tabs. Destination can be in a another window.",
+        "parameters": [
+          {
+            "name": "ids",
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          {
+            "type": "integer",
+            "name": "windowId",
+            "minimum": 0,
+            "description" :  "Target window."
+          },
+          {
+            "type": "integer",
+            "name": "index",
+            "minimum": 0,
+            "description" :  "Target index in target window."
+          },
+          {
+            "type": "boolean",
+            "name": "pinned",
+            "description" :  "Specifies the pinned state of the cloned tab."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "entries",
+              "type": "array",
+              "items": {
+                "$ref": "CloneTabInfo"
+              }
+            }
+          ]
+        }
+      },
       {
         "name": "update",
         "type": "function",

@@ -32,7 +32,7 @@
           other {<ph name="BOOKMARKS_COUNT_MANY" /> segnalibri}}</translation>
 <translation id="3076631378407175873">Copyright <ph name="YEAR" /> Vivaldi Technologies AS. Tutti i diritti riservati.</translation>
 <translation id="3110967157686007724">Scheda privata</translation>
-<translation id="3232293466644486101">Elimina dati di navigazione…</translation>
+<translation id="3232293466644486101">Cancella dati di navigazione…</translation>
 <translation id="3234355010754616171">Nuova scheda privata</translation>
 <translation id="3237087289225714896">Precaricamento standard:</translation>
 <translation id="3478414204555961127">Modalità lettura</translation>
@@ -132,6 +132,6 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfe
 <translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
           =1 {Non usato per 1 giorno o più}
           other {Non usato per # giorni o più}}</translation>
-<translation id="930124987204876019">Elimina cronologia, cookie, dati dei siti, cache…</translation>
-<translation id="961856697154696964">Elimina dati di navigazione</translation>
+<translation id="930124987204876019">Cancella cronologia, cookie, dati dei siti, cache…</translation>
+<translation id="961856697154696964">Cancella dati di navigazione</translation>
 </translationbundle>

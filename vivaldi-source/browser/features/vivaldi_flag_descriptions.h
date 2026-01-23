@@ -22,9 +22,21 @@ extern const char kCssModsInternalName[];
 extern const char kCssModsName[];
 extern const char kCssModsDescription[];
 
+extern const char kDesktopBackgroundInternalName[];
+extern const char kDesktopBackgroundName[];
+extern const char kDesktopBackgroundDescription[];
+
+extern const char kDnDTilingInternalName[];
+extern const char kDnDTilingMenuName[];
+extern const char kDnDTilingMenuDescription[];
+
 extern const char kDoubleClickMenuInternalName[];
 extern const char kDoubleClickMenuName[];
 extern const char kDoubleClickMenuDescription[];
+
+extern const char kFollowerTabInternalName[];
+extern const char kFollowerTabName[];
+extern const char kFollowerTabDescription[];
 
 extern const char kInternalPageReaderModeInternalName[];
 extern const char kInternalPageReaderModeName[];
@@ -34,13 +46,13 @@ extern const char kLocationOverrideInternalName[];
 extern const char kLocationOverrideName[];
 extern const char kLocationOverrideDescription[];
 
-extern const char kNewAboutPageInternalName[];
-extern const char kNewAboutPageName[];
-extern const char kNewAboutPageDescription[];
-
 extern const char kNewPrivacyReportInternalName[];
 extern const char kNewPrivacyReportName[];
 extern const char kNewPrivacyReportDescription[];
+
+extern const char kOpenLinkTiledInternalName[];
+extern const char kOpenLinkTiledName[];
+extern const char kOpenLinkTiledDescription[];
 
 extern const char kShowNewSpeedDialDialogInternalName[];
 extern const char kShowNewSpeedDialDialogName[];
@@ -49,10 +61,6 @@ extern const char kShowNewSpeedDialDialogDescription[];
 extern const char kShowTopSitesInternalName[];
 extern const char kShowTopSitesName[];
 extern const char kShowTopSitesDescription[];
-
-extern const char kSpeeddialWidgetsInternalName[];
-extern const char kSpeeddialWidgetsName[];
-extern const char kSpeeddialWidgetsDescription[];
 
 extern const char kViewMarkdownAsHTMLInternalName[];
 extern const char kViewMarkdownAsHTMLName[];
@@ -65,6 +73,14 @@ extern const char kAddCustomSearchEngineOptionDescription[];
 extern const char kNoteEditorName[];
 extern const char kNoteEditorOption[];
 extern const char kNoteEditorDescription[];
+
+extern const char kRestrictPinnedTabInternalName[];
+extern const char kRestrictPinnedTabName[];
+extern const char kRestrictPinnedTabDescription[];
+
+extern const char kTabsAutoHideName[];
+extern const char kTabsAutoHideOption[];
+extern const char kTabsAutoHideDescription[];
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 extern const char kCinemaModeInternalName[];

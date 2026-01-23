@@ -28,6 +28,8 @@ NSString* const vVivaldiRecoverUsernameUrl =
     @"https://login.vivaldi.net/profile/id/recoverAccount";
 NSString* const vVivaldiRecoverPasswordUrl =
     @"https://login.vivaldi.net/profile/id/userInfoView";
+NSString* const vVivaldiProfileUrl =
+    @"https://login.vivaldi.net/profile/me";
 NSString* const vVivaldiDirectMatchLearnMoreUrl =
     @"https://help.vivaldi.com/desktop/navigation/what-is-direct-match";
 

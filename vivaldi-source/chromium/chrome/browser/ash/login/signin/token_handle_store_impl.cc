@@ -8,7 +8,6 @@
 
 #include "base/check_op.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/json/values_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -182,7 +181,6 @@ void TokenHandleStoreImpl::FetchTokenHandle(
     const AccountId& account_id,
     const std::string& access_token,
     const std::string& refresh_token_hash) {
-  CHECK_NE(access_token, std::string());
   // Overwriting the `TokenHandleFetcher` for `account_id` while the fetch is
   // pending will effectively cancel the previous check, and issue a newer
   // one. Destroying the previous instance of `TokenHandleFetcher` will also

@@ -587,32 +587,51 @@ SearchEnginesGetSwitchPromptDataFunction::Run() {
   data.should_prompt = search_engines_prompt_manager->ShouldPrompt(
       prefs, template_url_service, rules_service);
   if (data.should_prompt) {
-    const auto maybe_default_search =
-        search_engines_prompt_manager->GetPartnerSearchEnginesToPrompt(
-            country_codes::GetCurrentCountryID(),
-            g_browser_process->GetApplicationLocale(), *prefs,
-            template_url_service);
-    std::transform(maybe_default_search.begin(), maybe_default_search.end(),
-                   std::back_inserter(data.partner_search_engines),
-                   [](const auto& it) { return TemplateURLToJSType(it); });
-
-    data.current_search_engine = TemplateURLToJSType(current_search);
     data.prompt_type = search_engines_prompt_manager->GetDialogType();
   }
+  data.is_quarantined = search_engines_prompt_manager->IsQuarantined(prefs);
+  data.current_search_engine = TemplateURLToJSType(current_search);
+
+  const auto search_engines_to_prompt =
+      search_engines_prompt_manager->GetSearchEnginesToPrompt(
+          template_url_service);
+  std::transform(search_engines_to_prompt.begin(),
+                 search_engines_to_prompt.end(),
+                 std::back_inserter(data.search_engines_to_prompt),
+                 [](const auto& it) { return TemplateURLToJSType(it); });
+
+  const auto partner_search_engines =
+      search_engines_prompt_manager->GetPartnerSearchEngines(
+          country_codes::GetCurrentCountryID(),
+          g_browser_process->GetApplicationLocale(), *prefs,
+          template_url_service);
+  std::transform(partner_search_engines.begin(), partner_search_engines.end(),
+                 std::back_inserter(data.partner_search_engines),
+                 [](const auto& it) { return TemplateURLToJSType(it); });
+
   return RespondNow(ArgumentList(
       vivaldi::search_engines::GetSwitchPromptData::Results::Create(data)));
 }
 
 ExtensionFunction::ResponseAction
 SearchEnginesAcknowledgeSwitchPromptFunction::Run() {
+  std::optional<vivaldi::search_engines::AcknowledgeSwitchPrompt::Params>
+      params(vivaldi::search_engines::AcknowledgeSwitchPrompt::Params::Create(
+          args()));
+
+  EXTENSION_FUNCTION_VALIDATE(params);
+
   auto* prefs = Profile::FromBrowserContext(browser_context())->GetPrefs();
   if (!prefs) {
     return RespondNow(Error("PrefService is not valid for profile."));
   }
 
-  SearchEnginesManagersFactory::GetInstance()
-      ->GetSearchEnginesPromptManager()
-      ->MarkCurrentPromptAsSeen(prefs);
+  const SearchEnginesPromptManager* manager =
+      SearchEnginesManagersFactory::GetInstance()
+          ->GetSearchEnginesPromptManager();
+
+  params->special_prompt_type ? manager->PutProfileToQuarantine(prefs)
+                            : manager->MarkCurrentPromptAsSeen(prefs);
 
   return RespondNow(NoArguments());
 }

@@ -106,6 +106,7 @@ class VivaldiGuestViewContentObserver
   bool load_from_cache_only() { return load_from_cache_only_; }
 
   void SetShowImages(bool show_images);
+  void SetHasVivaldiFollowerTab(bool follower_tab);
   void SetLoadFromCacheOnly(bool load_from_cache_only);
   void SetMuted(bool mute);
 
@@ -239,6 +240,20 @@ class VivaldiPrivateTabObserver
   static const int& kUserDataKey;
 
   base::WeakPtrFactory<VivaldiPrivateTabObserver> weak_ptr_factory_{this};
+};
+
+class TabsPrivateCloneFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("tabsPrivate.clone", TABSPRIVATE_CLONE)
+
+  TabsPrivateCloneFunction() = default;
+
+ protected:
+  ~TabsPrivateCloneFunction() override = default;
+
+ private:
+  // BookmarksFunction:
+  ResponseAction Run() override;
 };
 
 class TabsPrivateUpdateFunction : public ExtensionFunction {

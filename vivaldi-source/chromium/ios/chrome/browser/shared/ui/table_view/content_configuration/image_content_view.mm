@@ -25,16 +25,24 @@
     _heightConstraint = [self.heightAnchor
         constraintEqualToConstant:configuration.imageSize.height];
 
-    [NSLayoutConstraint activateConstraints:@[
-      _widthConstraint,
-      _heightConstraint,
-    ]];
+    [self
+        setContentCompressionResistancePriority:UILayoutPriorityDefaultHigh + 1
+                                        forAxis:
+                                            UILayoutConstraintAxisHorizontal];
+    [self setContentHuggingPriority:UILayoutPriorityRequired - 1
+                            forAxis:UILayoutConstraintAxisHorizontal];
 
-    _configuration = configuration;
+    _configuration = [configuration copy];
 
     [self applyConfiguration];
   }
   return self;
+}
+
+#pragma mark - ChromeContentView
+
+- (BOOL)hasCustomAccessibilityActivationPoint {
+  return NO;
 }
 
 #pragma mark - UIContentView
@@ -45,7 +53,8 @@
 
 - (void)setConfiguration:(id<UIContentConfiguration>)configuration {
   _configuration =
-      base::apple::ObjCCastStrict<ImageContentConfiguration>(configuration);
+      [base::apple::ObjCCastStrict<ImageContentConfiguration>(configuration)
+          copy];
   [self applyConfiguration];
 }
 
@@ -58,8 +67,14 @@
 - (void)applyConfiguration {
   self.image = _configuration.image;
   self.contentMode = _configuration.imageContentMode;
+  self.tintColor = _configuration.imageTintColor;
+  self.accessibilityIdentifier = _configuration.accessibilityID;
   _widthConstraint.constant = _configuration.imageSize.width;
   _heightConstraint.constant = _configuration.imageSize.height;
+
+  BOOL useImageSize = CGSizeEqualToSize(_configuration.imageSize, CGSizeZero);
+  _widthConstraint.active = !useImageSize;
+  _heightConstraint.active = !useImageSize;
 }
 
 @end

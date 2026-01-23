@@ -996,6 +996,10 @@ static const char* native_accessor_test_source =
     "  }\n"
     "}\n";
 
+// This tag value has been picked arbitrarily between 0 and
+// V8_EXTERNAL_POINTER_TAG_COUNT.
+constexpr v8::ExternalPointerTypeTag kTestApiCallbacksTag = 19;
+
 class TestApiCallbacks {
  public:
   explicit TestApiCallbacks(int min_duration_ms)
@@ -1034,7 +1038,7 @@ class TestApiCallbacks {
 
   template <typename T>
   static TestApiCallbacks* FromInfo(const T& info) {
-    void* data = v8::External::Cast(*info.Data())->Value();
+    void* data = v8::External::Cast(*info.Data())->Value(kTestApiCallbacksTag);
     return reinterpret_cast<TestApiCallbacks*>(data);
   }
 
@@ -1057,7 +1061,8 @@ TEST(NativeAccessorUninitializedIC) {
       func_template->InstanceTemplate();
 
   TestApiCallbacks accessors(100);
-  v8::Local<v8::External> data = v8::External::New(isolate, &accessors);
+  v8::Local<v8::External> data =
+      v8::External::New(isolate, &accessors, kTestApiCallbacksTag);
   instance_template->SetNativeDataProperty(v8_str("foo"),
                                            &TestApiCallbacks::Getter,
                                            &TestApiCallbacks::Setter, data);
@@ -1097,7 +1102,8 @@ TEST(NativeAccessorMonomorphicIC) {
       func_template->InstanceTemplate();
 
   TestApiCallbacks accessors(1);
-  v8::Local<v8::External> data = v8::External::New(isolate, &accessors);
+  v8::Local<v8::External> data =
+      v8::External::New(isolate, &accessors, kTestApiCallbacksTag);
   instance_template->SetNativeDataProperty(v8_str("foo"),
                                            &TestApiCallbacks::Getter,
                                            &TestApiCallbacks::Setter, data);
@@ -1148,7 +1154,8 @@ TEST(NativeMethodUninitializedIC) {
   v8::HandleScope scope(isolate);
 
   TestApiCallbacks callbacks(100);
-  v8::Local<v8::External> data = v8::External::New(isolate, &callbacks);
+  v8::Local<v8::External> data =
+      v8::External::New(isolate, &callbacks, kTestApiCallbacksTag);
 
   v8::Local<v8::FunctionTemplate> func_template =
       v8::FunctionTemplate::New(isolate);
@@ -1189,7 +1196,8 @@ TEST(NativeMethodMonomorphicIC) {
   v8::HandleScope scope(isolate);
 
   TestApiCallbacks callbacks(1);
-  v8::Local<v8::External> data = v8::External::New(isolate, &callbacks);
+  v8::Local<v8::External> data =
+      v8::External::New(isolate, &callbacks, kTestApiCallbacksTag);
 
   v8::Local<v8::FunctionTemplate> func_template =
       v8::FunctionTemplate::New(isolate);
@@ -2840,6 +2848,10 @@ TEST(DeoptAtFirstLevelInlinedSource) {
 // deopt at the second level inlined function
 TEST(DeoptAtSecondLevelInlinedSource) {
   if (!CcTest::i_isolate()->use_optimizer()) return;
+  if (i::v8_flags.turboshaft_verify_load_store_taggedness) {
+    // TODO(dmercadier): investigate why this test doesn't work with this flag.
+    return;
+  }
   i::v8_flags.allow_natives_syntax = true;
   v8::HandleScope scope(CcTest::isolate());
   v8::Local<v8::Context> env = CcTest::NewContext({PROFILER_EXTENSION_ID});
@@ -3125,6 +3137,10 @@ TEST(TracingCpuProfiler) {
           const profile_header = json[0];
           if (typeof profile_header['startTime'] !== 'number')
             return false;
+          if (profile_header.source !== 'Internal')
+            return false;
+          if (!json.every(event => event.source === 'Internal'))
+            return false;
           return json.some(event => (event.lines || []).some(line => line)) &&
               json.filter(e => e.cpuProfile && e.cpuProfile.nodes)
               .some(e => e.cpuProfile.nodes
@@ -3141,6 +3157,34 @@ TEST(TracingCpuProfiler) {
       i::V8::GetCurrentPlatform()->GetTracingController())
       ->Initialize(nullptr);
 #endif  // !V8_USE_PERFETTO
+}
+
+TEST(CpuProfilingOptionsProfileSource) {
+  {
+    v8::CpuProfilingOptions options;
+    CHECK_EQ(v8::CpuProfileSource::kUnspecified, options.profile_source());
+  }
+
+  {
+    v8::CpuProfilingOptions options(
+        v8::kLeafNodeLineNumbers, v8::CpuProfilingOptions::kNoSampleLimit, 0,
+        v8::MaybeLocal<v8::Context>(), v8::CpuProfileSource::kInspector);
+    CHECK_EQ(v8::CpuProfileSource::kInspector, options.profile_source());
+  }
+
+  {
+    v8::CpuProfilingOptions options(
+        v8::kLeafNodeLineNumbers, v8::CpuProfilingOptions::kNoSampleLimit, 0,
+        v8::MaybeLocal<v8::Context>(), v8::CpuProfileSource::kSelfProfiling);
+    CHECK_EQ(v8::CpuProfileSource::kSelfProfiling, options.profile_source());
+  }
+
+  {
+    v8::CpuProfilingOptions options(
+        v8::kLeafNodeLineNumbers, v8::CpuProfilingOptions::kNoSampleLimit, 0,
+        v8::MaybeLocal<v8::Context>(), v8::CpuProfileSource::kInternal);
+    CHECK_EQ(v8::CpuProfileSource::kInternal, options.profile_source());
+  }
 }
 
 TEST(Issue763073) {

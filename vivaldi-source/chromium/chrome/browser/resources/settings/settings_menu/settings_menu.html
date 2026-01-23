@@ -61,8 +61,9 @@
             hidden="[[!showYourSavedInfoPageMenuItem_(
                 enableYourSavedInfoSettingsPage_,
                 pageVisibility_.yourSavedInfo)]]"
+            on-click="onYourSavedInfoClick_"
             class="cr-nav-menu-item">
-          <cr-icon icon="settings:assignment"></cr-icon>
+          <cr-icon icon="settings20:person-text"></cr-icon>
           $i18n{yourSavedInfoPageTitle}
           <cr-ripple></cr-ripple>
         </a>
@@ -72,7 +73,7 @@
                 pageVisibility_.autofill)]]"
             on-click="onAutofillClick_"
             class="cr-nav-menu-item">
-          <cr-icon icon="settings:assignment"></cr-icon>
+          <cr-icon icon="[[autofillIcon_]]"></cr-icon>
           $i18n{autofillPageTitle}
           <cr-ripple></cr-ripple>
         </a>
@@ -105,13 +106,13 @@
           $i18n{appearancePageTitle}
           <cr-ripple></cr-ripple>
         </a>
-        <!--
+        <if expr="_google_chrome">
         <a role="menuitem" href="/search" class="cr-nav-menu-item">
           <cr-icon icon="settings:search"></cr-icon>
           $i18n{searchPageTitle}
           <cr-ripple></cr-ripple>
         </a>
-        -->
+        </if> <!-- Vivaldi -->
 <if expr="not is_chromeos">
         <a role="menuitem" id="defaultBrowser" class="cr-nav-menu-item"
           href="/defaultBrowser"

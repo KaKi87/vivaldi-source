@@ -8,6 +8,7 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Bundle;
@@ -56,6 +57,7 @@ import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
+import org.chromium.chrome.browser.settings.search.BaseSearchIndexProvider;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.SigninManager;
@@ -63,8 +65,8 @@ import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.sync.settings.ManageSyncSettings;
 import org.chromium.chrome.browser.sync.settings.SignInPreference;
 import org.chromium.chrome.browser.sync.settings.SyncSettingsUtils;
-import org.chromium.chrome.browser.toolbar.ToolbarPositionController;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor;
+import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;
 import org.chromium.chrome.browser.toolbar.settings.AddressBarSettingsFragment;
 import org.chromium.chrome.browser.tracing.settings.DeveloperSettings;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
@@ -89,18 +91,18 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.text.SpanApplier.SpanInfo;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 // Vivaldi
-import android.content.SharedPreferences;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 
-import org.vivaldi.browser.common.VivaldiBookmarkUtils;
 import org.vivaldi.browser.common.VivaldiDefaultBrowserUtils;
 import org.vivaldi.browser.common.VivaldiRelaunchUtils;
 import org.vivaldi.browser.common.VivaldiUtils;
@@ -114,6 +116,9 @@ import org.vivaldi.browser.rating.RateVivaldiUtils;
 @NullMarked
 public class MainSettings extends ChromeBaseSettingsFragment
         implements TemplateUrlService.LoadListener,
+                MultiColumnSettings.Observer,
+                TemplateUrlService.TemplateUrlServiceObserver,
+                SharedPreferences.OnSharedPreferenceChangeListener,
                 SyncService.SyncStateChangedListener,
                 SigninManager.SignInStateObserver,
                 SettingsCustomTabLauncher.SettingsCustomTabLauncherClient {
@@ -150,18 +155,29 @@ public class MainSettings extends ChromeBaseSettingsFragment
     public static final String PREF_DOUBLE_TAP_BACK_TO_EXIT = "double_tap_back_to_exit";
     public static final String PREF_ALLOW_BACKGROUND_MEDIA = "allow_background_media";
 
+    public interface Observer {
+        /** Called when a preference item is selected. */
+        void onPreferenceSelected(Preference preference);
+    }
+
     private final Map<String, Preference> mAllPreferences = new HashMap<>();
 
     private ManagedPreferenceDelegate mManagedPreferenceDelegate;
     private ChromeBasePreference mManageSync;
     private ObservableSupplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
-    // TODO(crbug.com/343933167): This should be removed when the snackbar issue is addressed.
+    // TODO(crbug.com/354927682): This should be removed when the snackbar issue is addressed.
     // Will be true if `onSignedOut()` was called when the current activity state is not
     // `Lifecycle.State.STARTED`.
     private boolean mShouldShowSnackbar;
     private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
     private SettingsCustomTabLauncher mSettingsCustomTabLauncher;
 
+    private @Nullable MultiColumnSettings mMultiColumnSettings;
+    private @Nullable SelectionDecoration mSelectionDecoration;
+
+    private final List<Observer> mObserverList = new ArrayList<>();
+
+    // Vivaldi
     private SharedPreferences.@Nullable OnSharedPreferenceChangeListener mPrefsListener;
 
     public MainSettings() {
@@ -195,11 +211,15 @@ public class MainSettings extends ChromeBaseSettingsFragment
 
         // Disable animations of preference changes.
         getListView().setItemAnimator(null);
+        if (mSelectionDecoration != null) {
+            getListView().addItemDecoration(mSelectionDecoration);
+        }
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
+        setMultiColumnSettings(null, null);
         SigninManager signinManager = IdentityServicesProvider.get().getSigninManager(getProfile());
         assumeNonNull(signinManager);
         if (signinManager.isSigninSupported(/* requireUpdatedPlayServices= */ false)) {
@@ -215,6 +235,17 @@ public class MainSettings extends ChromeBaseSettingsFragment
     @Override
     public void onStart() {
         super.onStart();
+        TemplateUrlService templateUrlService =
+                TemplateUrlServiceFactory.getForProfile(getProfile());
+        if (templateUrlService != null) {
+            templateUrlService.addObserver(this);
+        }
+
+        SharedPreferences sharedPreferences = ContextUtils.getAppSharedPreferences();
+        if (sharedPreferences != null) {
+            sharedPreferences.registerOnSharedPreferenceChangeListener(this);
+        }
+
         SyncService syncService = SyncServiceFactory.getForProfile(getProfile());
         if (syncService != null) {
             syncService.addSyncStateChangedListener(this);
@@ -237,6 +268,33 @@ public class MainSettings extends ChromeBaseSettingsFragment
         SyncService syncService = SyncServiceFactory.getForProfile(getProfile());
         if (syncService != null) {
             syncService.removeSyncStateChangedListener(this);
+        }
+
+        SharedPreferences sharedPreferences = ContextUtils.getAppSharedPreferences();
+        if (sharedPreferences != null) {
+            sharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
+        }
+
+        TemplateUrlService templateUrlService =
+                TemplateUrlServiceFactory.getForProfile(getProfile());
+        if (templateUrlService != null) {
+            templateUrlService.removeObserver(this);
+        }
+    }
+
+    @Override
+    public boolean onPreferenceTreeClick(Preference preference) {
+        onPreferenceSelected(preference);
+        return super.onPreferenceTreeClick(preference);
+    }
+
+    private void onPreferenceSelected(Preference preference) {
+        if (mSelectionDecoration != null) {
+            mSelectionDecoration.setSelectedPreference(preference);
+        }
+
+        for (var observer : mObserverList) {
+            observer.onPreferenceSelected(preference);
         }
     }
 
@@ -291,6 +349,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
         ChromeBasePreference googleServicePreference = findPreference(PREF_GOOGLE_SERVICES);
         googleServicePreference.setViewId(R.id.account_management_google_services_row);
         } // End Vivaldi
+
         cachePreferences();
 
         if (ChromeApplicationImpl.isVivaldi()) {
@@ -323,6 +382,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
             Preference notifications = findPreference(PREF_NOTIFICATIONS);
             notifications.setOnPreferenceClickListener(
                     preference -> {
+                        onPreferenceSelected(preference);
                         startActivity(intent);
                         // We handle the click so the default action isn't triggered.
                         return true;
@@ -454,7 +514,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
                 }
             }
 
-            if (VivaldiBookmarkUtils.isTopSitesEnabled()) {
+            if (ChromeApplicationImpl.isVivaldi()) {
                 ChromeSwitchPreference showTopSitesPref =
                         findPreference(VivaldiPreferences.SHOW_TOPSITES_PREF);
 
@@ -514,10 +574,71 @@ public class MainSettings extends ChromeBaseSettingsFragment
         mManageSync = (ChromeBasePreference) findPreference(PREF_MANAGE_SYNC);
     }
 
+    @Override
+    public void onTitleUpdated() {
+        assert mMultiColumnSettings != null;
+        assert mSelectionDecoration != null;
+
+        var titles = mMultiColumnSettings.getTitles();
+        String key = titles.isEmpty() ? null : titles.get(0).mainMenuKey;
+        mSelectionDecoration.setKey(key);
+
+        // Reflect to the UI.
+        var view = getListView();
+        if (view != null) {
+            view.invalidateItemDecorations();
+        }
+    }
+
+    public void addObserver(Observer observer) {
+        mObserverList.add(observer);
+    }
+
+    public void removeObserver(Observer observer) {
+        mObserverList.remove(observer);
+    }
+
+    void setMultiColumnSettings(
+            @Nullable MultiColumnSettings multiColumnSettings,
+            @Nullable SelectionDecoration selectionDecoration) {
+        assert (multiColumnSettings == null) == (selectionDecoration == null);
+        var view = getListView();
+
+        if (mMultiColumnSettings != null) {
+            mMultiColumnSettings.removeObserver(this);
+        }
+        if (mSelectionDecoration != null && view != null) {
+            view.removeItemDecoration(mSelectionDecoration);
+        }
+
+        mMultiColumnSettings = multiColumnSettings;
+        mSelectionDecoration = selectionDecoration;
+
+        if (mMultiColumnSettings != null) {
+            mMultiColumnSettings.addObserver(this);
+        }
+        if (mSelectionDecoration != null && view != null) {
+            view.addItemDecoration(mSelectionDecoration);
+        }
+
+        // Reflect the title update immediately.
+        if (mMultiColumnSettings != null) {
+            onTitleUpdated();
+        }
+    }
+
     private void setManagedPreferenceDelegateForPreference(String key) {
         ChromeBasePreference chromeBasePreference = (ChromeBasePreference) mAllPreferences.get(key);
         assumeNonNull(chromeBasePreference);
         chromeBasePreference.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
+    }
+
+    private void maybeUpdatePreferences() {
+        // `updatePreferences()` should be called only if the fragment is in the `STARTED` state,
+        // otherwise it will be called in `onStart()`.
+        if (getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.STARTED)) {
+            updatePreferences();
+        }
     }
 
     private void updatePreferences() {
@@ -547,7 +668,8 @@ public class MainSettings extends ChromeBaseSettingsFragment
 
         Preference homepagePref = addPreferenceIfAbsent(PREF_HOMEPAGE);
         setOnOffSummary(homepagePref, HomepageManager.getInstance().isHomepageEnabled());
-        }
+        } // End Vivaldi
+
         if (!ChromeFeatureList.isEnabled(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION)
                 && HomeModulesConfigManager.getInstance().hasModuleShownInSettings()
                 && !ChromeApplicationImpl.isVivaldi()) {
@@ -625,6 +747,7 @@ public class MainSettings extends ChromeBaseSettingsFragment
 
         mManageSync.setOnPreferenceClickListener(
                 pref -> {
+                    onPreferenceSelected(pref);
                     Context context = getContext();
                     Profile profile = getProfile();
                     SyncService syncService = SyncServiceFactory.getForProfile(profile);
@@ -662,13 +785,14 @@ public class MainSettings extends ChromeBaseSettingsFragment
     }
 
     private void updateAutofillPreferences() {
-        if (!ChromeApplicationImpl.isVivaldi()) {
+        if (!ChromeApplicationImpl.isVivaldi())
         addPreferenceIfAbsent(PREF_AUTOFILL_SECTION);
         addPreferenceIfAbsent(PREF_AUTOFILL_OPTIONS);
         Preference autofillOptionsPreference = findPreference(PREF_AUTOFILL_OPTIONS);
         autofillOptionsPreference.setFragment(null);
         autofillOptionsPreference.setOnPreferenceClickListener(
-                unused -> {
+                preference -> {
+                    onPreferenceSelected(preference);
                     SettingsNavigationFactory.createSettingsNavigation()
                             .startSettings(
                                     getContext(),
@@ -677,24 +801,28 @@ public class MainSettings extends ChromeBaseSettingsFragment
                                             AutofillOptionsReferrer.SETTINGS));
                     return true; // Means event is consumed.
                 });
-        }
         if (findPreference(PREF_AUTOFILL_PAYMENTS) != null) // Vivaldi
         findPreference(PREF_AUTOFILL_PAYMENTS)
                 .setOnPreferenceClickListener(
-                        preference ->
-                                SettingsNavigationHelper.showAutofillCreditCardSettings(
-                                        getActivity()));
+                        preference -> {
+                            onPreferenceSelected(preference);
+                            return SettingsNavigationHelper.showAutofillCreditCardSettings(
+                                    getActivity());
+                        });
         if (findPreference(PREF_AUTOFILL_ADDRESSES) != null) // Vivaldi
         findPreference(PREF_AUTOFILL_ADDRESSES)
                 .setOnPreferenceClickListener(
-                        preference ->
-                                SettingsNavigationHelper.showAutofillProfileSettings(
-                                        getActivity()));
+                        preference -> {
+                            onPreferenceSelected(preference);
+                            return SettingsNavigationHelper.showAutofillProfileSettings(
+                                    getActivity());
+                        });
         PasswordsPreference passwordsPreference = findPreference(PREF_PASSWORDS);
         if (passwordsPreference == null) return; // Vivaldi
         passwordsPreference.setProfile(getProfile());
         passwordsPreference.setOnPreferenceClickListener(
                 preference -> {
+                    onPreferenceSelected(preference);
                     PasswordManagerLauncher.showPasswordSettings(
                             getActivity(),
                             getProfile(),
@@ -729,10 +857,11 @@ public class MainSettings extends ChromeBaseSettingsFragment
         if (ChromeFeatureList.isEnabled(ChromeFeatureList.PLUS_ADDRESSES_ENABLED)
                 && !title.isEmpty()) {
             addPreferenceIfAbsent(PREF_PLUS_ADDRESSES);
-            Preference preference = findPreference(PREF_PLUS_ADDRESSES);
-            preference.setTitle(title);
-            preference.setOnPreferenceClickListener(
-                    unused -> {
+            Preference addressesPreference = findPreference(PREF_PLUS_ADDRESSES);
+            addressesPreference.setTitle(title);
+            addressesPreference.setOnPreferenceClickListener(
+                    preference -> {
+                        onPreferenceSelected(preference);
                         String url =
                                 ChromeFeatureList.getFieldTrialParamByFeature(
                                         ChromeFeatureList.PLUS_ADDRESSES_ENABLED, "manage-url");
@@ -758,7 +887,10 @@ public class MainSettings extends ChromeBaseSettingsFragment
         if (showSetting) {
             Preference addressBarPreference = addPreferenceIfAbsent(PREF_ADDRESS_BAR);
             if (!ChromeApplicationImpl.isVivaldi()) {
-            addressBarPreference.setSummary(ToolbarPositionController.getToolbarPositionResId());
+            addressBarPreference.setSummary(
+                    AddressBarPreference.isToolbarConfiguredToShowOnTop()
+                            ? R.string.address_bar_settings_top
+                            : R.string.address_bar_settings_bottom);
             updateNewPreferenceAndIncrementViewCount(
                     addressBarPreference,
                     AddressBarSettingsFragment.getTitle(getContext()),
@@ -818,7 +950,8 @@ public class MainSettings extends ChromeBaseSettingsFragment
                                         SemanticColorUtils.getDefaultTextColorAccent1(context)))));
 
         pref.setOnPreferenceClickListener(
-                (unused) -> {
+                preference -> {
+                    onPreferenceSelected(preference);
                     ChromeSharedPreferences.getInstance().writeBoolean(clickedPrefKey, true);
                     return false;
                 });
@@ -843,9 +976,9 @@ public class MainSettings extends ChromeBaseSettingsFragment
     // SigninManager.SignInStateObserver implementation.
     @Override
     public void onSignedIn() {
-        // After signing in or out of a managed account, preferences may change or become enabled
-        // or disabled.
-        new Handler().post(() -> updatePreferences());
+        // After signing in or out of a managed account, preferences may change or become enabled or
+        // disabled.
+        new Handler().post(() -> maybeUpdatePreferences());
     }
 
     @Override
@@ -871,11 +1004,34 @@ public class MainSettings extends ChromeBaseSettingsFragment
         updatePreferences();
     }
 
+    @Override
+    public void onSignInAllowedChanged() {
+        updatePreferences();
+    }
+
+    @Override
+    public void onSignOutAllowedChanged() {
+        updatePreferences();
+    }
+
     // TemplateUrlService.LoadListener implementation.
     @Override
     public void onTemplateUrlServiceLoaded() {
         TemplateUrlServiceFactory.getForProfile(getProfile()).unregisterLoadListener(this);
         updateSearchEnginePreference();
+    }
+
+    @Override
+    public void onTemplateURLServiceChanged() {
+        updateSearchEnginePreference();
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(
+            SharedPreferences sharedPreferences, @Nullable String key) {
+        if (ChromePreferenceKeys.TOOLBAR_TOP_ANCHORED.equals(key)) {
+            updateAddressBarPreference();
+        }
     }
 
     @Override
@@ -928,4 +1084,8 @@ public class MainSettings extends ChromeBaseSettingsFragment
     public @AnimationType int getAnimationType() {
         return AnimationType.PROPERTY;
     }
+
+    // TODO (adelm): Mimic logic from #createPreferences under #updateDynamicPreferences.
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(MainSettings.class.getName(), R.xml.main_preferences);
 }

@@ -14,8 +14,8 @@
 #import "base/time/time.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/optimization_guide/core/model_execution/feature_keys.h"
+#import "components/optimization_guide/core/model_execution/remote_model_executor.h"
 #import "components/optimization_guide/core/model_quality/model_quality_log_entry.h"
-#import "components/optimization_guide/core/optimization_guide_model_executor.h"
 #import "components/optimization_guide/core/optimization_guide_util.h"
 #import "components/optimization_guide/proto/features/enhanced_calendar.pb.h"
 #import "ios/chrome/browser/intelligence/enhanced_calendar/constants/error_strings.h"
@@ -135,7 +135,7 @@ void EnhancedCalendarServiceImpl::OnPageContextGenerated(
 
   service_->ExecuteModel(
       optimization_guide::ModelBasedCapabilityKey::kEnhancedCalendar, request,
-      kEnhancedCalendarRequestTimeout,
+      {.execution_timeout = kEnhancedCalendarRequestTimeout},
       base::BindOnce(&EnhancedCalendarServiceImpl::OnEnhancedCalendarResponse,
                      weak_ptr_factory_.GetWeakPtr()));
 }

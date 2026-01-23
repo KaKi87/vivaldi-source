@@ -38,43 +38,94 @@ class GlicSidePanelCoordinator : public SidePanelEntryObserver {
                            SidePanelRegistry* side_panel_registry);
   ~GlicSidePanelCoordinator() override;
 
+  // Returns true if the Glic side panel is the currently active side panel
+  // entry for `tab`. This means it will be shown if `tab` is foregrounded, or
+  // is currently visible if `tab` is already foregrounded.
+  static bool IsGlicSidePanelActive(tabs::TabInterface* tab);
+
+  static GlicSidePanelCoordinator* GetForTab(tabs::TabInterface* tab);
+
   // Create and register the Glic side panel entry.
   void CreateAndRegisterEntry();
 
-  using VisibilityCallback = base::RepeatingCallback<void(bool isVisible)>;
+  // The current state of the Glic side panel.
+  enum class State {
+    // The side panel is showing in the foreground.
+    kShown,
+    // The side panel is in the background, but it will show if its tab becomes
+    // active.
+    kBackgrounded,
+    // The side panel is closed and will only be shown if explicitly requested.
+    kClosed,
+  };
+
+  // Show the Glic side panel.
+  void Show(bool suppress_animations = false);
+
+  // Close the Glic side panel.
+  void Close();
+
+  // Returns true if the Glic side panel is currently the active entry.
+  bool IsShowing() const;
+
+  State state() { return state_; }
 
   // Registers `callback` to be called when panel visibility is updated.
-  base::CallbackListSubscription AddVisibilityCallback(
-      VisibilityCallback callback);
+  base::CallbackListSubscription AddStateCallback(
+      base::RepeatingCallback<void(State state)> callback);
 
-  // Set the content to display in the Glic side panel.
+  // Sets the content view for the Glic side panel.
   void SetContentsView(std::unique_ptr<views::View> contents_view);
 
   // Returns preferred side panel width. Not guaranteed to be used if user
   // manually set a different width.
   int GetPreferredWidth();
 
- protected:
+  views::View* GetView();
+
   // Called when the Glic enabled status changes for `profile_`.
   void OnGlicEnabledChanged();
-  // `SidePanelEntryObserver`:
+
+  // Returns true if the Glic side panel is the currently active side panel
+  // entry.
+  bool IsGlicSidePanelActive();
+
+ protected:
+  // SidePanelEntryObserver:
   void OnEntryWillHide(SidePanelEntry* entry,
                        SidePanelEntryHideReason reason) override;
+  void OnEntryHideCancelled(SidePanelEntry* entry) override;
+  void OnEntryHidden(SidePanelEntry* entry) override;
   void OnEntryShown(SidePanelEntry* entry) override;
 
  private:
+  void CheckStateAfterHidden();
+
+  // Returns the SidePanelCoordinator for the window associated with `tab_`.
+  SidePanelCoordinator* GetWindowSidePanelCoordinator() const;
+
   // Gets the Glic WebView from the Glic service.
   std::unique_ptr<views::View> CreateView(SidePanelEntryScope& scope);
 
+  void NotifyStateChanged();
+
   raw_ptr<tabs::TabInterface> tab_ = nullptr;
   raw_ptr<SidePanelRegistry> side_panel_registry_ = nullptr;
-  raw_ptr<actions::ActionItem> glic_action_ = nullptr;
-  raw_ptr<SidePanelCoordinator> side_panel_coordinator_ = nullptr;
+  base::WeakPtr<SidePanelEntry> entry_;
   base::CallbackListSubscription on_glic_enabled_changed_subscription_;
-  base::RepeatingCallbackList<void(bool isShowing)>
-      visibility_changed_callbacks_;
-  std::unique_ptr<views::View> contents_view_;
+  base::RepeatingCallbackList<void(State state)> state_changed_callbacks_;
+
+  State state_ = State::kClosed;
+
+  std::optional<SidePanelEntryHideReason> pending_hide_reason_;
+
+  // Tracks the glic container view.
   views::ViewTracker glic_container_tracker_;
+
+  // Caches the contents view if it's set before the container is created.
+  std::unique_ptr<views::View> contents_view_;
+
+  base::WeakPtrFactory<GlicSidePanelCoordinator> weak_ptr_factory_{this};
 };
 
 }  // namespace glic

@@ -13,10 +13,17 @@
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_base.h"
+#include "chrome/browser/sessions/session_service_lookup.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
@@ -29,7 +36,6 @@
 #include "base/task/current_thread.h"
 #include "base/run_loop.h"
 #include "ui/base/resource/resource_bundle.h"
-
 namespace vivaldi {
 namespace ui_tools {
 
@@ -70,14 +76,18 @@ VivaldiBrowserWindow* GetActiveAppWindow() {
 }
 
 VivaldiBrowserWindow* GetLastActiveMainWindow() {
-  BrowserList* browser_list = BrowserList::GetInstance();
-  for (auto i = browser_list->begin_browsers_ordered_by_activation();
-       i != browser_list->end_browsers_ordered_by_activation(); ++i) {
-    VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(*i);
-    if (window && IsMainVivaldiBrowserWindow(window))
-      return window;
-  }
-  return nullptr;
+  VivaldiBrowserWindow* last_active_main_vivaldi_window = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        VivaldiBrowserWindow* window =
+            static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+        if (IsMainVivaldiBrowserWindow(window)) {
+          last_active_main_vivaldi_window = window;
+          return false;  // Stop iterating.
+        }
+        return true;  // Continue iterating.
+      });
+  return last_active_main_vivaldi_window;
 }
 
 content::WebContents* GetWebContentsFromTabStrip(
@@ -165,6 +175,88 @@ bool MoveTabToWindow(Browser* source_browser,
 
   return true;
 }
+
+content::WebContents* CloneTab(
+    Browser* source_browser,
+    Browser* target_browser,
+    int source_index, // of tab to move in source browser
+    int* target_index, // in target browser
+    int add_types,
+    std::string* error_out) {
+
+  if (!target_browser->CanSupportWindowFeature(
+      Browser::WindowFeature::kFeatureTabStrip)) {
+    if (error_out) {
+      *error_out = "Can not clone without tab strip support";
+    }
+    return nullptr;
+  }
+
+  TabStripModel* source_tab_strip_model = source_browser->tab_strip_model();
+  TabStripModel* target_tab_strip_model = target_browser->tab_strip_model();
+
+  if (!source_tab_strip_model->delegate()->CanDuplicateContentsAt(
+      source_index)) {
+    if (error_out) {
+      *error_out = "Can not clone at given index";
+    }
+    return nullptr;
+  }
+
+  content::WebContents* raw_contents = nullptr;
+
+  int real_target_index = *target_index;
+  if ((real_target_index > target_tab_strip_model->count()) ||
+      real_target_index < 0) {
+    real_target_index = target_tab_strip_model->count();
+  }
+
+  if (source_browser == target_browser) {
+    // Using std chrome code (with a vivaldi wrapper) when cloning within a
+    // window to a random index.
+    raw_contents = chrome::VivaldiDuplicateTabAt(
+        source_browser, source_index, real_target_index, add_types);
+    if (!raw_contents) {
+      if (error_out) {
+        *error_out = "Can not clone within window";
+      }
+      return nullptr;
+    }
+  } else {
+    content::WebContents* contents = source_tab_strip_model->GetWebContentsAt(
+        source_index);
+    if (!contents) {
+      if (error_out) {
+        *error_out = "Can not clone missing content";
+      }
+      return nullptr;
+    }
+    std::unique_ptr<content::WebContents> cloned_contents = contents->Clone();
+    raw_contents = cloned_contents.get();
+
+    const auto old_group = source_tab_strip_model->GetTabGroupForTab(
+        source_index);
+    target_tab_strip_model->InsertWebContentsAt(
+        real_target_index, std::move(cloned_contents), add_types, old_group);
+
+    if (!(add_types & ADD_ACTIVE)) {
+      resource_coordinator::TabLifecycleUnitExternal::FromWebContents(
+          raw_contents)->SetIsDiscarded();
+    }
+  }
+
+  SessionServiceBase* session_service =
+      GetAppropriateSessionServiceIfExisting(source_browser);
+  if (session_service) {
+    bool pinned = (add_types & AddTabTypes::ADD_PINNED) ? true : false;
+    session_service->TabRestored(raw_contents, pinned);
+  }
+
+  *target_index = real_target_index;
+
+  return raw_contents;
+}
+
 
 bool GetTabById(int tab_id, content::WebContents** contents, int* index) {
   for (Browser* target_browser : *BrowserList::GetInstance()) {

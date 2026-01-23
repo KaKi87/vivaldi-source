@@ -531,15 +531,16 @@ public class TemplateUrlService {
         TemplateUrl vivaldiGetSearchEngineForHost(long nativeTemplateUrlServiceAndroid,
                                                   TemplateUrlService caller, String host);
         void addCustomSearchEngine(long nativeTemplateUrlServiceAndroid, TemplateUrlService caller,
-                String shortName, String nickname, GURL url, GURL suggest_url, String postParams,
-                String imageUrl, String imageUrlPostParams);
+                String shortName, String nickname, String url, String suggest_url,
+                String postParams, String imageUrl, String imageUrlPostParams);
         TemplateUrl getTemplateUrlFromKeywordNative(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, String keyword);
         void removeTemplateUrl(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, String keyword);
         boolean updateTemplateUrl(long nativeTemplateUrlServiceAndroid, TemplateUrlService caller,
-                String keyword, String newKeyword, String shortName, GURL url, GURL suggestion_url,
-                String postParams, String imageUrl, String imageUrlPostParams);
+                String keyword, String newKeyword, String shortName, String url,
+                String suggestion_url, String postParams, String imageUrl,
+                String imageUrlPostParams);
         String getUrlToDisplayBridge(
                 long nativeTemplateUrlServiceAndroid, TemplateUrlService caller, String url);
         String getUrlFromDisplayBridge(
@@ -571,8 +572,8 @@ public class TemplateUrlService {
                 mNativeTemplateUrlServiceAndroid, TemplateUrlService.this, host);
     }
 
-    public void addCustomSearchEngine(String shortName, String nickname, GURL url, GURL suggest_url,
-            String postParams, String imageUrl, String imageUrlPostParams) {
+    public void addCustomSearchEngine(String shortName, String nickname, String url,
+            String suggest_url, String postParams, String imageUrl, String imageUrlPostParams) {
         TemplateUrlServiceJni.get().addCustomSearchEngine(mNativeTemplateUrlServiceAndroid,
                 TemplateUrlService.this, shortName, nickname, url, suggest_url, postParams,
                 imageUrl, imageUrlPostParams);
@@ -588,8 +589,9 @@ public class TemplateUrlService {
                 mNativeTemplateUrlServiceAndroid, TemplateUrlService.this, keyword);
     }
 
-    public boolean updateTemplateUrl(String keyword, String newKeyword, String shortName, GURL url,
-            GURL suggestion_url, String postParams, String imageUrl, String imageUrlPostParams) {
+    public boolean updateTemplateUrl(String keyword, String newKeyword, String shortName,
+            String url, String suggestion_url, String postParams, String imageUrl,
+            String imageUrlPostParams) {
         return TemplateUrlServiceJni.get().updateTemplateUrl(mNativeTemplateUrlServiceAndroid,
                 TemplateUrlService.this, keyword, newKeyword, shortName, url, suggestion_url,
                 postParams, imageUrl, imageUrlPostParams);

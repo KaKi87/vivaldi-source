@@ -16,10 +16,21 @@
 namespace extensions {
 
 constexpr std::array<ContentSetting, 4> kAllContentSettings = {
-    CONTENT_SETTING_BLOCK, CONTENT_SETTING_ALLOW, CONTENT_SETTING_ASK,
+    CONTENT_SETTING_BLOCK,
+    CONTENT_SETTING_ALLOW,
+    CONTENT_SETTING_ASK,
     CONTENT_SETTING_SESSION_ONLY,
     // NOTE: CONTENT_SETTING_DETECT_IMPORTANT_CONTENT
 };
+
+// Returns true if the scoping type requires a secondary origin.
+bool RequiresSecondaryOrigin(
+    content_settings::WebsiteSettingsInfo::ScopingType scoping_type) {
+  return scoping_type == content_settings::WebsiteSettingsInfo::
+                             REQUESTING_AND_TOP_SCHEMEFUL_SITE_SCOPE ||
+         scoping_type == content_settings::WebsiteSettingsInfo::
+                             REQUESTING_ORIGIN_AND_TOP_SCHEMEFUL_SITE_SCOPE;
+}
 
 vivaldi::site_permissions::PermissionSetting toPermissionSetting(
     ContentSetting setting) {
@@ -34,7 +45,7 @@ vivaldi::site_permissions::PermissionSetting toPermissionSetting(
     case CONTENT_SETTING_SESSION_ONLY:
       return PermissionSetting::kSessionOnly;
     case CONTENT_SETTING_DEFAULT:
-      break;
+      return PermissionSetting::kDefault;
     default:
       break;
   }
@@ -53,6 +64,8 @@ std::optional<ContentSetting> fromPermissionSetting(
       return CONTENT_SETTING_ASK;
     case vivaldi::site_permissions::PermissionSetting::kSessionOnly:
       return CONTENT_SETTING_SESSION_ONLY;
+    case vivaldi::site_permissions::PermissionSetting::kDefault:
+      return CONTENT_SETTING_DEFAULT;
     case vivaldi::site_permissions::PermissionSetting::kNone:
       return std::nullopt;
   }
@@ -114,17 +127,21 @@ void SitePermissionsAPI::SendPermissionChanged(
     ContentSettingsType type) {
   vivaldi::site_permissions::PermissionChangeEvent event;
 
-  if (!content_settings::mojom::IsKnownEnumValue(type)) return;
+  if (!content_settings::mojom::IsKnownEnumValue(type))
+    return;
 
   // Don't propagate DEFAULT it will crash...
-  if (type == ContentSettingsType::DEFAULT) return;
+  if (type == ContentSettingsType::DEFAULT)
+    return;
 
   event.origin = origin;
-  event.permission = content_settings_helpers::ContentSettingsTypeToString(type);
+  event.permission =
+      content_settings_helpers::ContentSettingsTypeToString(type);
 
-  ::vivaldi::BroadcastEvent(vivaldi::site_permissions::OnPermissionChanged::kEventName,
-                            vivaldi::site_permissions::OnPermissionChanged::Create(event),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::site_permissions::OnPermissionChanged::kEventName,
+      vivaldi::site_permissions::OnPermissionChanged::Create(event),
+      browser_context);
 }
 
 ExtensionFunction::ResponseAction
@@ -164,6 +181,10 @@ SitePermissionsGetAvailablePermissionsFunction::Run() {
       permission_entry.default_ = jsetting;
     }
 
+    // Indicate if this permission requires a secondary origin
+    permission_entry.requires_secondary_origin =
+        RequiresSecondaryOrigin(website_info->scoping_type());
+
     permissions.push_back(std::move(permission_entry));
   }
 
@@ -172,6 +193,8 @@ SitePermissionsGetAvailablePermissionsFunction::Run() {
 
 ExtensionFunction::ResponseAction
 SitePermissionsGetOverriddenSitesFunction::Run() {
+  using vivaldi::site_permissions::SitePermissionInfo;
+
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile)
     return RespondNow(Error("Could not get profile"));
@@ -181,13 +204,15 @@ SitePermissionsGetOverriddenSitesFunction::Run() {
   if (!settings_map)
     return RespondNow(Error("Could not access content settings"));
 
-  base::flat_set<std::string> origin_set;
+  // Map of origin -> count of overridden permissions
+  base::flat_map<std::string, int> origin_counts;
 
   const content_settings::ContentSettingsRegistry* registry =
       content_settings::ContentSettingsRegistry::GetInstance();
 
   for (const auto* info : *registry) {
-    ContentSettingsType type = info->website_settings_info()->type();
+    auto website_info = info->website_settings_info();
+    ContentSettingsType type = website_info->type();
 
     auto entries = settings_map->GetSettingsForOneType(type);
 
@@ -198,14 +223,32 @@ SitePermissionsGetOverriddenSitesFunction::Run() {
         continue;
 
       std::string origin = entry.primary_pattern.ToString();
-      if (!origin.empty())
-        origin_set.insert(origin);
+
+      // For wildcard pattern, compare to initial default (only count actual
+      // global overrides). For specific sites, count all non-default settings
+      // (they're all overrides).
+      bool is_wildcard =
+          (entry.primary_pattern == ContentSettingsPattern::Wildcard());
+      if (is_wildcard && setting == info->GetInitialDefaultSetting())
+        continue;
+
+      if (!origin.empty()) {
+        origin_counts[origin]++;
+      }
     }
   }
 
-  std::vector<std::string> origins(origin_set.begin(), origin_set.end());
+  // Convert map to vector of SitePermissionInfo objects
+  std::vector<SitePermissionInfo> sites;
+  for (const auto& [origin, count] : origin_counts) {
+    SitePermissionInfo site_info;
+    site_info.origin = origin;
+    site_info.count = count;
+    sites.push_back(std::move(site_info));
+  }
+
   return RespondNow(ArgumentList(
-      vivaldi::site_permissions::GetOverriddenSites::Results::Create(origins)));
+      vivaldi::site_permissions::GetOverriddenSites::Results::Create(sites)));
 }
 
 ExtensionFunction::ResponseAction
@@ -219,9 +262,15 @@ SitePermissionsGetOverridesForSiteFunction::Run() {
     return RespondNow(Error("Invalid parameters."));
 
   const std::string& origin_str = params->origin;
-  GURL origin_url(origin_str);
-  if (!origin_url.is_valid())
-    return RespondNow(Error("Invalid origin URL."));
+
+  // Parse the origin string as a pattern (not just a URL)
+  // This allows querying with patterns like "[*.]example.com" or "*"
+  ContentSettingsPattern primary_pattern =
+      ContentSettingsPattern::FromString(origin_str);
+
+  if (!primary_pattern.IsValid()) {
+    return RespondNow(Error("Invalid origin pattern."));
+  }
 
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile)
@@ -236,31 +285,48 @@ SitePermissionsGetOverridesForSiteFunction::Run() {
       content_settings::ContentSettingsRegistry::GetInstance();
   std::vector<Permission> result;
 
+  // Check if we're querying the wildcard pattern
+  bool is_wildcard_query =
+      (primary_pattern == ContentSettingsPattern::Wildcard());
+
   for (const auto* info : *registry) {
-    ContentSettingsType type = info->website_settings_info()->type();
+    auto website_info = info->website_settings_info();
+    ContentSettingsType type = website_info->type();
 
-    const base::Value setting_value = settings_map->GetWebsiteSetting(
-        origin_url, origin_url, type, nullptr);
+    // Get all settings for this type
+    auto entries = settings_map->GetSettingsForOneType(type);
 
-    if (setting_value == base::Value())
-      continue;
+    for (const auto& entry : entries) {
+      // Only include entries where primary pattern exactly matches
+      if (entry.primary_pattern != primary_pattern)
+        continue;
 
-    ContentSetting setting =
-        content_settings::ValueToContentSetting(setting_value);
-    if (setting == CONTENT_SETTING_DEFAULT)
-      continue;
+      ContentSetting setting =
+          content_settings::ValueToContentSetting(entry.setting_value);
+      if (setting == CONTENT_SETTING_DEFAULT)
+        continue;
 
-    if (setting == info->GetInitialDefaultSetting())
-      continue;
+      // For wildcard queries, compare to initial default (show what globals are
+      // set). For specific sites, show all non-default settings (they're
+      // overrides).
+      if (is_wildcard_query && setting == info->GetInitialDefaultSetting())
+        continue;
 
-    Permission permission;
-    permission.origin = origin_str;
-    permission.permission =
-        content_settings_helpers::ContentSettingsTypeToString(
-            info->website_settings_info()->type());
-    permission.setting = toPermissionSetting(setting);
+      Permission permission;
+      permission.origin = origin_str;
 
-    result.push_back(std::move(permission));
+      // Include secondary origin if it's not a wildcard
+      if (website_info->SupportsSecondaryPattern() &&
+          entry.secondary_pattern != ContentSettingsPattern::Wildcard()) {
+        permission.secondary_origin = entry.secondary_pattern.ToString();
+      }
+
+      permission.permission =
+          content_settings_helpers::ContentSettingsTypeToString(type);
+      permission.setting = toPermissionSetting(setting);
+
+      result.push_back(std::move(permission));
+    }
   }
 
   return RespondNow(ArgumentList(Results::Create(result)));
@@ -276,22 +342,32 @@ SitePermissionsSetSitePermissionFunction::Run() {
     return RespondNow(Error("Invalid parameters."));
   }
 
-  // Sanitize the params
-  GURL origin_url(params->origin);
-  if (!origin_url.is_valid()) {
-    return RespondNow(Error("Invalid origin URL."));
+  // Parse primary origin as a pattern (supports wildcards like "*" or
+  // "[*.]example.com")
+  ContentSettingsPattern primary_pattern =
+      ContentSettingsPattern::FromString(params->origin);
+  if (!primary_pattern.IsValid()) {
+    return RespondNow(Error("Invalid origin pattern."));
   }
 
-  // Convert permission string to content setting type.
+  // Parse secondary origin as a pattern
+  // Empty string is treated as wildcard for convenience
+  std::string secondary_origin_str = params->secondary_origin;
+  if (secondary_origin_str.empty()) {
+    secondary_origin_str = "*";
+  }
+  ContentSettingsPattern secondary_pattern =
+      ContentSettingsPattern::FromString(secondary_origin_str);
+  if (!secondary_pattern.IsValid()) {
+    return RespondNow(Error("Invalid secondary origin pattern."));
+  }
+
+  // Convert permission string to content setting type
   std::optional<ContentSettingsType> type_opt =
       content_settings_helpers::StringToContentSettingsType(params->permission);
   if (!type_opt) {
     return RespondNow(Error("Unknown permission type: " + params->permission));
   }
-  std::optional<ContentSetting> setting_opt =
-      fromPermissionSetting(params->setting);
-  if (!setting_opt)
-    return RespondNow(Error("Invalid setting value"));
 
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile) {
@@ -304,22 +380,53 @@ SitePermissionsSetSitePermissionFunction::Run() {
     return RespondNow(Error("Could not access content settings."));
   }
 
-
   content_settings::ContentSettingsRegistry* registry =
       content_settings::ContentSettingsRegistry::GetInstance();
 
   auto info = registry->Get(*type_opt);
-
   if (!info) {
     return RespondNow(Error("Could not retrieve the content setting info."));
   }
 
-  if (!info->IsSettingValid(*setting_opt)) {
+  auto website_info = info->website_settings_info();
+
+  // Convert setting first, so we can check if it's DEFAULT in validation
+  std::optional<ContentSetting> setting_opt =
+      fromPermissionSetting(params->setting);
+  if (!setting_opt)
+    return RespondNow(Error("Invalid setting value"));
+
+  // Validate secondary origin based on permission type requirements
+  if (RequiresSecondaryOrigin(website_info->scoping_type())) {
+    // Allow wildcard secondary pattern in two cases:
+    // 1. Setting to DEFAULT (erases the override)
+    // 2. Both patterns are wildcards (setting global default, like Chrome's
+    // SetDefaultContentSetting)
+    bool is_setting_default = (*setting_opt == CONTENT_SETTING_DEFAULT);
+    bool is_global_default =
+        (primary_pattern == ContentSettingsPattern::Wildcard() &&
+         secondary_pattern == ContentSettingsPattern::Wildcard());
+
+    if (!is_setting_default && !is_global_default) {
+      // For non-default settings that aren't global, require a specific
+      // secondary origin
+      if (params->secondary_origin.empty() ||
+          secondary_pattern == ContentSettingsPattern::Wildcard()) {
+        return RespondNow(
+            Error("Secondary origin is required for permission type: " +
+                  params->permission));
+      }
+    }
+  }
+
+  if (!info->IsSettingValid(*setting_opt) &&
+      (*setting_opt != CONTENT_SETTING_DEFAULT)) {
     return RespondNow(Error("Invalid setting type for given permission type."));
   }
 
-  settings_map->SetContentSettingDefaultScope(origin_url, GURL(), *type_opt,
-                                              *setting_opt);
+  // Use SetContentSettingCustomScope to set the exact patterns
+  settings_map->SetContentSettingCustomScope(primary_pattern, secondary_pattern,
+                                             *type_opt, *setting_opt);
 
   return RespondNow(NoArguments());
 }
@@ -335,9 +442,15 @@ SitePermissionsResetSitePermissionsFunction::Run() {
     return RespondNow(Error("Invalid parameters."));
 
   const std::string& origin_str = params->origin;
-  GURL origin_url(origin_str);
-  if (!origin_url.is_valid())
-    return RespondNow(Error("Invalid origin URL."));
+
+  // Parse the origin string as a pattern (not just a URL)
+  // This allows resetting patterns like "[*.]example.com" or "*"
+  ContentSettingsPattern primary_pattern =
+      ContentSettingsPattern::FromString(origin_str);
+
+  if (!primary_pattern.IsValid()) {
+    return RespondNow(Error("Invalid origin pattern."));
+  }
 
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile) {
@@ -349,28 +462,34 @@ SitePermissionsResetSitePermissionsFunction::Run() {
   if (!settings_map) {
     return RespondNow(Error("Could not access content settings."));
   }
+
   const auto* registry =
       content_settings::ContentSettingsRegistry::GetInstance();
 
   for (const auto* info : *registry) {
-    ContentSettingsType type = info->website_settings_info()->type();
+    auto website_info = info->website_settings_info();
+    ContentSettingsType type = website_info->type();
 
-    const base::Value setting_value = settings_map->GetWebsiteSetting(
-        origin_url, origin_url, type, nullptr);
+    // Get all settings for this type
+    auto entries = settings_map->GetSettingsForOneType(type);
 
-    if (setting_value == base::Value())
-      continue;
+    for (const auto& entry : entries) {
+      // Only reset entries where primary pattern exactly matches
+      // This includes all secondary origins for that pattern
+      if (entry.primary_pattern != primary_pattern)
+        continue;
 
-    ContentSetting setting =
-        content_settings::ValueToContentSetting(setting_value);
-    if (setting == CONTENT_SETTING_DEFAULT)
-      continue;
+      ContentSetting setting =
+          content_settings::ValueToContentSetting(entry.setting_value);
+      if (setting == CONTENT_SETTING_DEFAULT)
+        continue;
 
-    if (setting == info->GetInitialDefaultSetting())
-      continue;
-
-    settings_map->SetContentSettingDefaultScope(origin_url, GURL(), type,
-                                                CONTENT_SETTING_DEFAULT);
+      // Reset this specific permission by setting it to default
+      // This will use the correct patterns (primary and secondary)
+      settings_map->SetContentSettingCustomScope(entry.primary_pattern,
+                                                 entry.secondary_pattern, type,
+                                                 CONTENT_SETTING_DEFAULT);
+    }
   }
 
   return RespondNow(NoArguments());

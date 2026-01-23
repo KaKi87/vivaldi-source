@@ -243,7 +243,7 @@ void StatsDatabase::AddEntry(const GURL& url,
     return;
   }
 
-  AddEntryToDatabase(db_.get(), url.host_piece(), origin_host, now, group);
+  AddEntryToDatabase(db_.get(), url.host(), origin_host, now, group);
 }
 
 void StatsDatabase::ClearStatsData(base::Time begin_time, base::Time end_time) {

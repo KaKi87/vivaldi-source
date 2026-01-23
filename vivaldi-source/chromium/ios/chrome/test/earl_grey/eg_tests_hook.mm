@@ -2,12 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
+// clang-format off
+#import "ios/chrome/app/tests_hook.h"
+// clang-format on
 
+#import <string_view>
+
+#import "base/apple/foundation_util.h"
 #import "base/command_line.h"
+#import "base/containers/contains.h"
 #import "base/files/file_path.h"
 #import "base/files/file_util.h"
 #import "base/logging.h"
@@ -35,7 +38,6 @@
 #import "components/signin/internal/identity_manager/profile_oauth2_token_service.h"
 #import "components/signin/internal/identity_manager/profile_oauth2_token_service_delegate.h"
 #import "components/sync_device_info/device_info_sync_service.h"
-#import "ios/chrome/app/tests_hook.h"
 #import "ios/chrome/browser/drive/model/test_drive_service.h"
 #import "ios/chrome/browser/flags/chrome_switches.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service.h"
@@ -44,6 +46,7 @@
 #import "ios/chrome/browser/policy/model/test_platform_policy_provider.h"
 #import "ios/chrome/browser/saved_tab_groups/model/ios_tab_group_sync_delegate.h"
 #import "ios/chrome/browser/saved_tab_groups/model/tab_group_local_update_observer.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service_factory.h"
 #import "ios/chrome/browser/share_kit/model/test_share_kit_service.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
@@ -60,6 +63,28 @@
 #import "ios/chrome/test/earl_grey/test_switches.h"
 #import "ios/chrome/test/providers/signin/fake_trusted_vault_client_backend.h"
 #import "testing/gmock/include/gmock/gmock.h"
+#import "ui/base/test/ios/ui_image_test_utils.h"
+
+namespace {
+
+// Loads a very simple UILabel with a teapot emoji in it as the main
+// UI for the given window.
+void LoadMinimalAppUIInWindow(UIWindow* window) {
+  UIViewController* viewController = [[UIViewController alloc] init];
+  UILabel* label =
+      [[UILabel alloc] initWithFrame:window.windowScene.screen.bounds];
+  label.text = @"🫖";
+  label.textAlignment = NSTextAlignmentCenter;
+  label.textColor = [UIColor whiteColor];
+  label.backgroundColor = [UIColor darkGrayColor];
+  label.font = [UIFont boldSystemFontOfSize:80];
+  viewController.view = label;
+  window.rootViewController = viewController;
+  [window addSubview:viewController.view];
+  [window makeKeyAndVisible];
+}
+
+}  // namespace
 
 namespace tests_hook {
 
@@ -129,9 +154,9 @@ std::unique_ptr<ProfileOAuth2TokenService> GetOverriddenTokenService(
   return token_service;
 }
 
-bool DisableUpgradeSigninPromo() {
+bool DisableFullscreenSigninPromo() {
   return !base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kEnableUpgradeSigninPromo);
+      switches::kEnableFullscreenSigninPromo);
 }
 
 bool DisableUpdateService() {
@@ -143,6 +168,29 @@ bool DelayAppLaunchPromos() {
 }
 
 bool NeverPurgeDiscardedSessionsData() {
+  return true;
+}
+
+bool LoadMinimalAppUI() {
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          test_switches::kLoadMinimalAppUI)) {
+    return false;
+  }
+  static bool minimal_ui_loaded = false;
+  if (!minimal_ui_loaded) {
+    NSSet<UIScene*>* scenes = UIApplication.sharedApplication.connectedScenes;
+    for (UIScene* scene in scenes) {
+      UIWindowScene* window_scene =
+          base::apple::ObjCCastStrict<UIWindowScene>(scene);
+      for (UIWindow* window in window_scene.windows) {
+        if (window.canBecomeKeyWindow) {
+          LoadMinimalAppUIInWindow(window);
+          minimal_ui_loaded = true;
+          return true;
+        };
+      }
+    }
+  };
   return true;
 }
 
@@ -222,7 +270,8 @@ std::unique_ptr<tab_groups::TabGroupSyncService> CreateTabGroupSyncService(
   std::unique_ptr<tab_groups::TabGroupLocalUpdateObserver>
       local_update_observer =
           std::make_unique<tab_groups::TabGroupLocalUpdateObserver>(
-              browser_list, sync_service.get());
+              browser_list, sync_service.get(),
+              SessionRestorationServiceFactory::GetForProfile(profile));
 
   std::unique_ptr<tab_groups::IOSTabGroupSyncDelegate> delegate =
       std::make_unique<tab_groups::IOSTabGroupSyncDelegate>(
@@ -371,16 +420,9 @@ void DeleteFilesRecursively(NSString* directoryPath) {
   }
 }
 
-void WipeProfileIfRequested(int argc, char* argv[]) {
-  const char kWipeArg[] = "-EGTestWipeProfile";
-  bool found = false;
-  for (int i = 0; i < argc; i++) {
-    if (strncmp(argv[i], kWipeArg, strlen(kWipeArg)) == 0) {
-      found = true;
-    }
-  }
-
-  if (!found) {
+void WipeProfileIfRequested(base::span<const char* const> args) {
+  static constexpr std::string_view kWipeArg = "-EGTestWipeProfile";
+  if (!base::Contains(args, kWipeArg)) {
     return;
   }
 
@@ -397,6 +439,17 @@ void WipeProfileIfRequested(int argc, char* argv[]) {
 base::TimeDelta
 GetOverriddenDelayForRequestingTurningOnCredentialProviderExtension() {
   return base::Seconds(2);
+}
+
+base::TimeDelta GetSnackbarMessageDuration() {
+  // Makes the snackbar duration longer for EGTests to make sure there is time
+  // detect it, and avoid flakiness.
+  return base::Seconds(30);
+}
+
+UIImage* GetPHPickerViewControllerImage() {
+  return ui::test::uiimage_utils::UIImageWithSizeAndSolidColor(
+      CGSizeMake(1000, 1000), UIColor.greenColor);
 }
 
 }  // namespace tests_hook

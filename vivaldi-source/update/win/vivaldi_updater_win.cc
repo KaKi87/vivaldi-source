@@ -13,13 +13,13 @@
 #include "base/version.h"
 #include "base/vivaldi_switches.h"
 #include "browser/init_sparkle.h"
-#include "chrome/installer/util/install_util.h"
-#include "chrome/installer/util/installer_util_strings.h"
 #include "extensions/api/auto_update/auto_update_api.h"
 #include "extensions/api/auto_update/auto_update_status.h"
+#include "installer/mini_installer/util/install_util.h"
 #include "installer/win/detached_thread.h"
 #include "installer/win/vivaldi_install_l10n.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "vivaldi/installer/mini_installer/util/installer_util_strings.h"
 
 #include "update_notifier/thirdparty/winsparkle/src/appcast.h"
 #include "update_notifier/thirdparty/winsparkle/src/config.h"
@@ -54,7 +54,7 @@ constexpr base::win::i18n::LanguageSelector::LangToOffset
 UpdaterCheckVivaldi::~UpdaterCheckVivaldi() {}
 
 UpdaterCheckVivaldi::UpdaterCheckVivaldi(
-    const base::WeakPtr<UpdateBackendNotifier>& delegate)
+    const base::WeakPtr<VivaldiUpdateBackendNotifier>& delegate)
     : result_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
       update_backend_(delegate),
       weak_ptr_factory_(this) {

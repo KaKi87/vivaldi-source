@@ -6,6 +6,12 @@
 
 const CGFloat kOmniboxPlaceholderAlpha = 0.3;
 
+NSString* const kOmniboxCancelButtonAccessibilityIdentifier =
+    @"OmniboxCancelButtonAccessibilityIdentifier";
+
+NSString* const kOmniboxClearButtonAccessibilityIdentifier =
+    @"OmniboxClearButtonAccessibilityIdentifier";
+
 NSString* const kOmniboxLeadingImageDefaultAccessibilityIdentifier =
     @"OmniboxLeadingImageDefaultAccessibilityIdentifier";
 
@@ -15,10 +21,19 @@ NSString* const kOmniboxLeadingImageEmptyTextAccessibilityIdentifier =
 NSString* const kOmniboxLeadingImageSuggestionImageAccessibilityIdentifier =
     @"OmniboxLeadingImageSuggestionImageAccessibilityIdentifier";
 
+NSString* const kOmniboxPopupCloseButtonAccessibilityIdentifier =
+    @"OmniboxPopupCloseButtonAccessibilityIdentifier";
+
 constexpr CGFloat kOmniboxLeadingImageSize = 30;
 constexpr CGFloat kOmniboxLeadingImageViewEdgeOffset = 7;
 constexpr CGFloat kOmniboxTextFieldLeadingOffsetNoImage = 16;
+
+#if VIVALDI_BUILD
+constexpr CGFloat kOmniboxTextFieldLeadingOffsetImage = 4;
+#else
 constexpr CGFloat kOmniboxTextFieldLeadingOffsetImage = 14;
+#endif // End Vivaldi
+
 constexpr CGFloat kOmniboxEditOffset = kOmniboxLeadingImageViewEdgeOffset +
                                        kOmniboxLeadingImageSize +
                                        kOmniboxTextFieldLeadingOffsetImage;

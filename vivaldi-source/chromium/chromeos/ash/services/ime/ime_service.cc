@@ -11,7 +11,6 @@
 
 #include "ash/constants/ash_features.h"
 #include "base/compiler_specific.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/notimplemented.h"
@@ -162,18 +161,16 @@ bool ImeService::IsFeatureEnabled(const char* feature_name) {
       &features::kAssistMultiWord,
       &features::kAutocorrectParamsTuning,
       &features::kImeDownloaderExperiment,
-      &features::kImeDownloaderUpdate,
-      &features::kImeUsEnglishExperimentalModel,
       &features::kImeUsEnglishModelUpdate,
-      &features::kImeFstDecoderParamsUpdate,
       &features::kAutocorrectByDefault,
       &features::kImeSwitchCheckConnectionStatus};
 
   static constexpr std::string_view kEnabledFeatures[] = {
       "InputMethodKoreanRightAltKeyDownFix",
       "FirstPartyVietnameseInput",
-      "SystemJapanesePhysicalTyping",
       "ImeKoreanOnlyModeSwitchOnRightAlt",
+      "ImeFstDecoderParamsUpdate",
+      "ImeDownloaderUpdate",
   };
 
   // Use consistent feature flag names as in CrOS base::Feature::name and always

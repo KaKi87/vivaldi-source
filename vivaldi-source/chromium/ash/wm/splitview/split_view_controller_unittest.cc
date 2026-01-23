@@ -71,7 +71,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/dialog_model.h"
 #include "ui/compositor/presentation_time_recorder.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/test/test_utils.h"
 #include "ui/compositor_extra/shadow.h"
 #include "ui/display/screen.h"
@@ -79,6 +78,7 @@
 #include "ui/events/base_event_utils.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/point_conversions.h"
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/bubble_dialog_model_host.h"
@@ -537,15 +537,15 @@ TEST_F(SplitViewControllerTest,
   SplitViewController* controller = split_view_controller();
 
   aura::test::TestWindowDelegate delegate1;
-  std::unique_ptr<aura::Window> window1(CreateTestWindowInShellWithDelegate(
-      &delegate1, /*id=*/-1, gfx::Rect(200, 300)));
+  std::unique_ptr<aura::Window> window1(
+      CreateTestWindowInShell({.delegate = &delegate1, .bounds = {200, 300}}));
   EXPECT_FALSE(controller->IsWindowInSplitView(window1.get()));
 
   // Create `window2` and set the minimum size to be between 1/3 and 1/2 so that
   // it can only be snapped with 0.5 snap ratio.
   aura::test::TestWindowDelegate delegate2;
-  std::unique_ptr<aura::Window> window2(CreateTestWindowInShellWithDelegate(
-      &delegate2, /*id=*/-1, gfx::Rect(450, 600)));
+  std::unique_ptr<aura::Window> window2(
+      CreateTestWindowInShell({.delegate = &delegate2, .bounds = {450, 600}}));
   delegate2.set_minimum_size(gfx::Size(420, 300));
   EXPECT_FALSE(controller->IsWindowInSplitView(window2.get()));
   EXPECT_FALSE(
@@ -653,8 +653,8 @@ TEST_F(SplitViewControllerTest,
 // be no crash. See http://b/315549001 for more details about the crash
 // reported.
 TEST_F(SplitViewControllerTest, NoCrashWhenCreatingNewWindowWhileDragging) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
   UpdateDisplay("900x600");
   SplitViewController* controller = split_view_controller();
   std::unique_ptr<aura::Window> window1(
@@ -918,8 +918,8 @@ TEST_F(SplitViewControllerTest, EnterExitOverviewModeHistograms) {
   ASSERT_EQ(SplitViewController::State::kBothSnapped,
             split_view_controller()->state());
 
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
 
   ToggleOverview();
   WaitForOverviewEnterAnimation();
@@ -1162,7 +1162,7 @@ TEST_F(SplitViewControllerTest, TabletModeMultiDisplay) {
   auto* split_view_controller2 =
       SplitViewController::Get(Shell::GetAllRootWindows()[1]);
   std::unique_ptr<aura::Window> w1(
-      CreateTestWindowInShellWithBounds(gfx::Rect(0, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {100, 100}}));
   split_view_controller1->SnapWindow(w1.get(), SnapPosition::kPrimary);
   EXPECT_TRUE(split_view_controller1->InSplitViewMode());
   EXPECT_TRUE(split_view_controller1->split_view_divider()->divider_widget());
@@ -1175,7 +1175,7 @@ TEST_F(SplitViewControllerTest, TabletModeMultiDisplay) {
 
   // 2. Snap 2 windows on display 1.
   std::unique_ptr<aura::Window> w2(
-      CreateTestWindowInShellWithBounds(gfx::Rect(0, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {100, 100}}));
   split_view_controller1->SnapWindow(w1.get(), SnapPosition::kPrimary);
   split_view_controller1->SnapWindow(w2.get(), SnapPosition::kSecondary);
   EXPECT_FALSE(split_view_controller2->InSplitViewMode());
@@ -1195,8 +1195,8 @@ TEST_F(SplitViewControllerTest, TabletModeMultiDisplay) {
 // https://crbug.com/1316230.
 TEST_F(SplitViewControllerTest,
        DisplayDisconnectionWithSnappedWindowInTabletMode) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
 
   UpdateDisplay("800x600,800x600");
 
@@ -1208,9 +1208,9 @@ TEST_F(SplitViewControllerTest,
                                                  std::nullopt);
 
   std::unique_ptr<aura::Window> w1(
-      CreateTestWindowInShellWithBounds(gfx::Rect(0, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {100, 100}}));
   std::unique_ptr<aura::Window> w2(
-      CreateTestWindowInShellWithBounds(gfx::Rect(900, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {900, 0, 100, 100}}));
   ASSERT_NE(w1->GetRootWindow(), w2->GetRootWindow());
 
   // Snap the window on the second display.
@@ -1231,8 +1231,8 @@ TEST_F(SplitViewControllerTest,
 // https://crbug.com/1316892.
 TEST_F(SplitViewControllerTest,
        DisplayDisconnectionWhileDraggingSplitDividerInTabletMode) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
 
   UpdateDisplay("800x600,800x600");
 
@@ -1245,7 +1245,7 @@ TEST_F(SplitViewControllerTest,
 
   // Create a window on the secondary display.
   std::unique_ptr<aura::Window> w(
-      CreateTestWindowInShellWithBounds(gfx::Rect(900, 0, 100, 100)));
+      CreateTestWindowInShell({.bounds = {900, 0, 100, 100}}));
 
   // Snap the window on the second display.
   auto* split_view_controller = SplitViewController::Get(w->GetRootWindow());
@@ -1924,8 +1924,8 @@ TEST_F(SplitViewControllerTest, LongPressInOverviewMode) {
 #if defined(NDEBUG) && !defined(ADDRESS_SANITIZER) && \
     !defined(LEAK_SANITIZER) && !defined(THREAD_SANITIZER)
 TEST_F(SplitViewControllerTest, LongPressInOverviewModeHistograms) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   ToggleOverview();
   WaitForOverviewEnterAnimation();
@@ -2710,8 +2710,8 @@ TEST_F(SplitViewControllerTest, ShadowDisappearsWhenSnapped) {
 // exiting animation.
 // TODO(b/315345858): Fix flakiness and re-enable.
 TEST_F(SplitViewControllerTest, DISABLED_OverviewExitAnimationTest) {
-  ui::ScopedAnimationDurationScaleMode anmatin_scale(
-      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode anmatin_scale(
+      gfx::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
   const gfx::Rect bounds(0, 0, 400, 400);
   std::unique_ptr<aura::Window> window1(CreateWindow(bounds));
@@ -3548,8 +3548,8 @@ TEST_F(SplitViewControllerTest, SnapTwoThirdPartialWindow) {
   // Create a window that has a minimum width such that it cannot be snapped one
   // half, but can be snapped two thirds.
   aura::test::TestWindowDelegate window_delegate;
-  std::unique_ptr<aura::Window> window(CreateTestWindowInShellWithDelegate(
-      &window_delegate, /*id=*/-1, gfx::Rect(500, 500)));
+  std::unique_ptr<aura::Window> window(CreateTestWindowInShell(
+      {.delegate = &window_delegate, .bounds = {500, 500}}));
   window_delegate.set_minimum_size(gfx::Size(500, 500));
   window->SetProperty(chromeos::kAppTypeKey, chromeos::AppType::BROWSER);
 
@@ -3566,15 +3566,15 @@ TEST_F(SplitViewControllerTest, SelectWindowCannotOneThirdSnap) {
 
   // The first window can be snapped 2/3, but not 1/2 or 1/3.
   aura::test::TestWindowDelegate window_delegate1;
-  std::unique_ptr<aura::Window> window1(CreateTestWindowInShellWithDelegate(
-      &window_delegate1, /*id=*/-1, gfx::Rect(500, 500)));
+  std::unique_ptr<aura::Window> window1(CreateTestWindowInShell(
+      {.delegate = &window_delegate1, .bounds = {500, 500}}));
   window_delegate1.set_minimum_size(gfx::Size(500, 500));
   window1->SetProperty(chromeos::kAppTypeKey, chromeos::AppType::BROWSER);
 
   // The second window can be snapped 1/2 but not 1/3.
   aura::test::TestWindowDelegate window_delegate2;
-  std::unique_ptr<aura::Window> window2(CreateTestWindowInShellWithDelegate(
-      &window_delegate2, /*id=*/-1, gfx::Rect(500, 500)));
+  std::unique_ptr<aura::Window> window2(CreateTestWindowInShell(
+      {.delegate = &window_delegate2, .bounds = {500, 500}}));
   window_delegate2.set_minimum_size(gfx::Size(400, 400));
   window2->SetProperty(chromeos::kAppTypeKey, chromeos::AppType::BROWSER);
 
@@ -3663,8 +3663,8 @@ TEST_F(SplitViewControllerTest,
 // Tests no crash on tablet <-> clamshell transition after a divider snap
 // animation is started.
 TEST_F(SplitViewControllerTest, NoCrashAfterDividerSnapAnimation) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
   const gfx::Rect bounds(0, 0, 400, 400);
   std::unique_ptr<aura::Window> window1(CreateWindow(bounds));
   std::unique_ptr<aura::Window> window2(CreateWindow(bounds));
@@ -3857,8 +3857,8 @@ TEST_F(SplitViewControllerTest, DividerStaysVisibleDuringMinimizeAndRestore) {
 // Tests the windows stay onscreen during fast resize. Regression test for
 // b/304367964.
 TEST_F(SplitViewControllerTest, PerformantResize) {
-  ui::ScopedAnimationDurationScaleMode animation_scale(
-      ui::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
+  gfx::ScopedAnimationDurationScaleMode animation_scale(
+      gfx::ScopedAnimationDurationScaleMode::NORMAL_DURATION);
   UpdateDisplay("900x600");
   const gfx::Rect work_area =
       display::Screen::Get()->GetPrimaryDisplay().work_area();
@@ -4667,13 +4667,7 @@ TEST_F(SplitViewDraggingTest, WindowDraggingDisallowed) {
   resizer = CreateWindowResizer(window_arc.get(), HTCAPTION);
   EXPECT_FALSE(resizer.get());
   resizer = CreateWindowResizer(window_browser.get(), HTCAPTION);
-  EXPECT_FALSE(resizer.get());
-
-  // Also simulate dragging the sole tab (or sole tab group) of the browser.
-  window_browser->SetProperty(ash::kIsDraggingTabsKey, true);
-  resizer = CreateWindowResizer(window_browser.get(), HTCAPTION);
-  EXPECT_FALSE(resizer.get());
-  window_browser->ClearProperty(ash::kIsDraggingTabsKey);
+  EXPECT_TRUE(resizer.get());
 
   // Make the windows fullscreen.
   WMEvent fullscreen_event(WM_EVENT_FULLSCREEN);
@@ -4694,13 +4688,7 @@ TEST_F(SplitViewDraggingTest, WindowDraggingDisallowed) {
   resizer = CreateWindowResizer(window_arc.get(), HTCAPTION);
   EXPECT_FALSE(resizer.get());
   resizer = CreateWindowResizer(window_browser.get(), HTCAPTION);
-  EXPECT_FALSE(resizer.get());
-
-  // Also simulate dragging the sole tab (or sole tab group) of the browser.
-  window_browser->SetProperty(ash::kIsDraggingTabsKey, true);
-  resizer = CreateWindowResizer(window_browser.get(), HTCAPTION);
-  EXPECT_FALSE(resizer.get());
-  window_browser->ClearProperty(ash::kIsDraggingTabsKey);
+  EXPECT_TRUE(resizer.get());
 }
 
 TEST_F(SplitViewDraggingTest, TabDraggingFromMaximized) {

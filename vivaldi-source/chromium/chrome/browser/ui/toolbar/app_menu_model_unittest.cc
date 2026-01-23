@@ -24,8 +24,6 @@
 #include "chrome/browser/ui/global_error/global_error.h"
 #include "chrome/browser/ui/global_error/global_error_service.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
-#include "chrome/browser/ui/hats/hats_service_factory.h"
-#include "chrome/browser/ui/hats/mock_hats_service.h"
 #include "chrome/browser/ui/safety_hub/menu_notification_service_factory.h"
 #include "chrome/browser/ui/safety_hub/password_status_check_service.h"
 #include "chrome/browser/ui/safety_hub/password_status_check_service_factory.h"
@@ -44,6 +42,7 @@
 #include "chrome/test/base/menu_model_test.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/autofill/core/common/autofill_features.h"
 #include "components/password_manager/core/browser/password_store/test_password_store.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -516,7 +515,48 @@ INSTANTIATE_TEST_SUITE_P(
                     IDC_SHOW_PASSWORD_MANAGER,
                     IDC_SHOW_PAYMENT_METHODS,
                     IDC_SHOW_ADDRESSES,
+                    IDC_SHOW_CONTACT_INFO,
+                    IDC_SHOW_IDENTITY_DOCS,
+                    IDC_SHOW_TRAVEL,
                     AppMenuModel::kMinOtherProfileCommandId));
+
+TEST_F(AppMenuModelTest, YourSavedInfoSubmenusShown) {
+  feature_list_.InitAndEnableFeature(
+      autofill::features::kYourSavedInfoSettingsPage);
+  AppMenuModel model(this, browser());
+  model.Init();
+
+  const size_t your_saved_info_menu_index =
+      model.GetIndexOfCommandId(IDC_PASSWORDS_AND_AUTOFILL_MENU).value();
+  ui::SimpleMenuModel* your_saved_info_menu = static_cast<ui::SimpleMenuModel*>(
+      model.GetSubmenuModelAt(your_saved_info_menu_index));
+
+  EXPECT_TRUE(your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_CONTACT_INFO)
+                  .has_value());
+  EXPECT_TRUE(your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_IDENTITY_DOCS)
+                  .has_value());
+  EXPECT_TRUE(
+      your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_TRAVEL).has_value());
+}
+
+TEST_F(AppMenuModelTest, YourSavedInfoSubmenusDisabled) {
+  feature_list_.InitAndDisableFeature(
+      autofill::features::kYourSavedInfoSettingsPage);
+  AppMenuModel model(this, browser());
+  model.Init();
+
+  const size_t your_saved_info_menu_index =
+      model.GetIndexOfCommandId(IDC_PASSWORDS_AND_AUTOFILL_MENU).value();
+  ui::SimpleMenuModel* your_saved_info_menu = static_cast<ui::SimpleMenuModel*>(
+      model.GetSubmenuModelAt(your_saved_info_menu_index));
+
+  EXPECT_FALSE(your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_CONTACT_INFO)
+                   .has_value());
+  EXPECT_FALSE(your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_IDENTITY_DOCS)
+                   .has_value());
+  EXPECT_FALSE(
+      your_saved_info_menu->GetIndexOfCommandId(IDC_SHOW_TRAVEL).has_value());
+}
 
 TEST_F(AppMenuModelTest, ProfileSyncOnTest) {
   signin::IdentityManager* identity_manager =
@@ -632,12 +672,6 @@ TEST_F(AppMenuModelTest, DisableSettingsItem) {
 
 class TestAppMenuModelSafetyHubTest : public AppMenuModelTest {
  public:
-  TestAppMenuModelSafetyHubTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kSafetyHubHaTSOneOffSurvey},
-        /*disabled_features=*/{});
-  }
-
   void SetUp() override {
     AppMenuModelTest::SetUp();
     password_store_ = CreateAndUseTestPasswordStore(profile());
@@ -648,28 +682,10 @@ class TestAppMenuModelSafetyHubTest : public AppMenuModelTest {
 
     safety_hub_test_util::UpdatePasswordCheckServiceAsync(password_service);
     EXPECT_EQ(password_service->compromised_credential_count(), 0UL);
-
-    // mock_hats_service_ should return true for CanShowAnySurvey on each test
-    // running for desktop, since hats service is called in
-    // SafetyHubMenuNotificationService ctor.
-    mock_hats_service_ = static_cast<MockHatsService*>(
-        HatsServiceFactory::GetInstance()->SetTestingFactoryAndUse(
-            profile(), base::BindRepeating(&BuildMockHatsService)));
-    EXPECT_CALL(*mock_hats_service(), CanShowAnySurvey(_))
-        .WillRepeatedly(testing::Return(true));
   }
-
-  void TearDown() override {
-    mock_hats_service_ = nullptr;
-    AppMenuModelTest::TearDown();
-  }
-
-  MockHatsService* mock_hats_service() { return mock_hats_service_; }
 
  protected:
-  base::test::ScopedFeatureList feature_list_;
   scoped_refptr<password_manager::TestPasswordStore> password_store_;
-  raw_ptr<MockHatsService> mock_hats_service_;
 };
 
 TEST_F(TestAppMenuModelSafetyHubTest, SafetyHubMenuNotification) {
@@ -691,26 +707,6 @@ TEST_F(TestAppMenuModelSafetyHubTest, SafetyHubMenuNotification) {
   new_model.ActivatedAt(menu_index);
   EXPECT_TRUE(new_model.IsEnabledAt(menu_index));
   EXPECT_FALSE(new_model.GetLabelAt(menu_index).empty());
-}
-
-TEST_F(TestAppMenuModelSafetyHubTest, HaTSControlTrigger) {
-  EXPECT_CALL(*mock_hats_service(),
-              LaunchSurvey(kHatsSurveyTriggerSafetyHubOneOffExperimentControl,
-                           _, _, _, _, _, _))
-      .Times(1);
-
-  // Attempting to show the safety hub item in the app menu should trigger the
-  // control experiment.
-  AppMenuModel model(this, browser());
-  model.Init();
-
-  // Generate a menu notification that has been shown. After a notification is
-  // shown, the control survey should not be shown.
-  safety_hub_test_util::GenerateSafetyHubMenuNotification(profile());
-  SafetyHubMenuNotificationServiceFactory::GetForProfile(profile())
-      ->GetNotificationToShow();
-  AppMenuModel new_model(this, browser());
-  new_model.Init();
 }
 
 class TabSearchMenuModelTest : public AppMenuModelTest {

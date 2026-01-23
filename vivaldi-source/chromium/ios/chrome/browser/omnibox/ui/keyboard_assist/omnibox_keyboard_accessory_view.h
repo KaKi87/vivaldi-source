@@ -9,7 +9,6 @@
 
 #import "ios/chrome/browser/omnibox/ui/keyboard_assist/omnibox_assistive_keyboard_delegate.h"
 
-@protocol HelpCommands;
 @protocol OmniboxTextInput;
 class TemplateURLService;
 
@@ -22,11 +21,11 @@ class TemplateURLService;
 // buttons. `delegate` receives the various events triggered in the view. Not
 // retained, and can be nil.
 - (instancetype)initWithButtons:(NSArray<NSString*>*)buttonTitles
+                      showTools:(BOOL)showTools
                        delegate:(id<OmniboxAssistiveKeyboardDelegate>)delegate
                     pasteTarget:(id<UIPasteConfigurationSupporting>)pasteTarget
              templateURLService:(TemplateURLService*)templateURLService
                       responder:(UIResponder*)responder
-                    helpHandler:(id<HelpCommands>)helpHandler
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
@@ -37,6 +36,10 @@ class TemplateURLService;
 // The templateURLService used by this view to determine whether or not
 // Google is the default search engine.
 @property(nonatomic, assign) TemplateURLService* templateURLService;
+
+// Whether the keyboard accessory view should include tools like lens and voice
+// search.
+@property(nonatomic, assign, readonly) BOOL showTools;
 
 @end
 

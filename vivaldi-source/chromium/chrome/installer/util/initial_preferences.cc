@@ -113,14 +113,11 @@ InitialPreferences::~InitialPreferences() = default;
 void InitialPreferences::InitializeFromCommandLine(
     const base::CommandLine& cmd_line) {
 #if BUILDFLAG(IS_WIN)
-#if !defined(VIVALDI_BUILD)
   if (cmd_line.HasSwitch(installer::switches::kInstallerData)) {
     base::FilePath prefs_path(
         cmd_line.GetSwitchValuePath(installer::switches::kInstallerData));
     InitializeFromFilePath(prefs_path);
-  } else
-#endif
-  {
+  } else {
     initial_dictionary_.emplace();
   }
 
@@ -137,15 +134,11 @@ void InitialPreferences::InitializeFromCommandLine(
        installer::initial_preferences::kAllowDowngrade},
       {installer::switches::kDisableLogging,
        installer::initial_preferences::kDisableLogging},
-#if !defined(VIVALDI_BUILD)
       {installer::switches::kMsi, installer::initial_preferences::kMsi},
-#endif
       {installer::switches::kDoNotRegisterForUpdateLaunch,
        installer::initial_preferences::kDoNotRegisterForUpdateLaunch},
       {installer::switches::kDoNotLaunchChrome,
        installer::initial_preferences::kDoNotLaunchChrome},
-      {installer::switches::kMakeChromeDefault,
-       installer::initial_preferences::kMakeChromeDefault},
       {installer::switches::kSystemLevel,
        installer::initial_preferences::kSystemLevel},
       {installer::switches::kVerboseLogging,
@@ -170,7 +163,6 @@ void InitialPreferences::InitializeFromCommandLine(
     initial_dictionary_->SetByDottedPath(name, base::WideToUTF8(str_value));
   }
 
-#if !defined(VIVALDI_BUILD)
   // Handle the special case of --system-level being implied by the presence of
   // the kGoogleUpdateIsMachineEnvVar environment variable.
   std::unique_ptr<base::Environment> env(base::Environment::Create());
@@ -185,7 +177,6 @@ void InitialPreferences::InitializeFromCommandLine(
       initial_dictionary_->SetByDottedPath(name, true);
     }
   }
-#endif
 
   // Cache a pointer to the distribution dictionary. Ignore errors if any.
   distribution_ = initial_dictionary_->FindDict(

@@ -269,7 +269,7 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
   Profile* profile = Profile::FromBrowserContext(source->GetBrowserContext());
   const extensions::Extension* extension =
       extensions::ExtensionRegistry::Get(profile)->enabled_extensions().GetByID(
-          request.security_origin.host());
+          std::string(request.security_origin.host()));
   // Let the extension requesting permission handle this as it already has
   // permission.
   if (extension) {
@@ -454,17 +454,17 @@ void WebViewPermissionHelper::OnMediaPermissionResponse(
   }
 
   if (!allow) {
-    std::move(callback).Run(
-        blink::mojom::StreamDevicesSet(),
-        blink::mojom::MediaStreamRequestResult::PERMISSION_DENIED,
-        std::unique_ptr<content::MediaStreamUI>());
+    std::move(callback).Run(blink::mojom::StreamDevicesSet(),
+                            blink::mojom::MediaStreamRequestResult::
+                                PERMISSION_DENIED_BY_EMBEDDER_CONTEXT,
+                            std::unique_ptr<content::MediaStreamUI>());
     return;
   }
   if (!web_view_guest()->attached() ||
       !web_view_guest()->embedder_web_contents()->GetDelegate()) {
     std::move(callback).Run(
         blink::mojom::StreamDevicesSet(),
-        blink::mojom::MediaStreamRequestResult::INVALID_STATE,
+        blink::mojom::MediaStreamRequestResult::FAILED_DUE_TO_SHUTDOWN,
         std::unique_ptr<content::MediaStreamUI>());
     return;
   }
@@ -583,7 +583,7 @@ WebViewPermissionHelper::OverridePermissionResult(ContentSettingsType type) {
   return web_view_permission_helper_delegate_->OverridePermissionResult(type);
 }
 
-int WebViewPermissionHelper::RequestPermission(
+void WebViewPermissionHelper::RequestPermission(
     WebViewPermissionType permission_type,
     base::Value::Dict request_info,
     PermissionResponseCallback callback,
@@ -598,7 +598,7 @@ int WebViewPermissionHelper::RequestPermission(
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(std::move(callback), allowed_by_default, std::string()));
-    return webview::kInvalidPermissionRequestID;
+    return;
   }
 
   int request_id = next_permission_request_id_++;
@@ -625,7 +625,6 @@ int WebViewPermissionHelper::RequestPermission(
       break;
     }
   }
-  return request_id;
 }
 
 WebViewPermissionHelper::SetPermissionResult
@@ -651,15 +650,6 @@ WebViewPermissionHelper::SetPermission(
   pending_permission_requests_.erase(request_itr);
 
   return allow ? SET_PERMISSION_ALLOWED : SET_PERMISSION_DENIED;
-}
-
-void WebViewPermissionHelper::CancelPendingPermissionRequest(int request_id) {
-  auto request_itr = pending_permission_requests_.find(request_id);
-
-  if (request_itr == pending_permission_requests_.end())
-    return;
-
-  pending_permission_requests_.erase(request_itr);
 }
 
 WebViewPermissionHelper::PermissionResponseInfo::PermissionResponseInfo()

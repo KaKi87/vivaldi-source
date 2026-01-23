@@ -190,8 +190,6 @@ class SyncService : public KeyedService {
 
   // Error states that prevent Sync from working well or working at all, usually
   // displayed to the user.
-  // TODO(crbug.com/40890809): Add new cases that are missing, ideally unify
-  // with other enums like AvatarSyncErrorType.
   //
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused.
@@ -241,7 +239,9 @@ class SyncService : public KeyedService {
     // Indicates that the version of the client/browser is too old and needs to
     // be upgraded to a more recent version.
     kNeedsClientUpgrade = 10,
-    kMaxValue = kNeedsClientUpgrade,
+    // The number of bookmarks has exceeded the limit.
+    kBookmarksLimitExceeded = 11,
+    kMaxValue = kBookmarksLimitExceeded,
   };
   // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:UserActionableError)
 
@@ -348,12 +348,6 @@ class SyncService : public KeyedService {
   // Similar to GetAuthError().IsPersistentError(), but more reliable shortly
   // after startup / profile load, as it caches the last known value.
   virtual bool HasCachedPersistentAuthErrorForMetrics() const = 0;
-
-  // Returns true if the Chrome client is too old and needs to be updated for
-  // Sync to work.
-  // TODO(crbug.com/40890809): Remove this API and use GetUserActionableError()
-  // instead.
-  virtual bool RequiresClientUpgrade() const = 0;
 
   //////////////////////////////////////////////////////////////////////////////
   // DERIVED STATE ACCESS
@@ -484,6 +478,12 @@ class SyncService : public KeyedService {
   // functionality are triggered for upload.
   virtual void TriggerLocalDataMigrationForItems(
       std::map<DataType, std::vector<LocalDataItemModel::DataId>> items) = 0;
+
+  // Acknowledges the `kBookmarksLimitExceeded` user-actionable error. Once
+  // acknowledged, `GetUserActionableError()` will no longer report this error
+  // until the next browser restart. This is used to hide the error UI
+  // after the user has interacted with it.
+  virtual void AcknowledgeBookmarksLimitExceededError() = 0;
 
   // Requests sync service to first enable account storage for the `data_type`
   // and then asynchronously move the specified local data `items` to account.

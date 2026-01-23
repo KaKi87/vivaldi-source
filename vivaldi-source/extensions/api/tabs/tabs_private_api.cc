@@ -196,57 +196,60 @@ static const std::vector<tabs_private::TabAlertState> ConvertTabAlertState(
 
   for (auto status : states) {
     switch (status) {
-      case tabs::TabAlert::MEDIA_RECORDING:
+      case tabs::TabAlert::kMediaRecording:
         types.push_back(tabs_private::TabAlertState::kRecording);
         break;
-      case tabs::TabAlert::TAB_CAPTURING:
+      case tabs::TabAlert::kTabCapturing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
-      case tabs::TabAlert::AUDIO_PLAYING:
+      case tabs::TabAlert::kAudioPlaying:
         types.push_back(tabs_private::TabAlertState::kPlaying);
         break;
-      case tabs::TabAlert::AUDIO_MUTING:
+      case tabs::TabAlert::kAudioMuting:
         types.push_back(tabs_private::TabAlertState::kMuting);
         break;
-      case tabs::TabAlert::BLUETOOTH_CONNECTED:
+      case tabs::TabAlert::kBluetoothConnected:
         types.push_back(tabs_private::TabAlertState::kBluetooth);
         break;
-      case tabs::TabAlert::USB_CONNECTED:
+      case tabs::TabAlert::kUsbConnected:
         types.push_back(tabs_private::TabAlertState::kUsb);
         break;
-      case tabs::TabAlert::PIP_PLAYING:
+      case tabs::TabAlert::kPipPlaying:
         types.push_back(tabs_private::TabAlertState::kPip);
         break;
-      case tabs::TabAlert::DESKTOP_CAPTURING:
+      case tabs::TabAlert::kDesktopCapturing:
         types.push_back(
             tabs_private::TabAlertState::kDesktopCapturing);
         break;
-      case tabs::TabAlert::VR_PRESENTING_IN_HEADSET:
+      case tabs::TabAlert::kVrPresentingInHeadset:
         types.push_back(tabs_private::TabAlertState::kVrPresentingInHeadset);
         break;
-      case tabs::TabAlert::SERIAL_CONNECTED:
+      case tabs::TabAlert::kSerialConnected:
         types.push_back(
             tabs_private::TabAlertState::kSerialConnected);
         break;
-      case tabs::TabAlert::BLUETOOTH_SCAN_ACTIVE:
+      case tabs::TabAlert::kBluetoothScanActive:
         types.push_back(tabs_private::TabAlertState::kBluetoothScan);
         break;
-      case tabs::TabAlert::HID_CONNECTED:
+      case tabs::TabAlert::kHidConnected:
         types.push_back(tabs_private::TabAlertState::kHidConnected);
         break;
-      case tabs::TabAlert::AUDIO_RECORDING:
+      case tabs::TabAlert::kAudioRecording:
         types.push_back(tabs_private::TabAlertState::kAudioRecording);
         break;
-      case tabs::TabAlert::VIDEO_RECORDING:
+      case tabs::TabAlert::kVideoRecording:
         types.push_back(tabs_private::TabAlertState::kVideoRecording);
         break;
-      case tabs::TabAlert::GLIC_ACCESSING:
+      case tabs::TabAlert::kGlicAccessing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
-      case tabs::TabAlert::GLIC_SHARING:
+      case tabs::TabAlert::kGlicSharing:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
-      case tabs::TabAlert::ACTOR_ACCESSING:
+      case tabs::TabAlert::kActorAccessing:
+        types.push_back(tabs_private::TabAlertState::kCapturing);
+        break;
+      case tabs::TabAlert::kActorWaitingOnUser:
         types.push_back(tabs_private::TabAlertState::kCapturing);
         break;
     }
@@ -699,6 +702,91 @@ namespace {
 
 }  // namespace
 
+ExtensionFunction::ResponseAction TabsPrivateCloneFunction::Run() {
+  using tabs_private::Clone::Params;
+  namespace Results = tabs_private::Clone::Results;
+
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  Browser* target_browser =
+      VivaldiBrowserComponentWrapper::GetInstance()->FindBrowserByWindowId(
+          params->window_id);
+  if (!target_browser) {
+    return RespondNow(Error("Illegal window identifier"));
+  }
+  std::string error;
+  std::vector<api::tabs::Tab> tabs;
+  int target_index = params->index;
+  for (const auto& id : params->ids) {
+    int src_tab_index = -1;
+    int new_tab_index = -1;
+    TabListInterface* new_tab_list = nullptr;
+    content::WebContents* new_contents = nullptr;
+    WindowController* src_window_controller = nullptr;
+    content::WebContents* src_web_contents = nullptr;
+    bool is_last = tabs.size() + 1 == params->ids.size();
+    int add_types = (is_last ? AddTabTypes::ADD_ACTIVE : 0) |
+                       AddTabTypes::ADD_INHERIT_OPENER |
+                       (params->pinned ? AddTabTypes::ADD_PINNED : 0);
+
+    if (!tabs_internal::GetTabById(id, browser_context(),
+                                   include_incognito_information(),
+                                   &src_window_controller, &src_web_contents,
+                                   &src_tab_index,
+                                   &error)) {
+      return RespondNow(Error(std::move(error)));
+    }
+    if (!src_window_controller) {
+      return RespondNow(Error("Failed to look up source window"));
+    }
+
+    if (!ExtensionTabUtil::IsTabStripEditable()) {
+      return RespondNow(Error("Tab strip is not editable"));
+    }
+
+    Browser* source_browser =
+        VivaldiBrowserComponentWrapper::GetInstance()->FindBrowserByWindowId(
+        src_window_controller->GetWindowId());
+    if (!source_browser) {
+      return RespondNow(Error("Failed to look up source browser"));
+    }
+
+    new_contents = ::vivaldi::ui_tools::CloneTab(
+        source_browser, target_browser,
+        src_tab_index, &target_index,
+        add_types, &error);
+    if (!new_contents) {
+      return RespondNow(Error(std::move(error)));
+    }
+
+    if (!ExtensionTabUtil::GetTabListInterface(*new_contents, &new_tab_list,
+                                               &new_tab_index)) {
+      return RespondNow(Error("Failed to fetch new tab list"));
+    }
+    ExtensionTabUtil::ScrubTabBehavior scrub_tab_behavior =
+        ExtensionTabUtil::GetScrubTabBehavior(extension(),
+                                              source_context_type(),
+                                              new_contents);
+    target_browser->tab_strip_model()->SetTabPinned(new_tab_index,
+                                                    params->pinned);
+    auto info = ExtensionTabUtil::CreateTabObject(
+        new_contents, scrub_tab_behavior, extension(), new_tab_list,
+        new_tab_index);
+    tabs.push_back(std::move(info));
+    target_index++;
+  }
+
+  std::vector<tabs_private::CloneTabInfo> clone_info_list;
+  for (const auto& tab : tabs) {
+    tabs_private::CloneTabInfo info;
+    info.id = tab.id.has_value() ? tab.id.value() : -1;
+    info.index = tab.index;
+    clone_info_list.push_back(std::move(info));
+  }
+  return RespondNow(ArgumentList(Results::Create(clone_info_list)));
+}
+
 ExtensionFunction::ResponseAction TabsPrivateUpdateFunction::Run() {
   using tabs_private::Update::Params;
   namespace Results = tabs_private::Update::Results;
@@ -797,8 +885,10 @@ ExtensionFunction::ResponseAction TabsPrivateStartDragFunction::Run() {
 
   drop_data_.custom_data.emplace(identifier, custom_data);
 
-  drop_data_.url = GURL(params->drag_data.url);
-  drop_data_.url_title = base::UTF8ToUTF16(params->drag_data.title);
+  drop_data_.url_infos = {
+    ui::ClipboardUrlInfo{GURL(params->drag_data.url),
+                         base::UTF8ToUTF16(params->drag_data.title)}
+  };
 
   event_info_.source =
       (params->drag_data.is_from_touch && *params->drag_data.is_from_touch)
@@ -809,7 +899,8 @@ ExtensionFunction::ResponseAction TabsPrivateStartDragFunction::Run() {
   image_offset_.set_x(params->drag_data.cursor_x);
   image_offset_.set_y(params->drag_data.cursor_y);
 
-  const url::Origin source_origin = url::Origin::Create(drop_data_.url);
+  const url::Origin source_origin =
+      url::Origin::Create(GURL(params->drag_data.url));
 
   double width = params->drag_data.width;
   double height = params->drag_data.height;
@@ -1166,6 +1257,10 @@ TabsPrivateLoadViaLifeCycleUnitFunction::Run() {
       VivaldiBrowserComponentWrapper::GetInstance()->GetWebContentsFromTabStrip(
           browser_context(), params->tab_id, nullptr);
 
+  if (!tab_contents) {
+    return RespondNow(Error("No tab found to load."));
+  }
+
   VivaldiBrowserComponentWrapper::GetInstance()->LoadViaLifeCycleUnit(
       tab_contents);
 
@@ -1466,7 +1561,7 @@ void VivaldiGuestViewContentObserver::SetMuted(bool mute) {
     return;
   }
   VivaldiBrowserComponentWrapper::GetInstance()
-      ->SetTabAudioMuted(web_contents(), mute, TabMutedReason::EXTENSION,
+      ->SetTabAudioMuted(web_contents(), mute, TabMutedReason::kExtension,
                    ::vivaldi::kVivaldiAppId);
 }
 

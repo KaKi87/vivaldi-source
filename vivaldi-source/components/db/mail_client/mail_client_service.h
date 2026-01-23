@@ -123,6 +123,10 @@ class MailClientService : public KeyedService {
       CountCallback callback,
       base::CancelableTaskTracker* tracker);
 
+  base::CancelableTaskTracker::TaskId GetMailSearchDBSearchListIds(
+      EmailSearchCallback callback,
+      base::CancelableTaskTracker* tracker);
+
  private:
   class MailClientBackendDelegate;
   friend class base::RefCountedThreadSafe<MailClientService>;

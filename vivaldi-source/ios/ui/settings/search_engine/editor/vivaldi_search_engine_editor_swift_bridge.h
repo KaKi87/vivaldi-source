@@ -8,6 +8,8 @@
 
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_consumer.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_entry_point.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_entry_reason.h"
 #import "ui/base/l10n/l10n_util_mac_bridge.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 

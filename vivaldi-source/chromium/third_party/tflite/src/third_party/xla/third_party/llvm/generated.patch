@@ -1,254 +1,315 @@
 Auto generated patch. Do not edit or delete it, even if empty.
-diff -ruN --strip-trailing-cr a/llvm/include/llvm/Analysis/LoopInfo.h b/llvm/include/llvm/Analysis/LoopInfo.h
---- a/llvm/include/llvm/Analysis/LoopInfo.h
-+++ b/llvm/include/llvm/Analysis/LoopInfo.h
-@@ -59,11 +59,12 @@
-   };
+diff -ruN --strip-trailing-cr a/clang/test/OpenMP/parallel_default_variableCategory_codegen.cpp b/clang/test/OpenMP/parallel_default_variableCategory_codegen.cpp
+--- a/clang/test/OpenMP/parallel_default_variableCategory_codegen.cpp
++++ b/clang/test/OpenMP/parallel_default_variableCategory_codegen.cpp
+@@ -1,4 +1,4 @@
+-// RUN: %clangxx -Xclang -verify -Wno-vla -fopenmp -fopenmp-version=60 -x c++ -S -emit-llvm %s -o - | FileCheck %s
++// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=60 -x c++ -emit-llvm %s -o - | FileCheck %s
+ // expected-no-diagnostics
+ #ifndef HEADER
+ #define HEADER
+diff -ruN --strip-trailing-cr a/libcxx/docs/ReleaseNotes/22.rst b/libcxx/docs/ReleaseNotes/22.rst
+--- a/libcxx/docs/ReleaseNotes/22.rst
++++ b/libcxx/docs/ReleaseNotes/22.rst
+@@ -67,8 +67,8 @@
+   by up to 2.5x
+ - The performance of ``erase(iterator, iterator)`` in the unordered containers has been improved by up to 1.9x
+ - The performance of ``map::insert_or_assign`` has been improved by up to 2x
+-- ``ofstream::write`` and ``ifstream::read`` have been optimized to pass through large reads and writes to system calls
+-  directly instead of copying them in chunks.
++- ``ofstream::write`` has been optimized to pass through large strings to system calls directly instead of copying them
++  in chunks into a buffer.
+ - Multiple internal types have been refactored to use ``[[no_unique_address]]``, resulting in faster compile times and
+   reduced debug information.
  
-   /// Return true if the specified value is loop invariant.
--  bool isLoopInvariant(const Value *V) const;
-+  bool isLoopInvariant(const Value *V, bool HasCoroSuspendInst = false) const;
+diff -ruN --strip-trailing-cr a/libcxx/include/fstream b/libcxx/include/fstream
+--- a/libcxx/include/fstream
++++ b/libcxx/include/fstream
+@@ -308,25 +308,6 @@
+     return basic_streambuf<_CharT, _Traits>::xsputn(__str, __len);
+   }
  
-   /// Return true if all the operands of the specified instruction are loop
-   /// invariant.
--  bool hasLoopInvariantOperands(const Instruction *I) const;
-+  bool hasLoopInvariantOperands(const Instruction *I,
-+                                bool HasCoroSuspendInst = false) const;
- 
-   /// If the given value is an instruction inside of the loop and it can be
-   /// hoisted, do so to make it trivially loop-invariant.
-diff -ruN --strip-trailing-cr a/llvm/include/llvm/Transforms/Utils/LoopUtils.h b/llvm/include/llvm/Transforms/Utils/LoopUtils.h
---- a/llvm/include/llvm/Transforms/Utils/LoopUtils.h
-+++ b/llvm/include/llvm/Transforms/Utils/LoopUtils.h
-@@ -185,7 +185,8 @@
-                           TargetLibraryInfo *, Loop *, MemorySSAUpdater &,
-                           ScalarEvolution *, ICFLoopSafetyInfo *,
-                           SinkAndHoistLICMFlags &, OptimizationRemarkEmitter *,
--                          bool, bool AllowSpeculation);
-+                          bool, bool AllowSpeculation,
-+                          bool HasCoroSuspendInst = false);
- 
- /// Return true if the induction variable \p IV in a Loop whose latch is
- /// \p LatchBlock would become dead if the exit test \p Cond were removed.
-diff -ruN --strip-trailing-cr a/llvm/lib/Analysis/LoopInfo.cpp b/llvm/lib/Analysis/LoopInfo.cpp
---- a/llvm/lib/Analysis/LoopInfo.cpp
-+++ b/llvm/lib/Analysis/LoopInfo.cpp
-@@ -58,14 +58,26 @@
- // Loop implementation
- //
- 
--bool Loop::isLoopInvariant(const Value *V) const {
--  if (const Instruction *I = dyn_cast<Instruction>(V))
--    return !contains(I);
-+bool Loop::isLoopInvariant(const Value *V, bool HasCoroSuspendInst) const {
-+  if (const Instruction *I = dyn_cast<Instruction>(V)) {
-+    // FIXME: this is semantically inconsistent. We're tracking a proper fix in
-+    // issue #149604.
-+    // If V is a pointer to stack object and L contains a coro.suspend function
-+    // call, then V may not be loop invariant because the ramp function and
-+    // resume function have different stack frames.
-+    if (HasCoroSuspendInst && isa<AllocaInst>(I))
-+      return false;
-+    else
-+      return !contains(I);
-+  }
-   return true; // All non-instructions are loop invariant
- }
- 
--bool Loop::hasLoopInvariantOperands(const Instruction *I) const {
--  return all_of(I->operands(), [this](Value *V) { return isLoopInvariant(V); });
-+bool Loop::hasLoopInvariantOperands(const Instruction *I,
-+                                    bool HasCoroSuspendInst) const {
-+  return all_of(I->operands(), [&](Value *V) {
-+    return isLoopInvariant(V, HasCoroSuspendInst);
-+  });
- }
- 
- bool Loop::makeLoopInvariant(Value *V, bool &Changed, Instruction *InsertPt,
-diff -ruN --strip-trailing-cr a/llvm/lib/Target/NVPTX/NVPTXISelLowering.cpp b/llvm/lib/Target/NVPTX/NVPTXISelLowering.cpp
---- a/llvm/lib/Target/NVPTX/NVPTXISelLowering.cpp
-+++ b/llvm/lib/Target/NVPTX/NVPTXISelLowering.cpp
-@@ -680,6 +680,8 @@
-   // No support for these operations with v2f32.
-   setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v2f32, Expand);
-   setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v2f32, Expand);
-+  // Need custom lowering in case the index is dynamic.
-+  setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v2f32, Custom);
- 
-   // Custom conversions to/from v2i8.
-   setOperationAction(ISD::BITCAST, MVT::v2i8, Custom);
-diff -ruN --strip-trailing-cr a/llvm/lib/Transforms/Scalar/LICM.cpp b/llvm/lib/Transforms/Scalar/LICM.cpp
---- a/llvm/lib/Transforms/Scalar/LICM.cpp
-+++ b/llvm/lib/Transforms/Scalar/LICM.cpp
-@@ -472,7 +472,7 @@
-   if (Preheader)
-     Changed |= hoistRegion(DT->getNode(L->getHeader()), AA, LI, DT, AC, TLI, L,
-                            MSSAU, SE, &SafetyInfo, Flags, ORE, LoopNestMode,
--                           LicmAllowSpeculation);
-+                           LicmAllowSpeculation, HasCoroSuspendInst);
- 
-   // Now that all loop invariants have been removed from the loop, promote any
-   // memory references to scalars that we can.
-@@ -881,7 +881,7 @@
-                        ICFLoopSafetyInfo *SafetyInfo,
-                        SinkAndHoistLICMFlags &Flags,
-                        OptimizationRemarkEmitter *ORE, bool LoopNestMode,
--                       bool AllowSpeculation) {
-+                       bool AllowSpeculation, bool HasCoroSuspendInst) {
-   // Verify inputs.
-   assert(N != nullptr && AA != nullptr && LI != nullptr && DT != nullptr &&
-          CurLoop != nullptr && SafetyInfo != nullptr &&
-@@ -914,11 +914,11 @@
-       // TODO: It may be safe to hoist if we are hoisting to a conditional block
-       // and we have accurately duplicated the control flow from the loop header
-       // to that block.
--      if (CurLoop->hasLoopInvariantOperands(&I) &&
-+      if (CurLoop->hasLoopInvariantOperands(&I, HasCoroSuspendInst) &&
-           canSinkOrHoistInst(I, AA, DT, CurLoop, MSSAU, true, Flags, ORE) &&
--          isSafeToExecuteUnconditionally(
--              I, DT, TLI, CurLoop, SafetyInfo, ORE,
--              Preheader->getTerminator(), AC, AllowSpeculation)) {
-+          isSafeToExecuteUnconditionally(I, DT, TLI, CurLoop, SafetyInfo, ORE,
-+                                         Preheader->getTerminator(), AC,
-+                                         AllowSpeculation)) {
-         hoist(I, DT, CurLoop, CFH.getOrCreateHoistedBlock(BB), SafetyInfo,
-               MSSAU, SE, ORE);
-         HoistedInstructions.push_back(&I);
-@@ -964,7 +964,7 @@
-                SafetyInfo->doesNotWriteMemoryBefore(I, CurLoop);
-       };
-       if ((IsInvariantStart(I) || isGuard(&I)) &&
--          CurLoop->hasLoopInvariantOperands(&I) &&
-+          CurLoop->hasLoopInvariantOperands(&I, HasCoroSuspendInst) &&
-           MustExecuteWithoutWritesBefore(I)) {
-         hoist(I, DT, CurLoop, CFH.getOrCreateHoistedBlock(BB), SafetyInfo,
-               MSSAU, SE, ORE);
-diff -ruN --strip-trailing-cr a/llvm/test/CodeGen/NVPTX/f32x2-instructions.ll b/llvm/test/CodeGen/NVPTX/f32x2-instructions.ll
---- a/llvm/test/CodeGen/NVPTX/f32x2-instructions.ll
-+++ b/llvm/test/CodeGen/NVPTX/f32x2-instructions.ll
-@@ -79,13 +79,24 @@
-   ret float %e
- }
- 
--; NOTE: disabled as -O3 miscompiles this into pointer arithmetic on
--; test_extract_i_param_0 where the symbol's address is not taken first (that
--; is, moved to a temporary)
--; define float @test_extract_i(<2 x float> %a, i64 %idx) #0 {
--;   %e = extractelement <2 x float> %a, i64 %idx
--;   ret float %e
--; }
-+define float @test_extract_i(<2 x float> %a, i64 %idx) #0 {
-+; CHECK-LABEL: test_extract_i(
-+; CHECK:       {
-+; CHECK-NEXT:    .reg .pred %p<2>;
-+; CHECK-NEXT:    .reg .b32 %r<4>;
-+; CHECK-NEXT:    .reg .b64 %rd<3>;
-+; CHECK-EMPTY:
-+; CHECK-NEXT:  // %bb.0:
-+; CHECK-NEXT:    ld.param.b64 %rd2, [test_extract_i_param_1];
-+; CHECK-NEXT:    ld.param.b64 %rd1, [test_extract_i_param_0];
-+; CHECK-NEXT:    setp.eq.b64 %p1, %rd2, 0;
-+; CHECK-NEXT:    mov.b64 {%r1, %r2}, %rd1;
-+; CHECK-NEXT:    selp.f32 %r3, %r1, %r2, %p1;
-+; CHECK-NEXT:    st.param.b32 [func_retval0], %r3;
-+; CHECK-NEXT:    ret;
-+  %e = extractelement <2 x float> %a, i64 %idx
-+  ret float %e
+-  _LIBCPP_HIDE_FROM_ABI_VIRTUAL streamsize xsgetn(char_type* __str, streamsize __len) override {
+-    if (__always_noconv_) {
+-      const streamsize __n = std::min(this->egptr() - this->gptr(), __len);
+-      if (__n != 0) {
+-        traits_type::copy(__str, this->gptr(), __n);
+-        this->__gbump_ptrdiff(__n);
+-      }
+-      const streamsize __remainder    = __len - __n;
+-      const streamsize __buffer_space = this->egptr() - this->eback();
+-
+-      if (__remainder >= __buffer_space)
+-        return std::fread(__str + __n, sizeof(char_type), __remainder, __file_) + __n;
+-      else if (__remainder > 0)
+-        return basic_streambuf<_CharT, _Traits>::xsgetn(__str + __n, __remainder) + __n;
+-      return __n;
+-    }
+-    return basic_streambuf<_CharT, _Traits>::xsgetn(__str, __len);
+-  }
+-
+ private:
+   char* __extbuf_;
+   const char* __extbufnext_;
+diff -ruN --strip-trailing-cr a/libcxx/test/benchmarks/streams/fstream.bench.cpp b/libcxx/test/benchmarks/streams/fstream.bench.cpp
+--- a/libcxx/test/benchmarks/streams/fstream.bench.cpp
++++ b/libcxx/test/benchmarks/streams/fstream.bench.cpp
+@@ -1,43 +0,0 @@
+-//===----------------------------------------------------------------------===//
+-//
+-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+-// See https://llvm.org/LICENSE.txt for license information.
+-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+-//
+-//===----------------------------------------------------------------------===//
+-
+-#include <fstream>
+-#include <vector>
+-
+-#include <benchmark/benchmark.h>
+-
+-static void bm_ofstream_write(benchmark::State& state) {
+-  std::vector<char> buffer;
+-  buffer.resize(16384);
+-
+-  std::ofstream stream("/dev/null");
+-
+-  for (auto _ : state)
+-    stream.write(buffer.data(), buffer.size());
+-}
+-BENCHMARK(bm_ofstream_write);
+-
+-static void bm_ifstream_read(benchmark::State& state) {
+-  std::vector<char> buffer;
+-  buffer.resize(16384);
+-
+-  std::ofstream gen_testfile("testfile");
+-  gen_testfile.write(buffer.data(), buffer.size());
+-
+-  std::ifstream stream("testfile");
+-  assert(stream);
+-
+-  for (auto _ : state) {
+-    stream.read(buffer.data(), buffer.size());
+-    benchmark::DoNotOptimize(buffer);
+-    stream.seekg(0);
+-  }
+-}
+-BENCHMARK(bm_ifstream_read);
+-
+-BENCHMARK_MAIN();
+diff -ruN --strip-trailing-cr a/libcxx/test/benchmarks/streams/ofstream.bench.cpp b/libcxx/test/benchmarks/streams/ofstream.bench.cpp
+--- a/libcxx/test/benchmarks/streams/ofstream.bench.cpp
++++ b/libcxx/test/benchmarks/streams/ofstream.bench.cpp
+@@ -0,0 +1,25 @@
++//===----------------------------------------------------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++
++#include <fstream>
++#include <vector>
++
++#include <benchmark/benchmark.h>
++
++static void bm_write(benchmark::State& state) {
++  std::vector<char> buffer;
++  buffer.resize(16384);
++
++  std::ofstream stream("/dev/null");
++
++  for (auto _ : state)
++    stream.write(buffer.data(), buffer.size());
 +}
++BENCHMARK(bm_write);
++
++BENCHMARK_MAIN();
+diff -ruN --strip-trailing-cr a/libcxx/test/libcxx/input.output/file.streams/fstreams/filebuf/traits_mismatch.verify.cpp b/libcxx/test/libcxx/input.output/file.streams/fstreams/filebuf/traits_mismatch.verify.cpp
+--- a/libcxx/test/libcxx/input.output/file.streams/fstreams/filebuf/traits_mismatch.verify.cpp
++++ b/libcxx/test/libcxx/input.output/file.streams/fstreams/filebuf/traits_mismatch.verify.cpp
+@@ -19,4 +19,4 @@
  
- define <2 x float> @test_fadd(<2 x float> %a, <2 x float> %b) #0 {
- ; CHECK-NOF32X2-LABEL: test_fadd(
-diff -ruN --strip-trailing-cr a/llvm/test/Transforms/LICM/licm-coroutine.ll b/llvm/test/Transforms/LICM/licm-coroutine.ll
---- a/llvm/test/Transforms/LICM/licm-coroutine.ll
-+++ b/llvm/test/Transforms/LICM/licm-coroutine.ll
-@@ -0,0 +1,78 @@
-+; NOTE: Assertions have been autogenerated by utils/update_test_checks.py UTC_ARGS: --version 5
-+; RUN: opt < %s -passes=licm -S | FileCheck %s
-+
-+; %fca.0 and %fca.1 should not be hoisted out of the loop because the ramp
-+; function and resume function have different stack frames, so %pointer1 and
-+; %pointer2 have different values before and after @llvm.coro.suspend.
-+
-+define ptr @f(i32 %n) presplitcoroutine {
-+; CHECK-LABEL: define ptr @f(
-+; CHECK-SAME: i32 [[N:%.*]]) #[[ATTR0:[0-9]+]] {
-+; CHECK-NEXT:  [[ENTRY:.*]]:
-+; CHECK-NEXT:    [[POINTER1:%.*]] = alloca ptr, align 8
-+; CHECK-NEXT:    [[POINTER2:%.*]] = alloca ptr, align 8
-+; CHECK-NEXT:    [[ID:%.*]] = call token @llvm.coro.id(i32 0, ptr null, ptr null, ptr null)
-+; CHECK-NEXT:    [[SIZE:%.*]] = call i32 @llvm.coro.size.i32()
-+; CHECK-NEXT:    [[ALLOC:%.*]] = call ptr @malloc(i32 [[SIZE]])
-+; CHECK-NEXT:    [[HDL:%.*]] = call noalias ptr @llvm.coro.begin(token [[ID]], ptr [[ALLOC]])
-+; CHECK-NEXT:    br label %[[LOOP:.*]]
-+; CHECK:       [[LOOP]]:
-+; CHECK-NEXT:    [[N_VAL:%.*]] = phi i32 [ [[N]], %[[ENTRY]] ], [ [[INC:%.*]], %[[RESUME:.*]] ]
-+; CHECK-NEXT:    [[INC]] = add nsw i32 [[N_VAL]], 1
-+; CHECK-NEXT:    call void @print(i32 [[N_VAL]])
-+; CHECK-NEXT:    [[TMP0:%.*]] = call i8 @llvm.coro.suspend(token none, i1 false)
-+; CHECK-NEXT:    switch i8 [[TMP0]], label %[[SUSPEND_LOOPEXIT:.*]] [
-+; CHECK-NEXT:      i8 0, label %[[RESUME]]
-+; CHECK-NEXT:      i8 1, label %[[CLEANUP:.*]]
-+; CHECK-NEXT:    ]
-+; CHECK:       [[RESUME]]:
-+; CHECK-NEXT:    [[FCA_0:%.*]] = insertvalue [2 x ptr] poison, ptr [[POINTER1]], 0
-+; CHECK-NEXT:    [[FCA_1:%.*]] = insertvalue [2 x ptr] [[FCA_0]], ptr [[POINTER2]], 1
-+; CHECK-NEXT:    call void @foo([2 x ptr] [[FCA_1]])
-+; CHECK-NEXT:    br label %[[LOOP]]
-+; CHECK:       [[CLEANUP]]:
-+; CHECK-NEXT:    [[MEM:%.*]] = call ptr @llvm.coro.free(token [[ID]], ptr [[HDL]])
-+; CHECK-NEXT:    call void @free(ptr [[MEM]])
-+; CHECK-NEXT:    br label %[[SUSPEND:.*]]
-+; CHECK:       [[SUSPEND_LOOPEXIT]]:
-+; CHECK-NEXT:    br label %[[SUSPEND]]
-+; CHECK:       [[SUSPEND]]:
-+; CHECK-NEXT:    [[UNUSED:%.*]] = call i1 @llvm.coro.end(ptr [[HDL]], i1 false, token none)
-+; CHECK-NEXT:    ret ptr [[HDL]]
-+;
-+entry:
-+  %pointer1 = alloca ptr
-+  %pointer2 = alloca ptr
-+  %id = call token @llvm.coro.id(i32 0, ptr null, ptr null, ptr null)
-+  %size = call i32 @llvm.coro.size.i32()
-+  %alloc = call ptr @malloc(i32 %size)
-+  %hdl = call noalias ptr @llvm.coro.begin(token %id, ptr %alloc)
-+  br label %loop
-+
-+loop:
-+  %n.val = phi i32 [ %n, %entry ], [ %inc, %resume ]
-+  %inc = add nsw i32 %n.val, 1
-+  call void @print(i32 %n.val)
-+  %0 = call i8 @llvm.coro.suspend(token none, i1 false)
-+  switch i8 %0, label %suspend [i8 0, label %resume
-+  i8 1, label %cleanup]
-+
-+resume:
-+  %fca.0 = insertvalue [2 x ptr] poison, ptr %pointer1, 0
-+  %fca.1 = insertvalue [2 x ptr] %fca.0, ptr %pointer2, 1
-+  call void @foo([2 x ptr] %fca.1)
-+  br label %loop
-+
-+cleanup:
-+  %mem = call ptr @llvm.coro.free(token %id, ptr %hdl)
-+  call void @free(ptr %mem)
-+  br label %suspend
-+suspend:
-+  %unused = call i1 @llvm.coro.end(ptr %hdl, i1 false, token none)
-+  ret ptr %hdl
-+}
-+
-+declare void @free(ptr)
-+declare ptr @malloc(i32)
-+declare void @print(i32)
-+declare void @foo([2 x ptr])
-diff -ruN --strip-trailing-cr a/mlir/test/Dialect/Linalg/linalg-morph-category-ops.mlir b/mlir/test/Dialect/Linalg/linalg-morph-category-ops.mlir
---- a/mlir/test/Dialect/Linalg/linalg-morph-category-ops.mlir
-+++ b/mlir/test/Dialect/Linalg/linalg-morph-category-ops.mlir
-@@ -2,7 +2,7 @@
- // RUN: mlir-opt %s -linalg-morph-ops=named-to-category | FileCheck %s  --check-prefix=NAMED_TO_CATEGORY
+ std::basic_filebuf<char, std::char_traits<wchar_t> > f;
+ // expected-error-re@*:* {{static assertion failed{{.*}}traits_type::char_type must be the same type as CharT}}
+-// expected-error@*:* 11 {{only virtual member functions can be marked 'override'}}
++// expected-error@*:* 10 {{only virtual member functions can be marked 'override'}}
+diff -ruN --strip-trailing-cr a/libcxx/test/libcxx/input.output/file.streams/fstreams/traits_mismatch.verify.cpp b/libcxx/test/libcxx/input.output/file.streams/fstreams/traits_mismatch.verify.cpp
+--- a/libcxx/test/libcxx/input.output/file.streams/fstreams/traits_mismatch.verify.cpp
++++ b/libcxx/test/libcxx/input.output/file.streams/fstreams/traits_mismatch.verify.cpp
+@@ -21,7 +21,7 @@
+ // expected-error-re@*:* {{static assertion failed{{.*}}traits_type::char_type must be the same type as CharT}}
+ // expected-error-re@*:* {{static assertion failed{{.*}}traits_type::char_type must be the same type as CharT}}
  
- // RUN: mlir-opt %s -linalg-morph-ops=named-to-category |  \
--// RUN:   mlir-opt %s -linalg-morph-ops=category-to-generic | FileCheck %s  --check-prefix=CATEGORY_TO_GENERIC
-+// RUN:   mlir-opt -linalg-morph-ops=category-to-generic | FileCheck %s  --check-prefix=CATEGORY_TO_GENERIC
+-// expected-error@*:* 13 {{only virtual member functions can be marked 'override'}}
++// expected-error@*:* 12 {{only virtual member functions can be marked 'override'}}
  
- func.func @exp(%A : tensor<16x8xf32>, %B : tensor<16x8xf32>) ->  tensor<16x8xf32> {
-   %exp = linalg.exp ins(%A : tensor<16x8xf32>) outs(%B :  tensor<16x8xf32>) -> tensor<16x8xf32>
+ // FIXME: As of commit r324062 Clang incorrectly generates a diagnostic about mismatching
+ // exception specifications for types which are already invalid for one reason or another.
+diff -ruN --strip-trailing-cr a/lldb/unittests/Editline/EditlineTest.cpp b/lldb/unittests/Editline/EditlineTest.cpp
+--- a/lldb/unittests/Editline/EditlineTest.cpp
++++ b/lldb/unittests/Editline/EditlineTest.cpp
+@@ -9,6 +9,8 @@
+ #include "lldb/Host/Config.h"
+ #include "lldb/Host/File.h"
+ #include "lldb/Host/HostInfo.h"
++#include "lldb/lldb-forward.h"
++#include "llvm/Testing/Support/Error.h"
+ 
+ #if LLDB_ENABLE_LIBEDIT
+ 
+@@ -25,7 +27,6 @@
+ #include "TestingSupport/SubsystemRAII.h"
+ #include "lldb/Host/Editline.h"
+ #include "lldb/Host/FileSystem.h"
+-#include "lldb/Host/Pipe.h"
+ #include "lldb/Host/PseudoTerminal.h"
+ #include "lldb/Host/StreamFile.h"
+ #include "lldb/Utility/Status.h"
+@@ -37,27 +38,6 @@
+ const size_t TIMEOUT_MILLIS = 5000;
+ }
+ 
+-class FilePointer {
+-public:
+-  FilePointer() = delete;
+-
+-  FilePointer(const FilePointer &) = delete;
+-
+-  FilePointer(FILE *file_p) : _file_p(file_p) {}
+-
+-  ~FilePointer() {
+-    if (_file_p != nullptr) {
+-      const int close_result = fclose(_file_p);
+-      EXPECT_EQ(0, close_result);
+-    }
+-  }
+-
+-  operator FILE *() { return _file_p; }
+-
+-private:
+-  FILE *_file_p;
+-};
+-
+ /**
+  Wraps an Editline class, providing a simple way to feed
+  input (as if from the keyboard) and receive output from Editline.
+@@ -90,44 +70,39 @@
+   std::recursive_mutex output_mutex;
+   std::unique_ptr<lldb_private::Editline> _editline_sp;
+ 
+-  PseudoTerminal _pty;
+-  int _pty_primary_fd = -1;
+-  int _pty_secondary_fd = -1;
+-
+-  std::unique_ptr<FilePointer> _el_secondary_file;
++  lldb::FileSP _el_primary_file;
++  lldb::FileSP _el_secondary_file;
+ };
+ 
+-EditlineAdapter::EditlineAdapter()
+-    : _editline_sp(), _pty(), _el_secondary_file() {
++EditlineAdapter::EditlineAdapter() : _editline_sp(), _el_secondary_file() {
+   lldb_private::Status error;
++  PseudoTerminal pty;
+ 
+   // Open the first primary pty available.
+-  EXPECT_THAT_ERROR(_pty.OpenFirstAvailablePrimary(O_RDWR), llvm::Succeeded());
++  EXPECT_THAT_ERROR(pty.OpenFirstAvailablePrimary(O_RDWR), llvm::Succeeded());
++  // Open the corresponding secondary pty.
++  EXPECT_THAT_ERROR(pty.OpenSecondary(O_RDWR), llvm::Succeeded());
+ 
+   // Grab the primary fd.  This is a file descriptor we will:
+   // (1) write to when we want to send input to editline.
+   // (2) read from when we want to see what editline sends back.
+-  _pty_primary_fd = _pty.GetPrimaryFileDescriptor();
+-
+-  // Open the corresponding secondary pty.
+-  EXPECT_THAT_ERROR(_pty.OpenSecondary(O_RDWR), llvm::Succeeded());
+-  _pty_secondary_fd = _pty.GetSecondaryFileDescriptor();
+-
+-  _el_secondary_file.reset(new FilePointer(fdopen(_pty_secondary_fd, "rw")));
+-  EXPECT_FALSE(nullptr == *_el_secondary_file);
+-  if (*_el_secondary_file == nullptr)
+-    return;
++  _el_primary_file.reset(
++      new NativeFile(pty.ReleasePrimaryFileDescriptor(),
++                     lldb_private::NativeFile::eOpenOptionReadWrite, true));
++
++  _el_secondary_file.reset(
++      new NativeFile(pty.ReleaseSecondaryFileDescriptor(),
++                     lldb_private::NativeFile::eOpenOptionReadWrite, true));
+ 
+   lldb::LockableStreamFileSP output_stream_sp =
+-      std::make_shared<LockableStreamFile>(*_el_secondary_file,
+-                                           NativeFile::Unowned, output_mutex);
++      std::make_shared<LockableStreamFile>(_el_secondary_file, output_mutex);
+   lldb::LockableStreamFileSP error_stream_sp =
+-      std::make_shared<LockableStreamFile>(*_el_secondary_file,
+-                                           NativeFile::Unowned, output_mutex);
++      std::make_shared<LockableStreamFile>(_el_secondary_file, output_mutex);
+ 
+   // Create an Editline instance.
+   _editline_sp.reset(new lldb_private::Editline(
+-      "gtest editor", *_el_secondary_file, output_stream_sp, error_stream_sp,
++      "gtest editor", _el_secondary_file->GetStream(), output_stream_sp,
++      error_stream_sp,
+       /*color=*/false));
+   _editline_sp->SetPrompt("> ");
+ 
+@@ -140,7 +115,7 @@
+ 
+ void EditlineAdapter::CloseInput() {
+   if (_el_secondary_file != nullptr)
+-    _el_secondary_file.reset(nullptr);
++    _el_secondary_file->Close();
+ }
+ 
+ bool EditlineAdapter::SendLine(const std::string &line) {
+@@ -148,19 +123,14 @@
+   if (!IsValid())
+     return false;
+ 
++  std::string out = line + "\n";
++
+   // Write the line out to the pipe connected to editline's input.
+-  ssize_t input_bytes_written =
+-      ::write(_pty_primary_fd, line.c_str(),
+-              line.length() * sizeof(std::string::value_type));
+-
+-  const char *eoln = "\n";
+-  const size_t eoln_length = strlen(eoln);
+-  input_bytes_written =
+-      ::write(_pty_primary_fd, eoln, eoln_length * sizeof(char));
+-
+-  EXPECT_NE(-1, input_bytes_written) << strerror(errno);
+-  EXPECT_EQ(eoln_length * sizeof(char), size_t(input_bytes_written));
+-  return eoln_length * sizeof(char) == size_t(input_bytes_written);
++  size_t num_bytes = out.length() * sizeof(std::string::value_type);
++  EXPECT_THAT_ERROR(_el_primary_file->Write(out.c_str(), num_bytes).takeError(),
++                    llvm::Succeeded());
++  EXPECT_EQ(num_bytes, out.length() * sizeof(std::string::value_type));
++  return true;
+ }
+ 
+ bool EditlineAdapter::SendLines(const std::vector<std::string> &lines) {
+@@ -215,7 +185,7 @@
+ }
+ 
+ void EditlineAdapter::ConsumeAllOutput() {
+-  FilePointer output_file(fdopen(_pty_primary_fd, "r"));
++  FILE *output_file = _el_primary_file->GetStream();
+ 
+   int ch;
+   while ((ch = fgetc(output_file)) != EOF) {
+diff -ruN --strip-trailing-cr a/llvm/test/CodeGen/AMDGPU/rewrite-vgpr-mfma-scale-to-agpr.mir b/llvm/test/CodeGen/AMDGPU/rewrite-vgpr-mfma-scale-to-agpr.mir
+--- a/llvm/test/CodeGen/AMDGPU/rewrite-vgpr-mfma-scale-to-agpr.mir
++++ b/llvm/test/CodeGen/AMDGPU/rewrite-vgpr-mfma-scale-to-agpr.mir
+@@ -1,4 +1,4 @@
+-# RUN: not llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx950 -run-pass=greedy,amdgpu-rewrite-agpr-copy-mfma -verify-machineinstrs -o - %s 2>&1 | FileCheck %s
++# RUN: not --crash llc -mtriple=amdgcn-amd-amdhsa -mcpu=gfx950 -run-pass=greedy,amdgpu-rewrite-agpr-copy-mfma -verify-machineinstrs -o - %s 2>&1 | FileCheck %s
+ # CHECK: Illegal virtual register for instruction
+ # CHECK: Expected a VGPR_32 register, but got a AGPR_32 register
+  

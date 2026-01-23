@@ -188,13 +188,17 @@ RuntimePrivateGetAllFeatureFlagsFunction::Run() {
   const std::vector<const base::Feature*> desktop_features{
       &vivaldi_features::kChromePages,
       &vivaldi_features::kCssMods,
+      &vivaldi_features::kDesktopBackgroundImage,
+      &vivaldi_features::kDnDTiling,
       &vivaldi_features::kDoubleClickMenu,
+      &vivaldi_features::kFollowerTab,
       &vivaldi_features::kInternalPageReaderMode,
       &vivaldi_features::kLocationOverride,
-      &vivaldi_features::kNewAboutPage,
       &vivaldi_features::kNewPrivacyReport,
-      &vivaldi_features::kSpeeddialWidgets,
+      &vivaldi_features::kOpenLinkTiled,
       &vivaldi_features::kNoteEditor,
+      &vivaldi_features::kRestrictPinnedTab,
+      &vivaldi_features::kTabsAutoHide,
   };
 
   std::vector<FeatureFlagInfo> results;

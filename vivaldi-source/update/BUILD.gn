@@ -3,14 +3,14 @@
 static_library("update") {
   if (!is_android) {
     sources = [
-      "update_backend.cc",
-      "update_backend.h",
-      "update_backend_notifier.h",
-      "update_model_observer.h",
-      "update_service.cc",
-      "update_service.h",
-      "update_service_factory.cc",
-      "update_service_factory.h",
+      "vivaldi_update_backend.cc",
+      "vivaldi_update_backend.h",
+      "vivaldi_update_backend_notifier.h",
+      "vivaldi_update_model_observer.h",
+      "vivaldi_update_service.cc",
+      "vivaldi_update_service.h",
+      "vivaldi_update_service_factory.cc",
+      "vivaldi_update_service_factory.h",
     ]
     if (is_win) {
       sources += [

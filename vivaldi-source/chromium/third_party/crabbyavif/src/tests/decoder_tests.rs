@@ -312,7 +312,8 @@ fn progressive(filename: &str, layer_count: u32, width: u32, height: u32) {
     assert_eq!(image.width, width);
     assert_eq!(image.height, height);
     assert_eq!(decoder.image_count(), layer_count);
-    if !HAS_DECODER {
+    // Progressive decoding is not supported on Android.
+    if !HAS_NON_ANDROID_DECODER {
         return;
     }
     for _i in 0..decoder.image_count() {
@@ -869,7 +870,8 @@ fn incremental_decode() {
         parse_result = decoder.parse();
     }
     assert!(parse_result.is_ok());
-    if !HAS_DECODER {
+    // Incremental decoding is not supported on Android.
+    if !HAS_NON_ANDROID_DECODER {
         return;
     }
 
@@ -940,7 +942,8 @@ fn progressive_partial_data() -> AvifResult<()> {
         parse_result = decoder.parse();
     }
     assert!(parse_result.is_ok());
-    if !HAS_DECODER {
+    // Progressive decoding is not supported on Android.
+    if !HAS_NON_ANDROID_DECODER {
         return Ok(());
     }
 
@@ -1052,7 +1055,8 @@ fn white_1x1() -> AvifResult<()> {
     let mut decoder = get_decoder("white_1x1.avif");
     assert_eq!(decoder.parse(), Ok(()));
     assert_eq!(decoder.compression_format(), CompressionFormat::Avif);
-    if !HAS_DECODER {
+    // Android MediaCodec does not support decoding 1x1 images.
+    if !HAS_NON_ANDROID_DECODER {
         return Ok(());
     }
     assert_eq!(decoder.next_image(), Ok(()));
@@ -1104,7 +1108,8 @@ fn white_1x1_meta_size0() -> AvifResult<()> {
     // Maybe another section or specification enforces that.
     assert_eq!(decoder.parse(), Ok(()));
     assert_eq!(decoder.compression_format(), CompressionFormat::Avif);
-    if !HAS_DECODER {
+    // Android MediaCodec does not support decoding 1x1 images.
+    if !HAS_NON_ANDROID_DECODER {
         return Ok(());
     }
     assert_eq!(decoder.next_image(), Ok(()));
@@ -1204,29 +1209,106 @@ fn grid_image_nclx_associated_with_individual_cells() {
 
 #[test]
 fn heic_peek() {
-    let file_data = std::fs::read(get_test_file("blue.heic")).expect("could not read file");
+    let file_data = std::fs::read(get_test_file("heic/blue.heic")).expect("could not read file");
     assert_eq!(
         decoder::Decoder::peek_compatible_file_type(&file_data),
         cfg!(feature = "heic")
     );
 }
 
-#[test]
-fn heic_parsing() {
-    let mut decoder = get_decoder("blue.heic");
+#[test_case("heic/blue.heic", 320, 240)]
+#[test_case("heic/blue_alpha.heic", 320, 240)]
+#[test_case("heic/blue_gh_issue_692.heic", 320, 240)]
+#[test_case("heic/blue_grid_alpha.heic", 320, 240)]
+#[test_case("heic/nokiatech/autumn_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/bothie_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/cheers_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/crowd_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/grid_960x640.heic", 960, 640)]
+#[test_case("heic/nokiatech/lights_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/old_bridge_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/overlay_1000x680.heic", 1000, 680)]
+#[test_case("heic/nokiatech/random_collection_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/season_collection_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/ski_jump_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/spring_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/stereo_1200x800.heic", 1200, 800)]
+#[test_case("heic/nokiatech/summer_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/surfer_1440x960.heic", 1440, 960)]
+#[test_case("heic/nokiatech/winter_1440x960.heic", 1440, 960)]
+fn heic(filename: &str, expected_width: u32, expected_height: u32) {
+    let mut decoder = get_decoder(filename);
+    decoder.settings.strictness = decoder::Strictness::None;
+    decoder.settings.ignore_exif = true;
+    decoder.settings.ignore_xmp = true;
     let res = decoder.parse();
     if cfg!(feature = "heic") {
         assert!(res.is_ok());
         let image = decoder.image().expect("image was none");
-        assert_eq!(image.width, 320);
-        assert_eq!(image.height, 240);
+        assert_eq!(image.width, expected_width);
+        assert_eq!(image.height, expected_height);
         assert_eq!(decoder.compression_format(), CompressionFormat::Heic);
         if cfg!(feature = "android_mediacodec") {
-            // Decoding is available only via android_mediacodec.
-            assert!(!matches!(
-                decoder.next_image(),
-                Err(AvifError::NoCodecAvailable)
-            ));
+            assert!(decoder.next_image().is_ok());
+        }
+    } else {
+        assert!(res.is_err());
+    }
+}
+
+#[test_case("heic/nokiatech/bird_burst.heic", 640, 360, 90, [3, 10, 50, 85])]
+#[test_case("heic/nokiatech/candle_animation.heic", 256, 144, 120, [1, 20, 50, 109])]
+#[test_case("heic/nokiatech/rally_burst.heic", 640, 360, 60, [4, 12, 45, 54])]
+#[test_case("heic/nokiatech/sea1_animation.heic", 256, 144, 120, [2, 22, 51, 119])]
+#[test_case("heic/nokiatech/starfield_animation.heic", 256, 144, 120, [6, 18, 49, 112])]
+fn heic_sequence(
+    filename: &str,
+    expected_width: u32,
+    expected_height: u32,
+    expected_frame_count: u32,
+    random_valid_frame_indices: [u32; 4],
+) {
+    let mut decoder = get_decoder(filename);
+    decoder.settings.strictness = decoder::Strictness::None;
+    decoder.settings.ignore_exif = true;
+    decoder.settings.ignore_xmp = true;
+    let res = decoder.parse();
+    if cfg!(feature = "heic") {
+        assert!(res.is_ok());
+        let image = decoder.image().expect("image was none");
+        assert_eq!(image.width, expected_width);
+        assert_eq!(image.height, expected_height);
+        assert_eq!(decoder.image_count(), expected_frame_count);
+        assert_eq!(decoder.compression_format(), CompressionFormat::Heic);
+        if cfg!(feature = "android_mediacodec") {
+            // Decode all frames in order.
+            for _ in 0..expected_frame_count {
+                assert!(decoder.next_image().is_ok());
+            }
+            // Decode random frames using nth_image.
+            for frame_index in random_valid_frame_indices {
+                assert!(decoder.nth_image(frame_index).is_ok());
+            }
+        }
+    } else {
+        assert!(res.is_err());
+    }
+}
+
+#[test]
+fn heic_monochrome_gainmap() {
+    let mut decoder = get_decoder("heic/yuv420_image_with_yuv400_gainmap.heic");
+    decoder.settings.strictness = decoder::Strictness::None;
+    decoder.settings.ignore_exif = true;
+    decoder.settings.ignore_xmp = true;
+    decoder.settings.image_content_to_decode = ImageContentType::GainMap;
+    let res = decoder.parse();
+    if cfg!(feature = "heic") {
+        assert!(res.is_ok());
+        assert_eq!(decoder.compression_format(), CompressionFormat::Heic);
+        if cfg!(feature = "android_mediacodec") {
+            // Android MediaCodec does not support monochrome HEIC images.
+            assert!(matches!(decoder.next_image(), Err(AvifError::NoContent)));
         }
     } else {
         assert!(res.is_err());
@@ -1384,7 +1466,7 @@ fn overlay(index: usize) {
     let image = decoder.image().expect("image was none");
     assert_eq!(image.width, info.width);
     assert_eq!(image.height, info.height);
-    if !HAS_DECODER {
+    if !HAS_NON_ANDROID_DECODER {
         return;
     }
     let res = decoder.next_image();
@@ -1439,7 +1521,8 @@ fn sato_16bit(filename: &str, has_alpha: bool) {
     decoder.settings.allow_sample_transform = true;
     assert!(decoder.parse().is_ok());
     assert_eq!(has_alpha, decoder.image().unwrap().alpha_present);
-    if !HAS_DECODER {
+    // Some of the input AV1 streams in this tests are too large for Android MediaCodec.
+    if !HAS_NON_ANDROID_DECODER {
         return;
     }
     let res = decoder.next_image();

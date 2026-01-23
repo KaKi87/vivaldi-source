@@ -471,34 +471,6 @@ void TabRestoreServiceHelper::RemoveEntryById(SessionID id) {
   NotifyEntriesChanged();
 }
 
-int TabRestoreServiceHelper::VivaldiRemoveEntryById(SessionID id) {
-  auto it = GetEntryIteratorById(id);
-  if (it == entries_.end()) {
-    return 0;
-  }
-
-  if ((*it)->type == tab_restore::Type::WINDOW) {
-    // GetEntryIteratorById() will return the window entry regardless if id
-    // refers to a window or a tab inside the window. We want to be able to
-    // delete a single tab in a window so an extra test is required.
-    auto& window = static_cast<Window&>(**it);
-    // Prevent empty window. Removing last tab is the same as removing window.
-    if (window.tabs.size() > 1) {
-      for (auto tab = window.tabs.begin(); tab != window.tabs.end(); ++tab) {
-        if ((*tab)->id == id || (*tab)->original_id == id) {
-          window.tabs.erase(tab, tab + 1);
-          NotifyEntriesChanged();
-          return 1;
-        }
-      }
-    }
-  }
-
-  entries_.erase(it);
-  NotifyEntriesChanged();
-  return 1;
-}
-
 LiveTabContext* TabRestoreServiceHelper::RestoreTabOrGroupFromWindow(
     Window& window,
     SessionID id,
@@ -855,8 +827,10 @@ void TabRestoreServiceHelper::AddEntry(std::unique_ptr<Entry> entry,
     auto& window = static_cast<Window&>(*entry.get());
     if (window.tab_groups.empty()) {
       for (auto& tab : window.tabs) {
+
         if (IsVivPanel(*tab))
           continue;
+
         if (tab->group.has_value() &&
             !window.tab_groups.contains(tab->group.value())) {
           // Creating the mapping here covers the cases where we close a browser
@@ -1232,5 +1206,35 @@ void TabRestoreServiceHelper::UpdateTabBrowserIDs(SessionID::id_type old_id,
 base::Time TabRestoreServiceHelper::TimeNow() const {
   return time_factory_ ? time_factory_->TimeNow() : base::Time::Now();
 }
+
+// Vivaldi
+int TabRestoreServiceHelper::VivaldiRemoveEntryById(SessionID id) {
+  auto it = GetEntryIteratorById(id);
+  if (it == entries_.end()) {
+    return 0;
+  }
+
+  if ((*it)->type == tab_restore::Type::WINDOW) {
+    // GetEntryIteratorById() will return the window entry regardless if id
+    // refers to a window or a tab inside the window. We want to be able to
+    // delete a single tab in a window so an extra test is required.
+    auto& window = static_cast<Window&>(**it);
+    // Prevent empty window. Removing last tab is the same as removing window.
+    if (window.tabs.size() > 1) {
+      for (auto tab = window.tabs.begin(); tab != window.tabs.end(); ++tab) {
+        if ((*tab)->id == id || (*tab)->original_id == id) {
+          window.tabs.erase(tab, tab + 1);
+          NotifyEntriesChanged();
+          return 1;
+        }
+      }
+    }
+  }
+
+  entries_.erase(it);
+  NotifyEntriesChanged();
+  return 1;
+}
+// End Vivaldi
 
 }  // namespace sessions

@@ -330,6 +330,7 @@ class AppMenuDragHelper {
         // Unfortunately, there is no available listener for sliding animation finished. Thus the
         // following nasty heuristics.
         final View firstRow = listView.getChildAt(0);
+
         // NOTE(david@vivaldi.com): In Vivaldi we have popup menus that slides up and slides down.
         // Therefore skip check and always try to highlight when dragging is performed.
         if (!BuildConfig.IS_VIVALDI)
@@ -339,6 +340,7 @@ class AppMenuDragHelper {
                 && getScreenVisibleRect(firstRow).bottom <= mMenuButtonScreenCenterY) {
             return false;
         }
+
         return true;
     }
 }

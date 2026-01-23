@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">naranjas</translation>
 <translation id="1275718070701477396">Seleccionado</translation>
 <translation id="1290331692326790741">Señal débil</translation>
+<translation id="1292474106138697109">Pantalla de Herramientas de clase</translation>
 <translation id="1300115153046603471">El APN es de tipo predeterminado y <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">Convertir</translation>
@@ -553,7 +554,7 @@
 <translation id="345256797477978759">Anclar ventana en la parte <ph name="DIRECTION" /> más grande de la pantalla</translation>
 <translation id="3456078764689556234">Se ha impreso la página <ph name="PRINTED_PAGES" /> de <ph name="TOTAL_PAGES" />.</translation>
 <translation id="345898999683440380">Escaneando página <ph name="PAGE_NUM" />. <ph name="PERCENTAGE_VALUE" /> % completado.</translation>
-<translation id="3459509316159669723">Imprimir</translation>
+<translation id="3459509316159669723">Imprimiendo</translation>
 <translation id="3462187165860821523">Actualizando <ph name="DEVICE_NAME" /></translation>
 <translation id="346423161771747987">Corriente</translation>
 <translation id="346539236881580388">Repetir foto</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> imágenes</translation>
 <translation id="4300272766492248925">Abrir aplicación</translation>
 <translation id="430786093962686457">gasa</translation>
+<translation id="4309762678330556039">Crea transcripciones automáticamente y busca audio. Puedes crear grabaciones aunque no tengas conexión a Internet.</translation>
 <translation id="4310735698903592804">Fondos de pantalla recientes creados con la tecnología de la IA de Google</translation>
 <translation id="4320904097188876154">rosa neón</translation>
 <translation id="432961742358282111">Haz clic con el botón derecho o mantén pulsado para consultar definiciones, traducciones o conversiones de unidades. Usa las teclas de flecha hacia la izquierda y derecha para gestionar esta función.</translation>
@@ -787,7 +789,7 @@
 <translation id="4431821876790500265">Ver informe</translation>
 <translation id="4443192710976771874">rojo</translation>
 <translation id="4447592701292766824">No se puede crear un resumen de este contenido</translation>
-<translation id="4448096106102522892">isla</translation>
+<translation id="4448096106102522892">una isla</translation>
 <translation id="445059817448385655">Contraseña antigua</translation>
 <translation id="4453205916657964690">Máscara de subred</translation>
 <translation id="4454245904991689773">Guardar en</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">Más opciones</translation>
 <translation id="5600027863942488546">Tecla <ph name="KEY_NAME" /> probada</translation>
 <translation id="5606865426897221650">Tabulador</translation>
+<translation id="5612205513582918357">Herramientas de clase está compartiendo tu pantalla con <ph name="RECEIVER_NAME" /></translation>
 <translation id="5613201299517339763">Se ha cerrado la sesión</translation>
 <translation id="5620281292257375798">Solo para uso interno</translation>
 <translation id="5628106863521633649">Idiomas disponibles</translation>
@@ -1786,7 +1789,7 @@ Descarga el modelo de transcripción (hasta 100 MB) para obtener estas transcrip
 <translation id="8910721771319628100">La red predeterminada supera el umbral de latencia</translation>
 <translation id="8912306040879976619">Zonas del teclado</translation>
 <translation id="8918637186205009138"><ph name="DEVICE_TYPE" /> de <ph name="GIVEN_NAME" /></translation>
-<translation id="8918813738569491921">piedra de sal</translation>
+<translation id="8918813738569491921">una piedra de sal</translation>
 <translation id="8919837981463578619">No se ha podido imprimir - Falta una bandeja</translation>
 <translation id="8924154518905976972">Exportar audio</translation>
 <translation id="8928727111548978589">No se ha podido imprimir - Sin papel</translation>
@@ -1866,7 +1869,7 @@ Descarga el modelo de transcripción (hasta 100 MB) para obtener estas transcrip
 <translation id="921080052717160800">Imagen establecida como fondo de la cámara</translation>
 <translation id="9211490828691860325">Todos los escritorios</translation>
 <translation id="9218016617214286986">Mostrar APNs conocidos</translation>
-<translation id="932327136139879170">Página principal</translation>
+<translation id="932327136139879170">Casa</translation>
 <translation id="939519157834106403">SSID</translation>
 <translation id="945522503751344254">Enviar comentarios</translation>
 <translation id="950520315903467048">Falta la tecla para <ph name="DIRECTION" />. <ph name="ASSIGN_INSTRUCTION" /></translation>

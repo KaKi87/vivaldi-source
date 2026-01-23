@@ -2904,7 +2904,16 @@ class GcsDependency(Dependency):
                     self.output_dir, f'.{self.file_prefix}_content_names')
                 self.WriteToFile(json.dumps(tar.getnames()), tar_content_file)
 
-                tar.extractall(path=self.output_dir)
+                def TarFilter(member, path):
+                    # Don't set mtime based on the archive metadata.
+                    member.mtime = None
+                    # Match the tarfile default filter.
+                    default_filter = (tarfile.fully_trusted_filter
+                                      if sys.version_info < (3, 14) else
+                                      tarfile.data_filter)
+                    return default_filter(member, path)
+
+                tar.extractall(path=self.output_dir, filter=TarFilter)
 
         if os.getenv('GCLIENT_TEST') != '1':
             code, err = download_from_google_storage.set_executable_bit(
@@ -4543,7 +4552,8 @@ class OptionParser(optparse.OptionParser):
                                        **kwargs)
 
         # Some arm boards have issues with parallel sync.
-        if platform.machine().startswith('arm'):
+        # ARM Mac should be fine.
+        if sys.platform != 'darwin' and platform.machine().startswith('arm'):
             jobs = 1
         else:
             jobs = max(8, gclient_utils.NumLocalCpus())
@@ -4660,6 +4670,22 @@ def can_run_gclient_and_helpers():
 def main(argv):
     """Doesn't parse the arguments here, just find the right subcommand to
     execute."""
+
+    # gclient will sometimes hang when trying to `gclient sync` an infra checkout.
+    # Running pstree reveals what's happening:
+    #
+    #        |         |-tmux: server-+-bash-+-python3---git---less
+    #        |         |              |      `-vim---{vim}
+    #        |         |              |-bash
+    #        |         |              `-bash-+-pstree
+    #        |         |                     `-vim
+    #
+    # `less` in this case is the git pager. So, let's set the pager to something harmless.
+    # For good measure, let's also set the editor to false so that we don't even try to
+    # get the user to edit something.
+    os.environ["GIT_PAGER"] = "cat"
+    os.environ["GIT_EDITOR"] = "false"
+
     if not can_run_gclient_and_helpers():
         return 2
     disable_buffering()

@@ -81,6 +81,15 @@ public class ReaderModeBottomSheetCoordinator {
                 ReaderModeBottomSheetProperties.CONTENT_VIEW,
                 ReaderModePrefsView.create(mContext, mDomDistillerService.getDistilledPagePrefs()));
 
+        // Expand the peeked bottom sheet when tapped.
+        mReaderModeBottomSheetView.setOnClickListener(
+                view -> {
+                    if (mBottomSheetController.getSheetState()
+                            == BottomSheetController.SheetState.PEEK) {
+                        mBottomSheetController.expandSheet();
+                    }
+                });
+
         mThemeColorObserver =
                 (color, shouldAnimate) -> {
                     updateThemeProperties();
@@ -177,7 +186,8 @@ public class ReaderModeBottomSheetCoordinator {
 
         @Override
         public boolean swipeToDismissEnabled() {
-            return true;
+            // Required to be false for tapping scrim to return bottomsheet to peek state.
+            return false;
         }
 
         @Override

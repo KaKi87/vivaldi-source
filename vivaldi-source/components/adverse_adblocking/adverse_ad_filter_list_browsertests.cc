@@ -108,7 +108,7 @@ class VivaldiSubresourceFilterBrowserTest
     adblock_ = VivaldiAdverseAdFilterListFactory::GetForProfile(
         Profile::FromBrowserContext(web_contents()->GetBrowserContext()));
     adblock_->ClearSiteList();
-    adblock_->AddBlockItem(url.host());
+    adblock_->AddBlockItem(url.GetHost());
   }
 
  private:

@@ -60,10 +60,8 @@
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_image_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
@@ -536,9 +534,7 @@ bool AreIssuesEqual(const std::vector<password_manager::AffiliatedGroup>& lhs,
         forSectionWithIdentifier:SectionIdentifierManageAccountHeader];
 
     // Trusted Vault widget promo.
-    if (password_manager::features::
-            IsPasswordManagerTrustedVaultWidgetEnabled() &&
-        _shouldShowTrustedVaultWidgetPromo) {
+    if (_shouldShowTrustedVaultWidgetPromo) {
       [model addSectionWithIdentifier:SectionIdentifierTrustedVaultWidgetPromo];
       [model addItem:self.trustedVaultWidgetPromoItem
           toSectionWithIdentifier:SectionIdentifierTrustedVaultWidgetPromo];
@@ -1153,9 +1149,7 @@ bool AreIssuesEqual(const std::vector<password_manager::AffiliatedGroup>& lhs,
 
         sectionIndex++;
         // Add the trusted vault promo section.
-        if (password_manager::features::
-                IsPasswordManagerTrustedVaultWidgetEnabled() &&
-            _shouldShowTrustedVaultWidgetPromo) {
+        if (_shouldShowTrustedVaultWidgetPromo) {
           [model insertSectionWithIdentifier:
                      SectionIdentifierTrustedVaultWidgetPromo
                                      atIndex:sectionIndex];
@@ -1948,9 +1942,7 @@ bool AreIssuesEqual(const std::vector<password_manager::AffiliatedGroup>& lhs,
                     attributedSubtitle:subtitle
                               delegate:self];
     } else // end Vivaldi
-    if (password_manager::features::
-            IsPasswordManagerTrustedVaultWidgetEnabled() &&
-        _shouldShowTrustedVaultWidgetPromo) {
+    if (_shouldShowTrustedVaultWidgetPromo) {
       // Instead of displaying empty state with image we are currently
       // displaying the Trusted Vault promo widget.
       // TODO(crbug.com/407605858): Discuss with UX the UI behvior in case of

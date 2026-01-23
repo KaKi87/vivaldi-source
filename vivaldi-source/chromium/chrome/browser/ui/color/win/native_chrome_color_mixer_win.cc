@@ -8,6 +8,7 @@
 
 #include "base/callback_list.h"
 #include "base/functional/bind.h"
+#include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/win/windows_version.h"
 #include "chrome/browser/themes/theme_properties.h"
@@ -24,7 +25,6 @@
 #include "ui/color/color_transform.h"
 #include "ui/color/win/accent_color_observer.h"
 #include "ui/gfx/color_utils.h"
-#include "ui/views/views_features.h"
 
 namespace {
 
@@ -192,19 +192,14 @@ void AddNativeHighContrastColors(ui::ColorMixer& mixer) {
       kColorTabForegroundActiveFrameActive};
   mixer[kColorNewTabButtonForegroundFrameInactive] = {
       kColorTabForegroundActiveFrameActive};
+  mixer[kColorTaskManagerTableBackgroundSelectedFocused] = {
+      ui::kColorNativeHighlight};
   mixer[kColorToolbar] = {ui::kColorNativeWindow};
   mixer[kColorToolbarButtonIcon] = {kColorToolbarText};
-  const bool platform_high_contrast_ink_drop = base::FeatureList::IsEnabled(
-      views::features::kEnablePlatformHighContrastInkDrop);
-  mixer[kColorToolbarButtonIconHovered] = {
-      platform_high_contrast_ink_drop
-          ? ui::ColorId{ui::kColorNativeHighlightText}
-          : kColorToolbarText};
+  mixer[kColorToolbarButtonIconHovered] = {ui::kColorNativeHighlightText};
   mixer[kColorToolbarButtonIconInactive] = {ui::kColorNativeGrayText};
   mixer[kColorToolbarContentAreaSeparator] = {kColorToolbarText};
-  if (platform_high_contrast_ink_drop) {
-    mixer[kColorToolbarInkDrop] = {ui::kColorNativeHighlight};
-  }
+  mixer[kColorToolbarInkDrop] = {ui::kColorNativeHighlight};
   mixer[kColorToolbarSeparator] = {ui::kColorNativeWindowText};
   mixer[kColorToolbarText] = {ui::kColorNativeBtnText};
   mixer[kColorToolbarTopSeparatorFrameActive] = {kColorToolbarSeparator};

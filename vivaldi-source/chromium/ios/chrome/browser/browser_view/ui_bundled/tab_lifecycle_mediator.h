@@ -7,8 +7,6 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/reader_mode/model/reader_mode_browser_agent_web_state_delegate.h"
-
 @protocol AppLauncherTabHelperBrowserPresentationProvider;
 @class CommandDispatcher;
 @protocol DownloadManagerTabHelperDelegate;
@@ -30,8 +28,7 @@ class Browser;
 // The required dependencies are injected into the mediator instance as
 // properties, and are generally expected not to change during the mediator's
 // lifetime. The mediator keeps only weak references to injected dependencies.
-@interface TabLifecycleMediator
-    : NSObject <ReaderModeBrowserAgentWebStateDelegate>
+@interface TabLifecycleMediator : NSObject
 
 @property(nonatomic, weak) id<DownloadManagerTabHelperDelegate>
     downloadManagerTabHelperDelegate;
@@ -51,15 +48,12 @@ class Browser;
 @property(nonatomic, weak) id<AppLauncherTabHelperBrowserPresentationProvider>
     appLauncherBrowserPresentationProvider;
 @property(nonatomic, weak) id<EditMenuBuilder> editMenuBuilder;
-// The source browser.
-@property(nonatomic, assign) Browser* browser;
 
 // Creates an instance of the mediator. Delegates will be installed into all
-// existing web states in `webStateList`. While the mediator is alive,
-// delegates will be added and removed from web states when they are inserted
-// into or removed from the web state list.
-- (instancetype)initWithWebStateList:(WebStateList*)webStateList
-    NS_DESIGNATED_INITIALIZER;
+// existing web states in the `browser` web state list. While the mediator is
+// alive, delegates will be added and removed from web states when they are
+// inserted into or removed from the web state list.
+- (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 

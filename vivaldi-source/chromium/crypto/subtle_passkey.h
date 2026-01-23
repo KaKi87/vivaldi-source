@@ -30,6 +30,15 @@ crypto::SubtlePassKey MakeCryptoPassKey();
 
 namespace os_crypt_async {
 class FreedesktopSecretKeyProvider;
+class KeychainKeyProvider;
+
+// Vivaldi: For compatibility with sync os_crypt portal backend.
+class VivaldiSecretPortalKeyProvider;
+}
+
+namespace password_manager {
+crypto::SubtlePassKey MakeCryptoPassKey();
+crypto::SubtlePassKey MakeCryptoPassKeyForPasswordHash();
 }
 
 class OSCryptImpl;
@@ -74,6 +83,15 @@ class CRYPTO_EXPORT SubtlePassKey final {
   // compatibility with existing persisted data.
   friend class ::OSCryptImpl;
   friend class os_crypt_async::FreedesktopSecretKeyProvider;
+  friend class os_crypt_async::KeychainKeyProvider;
+
+  // This class uses custom scrypt parameters and has to keep doing so for
+  // compatibility with a server-side implementation.
+  friend SubtlePassKey password_manager::MakeCryptoPassKey();
+  friend SubtlePassKey password_manager::MakeCryptoPassKeyForPasswordHash();
+
+  // Vivaldi: For compatibility with sync os_crypt portal backend.
+  friend class os_crypt_async::VivaldiSecretPortalKeyProvider;
 
   // This class uses custom PBKDF2 parameters which cannot be changed for
   // compatibility with persisted data.

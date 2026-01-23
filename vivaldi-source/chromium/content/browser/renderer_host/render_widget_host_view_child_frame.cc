@@ -141,6 +141,16 @@ void RenderWidgetHostViewChildFrame::
   if (!selection_controller_client_)
     return;
 
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+  // NOTE(igor@vivaldi.com): Chromium code assumes that the root view stays the
+  // same. This is wrong. The root view changes whenever the code calls
+  // WebContentsImpl::DetachFromOuterWebContents() leading later to attempt to
+  // remove the observer from the wrong manager here.
+  if (vivaldi::IsVivaldiRunning()) {
+    selection_controller_client_->manager_->RemoveObserver(this);
+  } else {
+    /* clang-format off */
+#endif // !IS_ANDROID && !IS_IOS
   auto* root_view = frame_connector_->GetRootRenderWidgetHostView();
   if (root_view) {
     auto* manager = root_view->GetTouchSelectionControllerClientManager();
@@ -157,6 +167,10 @@ void RenderWidgetHostViewChildFrame::
     // https://crbug.com/760074.
     base::debug::DumpWithoutCrashing();
   }
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+    /* clang-format on */
+  }
+#endif // !IS_ANDROID && !IS_IOS
 
   selection_controller_client_.reset();
 }
@@ -299,8 +313,9 @@ uint32_t RenderWidgetHostViewChildFrame::GetCaptureSequenceNumber() const {
 
 void RenderWidgetHostViewChildFrame::ShowWithVisibility(
     PageVisibilityState /*page_visibility*/) {
-  if (!host()->is_hidden())
+  if (!host()->IsHidden()) {
     return;
+  }
 
   if (!CanBecomeVisible())
     return;
@@ -312,8 +327,9 @@ void RenderWidgetHostViewChildFrame::ShowWithVisibility(
 }
 
 void RenderWidgetHostViewChildFrame::Hide() {
-  if (host()->is_hidden())
+  if (host()->IsHidden()) {
     return;
+  }
 
   host()->WasHidden();
 
@@ -322,7 +338,7 @@ void RenderWidgetHostViewChildFrame::Hide() {
 }
 
 bool RenderWidgetHostViewChildFrame::IsShowing() {
-  return !host()->is_hidden();
+  return !host()->IsHidden();
 }
 
 void RenderWidgetHostViewChildFrame::WasOccluded() {
@@ -717,6 +733,14 @@ void RenderWidgetHostViewChildFrame::GestureEventAck(
   }
 }
 
+void RenderWidgetHostViewChildFrame::OnUnconfirmedTapConvertedToTap() {
+  auto* root_view = GetRootView();
+  if (!root_view) {
+    return;
+  }
+  root_view->OnUnconfirmedTapConvertedToTap();
+}
+
 void RenderWidgetHostViewChildFrame::ForwardTouchpadZoomEventIfNecessary(
     const blink::WebGestureEvent& event,
     blink::mojom::InputEventResultState ack_result) {
@@ -938,9 +962,10 @@ uint64_t RenderWidgetHostViewChildFrame::GetNSViewId() const {
 void RenderWidgetHostViewChildFrame::CopyFromSurface(
     const gfx::Rect& src_subrect,
     const gfx::Size& output_size,
-    base::OnceCallback<void(const SkBitmap&)> callback) {
+    base::OnceCallback<void(const viz::CopyOutputBitmapWithMetadata&)>
+        callback) {
   if (!IsSurfaceAvailableForCopy()) {
-    std::move(callback).Run(SkBitmap());
+    std::move(callback).Run(viz::CopyOutputBitmapWithMetadata());
     return;
   }
 
@@ -949,10 +974,12 @@ void RenderWidgetHostViewChildFrame::CopyFromSurface(
           viz::CopyOutputRequest::ResultFormat::RGBA,
           viz::CopyOutputRequest::ResultDestination::kSystemMemory,
           base::BindOnce(
-              [](base::OnceCallback<void(const SkBitmap&)> callback,
+              [](base::OnceCallback<void(
+                     const viz::CopyOutputBitmapWithMetadata&)> callback,
                  std::unique_ptr<viz::CopyOutputResult> result) {
                 auto scoped_bitmap = result->ScopedAccessSkBitmap();
-                std::move(callback).Run(scoped_bitmap.GetOutScopedBitmap());
+                std::move(callback).Run(
+                    scoped_bitmap.GetOutScopedBitmapAndMetadata());
               },
               std::move(callback)));
 

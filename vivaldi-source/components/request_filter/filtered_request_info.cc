@@ -33,4 +33,9 @@ void FilteredRequestInfo::AddResponse(
   response = added_response.Clone();
 }
 
+void FilteredRequestInfo::AddSslInfo(
+    const std::optional<net::SSLInfo>& ssl_info_opt) {
+  ssl_info = ssl_info_opt;
+}
+
 }  // namespace vivaldi

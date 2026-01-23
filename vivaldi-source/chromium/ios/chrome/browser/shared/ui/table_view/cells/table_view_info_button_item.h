@@ -20,9 +20,6 @@
 // The background color of the icon.
 @property(nonatomic, strong) UIColor* iconBackgroundColor;
 
-// The corner radius of the UIImage view.
-@property(nonatomic, assign) CGFloat iconCornerRadius;
-
 // The tint color of the icon.
 @property(nonatomic, strong) UIColor* iconTintColor;
 
@@ -44,8 +41,10 @@
 // The accessibility hint text string.
 @property(nonatomic, copy) NSString* accessibilityHint;
 
-// Boolean for if the info button is hidden.
-@property(nonatomic, assign) BOOL infoButtonIsHidden;
+// Configuration for the button.
+@property(nonatomic, weak) id target;
+@property(nonatomic, assign) SEL selector;
+@property(nonatomic, assign) NSInteger tag;
 
 // Accessibility delegate for custom accessibility actions.
 @property(nonatomic, weak) id<TableViewInfoButtonItemDelegate>
@@ -55,6 +54,11 @@
 // cell. The default value is YES. If value is changed to NO, the activation
 // point will be on the center of the cell.
 @property(nonatomic, assign) BOOL accessibilityActivationPointOnButton;
+
+// Vivaldi
+// Boolean for if the info button is hidden.
+@property(nonatomic, assign) BOOL infoButtonIsHidden;
+// End Vivaldi
 
 @end
 

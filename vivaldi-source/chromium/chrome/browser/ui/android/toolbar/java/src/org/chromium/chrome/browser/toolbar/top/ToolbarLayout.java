@@ -34,6 +34,7 @@ import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsV
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.omnibox.LocationBar;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
+import org.chromium.chrome.browser.omnibox.LocationBarEmbedder;
 import org.chromium.chrome.browser.omnibox.NewTabPageDelegate;
 import org.chromium.chrome.browser.omnibox.OmniboxFocusReason;
 import org.chromium.chrome.browser.omnibox.UrlBarData;
@@ -63,10 +64,13 @@ import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.components.feature_engagement.Tracker;
+import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.MotionEventUtils;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
+
+import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -80,7 +84,7 @@ import org.chromium.ui.widget.ChromeImageButton;
  */
 @NullMarked
 public abstract class ToolbarLayout extends FrameLayout
-        implements Destroyable, TintObserver, ThemeColorObserver {
+        implements Destroyable, TintObserver, ThemeColorObserver, LocationBarEmbedder {
     private @Nullable ToolbarColorObserver mToolbarColorObserver;
 
     private final int[] mTempPosition = new int[2];
@@ -101,7 +105,7 @@ public abstract class ToolbarLayout extends FrameLayout
     protected MenuButtonCoordinator mMenuButtonCoordinator;
     private @Nullable AppMenuButtonHelper mAppMenuButtonHelper;
 
-    private ToggleTabStackButtonCoordinator mTabSwitcherButtonCoordinator;
+    private @Nullable ToggleTabStackButtonCoordinator mTabSwitcherButtonCoordinator;
 
     private @Nullable TopToolbarOverlayCoordinator mOverlayCoordinator;
 
@@ -150,6 +154,8 @@ public abstract class ToolbarLayout extends FrameLayout
      * @param normalThemeColorProvider The {@link ThemeColorProvider} for normal mode.
      * @param incognitoStateProvider The {@link IncognitoStateProvider} for observering incognito
      *     state.
+     * @param incognitoWindowCountSupplier A supplier for the number of incognito windows, used by
+     *     the Incognito Indicator Menu on LFF.
      */
     @CallSuper
     @Initializer
@@ -157,7 +163,7 @@ public abstract class ToolbarLayout extends FrameLayout
             ToolbarDataProvider toolbarDataProvider,
             ToolbarTabController tabController,
             MenuButtonCoordinator menuButtonCoordinator,
-            ToggleTabStackButtonCoordinator tabSwitcherButtonCoordinator,
+            @Nullable ToggleTabStackButtonCoordinator tabSwitcherButtonCoordinator,
             HistoryDelegate historyDelegate,
             UserEducationHelper userEducationHelper,
             ObservableSupplier<Tracker> trackerSupplier,
@@ -168,7 +174,8 @@ public abstract class ToolbarLayout extends FrameLayout
             @Nullable HomeButtonDisplay homeButtonDisplay,
             @Nullable ExtensionToolbarCoordinator extensionToolbarCoordinator,
             ThemeColorProvider themeColorProvider,
-            IncognitoStateProvider incognitoStateProvider) {
+            IncognitoStateProvider incognitoStateProvider,
+            @Nullable Supplier<Integer> incognitoWindowCountSupplier) {
         mToolbarDataProvider = toolbarDataProvider;
         mToolbarTabController = tabController;
         mMenuButtonCoordinator = menuButtonCoordinator;
@@ -451,7 +458,7 @@ public abstract class ToolbarLayout extends FrameLayout
         return mMenuButtonCoordinator;
     }
 
-    ToggleTabStackButtonCoordinator getTabSwitcherButtonCoordinator() {
+    @Nullable ToggleTabStackButtonCoordinator getTabSwitcherButtonCoordinator() {
         return mTabSwitcherButtonCoordinator;
     }
 
@@ -498,13 +505,14 @@ public abstract class ToolbarLayout extends FrameLayout
      *
      * @param listener The callback that will be notified when the bookmark button is pressed.
      */
-    void setBookmarkClickHandler(OnClickListener listener) {}
+    void setBookmarkClickHandler(@Nullable OnClickListener listener) {}
 
     /**
      * Sets the OnClickListener to notify when the close button is pressed in a custom tab.
+     *
      * @param listener The callback that will be notified when the close button is pressed.
      */
-    protected void setCustomTabCloseClickHandler(OnClickListener listener) {}
+    protected void setCustomTabCloseClickHandler(@Nullable OnClickListener listener) {}
 
     /** Sets whether the urlbar should be hidden on first page load. */
     protected void setUrlBarHidden(boolean hide) {}
@@ -863,8 +871,16 @@ public abstract class ToolbarLayout extends FrameLayout
         }
     }
 
+    /** Notifies the observer that the toolbar starts expanding or has collapsed. */
+    protected void notifyToolbarExpandingOnNtp(boolean isExpanding) {
+        if (mToolbarColorObserver != null) {
+            mToolbarColorObserver.onToolbarExpandingOnNtp(isExpanding);
+        }
+    }
+
     /**
      * This method sets the toolbar hairline visibility.
+     *
      * @param isHairlineVisible whether the toolbar hairline should be visible.
      */
     public void setHairlineVisibility(boolean isHairlineVisible) {
@@ -951,9 +967,8 @@ public abstract class ToolbarLayout extends FrameLayout
      */
     private void maybeUnfocusUrlBar() {
         if (getLocationBar() != null && getLocationBar().getOmniboxStub() != null) {
-            getLocationBar()
-                    .getOmniboxStub()
-                    .setUrlBarFocus(false, null, OmniboxFocusReason.UNFOCUS);
+            getLocationBar().getOmniboxStub().setUrlBarFocus(
+                    false, null, OmniboxFocusReason.UNFOCUS, AutocompleteRequestType.SEARCH);
         }
     }
 }

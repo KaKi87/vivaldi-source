@@ -11,260 +11,12 @@ import contextlib
 import functools
 import logging
 import os
-from typing import TYPE_CHECKING, Callable, NamedTuple, TextIO
+from typing import Callable, Iterable, NamedTuple, TextIO
 import urllib.parse
 
 import gerrit_util
 import newauth
 import scm
-
-if TYPE_CHECKING:
-    # Causes import cycle if imported normally
-    import git_cl
-
-
-class ConfigMode(enum.Enum):
-    """Modes to pass to ConfigChanger"""
-    NO_AUTH = 1
-    NEW_AUTH = 2
-    NEW_AUTH_SSO = 3
-
-
-class ConfigChanger(object):
-    """Changes Git auth config as needed for Gerrit."""
-
-    # Can be used to determine whether this version of the config has
-    # been applied to a Git repo.
-    #
-    # Increment this when making changes to the config, so that reliant
-    # code can determine whether the config needs to be re-applied.
-    VERSION: int = 6
-
-    def __init__(
-        self,
-        *,
-        mode: ConfigMode,
-        remote_url: str,
-        set_config_func: Callable[..., None] = scm.GIT.SetConfig,
-    ):
-        """Create a new ConfigChanger.
-
-        Args:
-            mode: How to configure auth
-            remote_url: Git repository's remote URL, e.g.,
-                https://chromium.googlesource.com/chromium/tools/depot_tools.git
-            set_config_func: Function used to set configuration.  Used
-                for testing.
-        """
-        self.mode: ConfigMode = mode
-
-        self._remote_url: str = remote_url
-        self._set_config_func: Callable[..., None] = set_config_func
-
-    @functools.cached_property
-    def _shortname(self) -> str:
-        # Example: chromium
-        parts: urllib.parse.SplitResult = urllib.parse.urlsplit(
-            self._remote_url)
-        return _url_shortname(parts)
-
-    @functools.cached_property
-    def _host_url(self) -> str:
-        # Example: https://chromium.googlesource.com
-        # Example: https://chromium-review.googlesource.com
-        parts: urllib.parse.SplitResult = urllib.parse.urlsplit(
-            self._remote_url)
-        return _url_host_url(parts)
-
-    @functools.cached_property
-    def _root_url(self) -> str:
-        # Example: https://chromium.googlesource.com/
-        # Example: https://chromium-review.googlesource.com/
-        parts: urllib.parse.SplitResult = urllib.parse.urlsplit(
-            self._remote_url)
-        return _url_root_url(parts)
-
-    @classmethod
-    def new_from_env(cls, cwd: str, cl: git_cl.Changelist) -> ConfigChanger:
-        """Create a ConfigChanger by inferring from env.
-
-        The Gerrit host is inferred from the current repo/branch.
-        The user, which is used to determine the mode, is inferred using
-        git-config(1) in the given `cwd`.
-        """
-        # This is determined either from the branch or repo config.
-        #
-        # Example: chromium-review.googlesource.com
-        gerrit_host = cl.GetGerritHost()
-        # This depends on what the user set for their remote.
-        # There are a couple potential variations for the same host+repo.
-        #
-        # Example:
-        # https://chromium.googlesource.com/chromium/tools/depot_tools.git
-        remote_url = cl.GetRemoteUrl()
-
-        if gerrit_host is None or remote_url is None:
-            raise Exception(
-                'Error Git auth settings inferring from environment:'
-                f' {gerrit_host=} {remote_url=}')
-        assert gerrit_host is not None
-        assert remote_url is not None
-
-        return cls(
-            mode=cls._infer_mode(cwd, gerrit_host),
-            remote_url=remote_url,
-        )
-
-    @classmethod
-    def new_for_remote(cls, cwd: str, remote_url: str) -> ConfigChanger:
-        """Create a ConfigChanger for the given Gerrit host.
-
-        The user, which is used to determine the mode, is inferred using
-        git-config(1) in the given `cwd`.
-        """
-        c = cls(
-            mode=ConfigMode.NEW_AUTH,
-            remote_url=remote_url,
-        )
-        assert c._shortname, "Short name is empty"
-        c.mode = cls._infer_mode(cwd, c._shortname + '-review.googlesource.com')
-        return c
-
-    @staticmethod
-    def _infer_mode(cwd: str, gerrit_host: str) -> ConfigMode:
-        """Infer default mode to use."""
-        if not newauth.Enabled():
-            return ConfigMode.NO_AUTH
-        email: str = scm.GIT.GetConfig(cwd, 'user.email') or ''
-        if gerrit_util.ShouldUseSSO(gerrit_host, email):
-            return ConfigMode.NEW_AUTH_SSO
-        if not gerrit_util.GitCredsAuthenticator.gerrit_account_exists(
-                gerrit_host):
-            return ConfigMode.NO_AUTH
-        return ConfigMode.NEW_AUTH
-
-    def apply(self, cwd: str) -> None:
-        """Apply config changes to the Git repo directory."""
-        self._apply_cred_helper(cwd)
-        self._apply_sso(cwd)
-        self._apply_gitcookies(cwd)
-
-    def apply_global(self, cwd: str) -> None:
-        """Apply config changes to the global (user) Git config.
-
-        This will make the instance's mode (e.g., SSO or not) the global
-        default for the Gerrit host, if not overridden by a specific Git repo.
-        """
-        self._apply_global_cred_helper(cwd)
-        self._apply_global_sso(cwd)
-
-    def _apply_cred_helper(self, cwd: str) -> None:
-        """Apply config changes relating to credential helper."""
-        cred_key: str = f'credential.{self._host_url}.helper'
-        if self.mode == ConfigMode.NEW_AUTH:
-            self._set_config(cwd, cred_key, '', modify_all=True)
-            self._set_config(cwd, cred_key, 'luci', append=True)
-        elif self.mode == ConfigMode.NEW_AUTH_SSO:
-            self._set_config(cwd, cred_key, None, modify_all=True)
-        elif self.mode == ConfigMode.NO_AUTH:
-            self._set_config(cwd, cred_key, None, modify_all=True)
-        else:
-            raise TypeError(f'Invalid mode {self.mode!r}')
-
-        # Cleanup old from version 4
-        old_key: str = f'credential.{self._root_url}.helper'
-        self._set_config(cwd, old_key, None, modify_all=True)
-
-    def _apply_sso(self, cwd: str) -> None:
-        """Apply config changes relating to SSO."""
-        sso_key: str = f'url.sso://{self._shortname}/.insteadOf'
-        http_key: str = f'url.{self._remote_url}.insteadOf'
-        if self.mode == ConfigMode.NEW_AUTH:
-            self._set_config(cwd, 'protocol.sso.allow', None)
-            self._set_config(cwd, sso_key, None, modify_all=True)
-            # Shadow a potential global SSO rewrite rule.
-            self._set_config(cwd, http_key, self._remote_url, modify_all=True)
-        elif self.mode == ConfigMode.NEW_AUTH_SSO:
-            self._set_config(cwd, 'protocol.sso.allow', 'always')
-            self._set_config(cwd, sso_key, self._root_url, modify_all=True)
-            self._set_config(cwd, http_key, None, modify_all=True)
-        elif self.mode == ConfigMode.NO_AUTH:
-            self._set_config(cwd, 'protocol.sso.allow', None)
-            self._set_config(cwd, sso_key, None, modify_all=True)
-            self._set_config(cwd, http_key, None, modify_all=True)
-        else:
-            raise TypeError(f'Invalid mode {self.mode!r}')
-
-    def _apply_gitcookies(self, cwd: str) -> None:
-        """Apply config changes relating to gitcookies."""
-        if self.mode == ConfigMode.NEW_AUTH:
-            # Override potential global setting
-            self._set_config(cwd, 'http.cookieFile', '', modify_all=True)
-        elif self.mode == ConfigMode.NEW_AUTH_SSO:
-            # Override potential global setting
-            self._set_config(cwd, 'http.cookieFile', '', modify_all=True)
-        elif self.mode == ConfigMode.NO_AUTH:
-            self._set_config(cwd, 'http.cookieFile', None, modify_all=True)
-        else:
-            raise TypeError(f'Invalid mode {self.mode!r}')
-
-    def _apply_global_cred_helper(self, cwd: str) -> None:
-        """Apply config changes relating to credential helper."""
-        cred_key: str = f'credential.{self._host_url}.helper'
-        if self.mode == ConfigMode.NEW_AUTH:
-            self._set_config(cwd, cred_key, '', scope='global', modify_all=True)
-            self._set_config(cwd, cred_key, 'luci', scope='global', append=True)
-        elif self.mode == ConfigMode.NEW_AUTH_SSO:
-            # Avoid editing the user's config in case they manually
-            # configured something.
-            pass
-        elif self.mode == ConfigMode.NO_AUTH:
-            # Avoid editing the user's config in case they manually
-            # configured something.
-            pass
-        else:
-            raise TypeError(f'Invalid mode {self.mode!r}')
-
-        # Cleanup old from version 4
-        old_key: str = f'credential.{self._root_url}.helper'
-        self._set_config(cwd, old_key, None, modify_all=True, scope='global')
-
-    def _apply_global_sso(self, cwd: str) -> None:
-        """Apply config changes relating to SSO."""
-        sso_key: str = f'url.sso://{self._shortname}/.insteadOf'
-        if self.mode == ConfigMode.NEW_AUTH:
-            # Do not unset protocol.sso.allow because it may be used by
-            # other hosts.
-            self._set_config(cwd,
-                             sso_key,
-                             None,
-                             scope='global',
-                             modify_all=True)
-        elif self.mode == ConfigMode.NEW_AUTH_SSO:
-            self._set_config(cwd,
-                             'protocol.sso.allow',
-                             'always',
-                             scope='global')
-            self._set_config(cwd,
-                             sso_key,
-                             self._root_url,
-                             scope='global',
-                             modify_all=True)
-        elif self.mode == ConfigMode.NO_AUTH:
-            # Avoid editing the user's config in case they manually
-            # configured something.
-            pass
-        else:
-            raise TypeError(f'Invalid mode {self.mode!r}')
-
-    def _set_config(self, *args, **kwargs) -> None:
-        self._set_config_func(*args, **kwargs)
-
-
-def ClearRepoConfig(cwd: str, cl: git_cl.Changelist) -> None:
-    """Clear the current Git repo authentication."""
-    # TODO(ayatane): Disable prior to removal
-    return
 
 
 class _ConfigError(Exception):
@@ -420,6 +172,7 @@ class ConfigWizard(object):
             '(Report any issues to https://issues.chromium.org/issues/new?component=1456702&template=2076315)'
         )
         self._println()
+        self._fix_netrc()
         self._fix_gitcookies()
         self._println()
         self._println('Checking for SSO helper...')
@@ -434,21 +187,18 @@ class ConfigWizard(object):
         self._print_actions_for_user()
 
     def _run_gerrit_host_configuration(self, *, force_global: bool) -> None:
+        if force_global:
+            self._println(
+                'Since you passed --global, we will check your global Git configuration.'
+            )
+            self._run_outside_repo()
+            return
         remote_url = self._remote_url_func()
         if _is_gerrit_url(remote_url):
-            if force_global:
-                self._println(
-                    'We will pretend to be running outside of a Gerrit repository'
-                )
-                self._println(
-                    'and check your global Git configuration since you passed --global.'
-                )
-                self._run_outside_repo()
-            else:
-                self._println(
-                    'Looks like we are running inside a Gerrit repository,')
-                self._println('so we will check your Git configuration for it.')
-                self._run_inside_repo()
+            self._println(
+                'Looks like we are running inside a Gerrit repository,')
+            self._println('so we will check your Git configuration for it.')
+            self._run_inside_repo()
         else:
             self._println(
                 'Looks like we are running outside of a Gerrit repository,')
@@ -603,9 +353,24 @@ class ConfigWizard(object):
             self._set_url_rewrite_override(parts, scope=scope)
         self._clear_sso_rewrite(parts, scope=scope)
 
-    # Fixing gitcookies
+    # Fixing competing auth
 
-    def _fix_gitcookies(self):
+    def _fix_netrc(self) -> None:
+        # https://curl.se/libcurl/c/CURLOPT_NETRC_FILE.html
+        netrc_paths = ['~/.netrc']
+        if self._is_windows():
+            netrc_paths.append('~/_netrc')
+
+        for path in netrc_paths:
+            path = os.path.expanduser(path)
+            if os.path.exists(path):
+                self._println(f'You have a netrc file {path!r}')
+                if self._read_yn(
+                        'Shall we move your netrc file (to a backup location)?',
+                        default=True):
+                    self._move_file(path)
+
+    def _fix_gitcookies(self) -> None:
         sit = self._check_gitcookies()
         if not sit.cookiefile:
             self._println(
@@ -715,7 +480,7 @@ class ConfigWizard(object):
         self._println('You will need to add `export SKIP_GCE_AUTH_FOR_GIT=1`')
         self._println('to your .bashrc or similar.')
         fallback_msg = 'Add `export SKIP_GCE_AUTH_FOR_GIT=1` to your .bashrc or similar.'
-        if os.name == 'nt':
+        if self._is_windows():
             # Can't automatically handle Windows yet.
             self._println_action(fallback_msg)
             return
@@ -835,26 +600,45 @@ class ConfigWizard(object):
 
     def _set_sso_rewrite(self, parts: urllib.parse.SplitResult, *,
                          scope: scm.GitConfigScope) -> None:
-        sso_key = _sso_rewrite_key(parts)
-        self._set_config(sso_key,
-                         _url_root_url(parts),
-                         modify_all=True,
-                         scope=scope)
+        self._set_url_rewrites(_url_gerrit_sso_url(parts),
+                               [_url_root_url(parts)],
+                               scope=scope)
 
     def _clear_sso_rewrite(self, parts: urllib.parse.SplitResult, *,
                            scope: scm.GitConfigScope) -> None:
-        sso_key = _sso_rewrite_key(parts)
-        self._set_config(sso_key, None, modify_all=True, scope=scope)
+        self._set_url_rewrites(_url_gerrit_sso_url(parts), [], scope=scope)
 
     def _set_url_rewrite_override(self, parts: urllib.parse.SplitResult, *,
                                   scope: scm.GitConfigScope) -> None:
-        url_key = _url_rewrite_key(parts)
-        self._set_config(url_key, parts.geturl(), modify_all=True, scope=scope)
+        """Set a URL rewrite config that rewrites a URL to itself.
+
+        This is used to override a global rewrite rule.
+        """
+        self._set_url_rewrites(parts.geturl(), [parts.geturl()], scope=scope)
 
     def _clear_url_rewrite_override(self, parts: urllib.parse.SplitResult, *,
                                     scope: scm.GitConfigScope) -> None:
-        url_key = _url_rewrite_key(parts)
-        self._set_config(url_key, None, scope=scope, modify_all=True)
+        self._set_url_rewrites(parts.geturl(), [], scope=scope)
+
+    def _set_url_rewrites(self, new: str, old: Iterable[str], *,
+                          scope: scm.GitConfigScope) -> None:
+        """Set URL rewrite config.
+
+        Because Git URL rewrites are set as `new -> multiple old`, we
+        should set all of them together.
+
+        This should be called at most once per wizard invocation per
+        url_key.
+        """
+        self._set_config(f'url.{new}.insteadOf',
+                         None,
+                         scope=scope,
+                         modify_all=True)
+        for url in old:
+            self._set_config(f'url.{new}.insteadOf',
+                             url,
+                             append=True,
+                             scope=scope)
 
     def _set_config(self,
                     key: str,
@@ -863,6 +647,7 @@ class ConfigWizard(object):
                     scope: scm.GitConfigScope,
                     modify_all: bool = False,
                     append: bool = False) -> None:
+        """Set a Git config option."""
         scope_msg = f'In your {scope} Git config,'
         if append:
             assert value is not None
@@ -962,6 +747,9 @@ class ConfigWizard(object):
         self._ui.read_enter()
         self._ui.write('\n')
 
+    def _is_windows(self) -> bool:
+        return os.name == 'nt'
+
     @staticmethod
     def _gitcookies() -> str:
         """Path to user's gitcookies.
@@ -1020,14 +808,27 @@ def _creds_use_http_path_key(parts: urllib.parse.SplitResult) -> str:
     return f'credential.{_url_host_url(parts)}.useHttpPath'
 
 
-def _sso_rewrite_key(parts: urllib.parse.SplitResult) -> str:
-    """Return Git config key for SSO URL rewrites."""
-    return f'url.sso://{_url_shortname(parts)}/.insteadOf'
+def _url_gerrit_sso_url(parts: urllib.parse.SplitResult) -> str:
+    """Return the base SSO URL for a Gerrit host URL."""
+    return f'sso://{_url_shortname(parts)}/'
 
 
-def _url_rewrite_key(parts: urllib.parse.SplitResult) -> str:
-    """Return Git config key for rewriting the full URL."""
-    return f'url.{parts.geturl()}.insteadOf'
+def _url_host_url(parts: urllib.parse.SplitResult) -> str:
+    """Format URL with host only (no path).
+
+    Example: https://chromium.googlesource.com
+    Example: https://chromium-review.googlesource.com
+    """
+    return parts._replace(path='', query='', fragment='').geturl()
+
+
+def _url_root_url(parts: urllib.parse.SplitResult) -> str:
+    """Format URL with root path.
+
+    Example: https://chromium.googlesource.com/
+    Example: https://chromium-review.googlesource.com/
+    """
+    return parts._replace(path='/', query='', fragment='').geturl()
 
 
 def _url_review_host(parts: urllib.parse.SplitResult) -> str:
@@ -1047,21 +848,3 @@ def _url_shortname(parts: urllib.parse.SplitResult) -> str:
     if name.endswith('-review'):
         name = name[:-len('-review')]
     return name
-
-
-def _url_host_url(parts: urllib.parse.SplitResult) -> str:
-    """Format URL with host only (no path).
-
-    Example: https://chromium.googlesource.com
-    Example: https://chromium-review.googlesource.com
-    """
-    return parts._replace(path='', query='', fragment='').geturl()
-
-
-def _url_root_url(parts: urllib.parse.SplitResult) -> str:
-    """Format URL with root path.
-
-    Example: https://chromium.googlesource.com/
-    Example: https://chromium-review.googlesource.com/
-    """
-    return parts._replace(path='/', query='', fragment='').geturl()

@@ -11,6 +11,7 @@
 #include <variant>
 
 #include "base/callback_list.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
@@ -23,9 +24,9 @@
 #include "chrome/browser/webauthn/fake_recovery_key_store.h"
 #include "chrome/browser/webauthn/fake_security_domain_service.h"
 #include "chrome/browser/webauthn/test_util.h"
+#include "chrome/browser/webauthn/webauthn_scoped_fake_unexportable_key_provider.h"
 #include "components/trusted_vault/trusted_vault_connection.h"
 #include "content/public/browser/render_frame_host.h"
-#include "crypto/scoped_fake_unexportable_key_provider.h"
 #include "crypto/scoped_fake_user_verifying_key_provider.h"
 #include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "device/fido/enclave/constants.h"
@@ -56,6 +57,7 @@ namespace webauthn {
 class PasskeyModel;
 }  // namespace webauthn
 
+class EnclaveManager;
 class IdentityTestEnvironmentProfileAdaptor;
 class SyncServiceImplHarness;
 struct TempDir;
@@ -85,13 +87,19 @@ class EnclaveAuthenticatorTestBase : public SyncTest {
   void SetUpOnMainThread() override;
   void TearDownOnMainThread() override;
 
-  signin::IdentityTestEnvironment* identity_test_env();
-  webauthn::PasskeyModel* passkey_model();
+  signin::IdentityTestEnvironment& identity_test_env();
+  webauthn::PasskeyModel& passkey_model();
+  EnclaveManager& enclave_manager();
 
   void EnableUVKeySupport(bool fake_hardware_backing = false);
   bool IsUVPAA();
   void SetBiometricsEnabled(bool enabled);
   void AddTestPasskeyToModel();
+  void SimulateTrustedVaultKeyRetrieval();
+  void SimulateTrustedVaultKeyRetrieval(
+      base::span<const uint8_t> trusted_vault_key,
+      int trusted_vault_key_version);
+  void SimulateOpportunisticTrustedVaultKeyRetrieval();
 
   // Convenience methods for setting up the mock trusted vault connection:
   void SetMockVaultConnectionOnRequestDelegate(
@@ -132,7 +140,7 @@ class EnclaveAuthenticatorTestBase : public SyncTest {
   std::unique_ptr<ScopedICloudDriveOverride> scoped_icloud_drive_override_;
 #endif
   std::unique_ptr<FakeRecoveryKeyStore> recovery_key_store_;
-  std::unique_ptr<crypto::ScopedFakeUnexportableKeyProvider> fake_hw_provider_;
+  std::unique_ptr<WebAuthnScopedFakeUnexportableKeyProvider> fake_hw_provider_;
   network::TestURLLoaderFactory url_loader_factory_;
   std::unique_ptr<device::BluetoothAdapterFactory::GlobalOverrideValues>
       bluetooth_values_for_testing_;

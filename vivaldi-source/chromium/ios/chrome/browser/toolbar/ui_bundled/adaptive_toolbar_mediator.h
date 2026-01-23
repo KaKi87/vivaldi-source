@@ -13,6 +13,8 @@
 #import "ios/chrome/browser/ui/toolbar/vivaldi_adaptive_toolbar_viewcontroller_delegate.h"
 // End Vivaldi
 
+@class CommandDispatcher;
+
 namespace collaboration::messaging {
 class MessagingBackendService;
 }  // namespace collaboration::messaging
@@ -60,6 +62,9 @@ class WebStateList;
 
 /// Helper for Web navigation.
 @property(nonatomic, assign) WebNavigationBrowserAgent* navigationBrowserAgent;
+
+/// Command dispatcher.
+@property(nonatomic, weak) CommandDispatcher* commandDispatcher;
 
 /// Inits with the `messagingService` to observe tab group changes.
 - (instancetype)initWithMessagingService:

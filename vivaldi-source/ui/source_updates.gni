@@ -53,6 +53,7 @@ update_target("//chrome/browser/ui:ui") {
       "//vivaldi/ui/views/vivaldi_overlay_window_views.h",
       "//vivaldi/ui/views/vivaldi_profile_picker_view.cc",
       "//vivaldi/ui/views/vivaldi_window_frame_view.h",
+      "//vivaldi/ui/views/vivaldi_window_frame_view.cc",
       "//vivaldi/ui/vivaldi_ui_web_contents_delegate.cc",
       "//vivaldi/ui/vivaldi_ui_web_contents_delegate.h",
       "//vivaldi/ui/vivaldi_browser_window.cc",
@@ -121,11 +122,23 @@ update_target("//chrome/browser/ui:ui") {
       "//vivaldi/ui/views/vivaldi_native_widget_win.cc",
       "//vivaldi/ui/vivaldi_browser_window_win.cc",
     ]
+    sources -= [
+      "views/upgrade_notification_controller.cc",
+      "views/upgrade_notification_controller.h",
+    ]
   }
 
   configs += [
     "//vivaldi/gn/config:release_kind",
   ]
+}
+
+if (is_win) {
+  update_target("//chrome/browser/ui/dialogs:impl") {
+    sources -= [
+      "outdated_upgrade_bubble.cc",
+    ]
+  }
 }
 
 update_target("//ui/menus:menus") {
@@ -154,8 +167,6 @@ if (!is_android) {
       "//vivaldi/ui/views/vivaldi_menu_model_adapter.cc",
       "//vivaldi/ui/views/controls/mute_button.cc",
       "//vivaldi/ui/views/controls/mute_button.h",
-      "//vivaldi/ui/views/controls/video_progress.cc",
-      "//vivaldi/ui/views/controls/video_progress.h",
       "//vivaldi/ui/views/controls/volume_slider.cc",
       "//vivaldi/ui/views/controls/volume_slider.h",
     ]

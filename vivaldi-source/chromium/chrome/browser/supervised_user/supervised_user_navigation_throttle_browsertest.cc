@@ -422,7 +422,7 @@ class SupervisedUserIframeFilterTest
   bool IsRemoteApprovalsButtonBeingShown(content::FrameTreeNodeId frame_id);
   bool IsLocalApprovalsButtonBeingShown(content::FrameTreeNodeId frame_id);
   bool IsBlockReasonBeingShown(content::FrameTreeNodeId frame_id);
-  bool IsDetailsLinkBeingShown(content::FrameTreeNodeId frame_id);
+  bool IsDetailsLinkAvailable(content::FrameTreeNodeId frame_id);
   void CheckPreferredApprovalButton(content::FrameTreeNodeId frame_id);
   bool IsLocalApprovalsInsteadButtonBeingShown(
       content::FrameTreeNodeId frame_id);
@@ -518,11 +518,10 @@ bool SupervisedUserIframeFilterTest::IsBlockReasonBeingShown(
   return RunCommandAndGetBooleanFromFrame(frame_id, command);
 }
 
-bool SupervisedUserIframeFilterTest::IsDetailsLinkBeingShown(
+bool SupervisedUserIframeFilterTest::IsDetailsLinkAvailable(
     content::FrameTreeNodeId frame_id) {
   std::string command =
-      "getComputedStyle(document.getElementById('block-reason-show-details-"
-      "link')).display !== \"none\"";
+      "!!document.getElementById('block-reason-show-details-link')";
   return RunCommandAndGetBooleanFromFrame(frame_id, command);
 }
 
@@ -634,7 +633,8 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserIframeFilterTest, BlockSubFrame) {
   permission_creator()->SetPermissionResult(true);
   SendCommandToFrame(kRemoteUrlAccessCommand, blocked_frame_id);
   EXPECT_EQ(permission_creator()->url_requests().size(), 1u);
-  std::string requested_host = permission_creator()->url_requests()[0].host();
+  std::string requested_host =
+      permission_creator()->url_requests()[0].GetHost();
 
   EXPECT_EQ(requested_host, kIframeHost2);
 
@@ -790,7 +790,8 @@ IN_PROC_BROWSER_TEST_F(
   permission_creator()->SetPermissionResult(true);
   SendCommandToFrame(kRemoteUrlAccessCommand, blocked_frame_id);
   EXPECT_EQ(permission_creator()->url_requests().size(), 1u);
-  std::string requested_host = permission_creator()->url_requests()[0].host();
+  std::string requested_host =
+      permission_creator()->url_requests()[0].GetHost();
 
   // The trivial "www" subdomain is stripped for the url in the remote approval
   // request.
@@ -827,7 +828,8 @@ IN_PROC_BROWSER_TEST_F(
   permission_creator()->SetPermissionResult(true);
   SendCommandToFrame(kRemoteUrlAccessCommand, blocked_frame_id);
   EXPECT_EQ(permission_creator()->url_requests().size(), 1u);
-  std::string requested_host = permission_creator()->url_requests()[0].host();
+  std::string requested_host =
+      permission_creator()->url_requests()[0].GetHost();
 
   // The trivial "www" subdomain has been stripped from the host in the
   // interstitial, because the conflicting entry in the blocklist is not a
@@ -860,7 +862,8 @@ IN_PROC_BROWSER_TEST_F(
   permission_creator()->SetPermissionResult(true);
   SendCommandToFrame(kRemoteUrlAccessCommand, blocked_frame_id);
   EXPECT_EQ(permission_creator()->url_requests().size(), 1u);
-  std::string requested_host = permission_creator()->url_requests()[0].host();
+  std::string requested_host =
+      permission_creator()->url_requests()[0].GetHost();
 
   // The stripping has been skipped for the url of the interstitial, because an
   // identical entry exists in the blocklist. The interstitial contains the full
@@ -885,7 +888,7 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserIframeFilterTest,
   EXPECT_FALSE(IsInterstitialBeingShownInMainFrame(browser()));
   auto blocked = GetBlockedFrames();
   EXPECT_EQ(blocked.size(), 1u);
-  EXPECT_EQ(kIframeHost1, GetBlockedFrameURL(blocked[0]).host());
+  EXPECT_EQ(kIframeHost1, GetBlockedFrameURL(blocked[0]).GetHost());
 }
 
 IN_PROC_BROWSER_TEST_F(SupervisedUserIframeFilterTest,
@@ -987,7 +990,8 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserIframeFilterTest,
 
   auto blocked_frames = GetBlockedFrames();
   EXPECT_EQ(blocked_frames.size(), 1u);
-  EXPECT_EQ(GetBlockedFrameURL(blocked_frames[0]).host(), "www.c.example2.com");
+  EXPECT_EQ(GetBlockedFrameURL(blocked_frames[0]).GetHost(),
+            "www.c.example2.com");
 }
 
 // The switches::kHostWindowBounds commandline flag doesn't appear to work
@@ -1026,8 +1030,11 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserNarrowWidthIframeFilterTest,
   // Expect that the local approvals button is shown if the flag is enabled.
   EXPECT_EQ(IsLocalWebApprovalsEnabled(),
             IsLocalApprovalsButtonBeingShown(blocked_frames[0]));
-  // Expect that the "Details" link is shown.
-  EXPECT_TRUE(IsDetailsLinkBeingShown(blocked_frames[0]));
+  // Expect that the "Details" link is no longer available for the new
+  // interstitial UI.
+  EXPECT_NE(IsDetailsLinkAvailable(blocked_frames[0]),
+            base::FeatureList::IsEnabled(
+                supervised_user::kSupervisedUserBlockInterstitialV3));
 
   // Delay approval/denial by parent.
   permission_creator()->SetPermissionResult(true);
@@ -1056,8 +1063,6 @@ IN_PROC_BROWSER_TEST_F(SupervisedUserNarrowWidthIframeFilterTest,
   // flag is enabled.
   EXPECT_EQ(IsLocalWebApprovalsEnabled(),
             IsLocalApprovalsInsteadButtonBeingShown(blocked_frames[0]));
-  // "Details" link is not shown.
-  EXPECT_FALSE(IsDetailsLinkBeingShown(blocked_frames[0]));
 
   content::WebContents* active_contents =
       browser()->tab_strip_model()->GetActiveWebContents();

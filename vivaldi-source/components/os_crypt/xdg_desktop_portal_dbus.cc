@@ -44,7 +44,7 @@ SecretPortalDBus::SecretPortalDBus() {
   dbus::Bus::Options options;
   options.bus_type = dbus::Bus::SESSION;
   options.connection_type = dbus::Bus::PRIVATE;
-  bus_ = base::MakeRefCounted<dbus::Bus>(options);
+  bus_ = base::MakeRefCounted<dbus::Bus>(std::move(options));
 }
 
 SecretPortalDBus::~SecretPortalDBus() {

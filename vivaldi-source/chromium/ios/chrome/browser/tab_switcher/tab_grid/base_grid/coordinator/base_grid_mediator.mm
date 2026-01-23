@@ -171,6 +171,9 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 
   // Helper class to configure tab item images.
   std::unique_ptr<TabSnapshotAndFaviconConfigurator> _tabImagesConfigurator;
+
+  // The item for the grid cell that will be replaced by a new group.
+  GridItemIdentifier* _destinationItemForGroupCreation;
 }
 
 - (instancetype)initWithModeHolder:(TabGridModeHolder*)modeHolder {
@@ -255,6 +258,10 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 
 - (TabGridModeHolder*)modeHolder {
   return _modeHolder;
+}
+
+- (SelectedGridItems*)selectedEditingItems {
+  return _selectedEditingItems;
 }
 
 - (void)disconnect {
@@ -762,10 +769,17 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
       GridItemIdentifier* groupItemIdentifier =
           [GridItemIdentifier groupIdentifier:currentGroup];
       CHECK(groupItemIdentifier.tabGroupItem.tabGroup);
-      [self insertItem:groupItemIdentifier
-          beforeWebStateIndex:groupItemIdentifier.tabGroupItem.tabGroup->range()
-                                  .range_end() +
-                              1];
+      if (IsTabGridDragAndDropEnabled() && _destinationItemForGroupCreation) {
+        [self.consumer replaceItem:_destinationItemForGroupCreation
+               withReplacementItem:groupItemIdentifier];
+        _destinationItemForGroupCreation = nil;
+      } else {
+        [self insertItem:groupItemIdentifier
+            beforeWebStateIndex:groupItemIdentifier.tabGroupItem.tabGroup
+                                    ->range()
+                                    .range_end() +
+                                1];
+      }
       break;
     }
     case WebStateListChange::Type::kGroupVisualDataUpdate: {
@@ -1520,6 +1534,12 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
   [itemProvider loadObjectOfClass:[NSURL class] completionHandler:loadHandler];
 }
 
+- (BOOL)isGroupShared:(TabGroupInfo*)group {
+  return tab_groups::utils::IsTabGroupShared(
+      group.tabGroup, tab_groups::TabGroupSyncServiceFactory::GetForProfile(
+                          self.browser->GetProfile()));
+}
+
 #pragma mark - Private
 
 // Returns a id<SnapshotStorage> for the current browser.
@@ -1759,6 +1779,92 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 
 - (void)setPageAsActive {
   NOTREACHED() << "Should be implemented in a subclass.";
+}
+
+- (void)createTabGroupWithTitle:(NSString*)title
+                     sourceItem:(GridItemIdentifier*)sourceItem
+                     droppedTab:(TabInfo*)droppedTab
+                destinationItem:(GridItemIdentifier*)destinationItem {
+  tab_groups::TabGroupVisualData visualData = tab_groups::TabGroupVisualData(
+      base::SysNSStringToUTF16(title),
+      TabGroup::DefaultColorForNewTabGroup(self.webStateList));
+
+  web::WebStateID droppedTabID =
+      sourceItem ? sourceItem.tabSwitcherItem.identifier : droppedTab.tabID;
+  std::set<web::WebStateID> identifiers = {
+      droppedTabID, destinationItem.tabSwitcherItem.identifier};
+  std::set<int> tabIndexes;
+  for (web::WebStateID identifier : identifiers) {
+    int index = GetWebStateIndex(_webStateList, WebStateSearchCriteria{
+                                                    .identifier = identifier,
+                                                });
+    if (index == WebStateList::kInvalidIndex) {
+      index = _webStateList->count();
+      MoveTabToBrowser(droppedTabID, self.browser, index);
+    }
+    tabIndexes.insert(index);
+  }
+  _destinationItemForGroupCreation = destinationItem;
+  if (!tabIndexes.empty()) {
+    _webStateList->CreateGroup(tabIndexes, visualData,
+                               tab_groups::TabGroupId::GenerateNew());
+  }
+}
+
+- (void)addDroppedTab:(TabInfo*)droppedTab
+           sourceItem:(GridItemIdentifier*)sourceItem
+              toGroup:(const TabGroup*)group {
+  web::WebStateID droppedTabID =
+      sourceItem ? sourceItem.tabSwitcherItem.identifier : droppedTab.tabID;
+  MoveTabToGroup(droppedTabID, group, _profile);
+}
+
+- (void)mergeGroup:(TabGroupInfo*)droppedGroup
+    intoDestinationItem:(GridItemIdentifier*)destinationItem {
+  if (destinationItem.tabGroupItem) {
+    // If `destinationItem` is a group, then move tabs in `droppedGroup` to it.
+    std::set<int> tabIndexes;
+    for (int i : droppedGroup.tabGroup->range()) {
+      web::WebStateID tab_id =
+          _webStateList->GetWebStateAt(i)->GetUniqueIdentifier();
+      int index = GetWebStateIndex(_webStateList, WebStateSearchCriteria{
+                                                      .identifier = tab_id,
+                                                  });
+      if (index == WebStateList::kInvalidIndex) {
+        index = _webStateList->count();
+        MoveTabToBrowser(tab_id, self.browser, index);
+      }
+      tabIndexes.insert(index);
+    }
+    _webStateList->MoveToGroup(tabIndexes,
+                               destinationItem.tabGroupItem.tabGroup);
+  } else {
+    //  If `destinationItem` is a tab, create a new group with `droppedGroup`'s
+    //  title. Cannot just add tab to `droppedGroup` since that would mean the
+    //  animation is not centered around `destinationItem`.
+    std::set<int> tabIndexes = {GetWebStateIndex(
+        _webStateList,
+        WebStateSearchCriteria{
+            .identifier = destinationItem.tabSwitcherItem.identifier,
+        })};
+    for (int i : droppedGroup.tabGroup->range()) {
+      web::WebStateID tab_id =
+          _webStateList->GetWebStateAt(i)->GetUniqueIdentifier();
+      int index = GetWebStateIndex(_webStateList, WebStateSearchCriteria{
+                                                      .identifier = tab_id,
+                                                  });
+      if (index == WebStateList::kInvalidIndex) {
+        index = _webStateList->count();
+        MoveTabToBrowser(tab_id, self.browser, index);
+      }
+      tabIndexes.insert(index);
+    }
+    tab_groups::TabGroupVisualData visualData = tab_groups::TabGroupVisualData(
+        droppedGroup.tabGroup->visual_data().title(),
+        droppedGroup.tabGroup->visual_data().color());
+    _webStateList->CreateGroup(tabIndexes, visualData,
+                               tab_groups::TabGroupId::GenerateNew());
+  }
 }
 
 #pragma mark - TabGridToolbarsGridDelegate

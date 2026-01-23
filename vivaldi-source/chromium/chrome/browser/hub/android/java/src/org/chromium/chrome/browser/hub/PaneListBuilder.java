@@ -22,8 +22,6 @@ import java.util.List;
 /** Builder for creating an immutable list of all {@link Pane}s to be shown in the Hub. */
 @NullMarked
 public class PaneListBuilder {
-    public static List<Pane> mPaneRoots = new ArrayList<>(); // Vivaldi
-
     private static final String TAG = "PaneListBuilder";
 
     private final PaneOrderController mPaneOrderController;
@@ -34,6 +32,9 @@ public class PaneListBuilder {
      */
     private @Nullable HashMap<Integer, LazyOneshotSupplier<Pane>> mRegisteredPanes =
             new HashMap<>(PaneId.COUNT);
+
+    // Vivaldi
+    private final List<Pane> mPaneRoots = new ArrayList<>();
 
     /**
      * Constructs a builder to assemble a list of {@link Pane}s to show in the Hub.
@@ -115,5 +116,13 @@ public class PaneListBuilder {
         mRegisteredPanes = null;
 
         return panesBuilder.build();
+    }
+
+    /**
+     * Vivaldi
+     *
+     */
+    public List<Pane> getPaneRoots() {
+        return mPaneRoots;
     }
 }

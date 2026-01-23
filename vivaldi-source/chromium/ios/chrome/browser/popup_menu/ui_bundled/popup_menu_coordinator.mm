@@ -17,8 +17,6 @@
 #import "ios/chrome/browser/bubble/model/tab_based_iph_browser_agent.h"
 #import "ios/chrome/browser/bubble/ui_bundled/bubble_view_controller_presenter.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
-#import "ios/chrome/browser/follow/model/follow_action_state.h"
-#import "ios/chrome/browser/follow/model/follow_browser_agent.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_presenter.h"
@@ -70,6 +68,7 @@
 #import "ios/chrome/browser/shared/public/commands/reminder_notifications_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
+#import "ios/chrome/browser/shared/public/commands/tab_groups_commands.h"
 #import "ios/chrome/browser/shared/public/commands/text_zoom_commands.h"
 #import "ios/chrome/browser/shared/public/commands/whats_new_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -145,7 +144,7 @@ using base::UserMetricsAction;
 
   OverflowMenuOrderer* _overflowMenuOrderer;
 
-  // Stores whether certain events occured during an overflow menu session for
+  // Stores whether certain events occurred during an overflow menu session for
   // logs.
   OverflowMenuVisitedEvent _event;
 }
@@ -287,6 +286,8 @@ using base::UserMetricsAction;
     mediator.applicationHandler =
         HandlerForProtocol(dispatcher, ApplicationCommands);
     mediator.settingsHandler = HandlerForProtocol(dispatcher, SettingsCommands);
+    mediator.tabGroupsHandler =
+        HandlerForProtocol(dispatcher, TabGroupsCommands);
     mediator.bookmarksHandler =
         HandlerForProtocol(dispatcher, BookmarksCommands);
     if (IsLensOverlayAvailable(profile->GetPrefs())) {
@@ -341,9 +342,6 @@ using base::UserMetricsAction;
     mediator.promosManager = PromosManagerFactory::GetForProfile(profile);
     mediator.readingListBrowserAgent =
         ReadingListBrowserAgent::FromBrowser(browser);
-    if (IsWebChannelsEnabled()) {
-      mediator.followBrowserAgent = FollowBrowserAgent::FromBrowser(browser);
-    }
     // Set the AuthenticationService with the one from the original
     // ProfileIOS as the incognito one doesn't have that service.
     mediator.authenticationService =
@@ -434,8 +432,7 @@ using base::UserMetricsAction;
                    }];
 
     // Log to FET overflow menu opened if opened with blue dot.
-    if (IsBlueDotOnToolsMenuButtoneEnabled() &&
-        [self.popupMenuHelpCoordinator hasBlueDotForOverflowMenu] && tracker) {
+    if ([self.popupMenuHelpCoordinator hasBlueDotForOverflowMenu] && tracker) {
       tracker->NotifyEvent(
           feature_engagement::events::kBlueDotPromoOverflowMenuOpened);
       [self updateToolsMenuBlueDotVisibility];
@@ -465,10 +462,6 @@ using base::UserMetricsAction;
   self.mediator.webContentAreaOverlayPresenter = overlayPresenter;
   self.mediator.URLLoadingBrowserAgent =
       UrlLoadingBrowserAgent::FromBrowser(self.browser);
-  if (IsWebChannelsEnabled()) {
-    self.mediator.followBrowserAgent =
-        FollowBrowserAgent::FromBrowser(self.browser);
-  }
 
   self.contentBlockerMediator.consumer = self.mediator;
 
@@ -606,6 +599,15 @@ using base::UserMetricsAction;
         LayoutGuideCenterForBrowser(self.browser);
     UILayoutGuide* layoutGuide =
         [layoutGuideCenter makeLayoutGuideNamed:kToolsMenuGuide];
+
+    if (IsVivaldiRunning()) {
+      layoutGuide = [layoutGuideCenter makeLayoutGuideNamed:vToolsMenuGuide];
+      popoverPresentationController.permittedArrowDirections =
+          self.toolbarType == ToolbarType::kPrimary
+              ? UIPopoverArrowDirectionUp
+              : UIPopoverArrowDirectionDown;
+    } // End Vivaldi
+
     [self.baseViewController.view addLayoutGuide:layoutGuide];
 
     // Re-anchor the popover if necessary, when the parent view's size changes.

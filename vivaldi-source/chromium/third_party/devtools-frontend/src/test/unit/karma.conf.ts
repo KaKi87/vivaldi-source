@@ -4,11 +4,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as url from 'node:url';
 import type {Page, ScreenshotOptions, Target} from 'puppeteer-core';
 import puppeteer from 'puppeteer-core';
-import * as url from 'url';
 
 import {formatAsPatch, resultAssertionsDiff, ResultsDBReporter} from '../../test/conductor/karma-resultsdb-reporter.js';
 import {CHECKOUT_ROOT, GEN_DIR, SOURCE_ROOT} from '../../test/conductor/paths.js';
@@ -97,12 +97,7 @@ const CustomChrome = function(this: any, _baseBrowserDecorator: unknown, args: B
       disableAnimations(page),
     ]);
 
-    page.on('framenavigated', frame => {
-      console.error(`\nframe navigated ${frame.url()}\n`);
-    });
-
     browser.on('targetcreated', async (target: Target) => {
-      console.error(`\ntarget created url=${target.url()} type=${target.type()}\n`);
       if (target.type() === 'page') {
         const page = await target.page();
         if (!page) {
@@ -187,6 +182,8 @@ module.exports = function(config: any) {
   const options = {
     basePath: CHECKOUT_ROOT,
     autoWatchBatchDelay: 1000,
+
+    customContextFile: path.join(GEN_DIR, 'test/unit/context.html'),
 
     files: [
       // Global hooks in test_setup must go first

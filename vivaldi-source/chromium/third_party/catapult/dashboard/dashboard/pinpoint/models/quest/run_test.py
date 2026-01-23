@@ -27,6 +27,8 @@ _TESTER_SERVICE_ACCOUNT = (
 _CAS_DEFAULT_INSTANCE = (
     'projects/chromium-swarm/instances/default_instance'
 )
+_SWARMING_EXECUTION_TIMEOUT = 2700  # 60 * 45 minutes
+_CQ_SWARMING_EXECUTION_TIMEOUT = 600  # 60 * 10 minutes
 
 
 def SwarmingTagsFromJob(job):
@@ -139,6 +141,10 @@ class RunTest(quest.Quest):
       swarming_tags.update(self._swarming_tags)
 
     dimensions = self._GetDimensions(index)
+
+    if 'perf_on_cq' in swarming_tags:
+      # kill swarming task from Perf On CQ earlier.
+      execution_timeout_secs = _CQ_SWARMING_EXECUTION_TIMEOUT
 
     test_execution = _RunTestExecution(
         self,
@@ -458,9 +464,15 @@ class _RunTestExecution(execution_module.Execution):
         other branch.
       pinpont_job_id: id of the pinpoint job which launches the swarming task
     """
-    created_ts = result.get('created_ts')
-    started_ts = result.get('started_ts')
-    completed_ts = result.get('completed_ts')
+    # b/459746759: make datetime string compatible in python 3.10.
+    def _GenCompatibleDatetimeStr(s):
+      if s and s.endswith('Z'):
+        return s[:-1]
+      return s
+
+    created_ts = _GenCompatibleDatetimeStr(result.get('createdTs'))
+    started_ts = _GenCompatibleDatetimeStr(result.get('startedTs'))
+    completed_ts = _GenCompatibleDatetimeStr(result.get('completedTs'))
     if created_ts and started_ts and completed_ts:
       pending_time = datetime.fromisoformat(
           started_ts) - datetime.fromisoformat(created_ts)
@@ -482,18 +494,18 @@ class _RunTestExecution(execution_module.Execution):
         logging.debug('Missing value in swarming result: %s', result)
 
       cloud_metric.PublishPinpointSwarmingPendingMetric(
-          task_id=result.get('task_id'),
+          task_id=result.get('taskId'),
           pinpoint_job_type=pinpoint_job_type,
           pinpoint_job_id=pinpoint_job_id,
-          bot_id=result.get('bot_id'),
+          bot_id=result.get('botId'),
           bot_os=bot_os,
           pending_time=pending_time.total_seconds())
 
       cloud_metric.PublishPinpointSwarmingRuntimeMetric(
-          task_id=result.get('task_id'),
+          task_id=result.get('taskId'),
           pinpoint_job_type=pinpoint_job_type,
           pinpoint_job_id=pinpoint_job_id,
-          bot_id=result.get('bot_id'),
+          bot_id=result.get('botId'),
           bot_os=bot_os,
           running_time=running_time.total_seconds())
 
@@ -542,10 +554,14 @@ class _RunTestExecution(execution_module.Execution):
       }
 
     properties = {
-        'extraArgs': self._extra_args,
-        'dimensions': self._dimensions,
-        'executionTimeoutSecs': str(self.execution_timeout_secs or 2700),
-        'ioTimeoutSecs': str(self.execution_timeout_secs or 2700),
+        'extraArgs':
+            self._extra_args,
+        'dimensions':
+            self._dimensions,
+        'executionTimeoutSecs':
+            str(self.execution_timeout_secs or _SWARMING_EXECUTION_TIMEOUT),
+        'ioTimeoutSecs':
+            str(self.execution_timeout_secs or _SWARMING_EXECUTION_TIMEOUT),
     }
     properties.update(**input_ref)
 

@@ -18,6 +18,10 @@ NSString* kShouldMigrateSearchSuggestionsPref =
   // Register the iOS specific prefs here.
   // The prefs common to all three platforms could be already registered in the
   // backend. So double check before registering it here.
+
+  registry->RegisterBooleanPref(
+      vivaldiprefs::kVivaldiAddressBarSwipeGestureEnabled, false,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 }
 
 + (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry {

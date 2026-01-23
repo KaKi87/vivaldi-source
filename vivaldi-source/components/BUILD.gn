@@ -29,6 +29,23 @@ source_set("adverse_adblocking") {
   ]
 }
 
+if (!is_android && !is_ios) {
+  source_set("navigation_throttle") {
+    sources = [
+      "navigation_throttle/follower_tab_throttle.cc",
+      "navigation_throttle/follower_tab_throttle.h",
+      "navigation_throttle/pinned_tab_throttle.cc",
+      "navigation_throttle/pinned_tab_throttle.h",
+    ]
+    deps = [
+      "//build:branding_buildflags",
+      "//extensions/common",
+      "//chrome/common/extensions/api",
+      "//vivaldi/components:extdata_utils"
+    ]
+  }
+}
+
 source_set("panel_utils") {
     sources = [
       "extensions/vivaldi_panel_utils.cc",
@@ -144,5 +161,15 @@ source_set("version_utils") {
     ]
     configs += [
      "//vivaldi/gn/config:release_kind"
+    ]
+}
+
+source_set("extdata_utils") {
+    sources = [
+      "//vivaldi/components/navigation_throttle/vivaldi_exdata_util.cc",
+      "//vivaldi/components/navigation_throttle/vivaldi_exdata_util.h",
+    ]
+    deps = [
+      "//content/public/browser",
     ]
 }

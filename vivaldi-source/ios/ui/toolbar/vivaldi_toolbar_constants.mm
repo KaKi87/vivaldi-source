@@ -34,14 +34,12 @@ const CGFloat vStickyToolbarCollapsedAlpha = 0.0;
 #pragma mark - ICONS
 
 NSString* vToolbarPanelButtonIcon = @"toolbar_panel";
-NSString* vToolbarSearchButtonIcon = @"toolbar_search";
 NSString* vToolbarHomeButtonIcon = @"toolbar_home";
 NSString* vToolbarForwardButtonIcon = @"toolbar_forward";
 NSString* vToolbarBackButtonIcon = @"toolbar_back";
 NSString* vToolbarTabSwitcherButtonIcon = @"toolbar_switcher";
 NSString* vToolbarTabSwitcherStackButtonIcon = @"toolbar_switcher_stack";
 NSString* vToolbarMoreButtonIcon = @"toolbar_more";
-NSString* vToolbarNTPButtonIcon = @"toolbar_new_tab_page";
 NSString* vToolbarTabSwitcherOveflowButtonIcon = @"toolbar_switcher_overflow";
 
 NSString* vToolbarButtonColor = @"toolbar_button_color";

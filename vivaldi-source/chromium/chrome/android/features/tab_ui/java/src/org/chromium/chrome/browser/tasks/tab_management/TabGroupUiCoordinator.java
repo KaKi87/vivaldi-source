@@ -150,7 +150,6 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
             mUndoBarThrottle = undoBarThrottle;
             mTabBookmarkerSupplier = tabBookmarkerSupplier;
             mShareDelegateSupplier = shareDelegateSupplier;
-
             parentView.addView(mToolbarView);
         }
     }
@@ -227,14 +226,16 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
                             /* attachToParent= */ true,
                             COMPONENT_NAME,
                             tabStripTokenSupplier::set,
-                            /* hasEmptyView= */ false,
+                            /* emptyViewParent= */ null,
                             /* emptyImageResId= */ Resources.ID_NULL,
                             /* emptyHeadingStringResId= */ Resources.ID_NULL,
                             /* emptySubheadingStringResId= */ Resources.ID_NULL,
                             /* onTabGroupCreation= */ null,
                             /* allowDragAndDrop= */ false,
                             /* tabSwitcherDragHandler= */ null,
-                            /* undoBarExplicitTrigger= */ null);
+                            /* undoBarExplicitTrigger= */ null,
+                            null,
+                            0);
             mTabStripCoordinator.initWithNative(
                     assumeNonNull(mTabModelSelector.getModel(false).getProfile()));
 

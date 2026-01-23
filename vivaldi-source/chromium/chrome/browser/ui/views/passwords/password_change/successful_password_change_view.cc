@@ -5,7 +5,6 @@
 #include "chrome/browser/ui/views/passwords/password_change/successful_password_change_view.h"
 
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/passwords/bubble_controllers/password_change/successful_password_change_bubble_controller.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
@@ -13,8 +12,8 @@
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/controls/rich_hover_button.h"
 #include "chrome/grit/branded_strings.h"
+#include "chrome/grit/browser_resources.h"
 #include "chrome/grit/generated_resources.h"
-#include "chrome/grit/theme_resources.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -181,7 +180,7 @@ std::unique_ptr<views::View> CreateManagePasswordsView(
 
 SuccessfulPasswordChangeView::SuccessfulPasswordChangeView(
     content::WebContents* web_contents,
-    views::View* anchor_view)
+    views::BubbleAnchor anchor_view)
     : PasswordBubbleViewBase(web_contents,
                              anchor_view,
                              /*easily_dismissable=*/false),
@@ -243,8 +242,7 @@ ui::ImageModel SuccessfulPasswordChangeView::GetWindowIcon() {
 }
 
 void SuccessfulPasswordChangeView::AddedToWidget() {
-  SetBubbleHeader(IDR_PASSWORD_CHANGE_SUCCESS,
-                  IDR_PASSWORD_CHANGE_SUCCESS_DARK);
+  SetBubbleHeaderLottie(IDR_PASSWORD_CHANGE_SUCCESS_LOTTIE);
 }
 
 BEGIN_METADATA(SuccessfulPasswordChangeView)

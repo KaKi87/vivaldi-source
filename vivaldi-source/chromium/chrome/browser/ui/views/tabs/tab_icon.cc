@@ -376,12 +376,10 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
   }
 
   std::unique_ptr<gfx::ScopedCanvas> scoped_canvas;
-  bool use_scale_filter = false;
 
   if (GetShowingLoadingAnimation() || favicon_size_animation_.is_animating() ||
       was_discard_indicator_shown_) {
     scoped_canvas = std::make_unique<gfx::ScopedCanvas>(canvas);
-    use_scale_filter = true;
     // The favicon is initially inset with the width of the loading-animation
     // stroke + an additional dp to create some visual separation.
     const float kInitialFaviconInsetDp = 1 + kLoadingAnimationStrokeWidthDp;
@@ -402,9 +400,8 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
                                      favicon_size_animation_.GetCurrentValue()),
           kInitialFaviconDiameterDp, kFinalFaviconDiameterDp);
     }
-    SkPath path;
     gfx::PointF center = gfx::RectF(bounds).CenterPoint();
-    path.addCircle(center.x(), center.y(), diameter / 2);
+    const SkPath path = SkPath::Circle(center.x(), center.y(), diameter / 2);
     canvas->ClipPath(path, true);
     // This scales and offsets painting so that the drawn favicon is downscaled
     // to fit in the cropping area.
@@ -425,7 +422,7 @@ void TabIcon::MaybePaintFavicon(gfx::Canvas* canvas,
 
   canvas->DrawImageInt(icon, 0, 0, bounds.width(), bounds.height(), bounds.x(),
                        bounds.y(), bounds.width(), bounds.height(),
-                       use_scale_filter);
+                       /*filter=*/true);
 
   // Emits a custom event when the favicon finishes shrinking and the discard
   // ring gets painted
@@ -522,7 +519,7 @@ void TabIcon::SetCrashed(bool crashed) {
       }
     }
   }
-  OnPropertyChanged(&crashed_, views::kPropertyEffectsPaint);
+  OnPropertyChanged(&crashed_, views::PropertyEffects::kPaint);
 }
 
 bool TabIcon::GetCrashed() const {

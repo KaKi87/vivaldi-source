@@ -49,8 +49,8 @@ using l10n_util::GetNSStringF;
 
 + (ATBSourceTitleAndOrigin*)createEntryWithTitle:(NSString*)title
                                         stringId:(NSInteger)stringId {
-  return
-      [[ATBSourceTitleAndOrigin alloc] initWithTitle:title stringId:stringId];
+  return [[ATBSourceTitleAndOrigin alloc] initWithTitle:title
+                                               stringId:stringId];
 }
 
 + (NSString*)defaultDomain {
@@ -96,6 +96,14 @@ using l10n_util::GetNSStringF;
                           stringId:
                               IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_ALLOW_VIVALDI_PARTNERS]
          forKey:@"9c67efc8-09e5-4e70-b525-fb8c147fb2c2"];
+
+  [map
+      setObject:
+          [VivaldiATBManagerHelper
+              createEntryWithTitle:@"Vivaldi Blocklist"
+                          stringId:
+                              IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_VIVALDI_BLOCKLIST]
+         forKey:@"e8df32ce-6190-4aa2-b341-6dc1c6a0e638"];
 
   [map setObject:
            [VivaldiATBManagerHelper
@@ -307,30 +315,43 @@ using l10n_util::GetNSStringF;
                           stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_PORTUGUESE]
          forKey:@"b1d9732d-c0f3-4c74-8596-e1518b42b356"];
 
-  [map setObject:[VivaldiATBManagerHelper
-                  createEntryWithTitle:@"ROLIST"
-                    stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_ROMANIAN]
+  [map setObject:
+           [VivaldiATBManagerHelper
+               createEntryWithTitle:@"ROLIST"
+                           stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_ROMANIAN]
           forKey:@"434d57a1-51ac-480f-a5af-cc1c127f0313"];
 
-  [map setObject:[VivaldiATBManagerHelper
-                  createEntryWithTitle:@"RU AdList"
-                    stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_RUSSIAN]
+  [map setObject:
+           [VivaldiATBManagerHelper
+               createEntryWithTitle:@"RU AdList"
+                           stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_RUSSIAN]
           forKey:@"a3d2a41d-6659-4465-9819-ba8317185118"];
 
-  [map setObject:[VivaldiATBManagerHelper
-                  createEntryWithTitle:@"EasyList Spanish"
-                    stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_SPANISH]
+  [map setObject:
+           [VivaldiATBManagerHelper
+               createEntryWithTitle:@"Dandelion Sprout's Serbo-Croatian filters"
+                           stringId:
+                               IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_SERBO_CROATIAN]
+          forKey:@"dc538eac-57a7-42d5-ac12-34c810440d2b"];
+
+  [map setObject:
+           [VivaldiATBManagerHelper
+               createEntryWithTitle:@"EasyList Spanish"
+                           stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_SPANISH]
           forKey:@"3eae7230-473c-4ccd-a15f-f08e4bb86f71"];
 
-  [map setObject:[VivaldiATBManagerHelper
-                  createEntryWithTitle:@"Fanboy’s Turkish"
-                    stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_TURKISH]
+  [map setObject:
+           [VivaldiATBManagerHelper
+               createEntryWithTitle:@"Fanboy’s Turkish"
+                           stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_TURKISH]
           forKey:@"c29c4544-679b-4335-94f2-b27c7d099803"];
 
-  [map setObject:[VivaldiATBManagerHelper
-                  createEntryWithTitle:@"ABPVN List"
-                    stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_VIETNAMESE]
-          forKey:@"092a3a7f-b452-47e2-bbd7-b61e902ad0fd"];
+  [map
+      setObject:
+          [VivaldiATBManagerHelper
+              createEntryWithTitle:@"ABPVN List"
+                          stringId:IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_VIETNAMESE]
+         forKey:@"092a3a7f-b452-47e2-bbd7-b61e902ad0fd"];
 
   return [map copy];
 }

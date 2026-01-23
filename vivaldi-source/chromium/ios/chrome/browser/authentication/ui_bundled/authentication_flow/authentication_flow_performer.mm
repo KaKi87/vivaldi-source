@@ -28,13 +28,13 @@
 #import "google_apis/gaia/gaia_urls.h"
 #import "ios/chrome/app/change_profile_commands.h"
 #import "ios/chrome/app/change_profile_continuation.h"
+#import "ios/chrome/browser/authentication/history_sync/model/history_sync_utils.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_constants.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_performer_base+protected.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_flow/authentication_flow_performer_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/authentication_ui_util.h"
 #import "ios/chrome/browser/authentication/ui_bundled/enterprise/managed_profile_creation/managed_profile_creation_coordinator.h"
-#import "ios/chrome/browser/authentication/ui_bundled/history_sync/history_sync_utils.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
 #import "ios/chrome/browser/policy/model/browser_policy_connector_ios.h"
 #import "ios/chrome/browser/policy/model/cloud/user_policy_signin_service.h"
@@ -230,8 +230,7 @@ policy::ProfileSeparationPolicies GetFakePolicyResponseForTesting() {
       ->GetManagedAccountsSigninRestriction(
           identity_manager,
           identity_manager->PickAccountIdForAccount(
-              GaiaId(identity.gaiaID),
-              base::SysNSStringToUTF8(identity.userEmail)),
+              identity.gaiaId, base::SysNSStringToUTF8(identity.userEmail)),
           std::move(callback));
 }
 
@@ -245,17 +244,8 @@ policy::ProfileSeparationPolicies GetFakePolicyResponseForTesting() {
   std::optional<std::string> profileName =
       GetApplicationContext()
           ->GetAccountProfileMapper()
-          ->FindProfileNameForGaiaID(GaiaId(identity.gaiaID));
-  if (!profileName.has_value()) {
-    __weak __typeof(_delegate) weakDelegate = _delegate;
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(
-                       [](__typeof(_delegate) delegate) {
-                         [delegate didFailToSwitchToProfile];
-                       },
-                       weakDelegate));
-    return;
-  }
+          ->FindProfileNameForGaiaID(identity.gaiaId);
+  CHECK(profileName.has_value(), base::NotFatalUntil::M150);
 
   __weak __typeof(self) weakSelf = self;
   auto profileSwitchReadyCompletion = base::BindOnce(
@@ -281,7 +271,7 @@ policy::ProfileSeparationPolicies GetFakePolicyResponseForTesting() {
 - (void)makePersonalProfileManagedWithIdentity:(id<SystemIdentity>)identity {
   GetApplicationContext()
       ->GetAccountProfileMapper()
-      ->MakePersonalProfileManagedWithGaiaID(GaiaId(identity.gaiaID));
+      ->MakePersonalProfileManagedWithGaiaID(identity.gaiaId);
   [_delegate didMakePersonalProfileManaged];
 }
 

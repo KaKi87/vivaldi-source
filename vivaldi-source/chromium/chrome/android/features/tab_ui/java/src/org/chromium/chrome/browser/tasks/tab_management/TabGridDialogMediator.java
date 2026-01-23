@@ -55,6 +55,7 @@ import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
 import org.chromium.chrome.browser.tabmodel.TabClosingSource;
 import org.chromium.chrome.browser.tabmodel.TabClosureParamsUtils;
+import org.chromium.chrome.browser.tabmodel.TabCreatorUtil;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterObserver;
 import org.chromium.chrome.browser.tabmodel.TabGroupTitleUtils;
@@ -122,8 +123,10 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import static org.chromium.build.NullUtil.assertNonNull;
+
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterImpl;
+import org.chromium.chrome.browser.tabmodel.TabCollectionTabModelImpl;
+
 import org.vivaldi.browser.common.VivaldiUtils;
 
 /**
@@ -439,21 +442,6 @@ public class TabGridDialogMediator
                             return;
                         }
 
-                        // Note(david@vivaldi.com): We don't allow a single tab in a group. If that
-                        // is the case we move the remaining tab out of the group and the group is
-                        // deleted. Also suppress undo since undoing is not supported when group was
-                        // deleted.
-                        if (relatedTabs.size() == 1) {
-                            TabGroupModelFilter filter = mCurrentTabGroupModelFilterSupplier.get();
-                            if (filter != null) {
-                                ((TabGroupModelFilterImpl) filter).moveTabOutOfGroupInDirection(
-                                        relatedTabs.get(0).getId(),
-                                        true);
-                            }
-                            VivaldiUtils.sOverrideCanShowUndo = false; // Vivaldi
-                        }
-                        // End Vivaldi
-
                         updateDialog();
                         updateGridTabSwitcher();
                     }
@@ -737,7 +725,6 @@ public class TabGridDialogMediator
     // @TabGridDialogView.VisibilityListener
     @Override
     public void finishedHidingDialogView() {
-        VivaldiUtils.sOverrideCanShowUndo = true; // Vivaldi
         mDialogController.resetWithListOfTabs(null);
         mDialogController.postHiding();
         // Purge the bitmap reference in the animation.
@@ -1064,7 +1051,7 @@ public class TabGridDialogMediator
 
             if (tabsInGroup.isEmpty()) {
                 TabModel tabModel = filter.getTabModel();
-                tabModel.getTabCreator().launchNtp();
+                TabCreatorUtil.launchNtp(tabModel.getTabCreator());
                 return;
             }
 
@@ -1135,6 +1122,15 @@ public class TabGridDialogMediator
 
             TabGroupModelFilter filter = mCurrentTabGroupModelFilterSupplier.get();
             assumeNonNull(filter);
+
+            // Note(david@vivaldi.com)(VAB-11685): When closing a group, |onTabClose()| is
+            // triggered. This may move tabs out of groups and cause the tab group to dissolve (see
+            // VAB-10919, since we don’t allow a group with only one tab). However, this only
+            // happens while the dialog is visible and waiting for user interaction. Therefore,
+            // close the dialog if necessary, because closing the group from the menu is not
+            // considered as a user interaction within the tab-grid dialog.
+            mModel.set(TabGridDialogProperties.IS_DIALOG_VISIBLE, false);
+
             TabUiUtils.closeTabGroup(
                     filter,
                     filter.getGroupLastShownTabId(mCurrentTabGroupId),

@@ -183,7 +183,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   GURL visibleURL = self.activeWebState->GetVisibleURL();
   // If visited page is a vivaldi.com page then do not show the exception
   // block.
-  std::string host = visibleURL.host();
+  std::string host = visibleURL.GetHost();
   std::string vivaldi_domain = base::SysNSStringToUTF8(vivaldiDomain);
   if (IsDomainOrSubdomain(host, vivaldi_domain)) {
     return NO;
@@ -199,9 +199,9 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
         (IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);
   }
   GURL visibleURL = self.activeWebState->GetVisibleURL();
-  std::string host = visibleURL.host();
+  std::string host = visibleURL.GetHost();
   TemplateURL* templateURL =
-      templateURLService->GetTemplateURLForHost(visibleURL.host());
+      templateURLService->GetTemplateURLForHost(visibleURL.GetHost());
   if (!templateURL) {
     return l10n_util::GetNSString
         (IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);

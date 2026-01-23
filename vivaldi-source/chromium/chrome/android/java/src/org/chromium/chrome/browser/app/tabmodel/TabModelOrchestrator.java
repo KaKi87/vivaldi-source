@@ -6,12 +6,17 @@ package org.chromium.chrome.browser.app.tabmodel;
 
 import android.app.Activity;
 
+import androidx.annotation.VisibleForTesting;
+
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.EnsuresNonNull;
+import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager.TabModelStartupInfo;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.MismatchedIndicesHandler;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -21,16 +26,17 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorImpl;
 import org.chromium.chrome.browser.tabmodel.TabPersistencePolicy;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore.TabPersistentStoreObserver;
+import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
 
 /**
  * Implementers are glue-level objects that manage lifetime of root .tabmodel objects: {@link
  * TabPersistentStore} and {@link TabModelSelectorImpl}.
  */
 @NullMarked
-public abstract class TabModelOrchestrator {
-    protected TabPersistentStore mTabPersistentStore;
-    protected TabModelSelectorBase mTabModelSelector;
-    protected TabPersistencePolicy mTabPersistencePolicy;
+public class TabModelOrchestrator {
+    protected @MonotonicNonNull TabPersistentStore mTabPersistentStore;
+    protected @MonotonicNonNull TabModelSelectorBase mTabModelSelector;
+    protected @MonotonicNonNull TabPersistencePolicy mTabPersistencePolicy;
     private boolean mTabModelsInitialized;
     private @Nullable Callback<String> mOnStandardActiveIndexRead;
     private boolean mTabPersistentStoreDestroyedEarly;
@@ -44,9 +50,19 @@ public abstract class TabModelOrchestrator {
     private int mStandardActiveIndex = TabModel.INVALID_TAB_INDEX;
     private int mIncognitoActiveIndex = TabModel.INVALID_TAB_INDEX;
 
-    // Protected members are initialized by subclasses.
-    @SuppressWarnings("NullAway")
-    TabModelOrchestrator() {}
+    @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    public TabModelOrchestrator() {}
+
+    @EnsuresNonNull({
+        "mTabModelSelector",
+        "mTabPersistencePolicy",
+        "mTabPersistentStore",
+    })
+    private void assertInitialized() {
+        assert mTabModelSelector != null;
+        assert mTabPersistencePolicy != null;
+        assert mTabPersistentStore != null;
+    }
 
     /**
      * @return Whether the tab models have been fully initialized.
@@ -58,22 +74,22 @@ public abstract class TabModelOrchestrator {
     /**
      * @return The {@link TabModelSelector} managed by this orchestrator.
      */
-    public TabModelSelectorBase getTabModelSelector() {
+    public @Nullable TabModelSelectorBase getTabModelSelector() {
         return mTabModelSelector;
     }
 
     /**
-     * Sets {@link TabPersistentStore} for testing.
-     * @param tabPersistentStore The {@link TabPersistentStore}.
+     * @return getTabModelSelector().getCurrentTab()
      */
-    void setTabPersistentStoreForTesting(TabPersistentStore tabPersistentStore) {
-        mTabPersistentStore = tabPersistentStore;
+    public @Nullable Tab getCurrentTab() {
+        return mTabModelSelector == null ? null : mTabModelSelector.getCurrentTab();
     }
 
     /**
      * @return The {@link TabPersistentStore} managed by this orchestrator.
      */
     public TabPersistentStore getTabPersistentStore() {
+        assert mTabPersistentStore != null;
         return mTabPersistentStore;
     }
 
@@ -106,6 +122,7 @@ public abstract class TabModelOrchestrator {
     }
 
     public void onNativeLibraryReady(TabContentManager tabContentManager) {
+        assertInitialized();
         boolean wasTabCollectionsActive =
                 TabCollectionMigrationUtil.wasTabCollectionsActiveForMetadataFile(
                         mTabPersistencePolicy.getMetadataFileName());
@@ -119,6 +136,7 @@ public abstract class TabModelOrchestrator {
      * writing to disk.
      */
     public void saveState() {
+        assertInitialized();
         mTabModelSelector.commitAllTabClosures();
         if (!mTabPersistentStoreDestroyedEarly) mTabPersistentStore.saveState();
     }
@@ -133,6 +151,7 @@ public abstract class TabModelOrchestrator {
      */
     public void loadState(
             boolean ignoreIncognitoFiles, @Nullable Callback<String> onStandardActiveIndexRead) {
+        assertInitialized();
         mIgnoreIncognitoFiles = ignoreIncognitoFiles;
         mOnStandardActiveIndexRead = onStandardActiveIndexRead;
         if (!mTabPersistentStoreDestroyedEarly) mTabPersistentStore.loadState(ignoreIncognitoFiles);
@@ -145,15 +164,15 @@ public abstract class TabModelOrchestrator {
      *     active tab.
      */
     public void restoreTabs(boolean setActiveTab) {
+        assertInitialized();
         if (ChromeFeatureList.sTabCollectionAndroid.isEnabled()) {
             TabCollectionMigrationUtil.setTabCollectionsActiveForMetadataFile(
                     mTabPersistencePolicy.getMetadataFileName());
         }
         if (mTabModelStartupInfoSupplier != null) {
-            boolean createdStandardTabOnStartup =
-                    getTabModelSelector().getModel(false).getCount() > 0;
-            boolean createdIncognitoTabOnStartup =
-                    getTabModelSelector().getModel(true).getCount() > 0;
+            assert mTabModelSelector != null;
+            boolean createdStandardTabOnStartup = mTabModelSelector.getModel(false).getCount() > 0;
+            boolean createdIncognitoTabOnStartup = mTabModelSelector.getModel(true).getCount() > 0;
 
             // Incognito tabs are read first, so we have to adjust to find the real active index in
             // the standard model.
@@ -185,10 +204,12 @@ public abstract class TabModelOrchestrator {
     }
 
     public void mergeState() {
+        assertInitialized();
         if (!mTabPersistentStoreDestroyedEarly) mTabPersistentStore.mergeState();
     }
 
     public void clearState() {
+        assertInitialized();
         if (!mTabPersistentStoreDestroyedEarly) mTabPersistentStore.clearState();
     }
 
@@ -204,6 +225,7 @@ public abstract class TabModelOrchestrator {
      * tab being restored with this url, or the tab has already been restored.
      */
     public void tryToRestoreTabStateForUrl(String url) {
+        assertInitialized();
         if (!mTabModelSelector.isTabStateInitialized() && !mTabPersistentStoreDestroyedEarly) {
             mTabPersistentStore.restoreTabStateForUrl(url);
         }
@@ -215,6 +237,7 @@ public abstract class TabModelOrchestrator {
      * tab being restored with this id, or the tab has already been restored.
      */
     public void tryToRestoreTabStateForId(int id) {
+        assertInitialized();
         if (!mTabModelSelector.isTabStateInitialized() && !mTabPersistentStoreDestroyedEarly) {
             mTabPersistentStore.restoreTabStateForId(id);
         }
@@ -244,8 +267,9 @@ public abstract class TabModelOrchestrator {
 
     protected void wireSelectorAndStore() {
         if (mTabPersistentStoreDestroyedEarly) return;
+        assertInitialized();
         // Notify TabModelSelector when TabPersistentStore initializes tab state
-        final TabPersistentStoreObserver persistentStoreObserver =
+        mTabPersistentStore.addObserver(
                 new TabPersistentStoreObserver() {
                     @Override
                     public void onStateLoaded() {
@@ -291,12 +315,25 @@ public abstract class TabModelOrchestrator {
                         // Resets the callback once the read of the Tab state file is completed.
                         mOnStandardActiveIndexRead = null;
                     }
-                };
-        mTabPersistentStore.addObserver(persistentStoreObserver);
+                });
     }
 
     protected void markTabModelsInitialized() {
         if (mIsDestroyed) return;
         mTabModelsInitialized = true;
+    }
+
+    /**
+     * Sets {@link TabPersistentStoreImpl} for testing.
+     *
+     * @param tabPersistentStore The {@link TabPersistentStoreImpl}.
+     */
+    void initForTesting(
+            TabModelSelectorBase tabModelSelector,
+            TabPersistentStore tabPersistentStore,
+            TabPersistencePolicy tabPersistencePolicy) {
+        mTabModelSelector = tabModelSelector;
+        mTabPersistentStore = tabPersistentStore;
+        mTabPersistencePolicy = tabPersistencePolicy;
     }
 }

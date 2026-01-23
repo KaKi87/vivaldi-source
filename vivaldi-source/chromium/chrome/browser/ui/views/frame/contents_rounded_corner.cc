@@ -10,6 +10,8 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/top_container_background.h"
 #include "chrome/browser/ui/views/side_panel/side_panel.h"
+#include "third_party/skia/include/core/SkPath.h"
+#include "third_party/skia/include/core/SkPathBuilder.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/canvas.h"
@@ -40,9 +42,8 @@ gfx::Size ContentsRoundedCorner::CalculatePreferredSize(
   return gfx::Size(corner_size, corner_size);
 }
 
-void ContentsRoundedCorner::Layout(PassKey) {
-  LayoutSuperclass<views::View>(this);
-  SkPath path;
+void ContentsRoundedCorner::OnBoundsChanged(const gfx::Rect& previous_bounds) {
+  SkPathBuilder path;
   const float corner_radius =
       GetLayoutProvider()->GetCornerRadiusMetric(corner_radius_token_);
   const gfx::Rect local_bounds = GetLocalBounds();
@@ -52,20 +53,23 @@ void ContentsRoundedCorner::Layout(PassKey) {
     path.lineTo(local_bounds.width(), local_bounds.height());
     path.lineTo(local_bounds.width() - views::Separator::kThickness,
                 local_bounds.height());
-    path.arcTo(corner_radius, corner_radius, 0, SkPath::kSmall_ArcSize,
-               SkPathDirection::kCCW, 0, views::Separator::kThickness);
+    path.arcTo(SkVector(corner_radius, corner_radius), 0,
+               SkPathBuilder::kSmall_ArcSize, SkPathDirection::kCCW,
+               SkPoint(0, views::Separator::kThickness));
     path.lineTo(0, 0);
   } else {
     path.moveTo(0, 0);
     path.lineTo(local_bounds.width(), 0);
     path.lineTo(local_bounds.width(), views::Separator::kThickness);
-    path.arcTo(corner_radius, corner_radius, 0, SkPath::kSmall_ArcSize,
-               SkPathDirection::kCCW, views::Separator::kThickness,
-               local_bounds.height());
+    path.arcTo(SkVector(corner_radius, corner_radius), 0,
+               SkPathBuilder::kSmall_ArcSize, SkPathDirection::kCCW,
+               SkPoint(views::Separator::kThickness, local_bounds.height()));
     path.lineTo(0, local_bounds.height());
     path.lineTo(0, 0);
   }
-  SetClipPath(path);
+
+  // TODO(b:460890881): Clip canvas during repaint instead using a mask layer.
+  SetClipPath(path.detach());
 }
 
 void ContentsRoundedCorner::OnPaint(gfx::Canvas* canvas) {
@@ -81,19 +85,20 @@ void ContentsRoundedCorner::OnPaint(gfx::Canvas* canvas) {
   const float corner_radius =
       GetLayoutProvider()->GetCornerRadiusMetric(corner_radius_token_);
   const gfx::Rect local_bounds = GetLocalBounds();
-  SkPath path;
+  SkPathBuilder path;
   if (is_right_aligned_callback_.Run()) {
     path.moveTo(local_bounds.width() - views::Separator::kThickness,
                 local_bounds.height());
-    path.arcTo(corner_radius, corner_radius, 0, SkPath::kSmall_ArcSize,
-               SkPathDirection::kCCW, 0, views::Separator::kThickness);
+    path.arcTo(SkVector(corner_radius, corner_radius), 0,
+               SkPathBuilder::kSmall_ArcSize, SkPathDirection::kCCW,
+               SkPoint(0, views::Separator::kThickness));
   } else {
     path.moveTo(local_bounds.width(), views::Separator::kThickness);
-    path.arcTo(corner_radius, corner_radius, 0, SkPath::kSmall_ArcSize,
-               SkPathDirection::kCCW, views::Separator::kThickness,
-               local_bounds.height());
+    path.arcTo(SkVector(corner_radius, corner_radius), 0,
+               SkPathBuilder::kSmall_ArcSize, SkPathDirection::kCCW,
+               SkPoint(views::Separator::kThickness, local_bounds.height()));
   }
-  canvas->DrawPath(path, flags);
+  canvas->DrawPath(path.detach(), flags);
 }
 
 void ContentsRoundedCorner::OnThemeChanged() {

@@ -40,6 +40,7 @@ export interface SettingsMenuElement {
     autofill: HTMLLinkElement,
     menu: CrMenuSelector,
     people: HTMLLinkElement,
+    yourSavedInfo: HTMLLinkElement,
   };
 }
 
@@ -75,12 +76,23 @@ export class SettingsMenuElement extends SettingsMenuElementBase {
           return loadTimeData.getBoolean('enableYourSavedInfoSettingsPage');
         },
       },
+
+      /**
+       * Icon name to be used for the autofill section.
+       */
+      autofillIcon_: {
+        type: String,
+        value: () => loadTimeData.getBoolean('enableYourSavedInfoBranding') ?
+            'settings20:person-text' :
+            'settings:assignment',
+      },
     };
   }
 
   declare private pageVisibility_?: PageVisibility;
   declare private showAiPage_: boolean;
   declare private enableYourSavedInfoSettingsPage_: boolean;
+  declare private autofillIcon_: string;
   private metricsBrowserProxy_: MetricsBrowserProxy =
       MetricsBrowserProxyImpl.getInstance();
 
@@ -162,6 +174,12 @@ export class SettingsMenuElement extends SettingsMenuElementBase {
   private onAutofillClick_() {
     this.metricsBrowserProxy_.recordAutofillSettingsReferrer(
         'Autofill.AutofillAndPasswordsSettingsPage.VisitReferrer',
+        AutofillSettingsReferrer.SETTINGS_MENU);
+  }
+
+  private onYourSavedInfoClick_() {
+    this.metricsBrowserProxy_.recordAutofillSettingsReferrer(
+        'Autofill.YourSavedInfoSettingsPage.VisitReferrer',
         AutofillSettingsReferrer.SETTINGS_MENU);
   }
 

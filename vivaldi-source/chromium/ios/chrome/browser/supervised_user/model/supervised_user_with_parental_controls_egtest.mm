@@ -18,7 +18,6 @@
 #import "ios/chrome/browser/policy/model/policy_earl_grey_utils.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/clear_browsing_data/features.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/manage_sync_settings_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/supervised_user_settings_app_interface.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -71,7 +70,6 @@ static const char* kInterstitialDetails = "Details";
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config = [super appConfigurationForTestCase];
-  config.features_enabled_and_params.push_back({kIOSQuickDelete, {}});
 
   if ([self isRunningTest:@selector
             (testSupervisedUserLocalWebApprovalDismissedAfterTimeout)]) {
@@ -898,8 +896,8 @@ static const char* kInterstitialDetails = "Details";
 
   // Switch to landscape and check visibility.
   GREYAssert(
-      [EarlGrey rotateDeviceToOrientation:UIDeviceOrientationLandscapeLeft
-                                    error:nil],
+      [EarlGrey rotateInterfaceToOrientation:UIInterfaceOrientationLandscapeLeft
+                                       error:nil],
       @"Could not rotate device to Landscape Left");
   [[EarlGrey
       selectElementWithMatcher:grey_accessibilityID(
@@ -907,9 +905,10 @@ static const char* kInterstitialDetails = "Details";
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Switch back to portrait and check visibility.
-  GREYAssert([EarlGrey rotateDeviceToOrientation:UIDeviceOrientationPortrait
-                                           error:nil],
-             @"Could not rotate device to Portrait");
+  GREYAssert(
+      [EarlGrey rotateInterfaceToOrientation:UIInterfaceOrientationPortrait
+                                       error:nil],
+      @"Could not rotate device to Portrait");
   [[EarlGrey
       selectElementWithMatcher:grey_accessibilityID(
                                    kParentAccessViewAccessibilityIdentifier)]

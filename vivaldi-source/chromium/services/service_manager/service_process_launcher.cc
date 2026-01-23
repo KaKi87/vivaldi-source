@@ -56,7 +56,6 @@
 #include "sandbox/linux/services/flatpak_sandbox.h"
 #endif
 
-
 namespace service_manager {
 
 // Thread-safe owner of state related to a service process. This facilitates
@@ -309,7 +308,6 @@ void ServiceProcessLauncher::ProcessState::StopInBackground() {
 
   LOG_IF(ERROR, success)
       << "Failed to wait for child process";
-
   child_process_.Close();
 }
 

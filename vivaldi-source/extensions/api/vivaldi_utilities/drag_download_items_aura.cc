@@ -25,7 +25,7 @@ namespace extensions {
 
 void DragDownloadItems(std::vector<DraggableDownloadItem> downloads,
                        gfx::NativeView view) {
-  if (downloads.empty()) {
+  if (downloads.empty() || !view) {
     return;
   }
   // Set up our OLE machinery.

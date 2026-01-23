@@ -23,4 +23,14 @@
         Hvis dette ikke løser problemet, bør du velge dette alternativet
         på nytt for bedre ytelse.</translation>
 <translation id="7496505986576158197">Vivaldi er gjort mulig av åpen kildekode-prosjektet <ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" /> og annen <ph name="BEGIN_LINK_OSS" />programvare med åpen kildekode<ph name="END_LINK_OSS" />.</translation>
+<translation id="89559930087159128">Go to
+          Vivaldi-menyen &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          Nettverk og Internett &gt; Proxy
+          og fjern valget for "Oppdag innstillinger automatisk".</translation>
 </translationbundle>

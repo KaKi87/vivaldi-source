@@ -6,17 +6,6 @@
 
 #import "components/password_manager/core/common/password_manager_features.h"
 
-// Vivaldi
-#import "app/vivaldi_apptools.h"
-// End Vivaldi
-
-BASE_FEATURE(kNewOverflowMenu, base::FEATURE_ENABLED_BY_DEFAULT);
-
 bool IsNewOverflowMenuEnabled() {
-
-  // Vivaldi: We will present the new overflow menu always.
-  if (vivaldi::IsVivaldiRunning())
-    return true; // End Vivaldi
-
-  return base::FeatureList::IsEnabled(kNewOverflowMenu);
+  return true;
 }

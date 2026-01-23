@@ -95,6 +95,7 @@ void SyncSessionsWebContentsRouter::Shutdown() {
 #endif  // !BUILDFLAG(IS_ANDROID)
 }
 
+// Vivaldi
 void SyncSessionsWebContentsRouter::UpdateVivExtData(
     const VivaldiSpecific& data) {
   if (handler_) {
@@ -108,4 +109,6 @@ void SyncSessionsWebContentsRouter::UpdateDeviceName(
     handler_->OnDeviceNameModified(device_name);
   }
 }
+// End Vivaldi
+
 }  // namespace sync_sessions

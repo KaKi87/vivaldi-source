@@ -759,8 +759,8 @@ void StatsReporterImpl::DoReporting(FileHolder os_profile_reporting_data_file,
   if (!os_profile_reporting_data.empty()) {
     std::string_view fixed_os_profile_reporting_data(
         os_profile_reporting_data);
-    os_profile_reporting_data_json =
-        base::JSONReader::Read(fixed_os_profile_reporting_data);
+    os_profile_reporting_data_json = base::JSONReader::Read(
+        fixed_os_profile_reporting_data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 
     while (!os_profile_reporting_data_json) {
       fixed_os_profile_reporting_data.remove_suffix(1);
@@ -773,7 +773,8 @@ void StatsReporterImpl::DoReporting(FileHolder os_profile_reporting_data_file,
       fixed_os_profile_reporting_data =
           fixed_os_profile_reporting_data.substr(0, last_brace + 1);
       os_profile_reporting_data_json =
-          base::JSONReader::Read(fixed_os_profile_reporting_data);
+          base::JSONReader::Read(fixed_os_profile_reporting_data,
+                                 base::JSON_PARSE_CHROMIUM_EXTENSIONS);
     }
   }
   if (!os_profile_reporting_data_json ||

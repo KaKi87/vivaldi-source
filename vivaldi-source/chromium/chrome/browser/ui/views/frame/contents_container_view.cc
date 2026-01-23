@@ -13,6 +13,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/read_anything/immersive_read_anything_overlay_view.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -28,6 +29,7 @@
 #include "chrome/common/chrome_features.h"
 #include "components/search/ntp_features.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/accessibility/accessibility_features.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
@@ -42,7 +44,8 @@
 #include "ui/views/widget/widget.h"
 
 #if BUILDFLAG(ENABLE_GLIC)
-#include "chrome/browser/glic/browser_ui/glic_border_view.h"
+#include "chrome/browser/glic/browser_ui/context_sharing_border_view.h"
+#include "chrome/browser/glic/browser_ui/context_sharing_border_view_controller_impl.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #endif
 
@@ -99,6 +102,13 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
   watermark_view_ =
       AddChildView(std::make_unique<enterprise_watermark::WatermarkView>());
 
+  if (features::IsImmersiveReadAnythingEnabled()) {
+    auto immersive_read_anything_overlay_view =
+        std::make_unique<ImmersiveReadAnythingOverlayView>();
+    immersive_read_anything_overlay_view_ =
+        AddChildView(std::move(immersive_read_anything_overlay_view));
+  }
+
   contents_scrim_view_ = AddChildView(std::make_unique<ScrimView>());
   contents_scrim_view_->layer()->SetName("ContentsScrimView");
 
@@ -106,19 +116,20 @@ ContentsContainerView::ContentsContainerView(BrowserView* browser_view)
     auto actor_overlay_web_view =
         std::make_unique<ActorOverlayWebView>(browser_view->browser());
     actor_overlay_web_view->SetID(VIEW_ID_ACTOR_OVERLAY);
-    actor_overlay_web_view->SetVisible(false);
     actor_overlay_web_view_ = AddChildView(std::move(actor_overlay_web_view));
   }
 
 #if BUILDFLAG(ENABLE_GLIC)
   if (glic::GlicEnabling::IsProfileEligible(browser_view->GetProfile())) {
-    glic_border_ =
-        AddChildView(views::Builder<glic::GlicBorderView>(
-                         glic::GlicBorderView::Factory::Create(
-                             browser_view->browser(), contents_view_))
-                         .SetVisible(false)
-                         .SetCanProcessEventsWithinSubtree(false)
-                         .Build());
+    glic_border_ = AddChildView(
+        views::Builder<glic::ContextSharingBorderView>(
+            glic::ContextSharingBorderView::Factory::Create(
+                std::make_unique<
+                    glic::ContextSharingBorderViewControllerImpl>(),
+                browser_view->browser(), contents_view_))
+            .SetVisible(false)
+            .SetCanProcessEventsWithinSubtree(false)
+            .Build());
   }
 #endif
 
@@ -222,6 +233,12 @@ void ContentsContainerView::UpdateBorderRoundedCorners() {
         content_lower_rounded_corners);
   }
 
+  if (actor_overlay_web_view_) {
+    // ActorOverlayWebView should use the same radii as the contents view since
+    // it acts as a full transparent layer directly over the main web content.
+    actor_overlay_web_view_->holder()->SetCornerRadii(radii);
+  }
+
 #if BUILDFLAG(ENABLE_GLIC)
   if (glic_border_) {
     glic_border_->SetRoundedCorners(content_rounded_corners);
@@ -243,6 +260,10 @@ void ContentsContainerView::ClearBorderRoundedCorners() {
   }
 
   contents_scrim_view_->SetRoundedCorners(kNoRoundedCorners);
+
+  if (actor_overlay_web_view_) {
+    actor_overlay_web_view_->holder()->SetCornerRadii(kNoRoundedCorners);
+  }
 
 #if BUILDFLAG(ENABLE_GLIC)
   if (glic_border_) {
@@ -418,7 +439,7 @@ void ContentsContainerView::UpdateCaptureContentsBorderLocation() {
   // Immersive top container might overlap with the blue border in fullscreen
   // mode - see crbug.com/1392733. By insetting the bounds rectangle we ensure
   // that the blue border is always placed below the top container.
-  if (browser_view_->browser()->GetImmersiveModeController()->IsRevealed()) {
+  if (ImmersiveModeController::From(browser_view_->browser())->IsRevealed()) {
     const int delta =
         browser_view_->top_container()->bounds().bottom() - rect.y();
     if (delta > 0) {
@@ -446,6 +467,12 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
 
   int height = size_bounds.height().value();
   int width = size_bounds.width().value();
+
+  if (width == 0 || height == 0) {
+    // On Wayland we receive a resize to 0 width first before the actual
+    // size bounds. Ignore such requests.
+    return layouts;
+  }
 
   gfx::Rect full_contents_bounds = GetContentsBounds();
   gfx::Rect devtools_bounds;
@@ -520,6 +547,15 @@ views::ProposedLayout ContentsContainerView::CalculateProposedLayout(
   if (actor_overlay_web_view_) {
     layouts.child_layouts.emplace_back(
         actor_overlay_web_view_.get(), actor_overlay_web_view_->GetVisible(),
+        non_devtools_contents_bounds, size_bounds);
+  }
+
+  // Reading Mode overlay view bounds are the same as the contents view.
+  if (features::IsImmersiveReadAnythingEnabled() &&
+      immersive_read_anything_overlay_view_) {
+    layouts.child_layouts.emplace_back(
+        immersive_read_anything_overlay_view_.get(),
+        immersive_read_anything_overlay_view_->GetVisible(),
         non_devtools_contents_bounds, size_bounds);
   }
 

@@ -80,7 +80,7 @@ bool RuleManagerImpl::AddRulesSource(RuleGroup group,
       base::BindRepeating(&RuleManagerImpl::OnSourceUpdated,
                           base::Unretained(this), group),
       on_tracker_infos_update_callback_);
-  rule_sources[source_core.id()]->FetchNow();
+  rule_sources[source_core.id()]->FetchNow(false);
   return source_core.id();
 }
 
@@ -111,7 +111,7 @@ bool RuleManagerImpl::FetchRuleSourceNow(RuleGroup group, uint32_t source_id) {
   if (rule_source == rule_sources.end())
     return false;
 
-  rule_source->second->FetchNow();
+  rule_source->second->FetchNow(false);
   return true;
 }
 
@@ -245,6 +245,6 @@ void RuleManagerImpl::OnCompiledRulesReadFailCallback(RuleGroup rule_group,
   const auto& rule_sources = GetSourceMap(rule_group);
   const auto& source_context = rule_sources.find(source_id);
   CHECK(source_context != rule_sources.end());
-  source_context->second->FetchNow();
+  source_context->second->FetchNow(true);
 }
 }  // namespace adblock_filter

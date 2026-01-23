@@ -139,6 +139,8 @@ class ChromePasswordManagerClient
   // PasswordManagerClient implementation.
   bool IsSavingAndFillingEnabled(const GURL& url) const override;
   bool IsFillingEnabled(const GURL& url) const override;
+  bool IsFieldFilledWithOtp(autofill::FormGlobalId form_id,
+                            autofill::FieldGlobalId field_id) override;
   bool IsAutoSignInEnabled() const override;
   bool PromptUserToSaveOrUpdatePassword(
       std::unique_ptr<password_manager::PasswordFormManagerForUI> form_to_save,
@@ -423,6 +425,8 @@ class ChromePasswordManagerClient
  private:
   friend class content::WebContentsUserData<ChromePasswordManagerClient>;
 
+  Profile* GetProfile() const;
+
 #if BUILDFLAG(IS_ANDROID)
   TouchToFillController* GetOrCreateTouchToFillController();
 
@@ -509,8 +513,6 @@ class ChromePasswordManagerClient
                                              autofill::FormGlobalId form_id,
                                              FieldTypeSource source);
 
-  const raw_ptr<Profile> profile_;
-
   password_manager::PasswordManager password_manager_;
   password_manager::PasswordFeatureManagerImpl password_feature_manager_;
   password_manager::HttpAuthManagerImpl httpauth_manager_;
@@ -550,7 +552,7 @@ class ChromePasswordManagerClient
       password_generation_driver_receivers_;
 
   // Observer for password generation popup.
-  raw_ptr<PasswordGenerationPopupObserver> observer_;
+  raw_ptr<PasswordGenerationPopupObserver> observer_ = nullptr;
 
   // Controls the generation popup.
   base::WeakPtr<PasswordGenerationPopupControllerImpl> popup_controller_;

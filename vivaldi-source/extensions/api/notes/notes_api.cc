@@ -549,7 +549,7 @@ ExtensionFunction::ResponseAction NotesSearchFunction::Run() {
             needle, node->GetContent(), NULL, NULL);
       }
       if (!match && examine_url && node->GetURL().is_valid()) {
-        std::string value = node->GetURL().host() + node->GetURL().path();
+        std::string value = node->GetURL().GetHost() + node->GetURL().GetPath();
         match = base::i18n::StringSearchIgnoringCaseAndAccents(
             needle, base::UTF8ToUTF16(value), NULL, NULL);
       }

@@ -27,8 +27,8 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/vivaldi_overflow_menu/vivaldi_oveflow_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -69,14 +69,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   if (self) {
     _delegate = delegate;
-    self.styler.tableViewBackgroundColor =
-        [UIColor colorNamed:kGridBackgroundColor];
-
-    // Vivaldi
-    self.styler.cellBackgroundColor =
-        [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
-    // End Vivaldi
-
   }
   return self;
 }
@@ -87,6 +79,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [super viewDidLoad];
   self.view.accessibilityIdentifier =
       kSuggestedActionsViewControllerAccessibilityIdentifier;
+  self.tableView.backgroundColor = [UIColor colorNamed:kGridBackgroundColor];
   self.tableView.cellLayoutMarginsFollowReadableWidth = YES;
   self.tableView.estimatedRowHeight = kEstimatedRowMaxHeight;
   self.tableView.estimatedSectionHeaderHeight = 0.0;
@@ -135,8 +128,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
       l10n_util::GetNSString(IDS_IOS_TABS_SEARCH_SUGGESTED_ACTION_SEARCH_WEB);
 
   if (IsVivaldiRunning()) {
-    searchWebItem.image = [[UIImage imageNamed:vSearch]
-        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    searchWebItem.image =
+        [CustomSymbolWithPointSize(vSearch, kSymbolActionPointSize)
+            imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   } else {
   searchWebItem.image = [[UIImage imageNamed:@"suggested_action_web"]
       imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
@@ -242,5 +236,19 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
   [self reconfigureCellsForItems:@[ _searchHistoryItem ]];
 }
+
+// Vivaldi
+#pragma mark - UITableViewDataSource
+
+- (UITableViewCell*)tableView:(UITableView*)tableView
+        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
+  DCHECK_EQ(tableView, self.tableView);
+  UITableViewCell* cell = [super tableView:tableView
+                     cellForRowAtIndexPath:indexPath];
+  cell.contentView.backgroundColor =
+      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+  return cell;
+}
+// End Vivaldi
 
 @end

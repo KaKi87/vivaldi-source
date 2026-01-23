@@ -14,6 +14,8 @@ import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.touch_to_fill.common.BottomSheetFocusHelper;
 import org.chromium.components.autofill.AutofillSuggestion;
 import org.chromium.components.autofill.LoyaltyCard;
+import org.chromium.components.autofill.payments.BnplIssuerContext;
+import org.chromium.components.autofill.payments.BnplIssuerTosDetail;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 
 import java.util.List;
@@ -27,7 +29,7 @@ interface TouchToFillPaymentMethodComponent {
     /** This delegate is called when the TouchToFillPaymentMethod component is interacted with. */
     interface Delegate {
         /** Called whenever the sheet is dismissed (by user or native). */
-        void onDismissed(boolean dismissedByUser);
+        void onDismissed(boolean dismissedByUser, boolean shouldReshow);
 
         /** Called when user requests to scan a new credit card. */
         void scanCreditCard();
@@ -48,6 +50,16 @@ interface TouchToFillPaymentMethodComponent {
          * @param isVirtual A boolean to identify if the card is a virtual card.
          */
         void creditCardSuggestionSelected(String uniqueId, boolean isVirtual);
+
+        /**
+         * Called when the user selects the BNPL suggestion. If the extractedAmount is available, we
+         * show the issuer selection screen. Otherwise, the progress screen is displayed until
+         * amount extraction is complete.
+         *
+         * @param extractedAmount The amount associated with the BNPL suggestion, extracted from the
+         *     page.
+         */
+        void bnplSuggestionSelected(@Nullable Long extractedAmount);
 
         /**
          * Called when the user selects a local IBAN.
@@ -72,6 +84,16 @@ interface TouchToFillPaymentMethodComponent {
 
         /** Called when the user clicks the "Manage loyalty cards" button. */
         void openPassesManagementUi();
+
+        /**
+         * Called when the user selects a BNPL issuer.
+         *
+         * @param issuerId The selected BNPL issuer Id.
+         */
+        void onBnplIssuerSuggestionSelected(String issuerId);
+
+        /** Called when the user clicks the "Continue" button on the BNPL ToS screen. */
+        void onBnplTosAccepted();
     }
 
     /**
@@ -121,30 +143,55 @@ interface TouchToFillPaymentMethodComponent {
             boolean firstTimeUsage);
 
     /**
-     * Updates BNPL suggestions on payment methods bottom sheet based on the results of amount
+     * Updates BNPL suggestions or BNPL screen on the bottom sheet based on the results of amount
      * extraction.
      *
+     * @param bnplIssuerContexts A list of {@link BnplIssuerContext} objects, each representing a
+     *     BNPL issuer context, to be displayed on the bottom sheet for the user to select from.
      * @param extractedAmount The amount extracted from the checkout page, or {@code null} if
      *     extraction failed or timed out.
      * @param isAmountSupportedByAnyIssuer Whether the {@code extractedAmount} is supported by at
      *     least one BNPL issuer. This is only relevant if {@code extractedAmount} is not {@code
      *     null}.
      */
-    void updateBnplPaymentMethod(
-            @Nullable Long extractedAmount, boolean isAmountSupportedByAnyIssuer);
+    void onPurchaseAmountExtracted(
+            List<BnplIssuerContext> bnplIssuerContexts,
+            @Nullable Long extractedAmount,
+            boolean isAmountSupportedByAnyIssuer);
 
-    /** Displays a progress screen bottomsheet. */
+    /** Displays a progress screen bottom sheet. */
     void showProgressScreen();
 
     /**
      * Displays a new BNPL issuers bottom sheet.
      *
-     * @param bnplIssuers A list of {@link PersonalDataManager.BnplIssuer} objects, each
-     *     representing a BNPL issuer, to be displayed on the bottom sheet for the user to select
-     *     from.
+     * @param bnplIssuerContexts A list of {@link BnplIssuerContext} objects, each representing a
+     *     BNPL issuer context, to be displayed on the bottom sheet for the user to select from.
      */
-    void showBnplIssuers(List<PersonalDataManager.BnplIssuer> bnplIssuers);
+    void showBnplIssuers(List<BnplIssuerContext> bnplIssuerContexts);
+
+    /**
+     * Displays an error screen bottom sheet.
+     *
+     * @param title The title to be displayed on the error screen.
+     * @param description The description to be displayed on the error screen.
+     */
+    void showErrorScreen(String title, String description);
+
+    /**
+     * Displays a new BNPL issuer ToS bottom sheet.
+     *
+     * @param bnplIssuerTosDetail The struct that holds info for showing the ToS screen.
+     */
+    void showBnplIssuerTos(BnplIssuerTosDetail bnplIssuerTosDetail);
 
     /** Hides the bottom sheet if shown. */
     void hideSheet();
+
+    /**
+     * Sets the bottom sheet visibility.
+     *
+     * @param visible The value to set the bottom sheet visibility to.
+     */
+    void setVisible(boolean visible);
 }

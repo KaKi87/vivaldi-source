@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Ниво зумирања за <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi је спор, руши се или загрева уређај</translation>
 <translation id="1929299157575856072">ПОДРАЗУМЕВАНИ НИВО БЛОКИРАЊА</translation>
+<translation id="1933618400514506228">Српско-хрватски (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Отвори слику у картици у позадини</translation>
 <translation id="1986733655397734221">Ништа од овога</translation>
 <translation id="1994506778397655062">Отвори у новој картици у позадини</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">Не желим унапред учитане обележиваче и брза бирања</translation>
 <translation id="3091563570137981919">Блокирање праћења и реклама</translation>
 <translation id="3097968995088564986">Прикажи дугме ’Додај’</translation>
-<translation id="3102790820790869053">Претражи недавне картице</translation>
 <translation id="3134385238404760368">Нема недавних картица</translation>
 <translation id="3142562627629111859">Нова група</translation>
 <translation id="3157931365184549694">Врати</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">Желите ли још нешто да додате?</translation>
 <translation id="3842727926262967527">Изаберите где желите да имате траку картица и адресно поље.</translation>
 <translation id="3845564230651302310">Примена нових подешавања блокатора...</translation>
+<translation id="385051799172605136">Назад</translation>
 <translation id="3858860766373142691">Име</translation>
 <translation id="3861379244432690245">Омогући директно подударање</translation>
 <translation id="3866249974567520381">Опис</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">Датум уређивања</translation>
 <translation id="4640946580087069269">Копирај у белешку</translation>
 <translation id="4643117005422448078">Најпосећенији сајтови</translation>
-<translation id="4654428449690716275">Не приказуј банере пре или након што се понуди превод</translation>
 <translation id="4654578955713250802">Блокирање реклама и праћења</translation>
 <translation id="4655510151391078468">Овај код се не подудара са оним који смо вам послали.
         Имате још <ph name="ATTEMPTS" /> покушаја.</translation>
@@ -377,7 +377,7 @@
 <translation id="5398772614898833570">Блокиране рекламе</translation>
 <translation id="5415265829033764921">Дозволи правилима блокирања да блокирају одређене веб странице.</translation>
 <translation id="5421638721143596928">Није успело дешифровање ваших података за пријављивање. Пријавите се поново.</translation>
-<translation id="5439599923922718668">Често посећени</translation>
+<translation id="5439599923922718668">Често посећени сајтови</translation>
 <translation id="5439835075346716808">Регистрација је привремено блокирана за ову IP адресу. Покушајте поново касније.</translation>
 <translation id="5475116651001049780">Сакриј мобилну верзију сајта</translation>
 <translation id="5486261815000869482">Потврдите лозинку</translation>
@@ -496,6 +496,7 @@
 <translation id="6946395294519639514">Помоћу панела можете држати корисне алате на дохват руке на бочној траци прегледача.</translation>
 <translation id="6951435330868954105">Управљај подешавањима</translation>
 <translation id="6951948201878750661">Додирните да бисте изабрали ову боју</translation>
+<translation id="6954630860045222581">Прикажи панел</translation>
 <translation id="6967884871145366229">Управљај подешавањима приватности</translation>
 <translation id="6973630695168034713">Фасцикле</translation>
 <translation id="7000227144065890583">Адреса предлога</translation>
@@ -663,6 +664,7 @@
 <translation id="8948792607467387336">Изабери као тапет</translation>
 <translation id="8964449607824577665">Без ваше тренутне лозинке за шифровање не можемо да дешифрујемо ваше податке. Поништавање ове лозинке захтева брисање свих постојећих синхронизованих података на Vivaldi серверима.</translation>
 <translation id="8965371804397726192">Покрени синхронизацију свих података</translation>
+<translation id="896787570003733070">Не приказуј банере пре или после понуде превода</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Обележивач је премештен у "{title}"}
           other {Обележивачи су премештени у "{title}"}}</translation>

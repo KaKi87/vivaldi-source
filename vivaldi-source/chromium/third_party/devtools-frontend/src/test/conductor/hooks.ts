@@ -69,7 +69,7 @@ function launchChrome() {
     'CompositeBackgroundColorAnimation',           // crbug.com/381055647
     'ScriptSrcHashesV1',                           // crbug.com/443216445
   ];
-  // LINT.ThenChange(/test/e2e_non_hosted/shared/browser-helper.ts:features)
+  // LINT.ThenChange(/test/e2e/shared/browser-helper.ts:features)
   const launchArgs = [
     '--remote-allow-origins=*',
     '--remote-debugging-port=0',
@@ -213,14 +213,14 @@ export async function reloadDevTools(options?: DevToolsFrontendReloadOptions) {
   await frontendTab.reload(options);
 }
 
-// Can be run multiple times in the same process.
+/** Can be run multiple times in the same process. **/
 export async function preFileSetup(serverPort: number) {
   setTestServerPort(serverPort);
   registerHandlers();
   await loadTargetPageAndFrontend(serverPort);
 }
 
-// Can be run multiple times in the same process.
+/** Can be run multiple times in the same process. **/
 export async function postFileTeardown() {
   // We need to kill the browser before we stop the hosted mode server.
   // That's because the browser could continue to make network requests,

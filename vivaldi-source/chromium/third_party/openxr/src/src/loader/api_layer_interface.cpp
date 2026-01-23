@@ -19,6 +19,7 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_loader_negotiation.h>
 
+#include <algorithm>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -287,7 +288,7 @@ XrResult ApiLayerInterface::LoadApiLayers(const std::string& openxr_command, uin
             LoaderLogger::LogWarningMessage(openxr_command, warning_message);
             continue;
         }
-#ifdef XR_HAS_REQUIRED_PLATFORM_LOADER_INIT_STRUCT  // _platform_info is only available on some platforms.
+#if defined(XR_HAS_REQUIRED_PLATFORM_LOADER_INIT_STRUCT)  // Cannot proceed without mandatory xrInitializeLoaderKHR call.
         if (!LoaderInitData::instance().initialized()) {
             LoaderLogger::LogErrorMessage(openxr_command, "ApiLayerInterface::LoadApiLayers skipping manifest file " +
                                                               manifest_file->Filename() +

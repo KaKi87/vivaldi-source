@@ -93,6 +93,13 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
     _profileImageView.contentMode = UIViewContentModeScaleAspectFill;
     _profileImageView.layer.cornerRadius = kAvatarImageSize/2;
     _profileImageView.layer.masksToBounds = YES;
+    _profileImageView.userInteractionEnabled = YES;
+
+    UITapGestureRecognizer* avatarTapRecognizer =
+        [[UITapGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(handleAvatarTap)];
+    [_profileImageView addGestureRecognizer:avatarTapRecognizer];
 
     // Set up constraints for the badgeImageView
     _badgeImageView = [UIImageView new];
@@ -215,6 +222,10 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 }
 
 #pragma mark - Actions
+- (void)handleAvatarTap {
+  [self.delegate didTapProfilePhoto];
+}
+
 - (void)handleEditTap {
   [self.delegate
       didTapSessionEditButtonWithCurrentSession:self.sessionNameLabel.text];

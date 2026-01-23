@@ -13,7 +13,6 @@
 #import "ios/chrome/browser/omnibox/ui/omnibox_text_input.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_observer_bridge.h"
 #import "ios/chrome/browser/search_engines/model/search_engines_util.h"
-#import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
@@ -57,9 +56,6 @@ constexpr CGFloat kShadowOpacity = 0.12;
 // The text field that this view is an accessory to.
 @property(nonatomic, weak) UIResponder* responder;
 
-// IPH bubble handler for displaying IPH bubbles relating to the omnibox.
-@property(nonatomic, weak) id<HelpCommands> helpHandler;
-
 // Called when a keyboard shortcut button is pressed.
 - (void)keyboardButtonPressed:(NSString*)title;
 // Creates a button shortcut for `title`.
@@ -77,15 +73,16 @@ constexpr CGFloat kShadowOpacity = 0.12;
 @synthesize delegate = _delegate;
 
 - (instancetype)initWithButtons:(NSArray<NSString*>*)buttonTitles
+                      showTools:(BOOL)showTools
                        delegate:(id<OmniboxAssistiveKeyboardDelegate>)delegate
                     pasteTarget:(id<UIPasteConfigurationSupporting>)pasteTarget
              templateURLService:(TemplateURLService*)templateURLService
-                      responder:(UIResponder*)responder
-                    helpHandler:(id<HelpCommands>)helpHandler {
+                      responder:(UIResponder*)responder {
   self = [super initWithFrame:CGRectZero
                inputViewStyle:UIInputViewStyleKeyboard];
   if (self) {
     _buttonTitles = buttonTitles;
+    _showTools = showTools;
     _delegate = delegate;
     _pasteTarget = pasteTarget;
     _responder = responder;
@@ -95,7 +92,6 @@ constexpr CGFloat kShadowOpacity = 0.12;
     // style, self-sizing is allowed.
     self.allowsSelfSizing = !GlassEffectEnabled();
     self.templateURLService = templateURLService;
-    self.helpHandler = helpHandler;
     [self addSubviews];
 
     NSArray<UITrait>* traits =
@@ -112,11 +108,22 @@ constexpr CGFloat kShadowOpacity = 0.12;
       return _effectView.contentView;
     }
 
+#if VIVALDI_BUILD
+    // TODO: praveen@vivaldi.com
+    // VIB-1515 - Need to remove this once apple/chrome fix this
+    UIBlurEffect* blurEffect =
+      [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+    _effectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+    _effectView.layer.cornerRadius = kCornerRadius;
+    _effectView.clipsToBounds = YES;
+#else
     // Create glass effect
     UIGlassEffect* glassEffect = [[UIGlassEffect alloc] init];
     glassEffect.interactive = YES;
     glassEffect.tintColor = [UIColor colorNamed:kSecondaryBackgroundColor];
     _effectView = [[UIVisualEffectView alloc] initWithEffect:glassEffect];
+#endif // End Vivaldi
+
     self.layer.shadowRadius = kShadowRadius;
     self.layer.shadowOffset = CGSizeMake(0, kShadowVerticalOffset);
     self.layer.shadowOpacity = kShadowOpacity;
@@ -195,8 +202,9 @@ constexpr CGFloat kShadowOpacity = 0.12;
                  !base::FeatureList::IsEnabled(kDisableLensCamera) &&
                  [self isGoogleSearchEngine:self.templateURLService];
   NSArray<UIControl*>* leadingControls =
-      OmniboxAssistiveKeyboardLeadingControls(_delegate, self.pasteTarget,
-                                              useLens);
+      _showTools ? OmniboxAssistiveKeyboardLeadingControls(
+                       _delegate, self.pasteTarget, useLens)
+                 : @[];
   UIStackView* searchStackView = [[UIStackView alloc] init];
   searchStackView.translatesAutoresizingMaskIntoConstraints = NO;
   searchStackView.spacing = kBetweenSearchButtonSpacing;
@@ -208,7 +216,8 @@ constexpr CGFloat kShadowOpacity = 0.12;
 
   // Position the stack views.
   id<LayoutGuideProvider> layoutGuide =
-      _effectView ? _effectView.contentView : self.safeAreaLayoutGuide;
+      _effectView ? _effectView.contentView.safeAreaLayoutGuide
+                  : self.safeAreaLayoutGuide;
   [NSLayoutConstraint activateConstraints:@[
     [searchStackView.leadingAnchor
         constraintEqualToAnchor:layoutGuide.leadingAnchor
@@ -219,10 +228,13 @@ constexpr CGFloat kShadowOpacity = 0.12;
     [searchStackView.trailingAnchor
         constraintLessThanOrEqualToAnchor:shortcutStackView.leadingAnchor],
     [searchStackView.topAnchor
-        constraintEqualToAnchor:layoutGuide.topAnchor
+        constraintEqualToAnchor:_effectView ? _effectView.contentView.topAnchor
+                                            : layoutGuide.topAnchor
                        constant:kSearchStackViewTopMargin],
     [searchStackView.bottomAnchor
-        constraintEqualToAnchor:layoutGuide.bottomAnchor
+        constraintEqualToAnchor:_effectView
+                                    ? _effectView.contentView.bottomAnchor
+                                    : layoutGuide.bottomAnchor
                        constant:-kSearchStackViewBottomMargin],
     [shortcutStackView.topAnchor
         constraintEqualToAnchor:searchStackView.topAnchor],
@@ -300,11 +312,10 @@ constexpr CGFloat kShadowOpacity = 0.12;
 
   UIButton* lensButton = _delegate.lensButton;
   if (lensButton) {
-    id<HelpCommands> helpHandler = self.helpHandler;
+    __weak __typeof__(self) weakSelf = self;
     base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
         FROM_HERE, base::BindOnce(^{
-          [helpHandler
-              presentInProductHelpWithType:InProductHelpType::kLensKeyboard];
+          [weakSelf.delegate presentLensKeyboardInProductHelper];
         }),
         kLensButtonIPHDelay);
   }

@@ -15,6 +15,8 @@
 <translation id="3870643923290313246">{INCOGNITO_TABS_COUNT, plural,
         =1 {Zavřené listy najdete v části„nedávné listy“ v hlavním menu Vivaldi. Váš soukromý list tam nebude.}
         other {Zavřené listy najdete v části„nedávné listy“ v hlavním menu Vivaldi. Vaše # soukromé listy tam nebudou.}}</translation>
+<translation id="4686942373615810936">Vytvořeno právě teď</translation>
+<translation id="4870911314065352661">Zavřít všechny listy?</translation>
 <translation id="4871187110787939393">Zavřít všechny soukromé listy?</translation>
 <translation id="5494920125229734069">Vybrat vše</translation>
 <translation id="6807841890213931603">Odebrat list a smazat skupinu</translation>

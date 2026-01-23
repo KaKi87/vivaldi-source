@@ -105,7 +105,26 @@ ChromeAutofillClientIOS::ChromeAutofillClientIOS(
           IdentityManagerFactory::GetForProfile(profile->GetOriginalProfile())),
       infobar_manager_(infobar_manager),
       log_router_(AutofillLogRouterFactory::GetForProfile(profile_)),
-      ablation_study_(GetApplicationContext()->GetLocalState()) {}
+      ablation_study_(GetApplicationContext()->GetLocalState()) {
+  // TODO(crbug.com/449708427): Remove once `AccountInfo` supports full_name on
+  // IOS.
+  if (personal_data_manager_) {
+    AuthenticationService* authenticationService =
+        AuthenticationServiceFactory::GetForProfile(profile);
+    if (authenticationService) {
+      id<SystemIdentity> identity = authenticationService->GetPrimaryIdentity(
+          signin::ConsentLevel::kSignin);
+      // Tries to create kAccountNameEmail profile using the current primary
+      // account data.
+      if (identity) {
+        personal_data_manager_->address_data_manager()
+            .MaybeCreateAccountNameEmailProfile(
+                base::SysNSStringToUTF8(identity.userFullName),
+                base::SysNSStringToUTF8(identity.userEmail));
+      }
+    }
+  }
+}
 
 ChromeAutofillClientIOS::~ChromeAutofillClientIOS() {
   HideAutofillSuggestions(SuggestionHidingReason::kTabGone);
@@ -368,15 +387,6 @@ AutofillPlusAddressDelegate* ChromeAutofillClientIOS::GetPlusAddressDelegate() {
   return PlusAddressServiceFactory::GetForProfile(profile_);
 }
 
-void ChromeAutofillClientIOS::OfferPlusAddressCreation(
-    const url::Origin& main_frame_origin,
-    bool is_manual_fallback,
-    PlusAddressCallback callback) {
-  AutofillBottomSheetTabHelper* bottomSheetTabHelper =
-      AutofillBottomSheetTabHelper::FromWebState(web_state());
-  bottomSheetTabHelper->ShowPlusAddressesBottomSheet(std::move(callback));
-}
-
 void ChromeAutofillClientIOS::UpdateAutofillDataListValues(
     base::span<const autofill::SelectOption> datalist) {
   // No op. ios/web_view does not support display datalist.
@@ -388,15 +398,17 @@ void ChromeAutofillClientIOS::HideAutofillSuggestions(
 }
 
 bool ChromeAutofillClientIOS::IsAutofillEnabled() const {
-  return IsAutofillProfileEnabled() || IsAutofillPaymentMethodsEnabled();
+  return IsAutofillProfileEnabled() ||
+         AutofillClient::GetPaymentsAutofillClient()
+             ->IsAutofillPaymentMethodsEnabled();
 }
 
 bool ChromeAutofillClientIOS::IsAutofillProfileEnabled() const {
   return prefs::IsAutofillProfileEnabled(GetPrefs());
 }
 
-bool ChromeAutofillClientIOS::IsAutofillPaymentMethodsEnabled() const {
-  return prefs::IsAutofillPaymentMethodsEnabled(GetPrefs());
+bool ChromeAutofillClientIOS::IsWalletStorageEnabled() const {
+  return false;
 }
 
 bool ChromeAutofillClientIOS::IsAutocompleteEnabled() const {
@@ -412,7 +424,8 @@ void ChromeAutofillClientIOS::DidFillForm(AutofillTriggerSource trigger_source,
                                           bool is_refill) {}
 
 bool ChromeAutofillClientIOS::IsContextSecure() const {
-  return IsContextSecureForWebState(web_state());
+  return consider_as_secure_for_testing_ ||
+         IsContextSecureForWebState(web_state());
 }
 
 FormInteractionsFlowId

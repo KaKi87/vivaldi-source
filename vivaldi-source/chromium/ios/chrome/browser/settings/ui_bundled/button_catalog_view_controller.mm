@@ -4,7 +4,10 @@
 
 #import "ios/chrome/browser/settings/ui_bundled/button_catalog_view_controller.h"
 
+#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/button_util.h"
+#import "ios/chrome/common/ui/util/chrome_button.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 
 namespace {
@@ -31,7 +34,7 @@ UILabel* CreateLabel(NSString* text) {
 
   self.title = @"Button Catalog";
 
-  self.view.backgroundColor = UIColor.whiteColor;
+  self.view.backgroundColor = [UIColor colorNamed:kPrimaryBackgroundColor];
 
   UIScrollView* scrollView = [[UIScrollView alloc] init];
   scrollView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -45,7 +48,8 @@ UILabel* CreateLabel(NSString* text) {
 
   [stackView addArrangedSubview:CreateLabel(@"Primary Buttons")];
   for (int i = 0; i < 2; ++i) {
-    ChromeButton* button = PrimaryActionButton();
+    ChromeButton* button =
+        [[ChromeButton alloc] initWithStyle:ChromeButtonStylePrimary];
     button.enabled = i == 1;
     NSString* state = i == 1 ? @"enabled" : @"disabled";
     NSString* title = [NSString stringWithFormat:@"Primary Button (%@)", state];
@@ -53,9 +57,43 @@ UILabel* CreateLabel(NSString* text) {
     [stackView addArrangedSubview:button];
   }
 
+  [stackView addArrangedSubview:CreateLabel(@"Primary Button (loading)")];
+  {
+    ChromeButton* button =
+        [[ChromeButton alloc] initWithStyle:ChromeButtonStylePrimary];
+    button.enabled = NO;
+    UIButtonConfiguration* buttonConfiguration = button.configuration;
+    buttonConfiguration.showsActivityIndicator = YES;
+    buttonConfiguration.activityIndicatorColorTransformer =
+        ^UIColor*(UIColor* _) {
+          return UIColor.whiteColor;
+        };
+    button.configuration = buttonConfiguration;
+    [stackView addArrangedSubview:button];
+  }
+
+  [stackView addArrangedSubview:CreateLabel(@"Primary Button (confirm)")];
+  for (int i = 0; i < 2; ++i) {
+    BOOL destructive = i == 1;
+    ChromeButton* button = [[ChromeButton alloc]
+        initWithStyle:destructive ? ChromeButtonStylePrimaryDestructive
+                                  : ChromeButtonStylePrimary];
+    button.enabled = NO;
+    button.tunedDownStyle = YES;
+    UIButtonConfiguration* buttonConfiguration = button.configuration;
+    buttonConfiguration.image =
+        DefaultSymbolWithPointSize(kCheckmarkCircleFillSymbol, 17);
+    buttonConfiguration.imageColorTransformer = ^UIColor*(UIColor* _) {
+      return [UIColor colorNamed:destructive ? kRed600Color : kBlue700Color];
+    };
+    button.configuration = buttonConfiguration;
+    [stackView addArrangedSubview:button];
+  }
+
   [stackView addArrangedSubview:CreateLabel(@"Primary Destructive Buttons")];
   for (int i = 0; i < 2; ++i) {
-    ChromeButton* button = PrimaryDestructiveActionButton();
+    ChromeButton* button = [[ChromeButton alloc]
+        initWithStyle:ChromeButtonStylePrimaryDestructive];
     button.enabled = i == 1;
     NSString* state = i == 1 ? @"enabled" : @"disabled";
     NSString* title =
@@ -66,7 +104,8 @@ UILabel* CreateLabel(NSString* text) {
 
   [stackView addArrangedSubview:CreateLabel(@"Secondary Buttons")];
   for (int i = 0; i < 2; ++i) {
-    ChromeButton* button = SecondaryActionButton();
+    ChromeButton* button =
+        [[ChromeButton alloc] initWithStyle:ChromeButtonStyleSecondary];
     button.enabled = i == 1;
     NSString* state = i == 1 ? @"enabled" : @"disabled";
     NSString* title =
@@ -77,7 +116,8 @@ UILabel* CreateLabel(NSString* text) {
 
   [stackView addArrangedSubview:CreateLabel(@"Tertiary Buttons")];
   for (int i = 0; i < 2; ++i) {
-    ChromeButton* button = TertiaryActionButton();
+    ChromeButton* button =
+        [[ChromeButton alloc] initWithStyle:ChromeButtonStyleTertiary];
     button.enabled = i == 1;
     NSString* state = i == 1 ? @"enabled" : @"disabled";
     NSString* title =

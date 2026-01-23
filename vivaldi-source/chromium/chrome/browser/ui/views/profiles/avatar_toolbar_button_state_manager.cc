@@ -11,7 +11,6 @@
 #include "base/check_op.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
@@ -51,6 +50,8 @@
 #include "chrome/browser/ui/views/profiles/avatar_toolbar_button.h"
 #include "chrome/browser/ui/views/profiles/profile_menu_coordinator.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/webauthn/passkey_unlock_manager.h"
+#include "chrome/browser/webauthn/passkey_unlock_manager_factory.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
@@ -741,12 +742,6 @@ class ShowIdentityNameStateProvider : public StateProvider,
   // Shows the name in the identity pill. If the name is already showing, this
   // extends the duration.
   void ShowIdentityName() {
-    // Do not show the identity name if the enterprise badging is enabled for
-    // the avatar.
-    if (enterprise_util::CanShowEnterpriseBadgingForAvatar(&profile())) {
-      return;
-    }
-
     ++show_identity_request_count_;
     waiting_for_image_ = false;
 
@@ -820,9 +815,6 @@ class HistorySyncOptinCoordinator
       public signin::IdentityManager::Observer,
       public syncer::SyncServiceObserver {
  public:
-  static constexpr signin_metrics::AccessPoint kHistoryOptinAccessPoint =
-      signin_metrics::AccessPoint::kHistorySyncOptinExpansionPillOnStartup;
-
   static HistorySyncOptinCoordinator& GetOrCreateForProfile(Profile& profile) {
     HistorySyncOptinCoordinator* coordinator =
         static_cast<HistorySyncOptinCoordinator*>(
@@ -847,16 +839,9 @@ class HistorySyncOptinCoordinator
 
   void PromoUsed() {
     CHECK(before_promo_used_elapsed_timer_.has_value());
-    // TODO(crbug.com/447048341): Extend/Duplicate the below histogram to
-    // support the different promos.
-    if (promo_type_.value() ==
-            signin::ProfileMenuAvatarButtonPromoInfo::Type::kHistorySyncPromo ||
-        promo_type_.value() ==
-            signin::ProfileMenuAvatarButtonPromoInfo::Type::kSyncPromo) {
-      base::UmaHistogramMediumTimes(
-          "Signin.SyncOptIn.IdentityPill.DurationBeforeClick",
-          before_promo_used_elapsed_timer_->Elapsed());
-    }
+    base::UmaHistogramMediumTimes("Signin.AvatarPillPromo.DurationBeforeClick",
+                                  before_promo_used_elapsed_timer_->Elapsed());
+
     CHECK(promo_type_.has_value());
     sync_promo_identity_pill_manager_.RecordPromoUsed(promo_type_.value());
     Collapse();
@@ -875,6 +860,7 @@ class HistorySyncOptinCoordinator
         return;
       case ButtonState::kUpgradeClientError:
       case ButtonState::kPassphraseError:
+      case ButtonState::kBookmarksLimitExceeded:
       case ButtonState::kSyncError:
       case ButtonState::kSigninPending:
       case ButtonState::kSyncPaused:
@@ -886,6 +872,7 @@ class HistorySyncOptinCoordinator
       case ButtonState::kIncognitoProfile:
       case ButtonState::kGuestSession:
         break;
+      case ButtonState::kPasskeysLockedError:
       case ButtonState::kNormal:
       case ButtonState::kManagement:
         CHECK(!collapse_timer_.IsRunning());
@@ -900,6 +887,7 @@ class HistorySyncOptinCoordinator
         // state.
         Trigger();
         break;
+      case ButtonState::kPasskeysLockedError:
       case ButtonState::kOnSignin:
       case ButtonState::kIncognitoProfile:
       case ButtonState::kGuestSession:
@@ -912,6 +900,7 @@ class HistorySyncOptinCoordinator
       case ButtonState::kSyncPaused:
       case ButtonState::kUpgradeClientError:
       case ButtonState::kPassphraseError:
+      case ButtonState::kBookmarksLimitExceeded:
         break;
     }
   }
@@ -933,9 +922,10 @@ class HistorySyncOptinCoordinator
 
   // syncer::SyncServiceObserver
   void OnStateChanged(syncer::SyncService* sync_service) override {
-    if (sync_service->IsEngineInitialized()) {
+    if (sync_service->GetTransportState() ==
+        syncer::SyncService::TransportState::ACTIVE) {
       sync_service_observation_.Reset();
-      TriggerWithSyncServiceInitialized();
+      TriggerWithSyncServiceTransportStateActive();
     }
   }
 
@@ -971,21 +961,23 @@ class HistorySyncOptinCoordinator
 
     // TODO(crbug.com/448615704): Refactor this condition to be part of
     // `BatchUploadService` return value directly; e.g. returning std::nullopt
-    // instead of 0 (no local data) when the `syncer::SyncService` is not
-    // initialized.
-    if (!sync_service->IsEngineInitialized()) {
+    // instead of 0 (no local data) when the `syncer::SyncService` transport
+    // state is not active.
+    if (sync_service->GetTransportState() !=
+        syncer::SyncService::TransportState::ACTIVE) {
       if (!sync_service_observation_.IsObserving()) {
         sync_service_observation_.Observe(sync_service);
       }
       return;
     }
 
-    TriggerWithSyncServiceInitialized();
+    TriggerWithSyncServiceTransportStateActive();
   }
 
-  void TriggerWithSyncServiceInitialized() {
-    CHECK(SyncServiceFactory::GetForProfile(&profile_.get())
-              ->IsEngineInitialized());
+  void TriggerWithSyncServiceTransportStateActive() {
+    CHECK_EQ(
+        SyncServiceFactory::GetForProfile(&profile_.get())->GetTransportState(),
+        syncer::SyncService::TransportState::ACTIVE);
 
     signin::ComputeProfileMenuAvatarButtonPromoInfo(
         profile_.get(),
@@ -1026,17 +1018,12 @@ class HistorySyncOptinCoordinator
     }
     before_promo_used_elapsed_timer_.emplace();
     has_been_shown_since_startup_ = true;
+
     CHECK(promo_type_.has_value());
     sync_promo_identity_pill_manager_.RecordPromoShown(promo_type_.value());
-    // TODO(crbug.com/447048341): Extend/Duplicate the below histogram to
-    // support the different promos.
-    if (promo_type_.value() ==
-            signin::ProfileMenuAvatarButtonPromoInfo::Type::kHistorySyncPromo ||
-        promo_type_.value() ==
-            signin::ProfileMenuAvatarButtonPromoInfo::Type::kSyncPromo) {
-      base::UmaHistogramEnumeration("Signin.SyncOptIn.IdentityPill.Shown",
-                                    kHistoryOptinAccessPoint);
-    }
+    base::UmaHistogramEnumeration("Signin.AvatarPillPromo.Shown",
+                                  promo_type_.value());
+
     collapse_timer_.Start(FROM_HERE,
                           g_history_sync_optin_duration_for_testing.value_or(
                               kHistorySyncOptinDuration),
@@ -1140,8 +1127,7 @@ class HistorySyncOptinStateProvider : public StateProvider {
  private:
   void OnButtonClick(bool is_source_accelerator) {
     browser_->GetFeatures().profile_menu_coordinator()->Show(
-        is_source_accelerator,
-        HistorySyncOptinCoordinator::kHistoryOptinAccessPoint);
+        is_source_accelerator, /*from_avatar_promo=*/true);
     coordinator_->PromoUsed();
   }
 
@@ -1157,6 +1143,107 @@ class HistorySyncOptinStateProvider : public StateProvider {
 };
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
+// Observes passkey unlock manager to see if the passkeys are locked and the
+// error UI needs to be shown. If passkeys are locked, but could be unlocked, it
+// updates the profile avatar. It also updates the profile avatar after
+// unlocking passkeys.
+class PasskeyStateProvider : public StateProvider,
+                             public webauthn::PasskeyUnlockManager::Observer {
+ public:
+  ~PasskeyStateProvider() override = default;
+
+  explicit PasskeyStateProvider(Profile* profile, StateObserver* state_observer)
+      : StateProvider(profile, state_observer) {
+    passkey_manager_observation_.Observe(
+        webauthn::PasskeyUnlockManagerFactory::GetForProfile(profile));
+  }
+
+  // StateProvider:
+  bool IsActive() const final {
+    return passkey_manager_observation_.GetSource()->ShouldDisplayErrorUi();
+  }
+
+  std::optional<SkColor> GetHighlightColor(
+      const ui::ColorProvider& color_provider) const override {
+    // We use the same colors as the colors of sync errors.
+    return color_provider.GetColor(kColorAvatarButtonHighlightPasskeysLocked);
+  }
+
+  ui::ImageModel GetAvatarIcon(
+      int icon_size,
+      SkColor /*icon_color*/,
+      const ui::ColorProvider& color_provider) const override {
+    return GetAvatarImageWithDottedRing(profile(), color_provider, icon_size);
+  }
+
+  std::u16string GetAvatarTooltipText() const final {
+    return passkey_manager_observation_.GetSource()
+        ->GetPasskeyErrorProfileMenuDetails();
+  }
+
+  std::pair<ChromeColorIds, ChromeColorIds> GetInkdropColors() const override {
+    return {kColorToolbarInkDropHover, kColorAvatarButtonNormalRipple};
+  }
+
+  std::u16string GetText() const override {
+    return passkey_manager_observation_.GetSource()
+        ->GetPasskeyErrorProfilePillTitle();
+  }
+
+ private:
+  void OnPasskeyUnlockManagerStateChanged() final { RequestUpdate(); }
+
+  void OnPasskeyUnlockManagerShuttingDown() final {
+    passkey_manager_observation_.Reset();
+  }
+
+  void OnPasskeyUnlockManagerIsReady() final { RequestUpdate(); }
+
+  base::ScopedObservation<webauthn::PasskeyUnlockManager,
+                          webauthn::PasskeyUnlockManager::Observer>
+      passkey_manager_observation_{this};
+};
+
+class AvatarToolbarButtonPasskeyStateChangeReporter
+    : public base::SupportsUserData::Data,
+      public AvatarToolbarButtonStateManager::Observer {
+ public:
+  // AvatarToolbarButtonStateManager::Observer:
+  void OnButtonStateChanged(std::optional<ButtonState> old_state,
+                            ButtonState new_state) override {
+    if (new_state == ButtonState::kPasskeysLockedError) {
+      webauthn::PasskeyUnlockManager::RecordErrorUIEventType(
+          webauthn::PasskeyUnlockManager::ErrorUIEventType::kAvatarUIDisplayed);
+    }
+    if (!old_state.has_value()) {
+      return;
+    }
+    if (old_state.value() == ButtonState::kPasskeysLockedError) {
+      webauthn::PasskeyUnlockManager::RecordErrorUIEventType(
+          webauthn::PasskeyUnlockManager::ErrorUIEventType::kAvatarUIHidden);
+    }
+  }
+
+  static AvatarToolbarButtonPasskeyStateChangeReporter& GetOrCreateForProfile(
+      Profile& profile) {
+    AvatarToolbarButtonPasskeyStateChangeReporter* reporter =
+        static_cast<AvatarToolbarButtonPasskeyStateChangeReporter*>(
+            profile.GetUserData(
+                kAvatarToolbarButtonPasskeyStateChangeReporterKey));
+    if (!reporter) {
+      reporter = new AvatarToolbarButtonPasskeyStateChangeReporter();
+      profile.SetUserData(kAvatarToolbarButtonPasskeyStateChangeReporterKey,
+                          base::WrapUnique(reporter));
+    }
+    return *reporter;
+  }
+
+ private:
+  constexpr static const void* const
+      kAvatarToolbarButtonPasskeyStateChangeReporterKey =
+          &kAvatarToolbarButtonPasskeyStateChangeReporterKey;
+};
+
 // This provider observes sync errors (including transport mode). It can be
 // configured to listen to a specific error with `sync_error_type`, or to all
 // errors by passing nullopt. That way specific implementations of
@@ -1167,7 +1254,8 @@ class SyncErrorBaseStateProvider : public StateProvider,
                                    public syncer::SyncServiceObserver {
  public:
   struct AvatarError {
-    AvatarSyncErrorType avatar_error = AvatarSyncErrorType::kUpgradeClientError;
+    syncer::SyncService::UserActionableError avatar_error =
+        syncer::SyncService::UserActionableError::kNeedsClientUpgrade;
     std::string email;
 
     friend bool operator==(const AvatarError&, const AvatarError&) = default;
@@ -1176,7 +1264,7 @@ class SyncErrorBaseStateProvider : public StateProvider,
   explicit SyncErrorBaseStateProvider(
       Profile* profile,
       StateObserver* state_observer,
-      std::optional<AvatarSyncErrorType> sync_error_type)
+      std::optional<syncer::SyncService::UserActionableError> sync_error_type)
       : StateProvider(profile, state_observer),
         sync_error_type_(sync_error_type),
         last_avatar_error_(GetAvatarError(profile)) {
@@ -1189,6 +1277,12 @@ class SyncErrorBaseStateProvider : public StateProvider,
   bool IsActive() const final {
     return SyncServiceFactory::IsSyncAllowed(&profile()) &&
            HasError(last_avatar_error_);
+  }
+
+  std::u16string GetText() const override {
+    CHECK(GetLastAvatarSyncError().has_value());
+    return l10n_util::GetStringUTF16(GetSyncErrorButtonStringId(
+        GetLastAvatarSyncError()->avatar_error, /*support_title_case=*/true));
   }
 
   std::optional<SkColor> GetHighlightColor(
@@ -1222,22 +1316,26 @@ class SyncErrorBaseStateProvider : public StateProvider,
  private:
   // Computes the current avatar error.
   static std::optional<AvatarError> GetAvatarError(Profile* profile) {
-    std::optional<AvatarSyncErrorType> error_type =
-        ::GetAvatarSyncErrorType(profile);
     const syncer::SyncService* service =
         SyncServiceFactory::GetForProfile(profile);
-
-    // Avoid returning AvatarSyncErrorType::kSyncPaused in case of no sync
-    // consent, as the signin-pending state is handled by
-    // SigninPendingStateProvider.
-    if (!error_type || (error_type == AvatarSyncErrorType::kSyncPaused &&
-                        !service->HasSyncConsent())) {
+    if (!service) {
       return std::nullopt;
     }
 
-    CHECK(service);
+    syncer::SyncService::UserActionableError error_type =
+        service->GetUserActionableError();
 
-    return AvatarError{error_type.value(), service->GetAccountInfo().email};
+    // Avoid returning UserActionableError::kSignInNeedsUpdate in case of no
+    // sync consent, as the signin-pending state is handled by
+    // SigninPendingStateProvider.
+    if (error_type == syncer::SyncService::UserActionableError::kNone ||
+        (error_type ==
+             syncer::SyncService::UserActionableError::kSignInNeedsUpdate &&
+         !service->HasSyncConsent())) {
+      return std::nullopt;
+    }
+
+    return AvatarError{error_type, service->GetAccountInfo().email};
   }
 
   // syncer::SyncServiceObserver:
@@ -1279,7 +1377,8 @@ class SyncErrorBaseStateProvider : public StateProvider,
   }
 
   // std::nullopt to be active on all errors.
-  const std::optional<AvatarSyncErrorType> sync_error_type_;
+  const std::optional<syncer::SyncService::UserActionableError>
+      sync_error_type_;
 
   // Caches the value of the last error so the class can detect when it
   // changes and notify changes.
@@ -1293,9 +1392,10 @@ class SyncPausedStateProvider : public SyncErrorBaseStateProvider {
  public:
   explicit SyncPausedStateProvider(Profile* profile,
                                    StateObserver* state_observer)
-      : SyncErrorBaseStateProvider(profile,
-                                   state_observer,
-                                   AvatarSyncErrorType::kSyncPaused) {}
+      : SyncErrorBaseStateProvider(
+            profile,
+            state_observer,
+            syncer::SyncService::UserActionableError::kSignInNeedsUpdate) {}
 
   ~SyncPausedStateProvider() override = default;
 
@@ -1318,32 +1418,42 @@ class UpgradeClientErrorStateProvider : public SyncErrorBaseStateProvider {
  public:
   explicit UpgradeClientErrorStateProvider(Profile* profile,
                                            StateObserver* state_observer)
-      : SyncErrorBaseStateProvider(profile,
-                                   state_observer,
-                                   AvatarSyncErrorType::kUpgradeClientError) {}
+      : SyncErrorBaseStateProvider(
+            profile,
+            state_observer,
+            syncer::SyncService::UserActionableError::kNeedsClientUpgrade) {}
 
   ~UpgradeClientErrorStateProvider() override = default;
-
-  // StateProvider:
-  std::u16string GetText() const override {
-    return l10n_util::GetStringUTF16(IDS_SYNC_ERROR_USER_MENU_UPGRADE_BUTTON);
-  }
 };
 
 class PassphraseErrorStateProvider : public SyncErrorBaseStateProvider {
  public:
   explicit PassphraseErrorStateProvider(Profile* profile,
                                         StateObserver* state_observer)
-      : SyncErrorBaseStateProvider(profile,
-                                   state_observer,
-                                   AvatarSyncErrorType::kPassphraseError) {}
+      : SyncErrorBaseStateProvider(
+            profile,
+            state_observer,
+            syncer::SyncService::UserActionableError::kNeedsPassphrase) {}
 
   ~PassphraseErrorStateProvider() override = default;
+};
+
+class BookmarksLimitExceededStateProvider : public SyncErrorBaseStateProvider {
+ public:
+  explicit BookmarksLimitExceededStateProvider(Profile* profile,
+                                               StateObserver* state_observer)
+      : SyncErrorBaseStateProvider(
+            profile,
+            state_observer,
+            syncer::SyncService::UserActionableError::kBookmarksLimitExceeded) {
+  }
+
+  ~BookmarksLimitExceededStateProvider() override = default;
 
   // StateProvider:
   std::u16string GetText() const override {
     return l10n_util::GetStringUTF16(
-        IDS_SYNC_ERROR_USER_MENU_PASSPHRASE_BUTTON);
+        IDS_AVATAR_BUTTON_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED);
   }
 };
 
@@ -1469,6 +1579,10 @@ class SigninPendingStateProvider : public StateProvider,
 
   // StateProvider:
   bool IsActive() const override {
+    if (identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSync)) {
+      return false;
+    }
+
     CoreAccountId primary_account_id =
         identity_manager_->GetPrimaryAccountId(signin::ConsentLevel::kSignin);
     if (primary_account_id.empty()) {
@@ -1850,6 +1964,10 @@ void AvatarToolbarButtonStateManager::CreateStatesAndListeners(
         std::make_unique<PassphraseErrorStateProvider>(profile,
                                                        /*state_observer=*/this);
 
+    states_[ButtonState::kBookmarksLimitExceeded] =
+        std::make_unique<BookmarksLimitExceededStateProvider>(
+            profile, /*state_observer=*/this);
+
     if (AccountConsistencyModeManager::IsDiceEnabledForProfile(profile)) {
       states_[ButtonState::kSyncPaused] =
           std::make_unique<SyncPausedStateProvider>(profile,
@@ -1888,6 +2006,15 @@ void AvatarToolbarButtonStateManager::CreateStatesAndListeners(
             profile,
             /*state_observer=*/this, &avatar_toolbar_button_.get());
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
+
+    if (webauthn::PasskeyUnlockManager::IsPasskeyUnlockErrorUiEnabled()) {
+      states_[ButtonState::kPasskeysLockedError] =
+          std::make_unique<PasskeyStateProvider>(profile,
+                                                 /*state_observer=*/this);
+      state_manager_observers_.emplace_back(
+          AvatarToolbarButtonPasskeyStateChangeReporter::GetOrCreateForProfile(
+              *profile));
+    }
 
     signin::IdentityManager* identity_manager =
         IdentityManagerFactory::GetForProfile(profile);

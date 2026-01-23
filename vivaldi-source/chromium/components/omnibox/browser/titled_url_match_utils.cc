@@ -163,7 +163,6 @@ AutocompleteMatch TitledUrlMatchToAutocompleteMatch(
   auto fill_into_edit_format_types = url_formatter::kFormatUrlOmitDefaults;
   if (match_in_scheme)
     fill_into_edit_format_types &= ~url_formatter::kFormatUrlOmitHTTP;
-
   match.fill_into_edit =
       AutocompleteInput::FormattedStringWithEquivalentMeaning(
           url,

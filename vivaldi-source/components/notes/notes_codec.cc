@@ -6,29 +6,28 @@
 #include "components/notes/notes_codec.h"
 
 #include <algorithm>
-#include <iostream>
 #include <memory>
 #include <vector>
 
 #include "base/base64.h"
 #include "base/containers/contains.h"
-#include "base/uuid.h"
-#include "base/json/json_string_value_serializer.h"
+#include "base/containers/span.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "components/notes/note_node.h"
-#include "ui/base/l10n/l10n_util.h"
+#include "crypto/hash.h"
 #include "url/gurl.h"
 
 using base::Time;
-using std::cout;
 
 namespace vivaldi {
 
 const char NotesCodec::kVersionKey[] = "version";
+const char NotesCodec::kChecksumSHA256Key[] = "checksum_sha256";
 const char NotesCodec::kChecksumKey[] = "checksum";
 const char NotesCodec::kIdKey[] = "id";
 const char NotesCodec::kTypeKey[] = "type";
@@ -51,42 +50,71 @@ const char NotesCodec::kTypeTrash[] = "trash";
 // Current version of the file.
 static const int kCurrentVersion = 1;
 
-NotesCodec::NotesCodec()
-    : ids_reassigned_(false), ids_valid_(true), maximum_id_(0) {}
+namespace {
+// Encodes Sync metadata and cleans up the input string to decrease peak memory
+// usage during encoding.
+base::Value EncodeSyncMetadata(std::string sync_metadata_str) {
+  return base::Value(base::Base64Encode(sync_metadata_str));
+}
 
-NotesCodec::~NotesCodec() {}
+// Helper function to convert Time to microseconds since Windows epoch.
+int64_t ToMicrosecondsSinceWindowsEpoch(Time time) {
+  return time.ToDeltaSinceWindowsEpoch().InMicroseconds();
+}
 
-base::Value NotesCodec::Encode(NotesModel* model,
-                               const std::string& sync_metadata_str) {
+// Helper function to parse date from dictionary, returns nullopt if not found.
+std::optional<Time> FindMicrosecondsSinceWindowsEpoch(
+    const base::Value::Dict& dict,
+    std::string_view key) {
+  const std::string* string_value = dict.FindString(key);
+  if (!string_value) {
+    return std::nullopt;
+  }
+
+  int64_t microseconds = 0;
+  if (!base::StringToInt64(*string_value, &microseconds)) {
+    return std::nullopt;
+  }
+
+  return Time::FromDeltaSinceWindowsEpoch(base::Microseconds(microseconds));
+}
+
+}  // namespace
+
+NotesCodec::NotesCodec() = default;
+
+NotesCodec::~NotesCodec() = default;
+
+base::Value::Dict NotesCodec::Encode(NotesModel* model,
+                                     const std::string& sync_metadata_str) {
   return Encode(model->main_node(), model->other_node(), model->trash_node(),
                 sync_metadata_str);
 }
 
-base::Value NotesCodec::Encode(const NoteNode* notes_node,
-                               const NoteNode* other_notes_node,
-                               const NoteNode* trash_notes_node,
-                               const std::string& sync_metadata_str) {
+base::Value::Dict NotesCodec::Encode(const NoteNode* notes_node,
+                                     const NoteNode* other_notes_node,
+                                     const NoteNode* trash_notes_node,
+                                     std::string sync_metadata_str) {
   ids_reassigned_ = false;
-  InitializeChecksum();
+  uuids_reassigned_ = false;
 
   std::vector<const NoteNode*> extra_nodes;
   extra_nodes.push_back(other_notes_node);
   extra_nodes.push_back(trash_notes_node);
 
-  base::Value main(EncodeNode(notes_node, &extra_nodes));
-  DCHECK(main.is_dict());
-  main.GetDict().Set(kVersionKey, kCurrentVersion);
-  FinalizeChecksum();
-  // We are going to store the computed checksum. So set stored checksum to be
-  // the same as computed checksum.
-  stored_checksum_ = computed_checksum_;
-  main.GetDict().Set(kChecksumKey, computed_checksum_);
+  InitializeChecksum();
+  base::Value::Dict main(EncodeNode(notes_node, &extra_nodes));
+  main.Set(kVersionKey, kCurrentVersion);
+
   if (!sync_metadata_str.empty()) {
-    std::string sync_metadata_str_base64;
-    sync_metadata_str_base64 = base::Base64Encode(sync_metadata_str);
-    main.GetDict().Set(kSyncMetadata,
-                base::Value(std::move(sync_metadata_str_base64)));
+    main.Set(kSyncMetadata, EncodeSyncMetadata(sync_metadata_str));
+    sync_metadata_str.clear();
   }
+
+  FinalizeChecksum();
+  main.Set(kChecksumKey, computed_checksum_);
+  main.Set(kChecksumSHA256Key, computed_sha256_checksum_);
+
   return main;
 }
 
@@ -94,44 +122,41 @@ bool NotesCodec::Decode(NoteNode* notes_node,
                         NoteNode* other_notes_node,
                         NoteNode* trash_notes_node,
                         int64_t* max_id,
-                        const base::Value& value,
+                        const base::Value::Dict& value,
                         std::string* sync_metadata_str) {
+  if (sync_metadata_str) {
+    sync_metadata_str->clear();
+  }
+
   ids_.clear();
+  maximum_id_ = ids_.empty() ? 0 : *ids_.rbegin();
   uuids_ = {base::Uuid::ParseLowercase(NoteNode::kRootNodeUuid),
             base::Uuid::ParseLowercase(NoteNode::kMainNodeUuid),
             base::Uuid::ParseLowercase(NoteNode::kOtherNotesNodeUuid),
             base::Uuid::ParseLowercase(NoteNode::kTrashNodeUuid)};
   ids_reassigned_ = false;
-  ids_valid_ = true;
-  maximum_id_ = 0;
-  stored_checksum_.clear();
-  InitializeChecksum();
+  uuids_reassigned_ = false;
+  nodes_requiring_id_reassignment_.clear();
+  reassigned_ids_per_old_id_.clear();
+
   bool success = DecodeHelper(notes_node, other_notes_node, trash_notes_node,
                               value, sync_metadata_str);
-  FinalizeChecksum();
-  // If either the checksums differ or some IDs were missing/not unique,
-  // reassign IDs.
-  if (!ids_valid_ || computed_checksum() != stored_checksum()) {
-    ReassignIDs(notes_node, other_notes_node, trash_notes_node);
-  }
+  ReassignIDsIfRequired();
+
   *max_id = maximum_id_ + 1;
   return success;
 }
 
-base::Value NotesCodec::EncodeNode(
+base::Value::Dict NotesCodec::EncodeNode(
     const NoteNode* node,
     const std::vector<const NoteNode*>* extra_nodes) {
-  base::Value value(base::Value::Type::DICT);
-  std::string node_id = base::NumberToString(node->id());
-  value.GetDict().Set(kIdKey, node_id);
-  UpdateChecksum(node_id);
-
+  base::Value::Dict value;
+  std::string id = base::NumberToString(node->id());
+  value.Set(kIdKey, id);
   std::u16string subject = node->GetTitle();
-  value.GetDict().Set(kSubjectKey, subject);
-  UpdateChecksum(subject);
-
+  value.Set(kSubjectKey, subject);
   const std::string& uuid = node->uuid().AsLowercaseString();
-  value.GetDict().Set(kGuidKey, uuid);
+  value.Set(kGuidKey, uuid);
 
   std::string type;
   bool can_have_children = false;
@@ -159,40 +184,43 @@ base::Value NotesCodec::EncodeNode(
     case NoteNode::ATTACHMENT:
       type = kTypeAttachment;
       break;
-    default:
-      NOTREACHED();
   }
-  value.GetDict().Set(kTypeKey, type);
-  UpdateChecksum(type);
+  value.Set(kTypeKey, type);
+  value.Set(kDateAddedKey, base::NumberToString(ToMicrosecondsSinceWindowsEpoch(
+                               node->GetCreationTime())));
+  value.Set(kDateModifiedKey,
+            base::NumberToString(ToMicrosecondsSinceWindowsEpoch(
+                node->GetLastModificationTime())));
 
-  value.GetDict().Set(
-      kDateAddedKey,
-      base::NumberToString(node->GetCreationTime().ToInternalValue()));
-  value.GetDict().Set(
-      kDateModifiedKey,
-      base::NumberToString(node->GetLastModificationTime().ToInternalValue()));
-
+  std::u16string content = node->GetContent();
   if (node->type() == NoteNode::NOTE || node->type() == NoteNode::ATTACHMENT) {
-    value.GetDict().Set(kContentKey, node->GetContent());
-    UpdateChecksum(node->GetContent());
+    value.Set(kContentKey, content);
 
     std::string url = node->GetURL().possibly_invalid_spec();
-    value.GetDict().Set(kURLKey, url);
-    UpdateChecksum(url);
+    value.Set(kURLKey, url);
+
+    // NOTE(julien): Currently, we only store those checksums in the file, but
+    // do not read them. This matches the behavior implemented in the bookmarks
+    // code which aims to completely do away with the checksums once the new
+    // method of reassigning ids has been shown to not cause issues. This has to
+    // be followed up in the next intake.
+    UpdateChecksumWithNoteNode(id, subject, type, content, url);
+  } else {
+    UpdateChecksumWithNoteFolder(id, subject, type);
   }
 
   if (can_have_children) {
-    base::Value child_list(base::Value::Type::LIST);
+    base::Value::List child_list;
 
     for (const auto& child : node->children()) {
-      child_list.GetList().Append(EncodeNode(child.get(), nullptr));
+      child_list.Append(EncodeNode(child.get(), nullptr));
     }
     if (extra_nodes) {
       for (const auto* child : *extra_nodes) {
-        child_list.GetList().Append(EncodeNode(child, nullptr));
+        child_list.Append(EncodeNode(child, nullptr));
       }
     }
-    value.GetDict().Set(kChildrenKey, std::move(child_list));
+    value.Set(kChildrenKey, std::move(child_list));
   }
 
   return value;
@@ -201,73 +229,54 @@ base::Value NotesCodec::EncodeNode(
 bool NotesCodec::DecodeHelper(NoteNode* notes_node,
                               NoteNode* other_notes_node,
                               NoteNode* trash_node,
-                              const base::Value& value,
+                              const base::Value::Dict& value,
                               std::string* sync_metadata_str) {
-  if (!value.is_dict())
-    return false;  // Unexpected type.
-
-  std::optional<int> version = value.GetDict().FindInt(kVersionKey);
+  std::optional<int> version = value.FindInt(kVersionKey);
   if (!version || *version > kCurrentVersion)
     return false;  // Unknown version.
 
-  const base::Value* checksum_value = value.GetDict().Find(kChecksumKey);
-  if (checksum_value) {
-    const std::string* checksum = checksum_value->GetIfString();
-    if (checksum)
-      stored_checksum_ = *checksum;
-    else
-      return false;
+  if (sync_metadata_str) {
+    const std::string* sync_metadata_str_base64 =
+        value.FindString(kSyncMetadata);
+    if (sync_metadata_str_base64)
+      base::Base64Decode(*sync_metadata_str_base64, sync_metadata_str);
   }
 
   DecodeNode(value, nullptr, notes_node, other_notes_node, trash_node);
 
-  if (sync_metadata_str) {
-    const std::string* sync_metadata_str_base64 =
-        value.GetDict().FindString(kSyncMetadata);
-    if (sync_metadata_str_base64)
-      base::Base64Decode(*sync_metadata_str_base64, sync_metadata_str);
+  if (!other_notes_node || !trash_node) {
+    return false;
   }
 
   return true;
 }
 
-bool NotesCodec::DecodeNode(const base::Value& value,
+void NotesCodec::DecodeNode(const base::Value::Dict& value,
                             NoteNode* parent,
                             NoteNode* node,
                             NoteNode* child_other_node,
                             NoteNode* child_trash_node) {
-  DCHECK(value.is_dict());
   // If no |node| is specified, we'll create one and add it to the |parent|.
   // Therefore, in that case, |parent| must be non-NULL.
-  if (!node && !parent) {
-    NOTREACHED();
-  }
+  CHECK(node || parent);
 
   // It's not valid to have both a node and a specified parent.
-  if (node && parent) {
-    NOTREACHED();
-  }
+  CHECK(!node || !parent);
 
-  std::string id_string;
   int64_t id = 0;
-  if (ids_valid_) {
-    const std::string* string = value.GetDict().FindString(kIdKey);
-    if (!string || !base::StringToInt64(*string, &id) || ids_.count(id) != 0) {
-      ids_valid_ = false;
-    } else {
-      ids_.insert(id);
-      id_string = *string;
-    }
-  }
-  UpdateChecksum(id_string);
+  bool id_requires_reassignment = true;
 
-  maximum_id_ = std::max(maximum_id_, id);
+  if (const std::string* string = value.FindString(kIdKey);
+      string && base::StringToInt64(*string, &id) && id > 0 &&
+      ids_.insert(id).second) {
+    id_requires_reassignment = false;
+    maximum_id_ = std::max(maximum_id_, id);
+  }
 
   std::u16string title;
-  const std::string* string_value = value.GetDict().FindString(kSubjectKey);
+  const std::string* string_value = value.FindString(kSubjectKey);
   if (string_value) {
     title = base::UTF8ToUTF16(*string_value);
-    UpdateChecksum(title);
   }
 
   base::Uuid uuid;
@@ -278,7 +287,7 @@ bool NotesCodec::DecodeNode(const base::Value& value,
     // UUIDs can be empty for notes that were created before UUIDs were
     // required. When encountering one such note we thus assign to it a new
     // UUID. The same applies if the stored UUID is invalid or a duplicate.
-    const std::string* uuid_str = value.GetDict().FindString(kGuidKey);
+    const std::string* uuid_str = value.FindString(kGuidKey);
     if (uuid_str && !uuid_str->empty()) {
       uuid = base::Uuid::ParseCaseInsensitive(*uuid_str);
     }
@@ -303,22 +312,9 @@ bool NotesCodec::DecodeNode(const base::Value& value,
     uuids_.insert(uuid);
   }
 
-  const auto getTimeFromKey = [&value](const auto& key) {
-    const std::string* string_value = value.GetDict().FindString(key);
-    if (string_value) {
-      int64_t internal_time;
-      if (base::StringToInt64(*string_value, &internal_time)) {
-        return base::Time::FromInternalValue(internal_time);
-      }
-    }
-    return base::Time::Now();
-  };
-  base::Time creation_time = getTimeFromKey(kDateAddedKey);
-  base::Time last_modification_time = getTimeFromKey(kDateModifiedKey);
-
-  const std::string* type_string = value.GetDict().FindString(kTypeKey);
+  const std::string* type_string = value.FindString(kTypeKey);
   if (!type_string)
-    return false;
+    return;
 
   NoteNode::Type type = NoteNode::NOTE;
   if (*type_string == kTypeNote)
@@ -331,33 +327,30 @@ bool NotesCodec::DecodeNode(const base::Value& value,
     type = NoteNode::FOLDER;
   else if (!node || (*type_string != kTypeOther && *type_string != kTypeTrash))
     // We can't create a permanent node when loading.
-    return false;
-  UpdateChecksum(*type_string);
+    return;
 
-  const base::Value::List* child_list = value.GetDict().FindList(kChildrenKey);
+  const base::Value::List* child_list = value.FindList(kChildrenKey);
 
   if (*type_string == kTypeNote || *type_string == kTypeAttachment) {
-    const std::string* content_string = value.GetDict().FindString(kContentKey);
+    const std::string* content_string = value.FindString(kContentKey);
     if (!content_string)
-      return false;
+      return;
 
     if (!node) {
       DCHECK(uuid.is_valid());
       node = new NoteNode(id, uuid, type);
     } else {
-      return false;
+      return;
     }
 
     node->SetContent(base::UTF8ToUTF16(*content_string));
-    UpdateChecksum(node->GetContent());
 
-    const std::string* url_string = value.GetDict().FindString(kURLKey);
+    const std::string* url_string = value.FindString(kURLKey);
     if (url_string)
       node->SetURL(GURL(*url_string));
-    UpdateChecksum(node->GetURL().possibly_invalid_spec());
 
     if (*type_string == kTypeNote) {
-      const base::Value::List* attachments = value.GetDict().FindList(kAttachmentsKey);
+      const base::Value::List* attachments = value.FindList(kAttachmentsKey);
       if (attachments) {
         for (const auto& attachment : *attachments) {
           if (!attachment.is_dict())
@@ -373,7 +366,7 @@ bool NotesCodec::DecodeNode(const base::Value& value,
     }
   } else if (*type_string != kTypeSeparator) {
     if (!child_list)
-      return false;
+      return;
 
     if (!node) {
       DCHECK(uuid.is_valid());
@@ -389,83 +382,115 @@ bool NotesCodec::DecodeNode(const base::Value& value,
 
       node = new NoteNode(id, uuid, type);
     } else {
-      return false;
+      return;
     }
   }
 
   if (*type_string != kTypeSeparator && *type_string != kTypeAttachment &&
       child_list) {
     for (const auto& child_value : *child_list) {
-      if (!child_value.is_dict())
-        return false;
+      if (!child_value.is_dict()) {
+        continue;
+      }
 
-      const std::string* type_string2 = child_value.GetDict().FindString(kTypeKey);
+      const std::string* type_string2 =
+          child_value.GetDict().FindString(kTypeKey);
       if (!type_string2)
-        return false;
+        return;
       if (*type_string2 == kTypeOther) {
-        if (!child_other_node)
-          return false;
-        DecodeNode(child_value, nullptr, child_other_node, nullptr, nullptr);
+        if (!child_other_node) {
+          return;
+        }
+        DecodeNode(child_value.GetDict(), nullptr, child_other_node, nullptr,
+                   nullptr);
         child_other_node = nullptr;
         continue;
       }
       if (*type_string2 == kTypeTrash) {
         if (!child_trash_node)
-          return false;
-        DecodeNode(child_value, nullptr, child_trash_node, nullptr, nullptr);
+          return;
+        DecodeNode(child_value.GetDict(), nullptr, child_trash_node, nullptr,
+                   nullptr);
         child_trash_node = nullptr;
         continue;
       }
 
-      DecodeNode(child_value, node, nullptr, nullptr, nullptr);
+      DecodeNode(child_value.GetDict(), node, nullptr, nullptr, nullptr);
     }
+  }
+
+  if (id_requires_reassignment) {
+    nodes_requiring_id_reassignment_.push_back(node);
   }
 
   if (parent)
     parent->Add(base::WrapUnique(node));
   node->SetTitle(title);
-  node->SetCreationTime(creation_time);
-  node->SetLastModificationTime(last_modification_time);
-
-  return true;
+  node->SetCreationTime(FindMicrosecondsSinceWindowsEpoch(value, kDateAddedKey)
+                            .value_or(Time::Now()));
+  node->SetLastModificationTime(
+      FindMicrosecondsSinceWindowsEpoch(value, kDateModifiedKey)
+          .value_or(Time::Now()));
 }
 
-void NotesCodec::ReassignIDs(NoteNode* notes_node,
-                             NoteNode* other_node,
-                             NoteNode* trash_node) {
-  maximum_id_ = 0;
-  ReassignIDsHelper(notes_node);
-  ReassignIDsHelper(other_node);
-  ReassignIDsHelper(trash_node);
+void NotesCodec::ReassignIDsIfRequired() {
+  if (nodes_requiring_id_reassignment_.empty()) {
+    // Nothing to do.
+    return;
+  }
+
+  for (NoteNode* node : nodes_requiring_id_reassignment_) {
+    const int64_t old_id = node->id();
+    node->set_id(++maximum_id_);
+    reassigned_ids_per_old_id_.emplace(old_id, node->id());
+    ids_.insert(node->id());
+  }
+
+  nodes_requiring_id_reassignment_.clear();
   ids_reassigned_ = true;
 }
 
-void NotesCodec::ReassignIDsHelper(NoteNode* node) {
-  DCHECK(node);
-  node->set_id(++maximum_id_);
-  for (auto& it : node->children())
-    ReassignIDsHelper(it.get());
+void NotesCodec::UpdateChecksumWithNoteNode(const std::string& id,
+                                            const std::u16string& title,
+                                            const std::string& type,
+                                            const std::u16string& content,
+                                            const std::string& url) {
+  DCHECK(base::IsStringUTF8(url));
+  UpdateChecksum(id);
+  UpdateChecksum(title);
+  UpdateChecksum(type);
+  UpdateChecksum(content);
+  UpdateChecksum(url);
+}
+void NotesCodec::UpdateChecksumWithNoteFolder(const std::string& id,
+                                              const std::u16string& title,
+                                              const std::string& type) {
+  UpdateChecksum(id);
+  UpdateChecksum(title);
+  UpdateChecksum(type);
 }
 
 void NotesCodec::UpdateChecksum(const std::string& str) {
-  md5_context_.Update(str);
+  md5_hasher_.Update(str);
+  sha256_hasher_.Update(str);
 }
 
 void NotesCodec::UpdateChecksum(const std::u16string& str) {
-  std::string_view temp(reinterpret_cast<const char*>(str.data()),
-                         str.length() * sizeof(str[0]));
-  md5_context_.Update(
-      std::string_view(reinterpret_cast<const char*>(str.data()),
-                                    str.length() * sizeof(str[0])));
+  auto bytes = base::as_byte_span(str);
+  md5_hasher_.Update(bytes);
+  sha256_hasher_.Update(bytes);
 }
 
 void NotesCodec::InitializeChecksum() {
-  md5_context_ = crypto::obsolete::Md5();
+  md5_hasher_ = crypto::obsolete::Md5();
+  sha256_hasher_ = crypto::hash::Hasher(crypto::hash::kSha256);
 }
 
 void NotesCodec::FinalizeChecksum() {
-  computed_checksum_ =
-      base::ToLowerASCII(base::HexEncode(md5_context_.Finish()));
+  computed_checksum_ = base::HexEncodeLower(md5_hasher_.Finish());
+  std::string result(crypto::hash::kSha256Size, 0);
+  sha256_hasher_.Finish(base::as_writable_byte_span(result));
+  computed_sha256_checksum_ = base::HexEncodeLower(result);
 }
 
 }  // namespace vivaldi

@@ -104,8 +104,7 @@ class BocaManagerTest : public testing::Test {
 
   void SetUp() override {
     // This is called in the FCMHandler.
-    ON_CALL(mock_instance_id_driver_,
-            GetInstanceID(boca::InvalidationServiceImpl::kApplicationId))
+    ON_CALL(mock_instance_id_driver_, GetInstanceID)
         .WillByDefault(Return(&mock_instance_id_));
     session_client_impl_ =
         std::make_unique<StrictMock<MockSessionClientImpl>>(nullptr);
@@ -158,7 +157,8 @@ class BocaManagerProducerTest : public BocaManagerTest {
 
     boca_manager_ = std::make_unique<BocaManager>(
         std::make_unique<boca::OnTaskSessionManager>(
-            /*system_web_app_manager=*/nullptr, /*extensions_manager=*/nullptr),
+            /*system_web_app_manager=*/nullptr, /*extensions_manager=*/nullptr,
+            /*boca_session_manager=*/nullptr),
         std::move(session_client_impl_), std::move(boca_session_manager_),
         std::move(invalidation_service_impl_),
         std::make_unique<boca::BabelOrcaManager>(
@@ -216,7 +216,8 @@ class BocaManagerConsumerTest : public BocaManagerTest {
 
     boca_manager_ = std::make_unique<BocaManager>(
         std::make_unique<boca::OnTaskSessionManager>(
-            /*system_web_app_manager=*/nullptr, /*extensions_manager=*/nullptr),
+            /*system_web_app_manager=*/nullptr, /*extensions_manager=*/nullptr,
+            /*boca_session_manager_*/ nullptr),
         std::move(session_client_impl_), std::move(boca_session_manager_),
         std::move(invalidation_service_impl_),
         std::make_unique<boca::BabelOrcaManager>(

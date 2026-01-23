@@ -112,6 +112,7 @@ DataTypeSet DataTypeRegistry::GetConnectedTypes() const {
             PassphraseType::kCustomPassphrase)
       continue;
     /* end Vivaldi */
+
     types.Put(worker->GetDataType());
   }
   return types;

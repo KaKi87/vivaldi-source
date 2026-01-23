@@ -36,7 +36,11 @@ import org.chromium.ui.text.SpanApplier;
 import java.util.ArrayList;
 import java.util.List;
 
+// Vivaldi
+import org.chromium.base.Callback;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.vivaldi.browser.history.HistorySearchBoxRow;
+// End Vivaldi
 
 /** Bridges the user's browsing history and the UI used to display it. */
 @NullMarked
@@ -61,6 +65,7 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     private @Nullable HeaderItem mHistoryOpenInChromeHeaderItem;
     private @Nullable HeaderItem mHistorySyncPromoHeaderItem;
     private @Nullable HeaderItem mAppFilterHeaderItem;
+    private @Nullable HeaderItem mSearchBoxHeaderItem;
     private ChipView mAppFilterChip;
 
     // Footers
@@ -77,8 +82,10 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     private boolean mPrivacyDisclaimersVisible;
     private boolean mClearBrowsingDataButtonVisible;
     private boolean mHistorySyncPromoVisible;
+    private boolean mSearchBoxVisible;
     private String mQueryText = EMPTY_QUERY;
     private @Nullable String mHostName;
+    private HistoryManagerToolbar mToolbar;
 
     // ID of the App currently chosen for app filtering. If null, ignored when querying history.
     private @Nullable String mAppId;
@@ -89,6 +96,9 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     private boolean mShowSourceApp;
 
     private boolean mIsLargeScreenWithKeyboard;
+
+    private @Nullable HistorySearchBoxRow mHistorySearchBoxRow;
+    // End Vivaldi
 
     public HistoryAdapter(
             HistoryContentManager manager,
@@ -290,10 +300,15 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
 
         boolean isEmpty = items.size() > 0 || mHistorySyncPromoVisible;
         if ((!mAreHeadersInitialized && isEmpty && !mIsSearching)
-                || (mIsSearching && mShowAppFilter)) {
+                || (mIsSearching && mShowAppFilter)
+                || mIsLargeScreenWithKeyboard) {
             setHeaders();
             mAreHeadersInitialized = true;
         }
+        else if (mManager.useBookmarkStyleSearch()) {
+            setHeaders();
+            mAreHeadersInitialized = true;
+        } // End Vivaldi
 
         mIsLoadingItems = false;
         mHasMorePotentialItems = hasMorePotentialMatches;
@@ -326,7 +341,9 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
 
         // Querying apps was completed after the search mode is entered (or within search mode).
         // Set the headers again to show/hide the header item for the app filter button.
-        if (mIsSearching) setHeaders();
+        if (mIsSearching) {
+            setHeaders();
+        }
     }
 
     @Override
@@ -379,11 +396,20 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     void generateHeaderItems() {
         ViewGroup historyAppFilterContainer = getAppFilterContainer(null);
         ViewGroup privacyDisclaimerContainer = getPrivacyDisclaimerContainer(null);
-
         ViewGroup clearBrowsingDataButtonContainer = getClearBrowsingDataButtonContainer(null);
 
         if (ChromeApplicationImpl.isVivaldi()) {
             clearBrowsingDataButtonContainer.setVisibility(View.GONE);
+        }
+        // End Vivaldi
+
+        // Add a search box in the recycler view iff lff device w/ phy keyboard
+        if (mIsLargeScreenWithKeyboard) {
+            @Nullable ViewGroup searchBoxContainer = getSearchBoxContainer(null);
+            mIsSearching = true;
+            if (searchBoxContainer != null) {
+                mSearchBoxHeaderItem = new StandardHeaderItem(-1, searchBoxContainer);
+            }
         }
 
         mAppFilterHeaderItem = new StandardHeaderItem(0, historyAppFilterContainer);
@@ -394,6 +420,12 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
                 new StandardHeaderItem(1, clearBrowsingDataButtonContainer);
         mClearBrowsingDataButton =
                 clearBrowsingDataButtonContainer.findViewById(R.id.clear_browsing_data_button);
+
+        if (mManager.useBookmarkStyleSearch()) {
+            ViewGroup searchViewContainer = getSearchViewContainer(null);
+            mSearchBoxHeaderItem = new
+                    PersistentHeaderItem(0, searchViewContainer);
+        } // End Vivaldi
 
         if (mManager.launchedForApp()) {
             ViewGroup historyOpenInChromeButtonContainer = getCctOpenInChromeButtonContainer(null);
@@ -411,6 +443,7 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
         setPrivacyDisclaimer();
         updatePrivacyDisclaimerBottomSpace();
         updateHistorySyncPromoVisibility();
+        updateSearchBoxVisibility();
     }
 
     private ViewGroup getClearBrowsingDataButtonContainer(@Nullable ViewGroup parent) {
@@ -446,6 +479,13 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
         mAppFilterChip.getPrimaryTextView().setText(R.string.history_filter_by_app);
         mAppFilterChip.addDropdownIcon();
         return historyAppFilterContainer;
+    }
+
+    private @Nullable ViewGroup getSearchBoxContainer(@Nullable ViewGroup parent) {
+        if (mToolbar == null) return null;
+        ViewGroup searchBarContainer =
+                mToolbar.initializeSearchBoxContainer(parent, R.string.history_manager_search);
+        return searchBarContainer;
     }
 
     private View getHistorySyncPromoView() {
@@ -533,11 +573,15 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
 
     /** Pass header items to {@link #setHeaders(HeaderItem...)} as parameters. */
     private void setHeaders() {
+        if (!ChromeApplicationImpl.isVivaldi())
         if (mIsLargeScreenWithKeyboard) {
             setLFFHeaders();
             return;
         }
         ArrayList<HeaderItem> args = new ArrayList<>();
+        if (mManager.useBookmarkStyleSearch()) {
+            args.add(mSearchBoxHeaderItem);
+        } // End Vivaldi
         if (mIsSearching) {
             // Query for apps could be still pending. |setHeaders()| will be invoked
             // again when the query is completed in order to set the header accordingly.
@@ -562,6 +606,9 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     /** For LFF devices w/ physical keyboard attached, there's only search mode. */
     private void setLFFHeaders() {
         ArrayList<HeaderItem> args = new ArrayList<>();
+        if (mSearchBoxVisible) {
+            args.add(mSearchBoxHeaderItem);
+        }
         if (mShowAppFilter && mManager.hasFilterList()) args.add(mAppFilterHeaderItem);
         if (isNormalContentAvailable()) {
             if (mPrivacyDisclaimersVisible) {
@@ -626,7 +673,26 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
         if (mAreHeadersInitialized) setHeaders();
     }
 
-    /** @param hostName The hostName to retrieve history entries for. */
+    /* Set visible if current device is LFF device w/ physical keyboard attached */
+    private void updateSearchBoxVisibility() {
+        if (mToolbar == null) {
+            mSearchBoxVisible = false;
+            return;
+        }
+        mSearchBoxVisible = mIsLargeScreenWithKeyboard;
+    }
+
+    /* Regenerate searchbox header after toolbar becomes non-null*/
+    @Initializer
+    public void setToolbar(HistoryManagerToolbar toolbar) {
+        mToolbar = toolbar;
+        generateHeaderItems();
+        setHeaders();
+    }
+
+    /**
+     * @param hostName The hostName to retrieve history entries for.
+     */
     public void setHostName(@Nullable String hostName) {
         mHostName = hostName;
     }
@@ -733,4 +799,58 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     @Nullable String getAppIdForTest() {
         return mAppId;
     }
+
+    // Vivaldi
+    private ViewGroup getSearchViewContainer(@Nullable ViewGroup parent) {
+        ViewGroup viewGroup =
+                (ViewGroup)
+                        LayoutInflater.from(mManager.getContext())
+                                .inflate(
+                                        R.layout.history_search_box_row, parent, false);
+        mHistorySearchBoxRow = (HistorySearchBoxRow)viewGroup;
+        return viewGroup;
+    }
+
+    public void setSearchTextCallback(Callback<String> callback) {
+        if (mHistorySearchBoxRow != null) mHistorySearchBoxRow.setSearchTextCallback(callback);
+    }
+
+    public void setFocusChangeCallback(Callback<Boolean> focusChangeCallback) {
+        if (mHistorySearchBoxRow != null)
+            mHistorySearchBoxRow.setFocusChangeCallback(focusChangeCallback);
+    }
+
+    public void updateClearSearchButtonVisibliity(boolean visible) {
+        if (mHistorySearchBoxRow != null)
+            mHistorySearchBoxRow.setClearSearchTextButtonVisibility(visible);
+    }
+
+    public void setSearchBoxHasFocus(boolean hasFocus) {
+        if (mHistorySearchBoxRow != null)
+            mHistorySearchBoxRow.setHasFocus(hasFocus);
+    }
+
+    void setClearSearchTextButtonRunnable(Runnable onClearSearchTextButtonRunnable) {
+        if (mHistorySearchBoxRow != null)
+            mHistorySearchBoxRow.setClearSearchTextButtonRunnable(onClearSearchTextButtonRunnable);
+    }
+
+    void setSearchText(String searchText) {
+        if (mHistorySearchBoxRow != null)
+            mHistorySearchBoxRow.setSearchText(searchText);
+    }
+
+    /** Currently only header item for Vivaldi is Search box, update if adding more */
+    @Override
+    protected void bindViewHolderForHeaderItem(ViewHolder viewHolder, HeaderItem headerItem) {
+        BasicViewHolder basicViewHolder = (BasicViewHolder) viewHolder;
+        View v = headerItem.getView();
+        if (!v.hasFocus()) {
+            if (v.getParent() != null) ((ViewGroup) v.getParent()).removeView(v);
+        }
+        if (v.getParent() == null) {
+            ((ViewGroup) basicViewHolder.itemView).addView(v);
+        }
+    }
+    // End Vivaldi
 }

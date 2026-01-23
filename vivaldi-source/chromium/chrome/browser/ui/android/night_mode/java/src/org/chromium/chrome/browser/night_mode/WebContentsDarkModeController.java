@@ -20,7 +20,6 @@ import org.chromium.url.GURL;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
-import org.chromium.components.content_settings.ContentSetting;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 
 import org.vivaldi.browser.preferences.VivaldiPreferences;
@@ -53,12 +52,6 @@ public class WebContentsDarkModeController {
      */
     public static void setEnabledForUrl(
             BrowserContextHandle browserContextHandle, GURL url, boolean enabled) {
-
-        // Vivaldi
-        @ContentSetting
-        int enabledValue = vivaldiShouldForceAutoDarkContentSetting() ?
-                ContentSetting.DEFAULT : ContentSetting.ALLOW ;
-
         if (!BuildConfig.IS_VIVALDI)
         // This is only called when a user disables/enables the feature for a site from the app
         // menu. The app menu item should only be visible (and thus clickable) if Auto Dark is
@@ -68,8 +61,7 @@ public class WebContentsDarkModeController {
                 == ContentSetting.ALLOW;
 
         @ContentSetting
-        int contentSettingValue =
-                enabled ? enabledValue : ContentSetting.BLOCK; // Vivaldi
+        int contentSettingValue = enabled ? ContentSetting.ALLOW : ContentSetting.BLOCK; // Vivaldi
 
         WebsitePreferenceBridge.setContentSettingDefaultScope(
                 browserContextHandle,
@@ -159,23 +151,5 @@ public class WebContentsDarkModeController {
             return false;
         }
         return true;
-    }
-
-    // Returns if the page should be forced to auto dark mode or not
-    public static boolean vivaldiShouldForceAutoDarkContentSetting() {
-        @ThemeType
-        int websiteTheme = VivaldiPreferences.getSharedPreferencesManager().readInt(
-                VivaldiPreferences.PREF_WEBSITE_THEME_APPEARANCE, ThemeType.SYSTEM_DEFAULT);
-
-        switch (websiteTheme) {
-            case ThemeType.LIGHT:
-                return false;
-            case ThemeType.DARK:
-                return true;
-            case ThemeType.SYSTEM_DEFAULT:
-                return GlobalNightModeStateProviderHolder.getInstance().isInNightMode();
-            default:
-                return false;
-        }
     }
 }

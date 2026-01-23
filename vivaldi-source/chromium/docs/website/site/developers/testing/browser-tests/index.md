@@ -74,18 +74,17 @@ Also include `testing/gtest/include/gtest/gtest.h`, rather than relying on
 browser_test.h including it for you.
 
 Browser tests in `src/content` and `src/chrome` have their own utility headers for
-interacting with the window, to add helpers for waiting for a new window to be
-added, navigating, getting the location of a test file etc.. Tests in `src/chrome`
-use
-[src/chrome/test/base/ui_test_utils.h](https://cs.chromium.org/chromium/src/chrome/test/base/ui_test_utils.h),
-while tests in src/content use
-[src/content/public/test/content_browser_test_utils.h](https://cs.chromium.org/chromium/src/content/public/test/content_browser_test_utils.h).
+interacting with the window, waiting for a new window, navigation, getting the location of a test file, etc.
+
+Tests in `src/chrome` typically include [src/chrome/test/base/ui_test_utils.h](https://cs.chromium.org/chromium/src/chrome/test/base/ui_test_utils.h) for general utilities, or [src/chrome/test/base/chrome_test_utils.h](https://cs.chromium.org/chromium/src/chrome/test/base/chrome_test_utils.h) if you need functions like `chrome_test_utils::GetTestUrl`. You may include either or both headers depending on your needs.
+
+Tests in `src/content` use [src/content/public/test/content_browser_test_utils.h](https://cs.chromium.org/chromium/src/content/public/test/content_browser_test_utils.h).
 
 An example test in browser_tests would like:
 
 ```c++
 IN_PROC_BROWSER_TEST_F(InProcessBrowserTest, Foo) {
-  GURL test_url = ui_test_utils::GetTestUrl(test_dir, test_file);
+  GURL test_url = chrome_test_utils::GetTestUrl(test_dir, test_file);
   ui_test_utils::NavigateToURL(browser(), test_url);
   content::WebContents\* web_contents = ...
   content::SimulateMouseClick(web_contents);
@@ -208,12 +207,28 @@ Some tests may need to use multiple origins to test their code paths; one common
 way this is done is to redirect all origins to localhost:
 host_resolver()-&gt;AddRule("\*", "127.0.0.1")
 
-A small number of tests exercise code paths that make requests to Google domain.
-Due to the included [HSTS preload list](https://hstspreload.org/) in Chrome's
-networking code, your test will need to use an EmbeddedTestServer that's
-configured for https. Additionally, you will need two more switches:
+Some tests exercise code paths that make requests to origins over https, e.g. to
+make requests to domains on the [HSTS preload list](https://hstspreload.org/),
+to test web platform features only available in secure contexts, etc.
+Such a test will need to use an EmbeddedTestServer instance instantiated with
+`TYPE_HTTPS`). If your test requires https requests to hostnames other than
+localhost, you will also need to configure a valid certificate for the server.
+Do not use the flag `--ignore-certificate-errors`, which blanket ignores
+certificate errors, to get around this setup; that is most likely unnecessary
+and incorrect.
+ * In test fixtures inheriting from
+   `content::BrowserTestBase`, you may be able to directly use the provided
+   `embedded_https_test_server()`, which by default provides a valid certificate
+   for a handful of domains commonly used in tests.
+ * Otherwise, give your net::EmbeddedTestServer a valid certificate for the
+   hostnames that you need in your test:
+    * choose one of the static `ServerCertificate` options that covers the
+      necessary hostnames, or
+    * configure a generated certificate with a `ServerCertificateConfig` that
+      includes the necessary `dns_names`. You can do so by calling the helper
+      `SetCertHostnames()` on the EmbeddedTestServer instance before you start
+      the server.
 
-1.  `switches::kIgnoreCertificateErrors`: needed since the test server
-            only has a valid certificate for localhost
-2.  `switches::kIgnoreGooglePortNumbers`: needed since production code
-            only allows known ports (80/443) for Google domains
+Additionally, you may or may not need to add the switch
+`switches::kIgnoreGooglePortNumbers`, since production code only allows known
+ports (80/443) for Google domains.

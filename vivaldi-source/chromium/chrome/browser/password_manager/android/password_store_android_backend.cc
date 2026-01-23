@@ -78,7 +78,7 @@ std::string FormToSignonRealmQuery(const PasswordFormDigest& form,
   if (form.scheme == PasswordForm::Scheme::kHtml &&
       !affiliations::IsValidAndroidFacetURI(form.signon_realm)) {
     // Check federated matches and matches for exact signon realm.
-    return form.url.host();
+    return form.url.GetHost();
   }
   // Check matches for exact signon realm.
   return form.signon_realm;
@@ -791,8 +791,6 @@ void PasswordStoreAndroidBackend::OnError(JobId job_id,
       PasswordStoreBackendErrorType::kUncategorized);
 
   if (error.api_error_code.has_value()) {
-    // TODO(crbug.com/40839365): DCHECK_EQ(api_error_code,
-    // AndroidBackendAPIErrorCode::kDeveloperError) to catch dev errors.
     DCHECK_EQ(AndroidBackendErrorType::kExternalError, error.type);
     int api_error = error.api_error_code.value();
     reported_error.android_backend_api_error = api_error;

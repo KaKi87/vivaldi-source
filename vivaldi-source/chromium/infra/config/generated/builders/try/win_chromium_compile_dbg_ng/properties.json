@@ -10,7 +10,7 @@
             "builder_id": {
               "bucket": "ci",
               "builder": "Win Builder (dbg)",
-              "project": "chromium-m142"
+              "project": "chromium-m144"
             },
             "builder_spec": {
               "builder_group": "chromium.win",
@@ -35,11 +35,12 @@
         {
           "bucket": "ci",
           "builder": "Win Builder (dbg)",
-          "project": "chromium-m142"
+          "project": "chromium-m144"
         }
       ],
       "is_compile_only": true,
-      "targets_spec_directory": "src/infra/config/generated/builders/try/win_chromium_compile_dbg_ng/targets"
+      "targets_spec_directory": "infra/config/generated/builders/try/win_chromium_compile_dbg_ng/targets",
+      "targets_spec_directory_relative_to_source_dir": true
     }
   },
   "$build/flakiness": {

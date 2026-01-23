@@ -375,6 +375,7 @@ cc_library(
         "//tensorflow/core:lib",
         "//tensorflow/core:lib_internal",
         "//tensorflow/core:protos_all_cc",
+        "//tensorflow/core/config:flag_defs",
         "//tensorflow/core/profiler/lib:connected_traceme",
         "//tensorflow/core/profiler/lib:scoped_memory_debug_annotation",
         "//tensorflow/core/profiler/lib:traceme",
@@ -1110,6 +1111,7 @@ cc_library(
         "//tensorflow/core:framework",
         "//tensorflow/core:graph",
         "//tensorflow/core:lib",
+        "@com_google_absl//absl/log:check",
     ],
 )
 
@@ -1348,10 +1350,7 @@ cc_library(
     srcs = ["lower_functional_ops.cc"],
     hdrs = ["lower_functional_ops.h"],
     copts = tf_copts(),
-    visibility = default_package_visibility + [
-        "//platforms/performance/autograppler:__subpackages__",
-        "//platforms/performance/tf_sim:__subpackages__",
-    ],
+    visibility = default_package_visibility + ["//platforms/performance/tf_sim:__subpackages__"],
     deps = [
         ":device_propagation",
         ":function_utils",
@@ -3620,7 +3619,12 @@ tf_cc_test(
 tf_cc_fuzz_test(
     name = "graph_constructor_fuzz",
     srcs = ["graph_constructor_fuzz.cc"],
-    tags = ["no_oss"],
+    shard_count = 10,
+    tags = [
+        "no_oss",
+        # TODO(b/440068704): Remove tag when a timeout is not considered an error in presubmits anymore.
+        "nofuzzing-presubmit",
+    ],
     deps = [
         ":core",
         ":session",

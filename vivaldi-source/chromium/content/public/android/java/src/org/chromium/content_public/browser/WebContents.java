@@ -218,6 +218,15 @@ public interface WebContents extends Parcelable {
     String getEncoding();
 
     /**
+     * Discards the RenderFrameHost associated with this WebContents.
+     *
+     * @param onDiscarded a callback to be called when the RenderFrameHost is discarded. May never
+     *     be called if the operation fails.
+     *     <p>TODO(crbug.com/441841249): Change the runnable to a callback.
+     */
+    void discard(Runnable onDiscarded);
+
+    /**
      * @return Whether this WebContents is loading a resource.
      */
     boolean isLoading();
@@ -643,6 +652,12 @@ public interface WebContents extends Parcelable {
     boolean hasOpener();
 
     /**
+     * @return The opener WebContents if this WebContents is in Document Picture-in-Picture mode, or
+     *     {@code null} otherwise.
+     */
+    @Nullable WebContents getDocumentPictureInPictureOpener();
+
+    /**
      * Returns the window open disposition that was originally requested when this WebContents was
      * created or navigated to. This method provides the disposition specified by the opener of this
      * WebContents, indicating how the content was initially intended to be displayed (e.g., as a
@@ -660,7 +675,10 @@ public interface WebContents extends Parcelable {
      *
      * @param rect The rect of the overlay.
      */
-    public void updateWindowControlsOverlay(Rect rect);
+    void updateWindowControlsOverlay(Rect rect);
+
+    /** Enables draggable region calculation in this WebContents' primary main frame. */
+    void setSupportsDraggableRegions(boolean supportsDraggableRegions);
 
     /**
      * Factory interface passed to {@link #getOrSetUserData()} for instantiation of class as user

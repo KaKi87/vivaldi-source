@@ -22,9 +22,11 @@
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/passwords/password_change/password_change_toast.h"
 #include "chrome/common/webui_url_constants.h"
+#include "chrome/grit/browser_resources.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/theme_resources.h"
 #include "components/constrained_window/constrained_window_views.h"
+#include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
@@ -80,7 +82,6 @@ void LogDialogAction(PasswordChangeDelegate::State state,
     case PasswordChangeDelegate::State::kCanceled:
     case PasswordChangeDelegate::State::kNoState:
     case PasswordChangeDelegate::State::kLoginFormDetected:
-    case PasswordChangeDelegate::State::kLoginFormDetectedUserCanContinue:
       NOTREACHED();
   }
 }
@@ -98,7 +99,6 @@ void LogToastEvent(PasswordChangeDelegate::State state,
           "PasswordManager.PasswordChange.ChangingPasswordToast", event);
       return;
     case PasswordChangeDelegate::State::kLoginFormDetected:
-    case PasswordChangeDelegate::State::kLoginFormDetectedUserCanContinue:
       base::UmaHistogramEnumeration(
           "PasswordManager.PasswordChange.WaitingForUserSignInToast", event);
       return;
@@ -119,6 +119,16 @@ void LogToastEvent(PasswordChangeDelegate::State state,
   }
 }
 
+void LogLeakDialogTimeSpent(bool with_privacy_notice, base::Time display_time) {
+  std::string suffix =
+      with_privacy_notice ? ".WithPrivacyNotice" : ".WithoutPrivacyNotice";
+  base::UmaHistogramMediumTimes(
+      base::StrCat(
+          {"PasswordManager.PasswordChange.LeakDetectionDialog.TimeSpent",
+           suffix}),
+      base::Time::Now() - display_time);
+}
+
 // Creates dialog offering password change to the user. `with_privacy_notice`
 // specifies whether an additional privacy paragraph should be displayed.
 std::unique_ptr<ui::DialogModel> CreateOfferChangePasswordDialog(
@@ -129,17 +139,20 @@ std::unique_ptr<ui::DialogModel> CreateOfferChangePasswordDialog(
     std::u16string email) {
   ui::DialogModel::Builder dialog_builder;
   dialog_builder.SetBannerImage(
-      ui::ImageModel::FromResourceId(IDR_PASSWORD_CHANGE_WARNING),
-      ui::ImageModel::FromResourceId(IDR_PASSWORD_CHANGE_WARNING_DARK));
+      ui::ResourceBundle::GetSharedInstance().GetThemedLottieImageNamed(
+          IDR_PASSWORD_CHANGE_WARNING_LOTTIE));
   dialog_builder.SetIcon(
       ui::ImageModel::FromVectorIcon(GooglePasswordManagerVectorIcon()));
   dialog_builder.SetTitle(l10n_util::GetStringUTF16(
       IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_LEAK_DIALOG_TITLE));
-  dialog_builder.AddCancelButton(std::move(cancel_callback),
+
+  auto time_callback = base::BindRepeating(
+      &LogLeakDialogTimeSpent, with_privacy_notice, base::Time::Now());
+  dialog_builder.AddCancelButton(std::move(cancel_callback).Then(time_callback),
                                  ui::DialogModel::Button::Params().SetLabel(
                                      l10n_util::GetStringUTF16(IDS_NO_THANKS)));
   dialog_builder.AddOkButton(
-      std::move(accept_callback),
+      std::move(accept_callback).Then(time_callback),
       ui::DialogModel::Button::Params().SetLabel(l10n_util::GetStringUTF16(
           IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_CHANGE_PASSWORD)));
 
@@ -169,14 +182,12 @@ std::unique_ptr<ui::DialogModel> CreatePasswordChangeFailedDialog(
     base::OnceClosure accept_callback,
     base::OnceClosure cancel_callback,
     bool use_error_image) {
-  auto image_light = ui::ImageModel::FromResourceId(
-      use_error_image ? IDR_PASSWORD_CHANGE_WARNING
-                      : IDR_PASSWORD_CHANGE_NEUTRAL);
-  auto image_dark = ui::ImageModel::FromResourceId(
-      use_error_image ? IDR_PASSWORD_CHANGE_WARNING_DARK
-                      : IDR_PASSWORD_CHANGE_NEUTRAL_DARK);
+  auto image_model =
+      ui::ResourceBundle::GetSharedInstance().GetThemedLottieImageNamed(
+          use_error_image ? IDR_PASSWORD_CHANGE_WARNING_LOTTIE
+                          : IDR_PASSWORD_CHANGE_NEUTRAL_LOTTIE);
   return ui::DialogModel::Builder()
-      .SetBannerImage(image_light, image_dark)
+      .SetBannerImage(image_model)
       .SetTitle(l10n_util::GetStringUTF16(
           IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_FAILED_TITLE))
       .AddParagraph(ui::DialogModelLabel(l10n_util::GetStringUTF16(
@@ -215,8 +226,8 @@ std::unique_ptr<ui::DialogModel> CreateOtpDetectedDialog(
     base::OnceClosure cancel_callback) {
   return ui::DialogModel::Builder()
       .SetBannerImage(
-          ui::ImageModel::FromResourceId(IDR_PASSWORD_CHANGE_NEUTRAL),
-          ui::ImageModel::FromResourceId(IDR_PASSWORD_CHANGE_NEUTRAL_DARK))
+          ui::ResourceBundle::GetSharedInstance().GetThemedLottieImageNamed(
+              IDR_PASSWORD_CHANGE_NEUTRAL_LOTTIE))
       .SetTitle(
           l10n_util::GetStringUTF16(IDS_PASSWORD_MANAGER_UI_OTP_DIALOG_TITLE))
       .AddParagraph(ui::DialogModelLabel(l10n_util::GetStringUTF16(
@@ -348,7 +359,7 @@ PasswordChangeUIController::GetDialogOrToastConfiguration(
       return ToastOptions(
           l10n_util::GetStringUTF16(
               IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGED_TITLE),
-          views::kPasswordChangeIcon, std::move(cancel_toast_callback),
+          views::kMenuCheckIcon, std::move(cancel_toast_callback),
           l10n_util::GetStringUTF16(
               IDS_PASSWORD_MANAGER_UI_VIEW_DETAILS_BUTTON),
           base::BindOnce(&PasswordChangeUIController::ShowPasswordDetails,
@@ -365,14 +376,10 @@ PasswordChangeUIController::GetDialogOrToastConfiguration(
       return ToastOptions(
           l10n_util::GetStringUTF16(
               IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_TOAST_SIGN_IN_TO_CONTINUE),
-          views::kInfoChromeRefreshIcon, std::move(cancel_toast_callback));
-    case PasswordChangeDelegate::State::kLoginFormDetectedUserCanContinue:
-      return ToastOptions(
-          l10n_util::GetStringUTF16(
-              IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_TOAST_SIGN_IN_TO_CONTINUE),
           views::kInfoChromeRefreshIcon, std::move(cancel_toast_callback),
-          l10n_util::GetStringUTF16(IDS_CONTINUE),
-          base::BindOnce(&PasswordChangeUIController::SkipLoginCheck,
+          l10n_util::GetStringUTF16(
+              IDS_PASSWORD_MANAGER_UI_PASSWORD_CHANGE_TOAST_RETRY_BUTTON),
+          base::BindOnce(&PasswordChangeUIController::RetryLoginCheck,
                          weak_ptr_factory_.GetWeakPtr()));
     case PasswordChangeDelegate::State::kNoState:
       NOTREACHED();
@@ -524,12 +531,11 @@ void PasswordChangeUIController::NavigateToPasswordChangeSettings() {
       NavigateParams::IGNORE_AND_NAVIGATE);
 }
 
-void PasswordChangeUIController::SkipLoginCheck() {
+void PasswordChangeUIController::RetryLoginCheck() {
   CHECK(password_change_delegate_);
-  LogToastEvent(
-      PasswordChangeDelegate::State::kLoginFormDetectedUserCanContinue,
-      PasswordChangeToastEvent::kContinue);
-  password_change_delegate_->OnUserSkippedLoginCheck();
+  LogToastEvent(PasswordChangeDelegate::State::kLoginFormDetected,
+                PasswordChangeToastEvent::kRetry);
+  password_change_delegate_->RetryLoginCheck();
 }
 
 void PasswordChangeUIController::CloseDialogWidget(

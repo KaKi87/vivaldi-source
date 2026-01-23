@@ -21,9 +21,8 @@
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_special_storage_policy.h"
 #include "chrome/browser/extensions/external_install_manager.h"
-#include "chrome/browser/extensions/install_verifier.h"
+#include "chrome/browser/extensions/install_verifier_factory.h"
 #include "chrome/browser/extensions/installed_loader.h"
-#include "chrome/browser/extensions/permissions/permissions_updater.h"
 #include "chrome/browser/extensions/profile_util.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -40,7 +39,9 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/install_flag.h"
+#include "extensions/browser/install_verifier.h"
 #include "extensions/browser/pending_extension_manager.h"
+#include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/crash_keys.h"
 #include "extensions/common/extension.h"
@@ -134,7 +135,8 @@ void ChromeExtensionRegistrarDelegate::PreAddExtension(
 void ChromeExtensionRegistrarDelegate::OnAddNewOrUpdatedExtension(
     const Extension* extension) {
   if (InstallVerifier::NeedsVerification(*extension, profile_)) {
-    InstallVerifier::Get(profile_)->VerifyExtension(extension->id());
+    InstallVerifierFactory::GetForBrowserContext(profile_)->VerifyExtension(
+        extension->id());
   }
 }
 
@@ -218,7 +220,8 @@ void ChromeExtensionRegistrarDelegate::PostDeactivateExtension(
 
 void ChromeExtensionRegistrarDelegate::PreUninstallExtension(
     scoped_refptr<const Extension> extension) {
-  InstallVerifier::Get(profile_)->Remove(extension->id());
+  InstallVerifierFactory::GetForBrowserContext(profile_)->Remove(
+      extension->id());
 }
 
 void ChromeExtensionRegistrarDelegate::PostUninstallExtension(
@@ -620,7 +623,7 @@ void ChromeExtensionRegistrarDelegate::UninstallExtensionOnFileThread(
 void ChromeExtensionRegistrarDelegate::OnUnpackedReloadFailure(
     const Extension* extension,
     const base::FilePath& file_path,
-    const std::string& error) {
+    const std::u16string& error) {
   if (!error.empty()) {
     extension_registrar_->OnUnpackedExtensionReloadFailed(file_path);
   }

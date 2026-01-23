@@ -5,10 +5,7 @@
 #include "base/json/json_reader.h"
 #include "base/values.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/extensions/webstore_install_with_prompt.h"
 #include "chrome/browser/profiles/profile.h"
-#include "components/user_data_importer/common/importer_data_types.h"
-#include "extensions/browser/extension_file_task_runner.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 #include "extensions/vivaldi_silent_extension_installer.h"
@@ -25,17 +22,20 @@ inline constexpr char kChromeSecurePreferencesFile[] = "Secure Preferences";
 inline constexpr char kChromePreferencesFile[] = "Preferences";
 
 base::Value::Dict GetExtensionsFromPreferences(const base::FilePath& path) {
-  if (!base::PathExists(path))
+  if (!base::PathExists(path)) {
     return base::Value::Dict();
+  }
 
-  std::string preference_content;
-  base::ReadFileToString(path, &preference_content);
+  std::string preferences_content;
+  base::ReadFileToString(path, &preferences_content);
 
-  std::optional<base::Value> preference =
-      base::JSONReader::Read(preference_content);
-  DCHECK(preference);
-  DCHECK(preference->is_dict());
-  if (auto* extensions = preference->GetDict().FindDictByDottedPath(
+  std::optional<base::Value> preferences = base::JSONReader::Read(
+      preferences_content, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
+  if (!preferences || !preferences->is_dict()) {
+    return base::Value::Dict();
+  }
+
+  if (auto* extensions = preferences->GetDict().FindDictByDottedPath(
           kChromeExtensionsListPath)) {
     return extensions->Clone();
   }

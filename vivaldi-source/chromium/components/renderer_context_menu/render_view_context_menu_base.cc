@@ -415,11 +415,13 @@ bool RenderViewContextMenuBase::IsCommandIdChecked(int id) const {
 
 void RenderViewContextMenuBase::ExecuteCommand(int id, int event_flags) {
   command_executed_ = true;
+
   // NOTE(andre@vivaldi.com) : RecordUsedItem could cause a notreached in
   // Vivaldi. VB-96322.
   if (!vivaldi::IsVivaldiRunning()) {
   RecordUsedItem(id);
-  }
+  } // End Vivaldi
+
   // Notify all observers the command to be executed.
   for (auto& observer : observers_)
     observer.CommandWillBeExecuted(id);

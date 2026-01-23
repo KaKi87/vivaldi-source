@@ -1254,6 +1254,9 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_ALLOW_VIVALDI_PARTNERS" desc="The origin of the blocking list source file">
         Allow ads from our partners (support Vivaldi)
       </message>
+      <message name="IDS_VIVALDI_IOS_SOURCE_MAP_ORIGIN_VIVALDI_BLOCKLIST" desc="The origin of the blocking list source file">
+        <ph name="ORIGIN">$1</ph> (Blocks various annoyances)
+      </message>
       <message name="IDS_VIVALDI_IOS_SOURCE_MAP_TYPE_COOKIE_WARNING" desc="The type of the blocking list source file">
         Remove cookie warnings (<ph name="TYPE">$1</ph>)
       </message>
@@ -1555,6 +1558,9 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_IOS_TABS_NEWTAB_SETTING_TITLE" desc="Title for New tab settings option on tabs settings">
         New Tab Page
       </message>
+      <message name="IDS_IOS_TABS_SWIPE_TO_CLOSE_TAB_TITLE" desc="Title for Swipe to close tab option on tabs settings">
+        Swipe to close tab
+      </message>
       <!-- END TABS SETTINGS -->
       <!--GENERAL SETTINGS -->
       <message name="IDS_IOS_GENERAL_SETTING_TITLE" desc="Title for General settings title">
@@ -1669,6 +1675,12 @@ locale.  The strings in this file are specific to iOS.
       </message>
       <message name="IDS_IOS_ADDRESSBAR_SHOW_TYPED_HISTORY_DESCRIPTION" desc="Description for the show typed history on omnibox focus option for addressbar settings.">
         Shows your typed history when Address Field is focused on Start Page.
+      </message>
+      <message name="IDS_IOS_ADDRESSBAR_ENABLE_SWIPE_GESTURE_TITLE" desc="Title for the enable address bar swipe gesture option for addressbar settings">
+        Enable Address bar swipe gesture
+      </message>
+      <message name="IDS_IOS_ADDRESSBAR_ENABLE_SWIPE_GESTURE_SUBTITLE" desc="Subtitle for the enable address bar swipe gesture option for addressbar settings">
+        Opens tab switcher on swipe up or down on address bar
       </message>
       <message name="IDS_IOS_ADDRESSBAR_SUGGESTIONS_TITLE" desc="Title for the address field suggestions section on the address bar settings. This section contains the settings related to the priority and availability of specific types of results on the autocomplete.">
         Address Field Suggestions
@@ -1987,6 +1999,12 @@ locale.  The strings in this file are specific to iOS.
       <message name="IDS_VIVALDI_SEARCH_ENGINE_CANCEL_BUTTON_TITLE" desc="(Vivaldi) Cancel button of the dialog showing up to ask the user to confirm the restore the search engine list to defaults.">
         Cancel
       </message>
+      <message name="IDS_VIVALDI_CONTEXT_MENU_ADD_AS_ENGINE_TITLE" desc="(Vivaldi) Title of the Add as Search Engine item on the WebPage context menu.">
+        Add as Search Engine
+      </message>
+      <message name="IDS_VIVALDI_CONTEXT_MENU_SET_AS_DEFAULT_SEARCH" desc="(Vivaldi) Toggle label for setting a newly added search engine as default from the context menu flow.">
+        Set as default search
+      </message>
       <!-- SEARCH ENGINE EDITOR -->
       <message name="IDS_VIVALDI_SEARCH_ENGINE_EDITOR_ADD_ENGINE_TITLE" desc="(Vivaldi) Title of the Search Engine Editor navigation item for adding engine.">
         Add Search Engine
@@ -2044,6 +2062,9 @@ locale.  The strings in this file are specific to iOS.
       </message>
       <message name="IDS_VIVALDI_SEARCH_ENGINE_URL_INVALID_ERROR" desc="Error message shown when the search engine URL is invalid or missing protocol.">
         You must provide a valid protocol.
+      </message>
+      <message name="IDS_VIVALDI_DEFAULT_SEARCH_ENGINE_REMOVE_ERROR" desc="Error message shown when a default search engine URL is attempted deleted.">
+        Default search engine cannot be removed.
       </message>
       <!-- END SEARCH ENGINE EDITOR -->
       <!-- END SEARCH ENGINE SETTINGS -->
@@ -2595,6 +2616,17 @@ locale.  The strings in this file are specific to iOS.
         Prefer opening pages in the browser instead of external apps
       </message>
       <!-- PRIVACY AND SECURITY SETTINGS -->
+      <message name="IDS_VIVALDI_IOS_NAVIGATION_BACK_BUTTON_TITLE" desc="Title of the navigation back button.">
+        Back
+      </message>
+      <!-- IPAD MAIN MENU -->
+      <message name="IDS_VIVALDI_IOS_MAIN_MENU_SHOW_PANEL" desc="Title of main menu item 'Show Panel'">
+        Show Panel
+      </message>
+      <message name="IDS_VIVALDI_IOS_MAIN_MENU_TRANSLATE" desc="Title of main menu item 'Translate'">
+        Translate
+      </message>
+      <!-- END IPAD MAIN MENU -->
     </messages>
   </release>
 </grit>

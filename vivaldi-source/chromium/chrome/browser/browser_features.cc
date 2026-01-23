@@ -35,7 +35,7 @@ BASE_FEATURE(kBookmarkTriggerForPrerender2KillSwitch,
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 // This flag is used for enabling BookmarkBar triggered preconnect.
-BASE_FEATURE(kBookmarkTriggerForPreconnect, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kBookmarkTriggerForPreconnect, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // This flag is used for enabling BookmarkBar triggered prefetch.  See
 // crbug.com/413259638 for more details of Bookmark triggered prefetching.
@@ -75,11 +75,6 @@ BASE_FEATURE(kClearUserDataUponProfileDestruction,
 // `kSecretPortalKeyProviderUseForEncryption` is enabled, this flag cannot be
 // disabled without losing data.
 BASE_FEATURE(kDbusSecretPortal, base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables usage of os_crypt_async::FreedesktopSecretKeyProvider, which is
-// compatible with the synchronous backend.
-BASE_FEATURE(kUseFreedesktopSecretKeyProvider,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_LINUX)
 
 // Destroy profiles when their last browser window is closed, instead of when
@@ -94,14 +89,6 @@ BASE_FEATURE(kDestroyProfileOnBrowserClose,
 // DestroyProfileOnBrowserClose only covers deleting regular (non-System)
 // Profiles. This flags lets us destroy the System Profile, as well.
 BASE_FEATURE(kDestroySystemProfiles, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables delaying the call to FullBrowserTransitionManager::OnProfileCreated()
-// until after BrowserContextDependencyManager::CreateBrowserContextServices()
-// in ProfileImpl::OnLocaleReady(). This change is thought to avoid creating
-// certain KeyedServices before they are properly initialized, but is flagged
-// guarded in case it causes unexpected issues.
-BASE_FEATURE(kDelayOnProfileCreatedForFullBrowserTransition,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables showing the email of the flex org admin that setup CBCM in the
 // management disclosures.
@@ -147,23 +134,12 @@ BASE_FEATURE(kNewTabPageTriggerForPrerender2, base::FEATURE_ENABLED_BY_DEFAULT);
 // crbug.com/421941586 for more details of New Tab Page triggered prefetching.
 BASE_FEATURE(kNewTabPageTriggerForPrefetch, base::FEATURE_DISABLED_BY_DEFAULT);
 
-#if BUILDFLAG(IS_ANDROID)
 // Adds an "Unsubscribe" action to web push notifications that allows stopping
 // notifications from a given origin with a single tap (with an option to undo).
-BASE_FEATURE(kNotificationOneTapUnsubscribe, base::FEATURE_ENABLED_BY_DEFAULT);
-base::FeatureParam<bool> kNotificationOneTapUnsubscribeUseServiceIntentParam{
-    &kNotificationOneTapUnsubscribe, "use_service_intent", false};
-#endif
-
-// Enables executing the browser commands sent by the NTP promos.
-BASE_FEATURE(kPromoBrowserCommands, base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Parameter name for the promo browser command ID provided along with
-// kPromoBrowserCommands.
-// The value of this parameter should be parsable as an unsigned integer and
-// should map to one of the browser commands specified in:
-// ui/webui/resources/js/browser_command/browser_command.mojom
-const char kBrowserCommandIdParam[] = "BrowserCommandIdParam";
+#if !BUILDFLAG(IS_ANDROID)
+BASE_FEATURE(kNotificationOneTapUnsubscribeOnDesktop,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 // When this feature is enabled, Chrome will register os_update_handler with
@@ -172,7 +148,7 @@ BASE_FEATURE(kRegisterOsUpdateHandlerWin, base::FEATURE_ENABLED_BY_DEFAULT);
 // When this feature is enabled, Chrome will install the
 // platform_experience_helper.
 BASE_FEATURE(kInstallPlatformExperienceHelperWin,
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
 // When this feature is enabled, the network service will restart unsandboxed if
@@ -209,11 +185,6 @@ BASE_FEATURE(kSandboxExternalProtocolBlockedWarning,
 // Otherwise, it will only decrypt existing data.
 BASE_FEATURE(kSecretPortalKeyProviderUseForEncryption,
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-// If true, encrypt new data with the key provided by
-// FreedesktopSecretKeyProvider. Otherwise, it will only decrypt existing data.
-BASE_FEATURE(kUseFreedesktopSecretKeyProviderForEncryption,
-             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_LINUX)
 
 // Enables migration of the network context data from `unsandboxed_data_path` to

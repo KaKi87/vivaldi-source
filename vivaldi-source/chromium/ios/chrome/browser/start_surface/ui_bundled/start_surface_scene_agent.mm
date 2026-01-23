@@ -28,6 +28,8 @@
 #import "ios/chrome/browser/shared/model/web_state_list/removing_indexes.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
+#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
@@ -93,6 +95,7 @@ bool IsEmptyNTP(const web::WebState* web_state) {
       self.waitingForProfileStateAfterSceneStateReady) {
     self.waitingForProfileStateAfterSceneStateReady = NO;
     [self showStartSurfaceIfNecessary];
+    [self showTabGroupInGridIfNecessary];
   }
 }
 
@@ -102,6 +105,7 @@ bool IsEmptyNTP(const web::WebState* web_state) {
   if (self.waitingForProfileStateAfterSceneStateReady) {
     self.waitingForProfileStateAfterSceneStateReady = NO;
     [self showStartSurfaceIfNecessary];
+    [self showTabGroupInGridIfNecessary];
   }
 }
 
@@ -132,6 +136,7 @@ bool IsEmptyNTP(const web::WebState* web_state) {
       self.previousActivationLevel < SceneActivationLevelForegroundInactive) {
     [self logBackgroundDurationMetricForActivationLevel:level];
     [self showStartSurfaceIfNecessary];
+    [self showTabGroupInGridIfNecessary];
   }
   self.previousActivationLevel = level;
 }
@@ -193,21 +198,21 @@ bool IsEmptyNTP(const web::WebState* web_state) {
     // Iterate through the WebStateList and activate the existing NTP tab for
     // the Start surface (if any).
     for (int i = webStateList->count() - 1; i >= 0; --i) {
-      if ([self activateNTPForWebStateList:webStateList atIndex:i]) {
+      if ([self activateUngroupedNTPForWebStateList:webStateList atIndex:i]) {
         return;
       }
     }
   } else if (startUpRemediationFeatureType ==
              StartupRemediationsType::kSaveNewNTPWebState) {
-    // If the tab at index kIOSLastKnownNTPWebStateIndex is still a valid NTP
-    // page, activate it and return early.
+    // If the tab at index kIOSLastKnownNTPWebStateIndex is still a valid
+    // ungrouped NTP page, activate it and return early.
     PrefService* prefService = browser->GetProfile()->GetPrefs();
     int knownNTPWebStateIndex =
         prefService->GetInteger(prefs::kIOSLastKnownNTPWebStateIndex);
     prefService->ClearPref(prefs::kIOSLastKnownNTPWebStateIndex);
     if (webStateList->ContainsIndex(knownNTPWebStateIndex)) {
-      if ([self activateNTPForWebStateList:webStateList
-                                   atIndex:knownNTPWebStateIndex]) {
+      if ([self activateUngroupedNTPForWebStateList:webStateList
+                                            atIndex:knownNTPWebStateIndex]) {
         return;
       }
     }
@@ -369,9 +374,12 @@ bool IsEmptyNTP(const web::WebState* web_state) {
 }
 
 // Returns YES if the WebState at the given index has been activated. Only
-// activates NTPs.
-- (BOOL)activateNTPForWebStateList:(WebStateList*)webStateList
-                           atIndex:(int)index {
+// activates NTPs that are not in a group.
+- (BOOL)activateUngroupedNTPForWebStateList:(WebStateList*)webStateList
+                                    atIndex:(int)index {
+  if (webStateList->GetGroupOfWebStateAt(index)) {
+    return NO;
+  }
   web::WebState* lastKnownWebState = webStateList->GetWebStateAt(index);
   if (IsUrlNtp(lastKnownWebState->GetVisibleURL())) {
     webStateList->ActivateWebStateAt(index);
@@ -401,4 +409,52 @@ bool IsEmptyNTP(const web::WebState* web_state) {
   }
 }
 
+// Shows the active tab group in tab grid view if chrome becomes active during a
+// specific time interval since last activation.
+- (void)showTabGroupInGridIfNecessary {
+  if (!IsShowTabGroupInGridOnStartEnabled()) {
+    return;
+  }
+
+  if (self.sceneState.profileState.initStage < ProfileInitStage::kFinal) {
+    // Do not show if the app is not yet ready to present normal UI that is
+    // required by tab group in grid.
+    self.waitingForProfileStateAfterSceneStateReady = YES;
+    return;
+  }
+
+  Browser* browser =
+      self.sceneState.browserProviderInterface.currentBrowserProvider.browser;
+
+  // Do not show if in IncognitoMode
+  if (browser->type() != Browser::Type::kRegular) {
+    return;
+  }
+
+  // Do not show if already visible.
+  if (self.sceneState.controller.isTabGridVisible) {
+    return;
+  }
+
+  if (!ShouldShowTabGroupInGridForSceneState(self.sceneState)) {
+    return;
+  }
+
+  WebStateList* webStateList = browser->GetWebStateList();
+  int index = webStateList->active_index();
+  const TabGroup* tabGroup = webStateList->GetGroupOfWebStateAt(index);
+  if (!tabGroup) {
+    // Do not show if active tab is not part of a group.
+    return;
+  }
+
+  // Increment the IOS.TabGroupInGridOnStart.Show metric.
+  base::RecordAction(base::UserMetricsAction("IOS.TabGroupInGridOnStart.Show"));
+
+  // Activate the tab group in grid view.
+  CommandDispatcher* dispatcher = browser->GetCommandDispatcher();
+  id<ApplicationCommands> applicationHandler =
+      HandlerForProtocol(dispatcher, ApplicationCommands);
+  [applicationHandler displayTabGridInMode:TabGridOpeningMode::kDefault];
+}
 @end

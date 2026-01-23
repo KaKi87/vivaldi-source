@@ -17,6 +17,10 @@ import org.chromium.base.ContextUtils;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.ui.base.WindowAndroid;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.base.VivaldiDeviceLockUtils;
+
 /** This bridge allows native web C++ code to launch DeviceLockActivity. */
 @NullMarked
 public class DeviceLockBridge {
@@ -78,6 +82,10 @@ public class DeviceLockBridge {
 
     @CalledByNative
     private static boolean isDeviceSecure() {
+        // Vivaldi
+        if (BuildConfig.IS_OEM_GAS_BUILD && VivaldiDeviceLockUtils.isDeviceSecure())
+            return true;
+
         return ((KeyguardManager)
                         ContextUtils.getApplicationContext()
                                 .getSystemService(Context.KEYGUARD_SERVICE))
@@ -86,6 +94,10 @@ public class DeviceLockBridge {
 
     @CalledByNative
     public static boolean deviceLockPageHasBeenPassed() {
+        // Vivaldi
+        if (BuildConfig.IS_OEM_GAS_BUILD && VivaldiDeviceLockUtils.isDeviceSecure())
+            return true;
+
         return ContextUtils.getAppSharedPreferences()
                 .getBoolean(DEVICE_LOCK_PAGE_HAS_BEEN_PASSED, false);
     }

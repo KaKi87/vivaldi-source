@@ -12,6 +12,7 @@
 
 #include "components/content_injection/renderer/content_injection_manager.h"
 #include "components/ad_blocker/public/content/mojom/adblock_cosmetic_filter.mojom-blink.h"
+#include "mojo/public/cpp/bindings/remote.h"
 #include "renderer/mojo/vivaldi_frame_host_service.mojom-blink.h"
 #include "renderer/vivaldi_frame_service_impl.h"
 

@@ -95,7 +95,9 @@ class BookmarkToolbarViewBinder {
         } else if (key == BookmarkToolbarProperties.ADD_TO_READING_LIST_BUTTON_VISIBLE) {
             bookmarkToolbar.setAddToReadingListButtonVisible(
                     model.get(BookmarkToolbarProperties.ADD_TO_READING_LIST_BUTTON_VISIBLE));
-            // End Vivaldi
-        }
+        } /*Vivaldi*/ else if (key == BookmarkToolbarProperties.EXPORT_IMPORT_BOOKMARKS_VISIBLE) {
+            bookmarkToolbar.setExportImportBookmarksVisible(
+                    model.get(BookmarkToolbarProperties.EXPORT_IMPORT_BOOKMARKS_VISIBLE));
+        } // End Vivaldi
     }
 }

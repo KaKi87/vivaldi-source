@@ -153,6 +153,20 @@ class WindowPrivatePerformHapticFeedbackFunction : public ExtensionFunction {
   void PerformHapticFeedback();
 };
 
+class WindowPrivateSetHotSpotFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("windowPrivate.setHotSpot",
+                             WINDOW_PRIVATE_SET_HOTRECT)
+
+  WindowPrivateSetHotSpotFunction() = default;
+
+ protected:
+  ~WindowPrivateSetHotSpotFunction() override = default;
+
+ private:
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 
 #endif  // EXTENSIONS_API_WINDOW_WINDOW_PRIVATE_API_H_

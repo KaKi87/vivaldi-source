@@ -108,6 +108,10 @@
     EXPECT_BUFFER(buffer, offset, sizeof(float) * (count),            \
                   new ::dawn::detail::ExpectEq<float>(expected, count))
 
+#define EXPECT_BUFFER_FLOAT_RANGE_TOLERANCE_EQ(expected, buffer, offset, count, tolerance) \
+    EXPECT_BUFFER(buffer, offset, sizeof(float) * (count),                                 \
+                  new ::dawn::detail::ExpectEq<float>(expected, count, tolerance))
+
 // Test a pixel of the mip level 0 of a 2D texture.
 #define EXPECT_PIXEL_RGBA8_EQ(expected, texture, x, y) \
     AddTextureExpectation(__FILE__, __LINE__, expected, texture, {x, y})
@@ -206,6 +210,9 @@ class DawnTestEnvironment : public testing::Environment {
     uint32_t GetVendorIdFilter() const;
     bool HasBackendTypeFilter() const;
     wgpu::BackendType GetBackendTypeFilter() const;
+    bool HasWebGPUInnerBackendTypeFilter() const;
+    wgpu::BackendType GetWebGPUInnerBackendTypeFilter() const;
+    bool GetWebGPUInnerForceFallbackAdapter() const;
     const char* GetWireTraceDir() const;
 
     const std::vector<std::string>& GetEnabledToggles() const;
@@ -237,6 +244,9 @@ class DawnTestEnvironment : public testing::Environment {
     uint32_t mVendorIdFilter = 0;
     bool mHasBackendTypeFilter = false;
     wgpu::BackendType mBackendTypeFilter;
+    bool mHasWebGPUInnerBackendTypeFilter = false;
+    wgpu::BackendType mWebGPUInnerBackendTypeFilter = wgpu::BackendType::Undefined;
+    bool mWebGPUInnerForceFallbackAdapter = false;
     std::string mWireTraceDir;
     bool mRunSuppressedTests = false;
     bool mIsTestLauncherBotMode = false;
@@ -264,6 +274,8 @@ class DawnTestBase {
     bool IsMetal() const;
     bool IsNull() const;
     bool IsWebGPUOnWebGPU() const;
+    bool IsWebGPUOn(wgpu::BackendType backend) const;
+    bool IsWebGPUOnSwiftshader() const;
     bool IsOpenGL() const;
     bool IsOpenGLES() const;
     bool IsVulkan() const;
@@ -278,7 +290,6 @@ class DawnTestBase {
     bool IsSwiftshader() const;
     bool IsANGLE() const;
     bool IsANGLESwiftShader() const;
-    bool IsANGLED3D11() const;
     bool IsWARP() const;
     bool IsMesaSoftware() const;
 
@@ -370,6 +381,8 @@ class DawnTestBase {
         mDeviceErrorCallback;
     testing::StrictMock<testing::MockCppCallback<wgpu::DeviceLostCallback<void>*>>
         mDeviceLostCallback;
+    uint32_t mDeviceLostCallbackFailedCreationAllowedCount = 0;
+    uint32_t mDeviceLostCallbackFailedCreationCalledCount = 0;
 
     // Helper methods to implement the EXPECT_ macros
     std::ostringstream& AddBufferExpectation(const char* file,
@@ -778,6 +791,8 @@ class DawnTestBase {
 
     // Assuming the data is mapped, checks all expectations
     void ResolveExpectations();
+
+    void HandleDeviceCreationFailure();
 
     bool mRequireUseTieredLimits = false;
     native::Adapter mBackendAdapter;

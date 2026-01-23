@@ -18,12 +18,12 @@
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "components/contextual_search/core/browser/contextual_search_delegate_impl.h"
-#include "components/contextual_search/core/browser/resolved_search_term.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/navigation_interception/intercept_navigation_delegate.h"
 #include "components/search_engines/search_terms_data.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/touch_to_search/core/browser/contextual_search_delegate_impl.h"
+#include "components/touch_to_search/core/browser/resolved_search_term.h"
 #include "components/variations/variations_associated_data.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
@@ -157,15 +157,15 @@ void ContextualSearchManager::OnTextSurroundingSelectionAvailable(
       env, java_manager_, encoding, surrounding_text, start_offset, end_offset);
 }
 
-jlong JNI_ContextualSearchManager_Init(JNIEnv* env,
-                                       const JavaParamRef<jobject>& obj,
-                                       Profile* profile) {
+static jlong JNI_ContextualSearchManager_Init(JNIEnv* env,
+                                              const JavaParamRef<jobject>& obj,
+                                              Profile* profile) {
   ContextualSearchManager* manager =
       new ContextualSearchManager(env, obj, profile);
   return reinterpret_cast<intptr_t>(manager);
 }
 
-jboolean JNI_ContextualSearchPolicy_IsContextualSearchResolutionUrlValid(
+static jboolean JNI_ContextualSearchPolicy_IsContextualSearchResolutionUrlValid(
     JNIEnv* env,
     Profile* profile) {
   // Attempt to resolve a (empty) query. Return whether resulting URL is
@@ -188,3 +188,6 @@ jboolean JNI_ContextualSearchPolicy_IsContextualSearchResolutionUrlValid(
 
   return url.is_valid();
 }
+
+DEFINE_JNI(ContextualSearchManager)
+DEFINE_JNI(ContextualSearchPolicy)

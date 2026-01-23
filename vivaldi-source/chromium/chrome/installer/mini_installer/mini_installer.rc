@@ -1,7 +1,6 @@
 // Microsoft Visual C++ generated resource script.
 //
 #include "mini_installer_resource.h"
-#include "app/vivaldi_icon.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -30,7 +29,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_MINI_INSTALLER      ICON  VIVALDI_INSTALLER_ICON
+IDI_MINI_INSTALLER      ICON                    "mini_installer.ico"
 
 #ifdef APSTUDIO_INVOKED
 /////////////////////////////////////////////////////////////////////////////

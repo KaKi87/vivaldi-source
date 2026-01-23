@@ -133,14 +133,6 @@ UIView* SecondaryToolbarLocationBarContainerView(
   // TODO(crbug.com/429955447): Remove when diamond prototype is cleaned.
   NSArray<NSLayoutConstraint*>* _diamondToolbarTopConstraints;
   NSArray<NSLayoutConstraint*>* _diamondToolbarBottomConstraints;
-
-  // Constraints to be activated when the location bar is expanded and
-  // positioned relatively to the cancel button.
-  NSArray<NSLayoutConstraint*>* _expandedConstraints;
-
-  // Constraints to be activated when the location bar is contracted with large
-  // padding between the location bar and the controls.
-  NSArray<NSLayoutConstraint*>* _contractedConstraints;
 }
 
 @synthesize allButtons = _allButtons;
@@ -156,6 +148,7 @@ UIView* SecondaryToolbarLocationBarContainerView(
 @synthesize toolsMenuButton = _toolsMenuButton;
 @synthesize cancelButton = _cancelButton;
 @synthesize tabGridButton = _tabGridButton;
+@synthesize locationBarHeight = _locationBarHeight;
 
 // Vivaldi
 @synthesize bottomOmniboxEnabled = _bottomOmniboxEnabled;
@@ -205,45 +198,10 @@ UIView* SecondaryToolbarLocationBarContainerView(
                     kSecondaryToolbarWithoutOmniboxHeight);
 }
 
-- (void)willMoveToSuperview:(UIView*)newSuperview {
-  [super willMoveToSuperview:newSuperview];
-
-  if (IsBottomOmniboxAvailable() && newSuperview) {
-    _locationBarKeyboardConstraint.active = NO;
-
-#if defined(VIVALDI_BUILD)
-    // Note(prio@vivaldi.com)
-    // Pin location bar bottom to the keyboard top anchor to consistently have
-    // location bar above keyboard. In contrast chromium pins location bar top
-    // to keyboard top which means location bar can be hidden behind keyboard.
-    // For Vivaldi, add `kBottomAdaptiveLocationBarBottomMargin` to have spacing
-    // between keyboard and location bar/address bar.
-    _locationBarKeyboardConstraint = [newSuperview.keyboardLayoutGuide.topAnchor
-        constraintEqualToAnchor:self.locationBarContainer.bottomAnchor
-                       constant:kBottomAdaptiveLocationBarBottomMargin];
-#else
-    // UIKeyboardLayoutGuide is updated sooner in superview's
-    // keyboardLayoutGuide rendering smoother animation. Constraint is
-    // updated
-    // in view controller.
-    _locationBarKeyboardConstraint = [newSuperview.keyboardLayoutGuide.topAnchor
-        constraintGreaterThanOrEqualToAnchor:self.locationBarContainer
-                                                 .topAnchor];
-#endif // End Vivaldi
-  }
-}
-
 - (void)updateConstraints {
   if (IsDiamondPrototypeEnabled()) {
     [super updateConstraints];
     return;
-  }
-  if (_expanded) {
-    [NSLayoutConstraint deactivateConstraints:_contractedConstraints];
-    [NSLayoutConstraint activateConstraints:_expandedConstraints];
-  } else {
-    [NSLayoutConstraint deactivateConstraints:_expandedConstraints];
-    [NSLayoutConstraint activateConstraints:_contractedConstraints];
   }
 
   [super updateConstraints];
@@ -281,8 +239,6 @@ UIView* SecondaryToolbarLocationBarContainerView(
   _contentView.backgroundColor =
       self.buttonFactory.toolbarConfiguration.backgroundColor;
   } // End Vivaldi
-
-  [self setUpCancelButton];
 
   if (IsDiamondPrototypeEnabled()) {
     _diamondLocationBarStackView = [[UIStackView alloc] init];
@@ -481,34 +437,6 @@ UIView* SecondaryToolbarLocationBarContainerView(
     AddSameConstraintsToSides(self, self.bottomSeparator,
                               LayoutSides::kLeading | LayoutSides::kTrailing);
 
-    NSLayoutConstraint* visibleCancel = [self.cancelButton.trailingAnchor
-        constraintEqualToAnchor:safeArea.trailingAnchor
-#if defined(VIVALDI_BUILD)
-                       constant:0];
-#else
-                       constant:-kExpandedLocationBarHorizontalMargin];
-#endif // End Vivaldi
-
-    NSLayoutConstraint* hiddenCancel = [self.cancelButton.leadingAnchor
-        constraintEqualToAnchor:self.trailingAnchor];
-
-    _contractedConstraints = @[
-      hiddenCancel,
-      [locationBarContainer.trailingAnchor
-          constraintEqualToAnchor:safeArea.trailingAnchor
-#if defined(VIVALDI_BUILD)
-                         constant:0]
-#else
-                         constant:-kExpandedLocationBarHorizontalMargin],
-#endif // End Vivaldi
-    ];
-
-    _expandedConstraints = @[
-      visibleCancel,
-      [locationBarContainer.trailingAnchor
-          constraintEqualToAnchor:self.cancelButton.leadingAnchor],
-    ];
-
     if (IsDiamondPrototypeEnabled()) {
       [NSLayoutConstraint activateConstraints:@[
         [self.diamondPrototypeButton.leadingAnchor
@@ -547,18 +475,15 @@ UIView* SecondaryToolbarLocationBarContainerView(
           [self.bottomSeparator.bottomAnchor
               constraintEqualToAnchor:self.locationBarContainer.bottomAnchor],
         ]];
-      } else { // Vivaldi
-      [NSLayoutConstraint activateConstraints:@[
-        [self.cancelButton.topAnchor
-            constraintEqualToAnchor:locationBarContainer.topAnchor],
-        [self.cancelButton.bottomAnchor
-            constraintEqualToAnchor:locationBarContainer.bottomAnchor],
-        [locationBarContainer.leadingAnchor
-            constraintEqualToAnchor:safeArea.leadingAnchor
-                           constant:kExpandedLocationBarHorizontalMargin],
-      ]];
+      } else {
+      AddSameConstraintsToSidesWithInsets(
+          locationBarContainer, safeArea,
+          LayoutSides::kLeading | LayoutSides::kTrailing,
+          NSDirectionalEdgeInsetsMake(0, kExpandedLocationBarHorizontalMargin,
+                                      0, kExpandedLocationBarHorizontalMargin));
       } // End Vivaldi
     }
+
     if (!IsVivaldiRunning()) {
     [NSLayoutConstraint activateConstraints:@[
       self.locationBarTopConstraint,
@@ -626,19 +551,6 @@ UIView* SecondaryToolbarLocationBarContainerView(
 
 }
 
-// Sets the cancel button to stop editing the location bar.
-- (void)setUpCancelButton {
-  _cancelButton = [self.buttonFactory cancelButton];
-  _cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
-  _cancelButton.hidden = YES;
-  [self addSubview:self.cancelButton];
-}
-
-- (void)setExpanded:(BOOL)expanded {
-  _expanded = expanded;
-  [self setNeedsUpdateConstraints];
-}
-
 #pragma mark - Setters
 
 // TODO(crbug.com/429955447): Remove when diamond prototype is cleaned.
@@ -702,7 +614,7 @@ UIView* SecondaryToolbarLocationBarContainerView(
                                                 atIndex:1];
   } else {
     [self.locationBarContainer addSubview:locationBarView];
-    AddSameConstraints(self.locationBarView, self.locationBarContainer);
+    AddSameConstraints(locationBarView, self.locationBarContainer);
   }
 }
 
@@ -733,6 +645,16 @@ UIView* SecondaryToolbarLocationBarContainerView(
   } else {
     _buttonStackViewNoOmniboxConstraint.active = YES;
   }
+}
+
+- (void)setLocationBarHeight:(CGFloat)locationBarHeight {
+  /// Location bar height is only handled by this property in multiline omnibox.
+  CHECK(IsMultilineBrowserOmniboxEnabled(), base::NotFatalUntil::M200);
+  if (locationBarHeight == _locationBarHeight) {
+    return;
+  }
+  _locationBarHeight = locationBarHeight;
+  self.locationBarContainerHeight.constant = locationBarHeight;
 }
 
 #pragma mark: - Vivaldi

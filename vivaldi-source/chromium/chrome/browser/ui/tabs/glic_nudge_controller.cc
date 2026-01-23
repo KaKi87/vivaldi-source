@@ -31,6 +31,7 @@ GlicNudgeController::~GlicNudgeController() = default;
 void GlicNudgeController::UpdateNudgeLabel(
     content::WebContents* web_contents,
     const std::string& nudge_label,
+    std::optional<std::string> prompt_suggestion,
     std::optional<GlicNudgeActivity> activity,
     GlicNudgeActivityCallback callback) {
   auto* const tab_interface =
@@ -53,6 +54,15 @@ void GlicNudgeController::UpdateNudgeLabel(
     return;
   }
 
+  if (activity &&
+      activity == tabs::GlicNudgeActivity::
+                      kNudgeIgnoredOpenedContextualTasksSidePanel &&
+      delegate_ && delegate_->GetIsShowingGlicNudge()) {
+    delegate_->OnHideGlicNudgeUI();
+    OnNudgeActivity(*activity);
+    return;
+  }
+
   nudge_activity_callback_ = callback;
   PrefService* const pref_service =
       browser_window_interface_->GetProfile()->GetPrefs();
@@ -68,6 +78,8 @@ void GlicNudgeController::UpdateNudgeLabel(
   } else {
     OnNudgeActivity(tabs::GlicNudgeActivity::kNudgeShown);
   }
+
+  prompt_suggestion_ = prompt_suggestion;
 }
 
 void GlicNudgeController::OnNudgeActivity(GlicNudgeActivity activity) {
@@ -96,6 +108,7 @@ void GlicNudgeController::OnNudgeActivity(GlicNudgeActivity activity) {
     case GlicNudgeActivity::kNudgeDismissed:
     case GlicNudgeActivity::kNudgeIgnoredActiveTabChanged:
     case GlicNudgeActivity::kNudgeIgnoredNavigation:
+    case GlicNudgeActivity::kNudgeIgnoredOpenedContextualTasksSidePanel:
       nudge_activity_callback_.Run(activity);
       nudge_activity_callback_.Reset();
       scoped_window_call_to_action_ptr.reset();

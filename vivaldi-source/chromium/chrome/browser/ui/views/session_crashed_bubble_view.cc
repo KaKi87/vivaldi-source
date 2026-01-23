@@ -54,6 +54,8 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/widget/widget.h"
 
+#include "app/vivaldi_apptools.h"
+
 namespace {
 
 views::BubbleDialogDelegate* g_instance_for_test = nullptr;
@@ -164,9 +166,12 @@ class SessionCrashedBubbleView::BrowserRemovalObserver
 void SessionCrashedBubble::ShowIfNotOffTheRecordProfile(
     BrowserWindowInterface* browser,
     bool skip_tab_checking) {
-  // TODO(VB-120905)
-  //if (browser->is_vivaldi())
-  //  return;
+
+  if (vivaldi::IsVivaldiRunning() &&
+      browser->GetType() != BrowserWindowInterface::TYPE_APP &&
+      browser->GetType() != BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE) {
+    return;
+  }
 
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (browser->GetProfile()->IsOffTheRecord()) {

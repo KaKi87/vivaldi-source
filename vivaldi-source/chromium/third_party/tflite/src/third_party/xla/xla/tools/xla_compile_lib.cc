@@ -77,10 +77,9 @@ namespace xla {
 static absl::StatusOr<std::string> AotCompileCpuExecutable(
     std::unique_ptr<HloModule> hlo_module) {
   cpu::CpuCompiler cpu_compiler;
-  auto module_group = std::make_unique<HloModuleGroup>(std::move(hlo_module));
   TF_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<Executable>> executables,
-      cpu_compiler.Compile(std::move(module_group), {{nullptr}}, {nullptr}));
+      cpu_compiler.Compile(std::move(hlo_module), {nullptr}, {nullptr}));
   TF_ASSIGN_OR_RETURN(std::unique_ptr<AotCompilationResult> aot_result,
                       cpu_compiler.Export(executables[0].get()));
   return aot_result->SerializeAsString();
@@ -88,7 +87,7 @@ static absl::StatusOr<std::string> AotCompileCpuExecutable(
 
 static absl::StatusOr<std::string> CompileGpuExecutable(
     std::unique_ptr<HloModule> hlo_module,
-    std::optional<Compiler::TargetConfig> target_config,
+    std::optional<Compiler::GpuTargetConfig> target_config,
     CompilationResult& result) {
   TF_ASSIGN_OR_RETURN(std::string platform_name,
                       xla::PlatformUtil::CanonicalPlatformName("gpu"));
@@ -100,17 +99,15 @@ static absl::StatusOr<std::string> CompileGpuExecutable(
 
   TF_ASSIGN_OR_RETURN(auto gpu_compiler, Compiler::GetForPlatform(platform));
 
-  auto module_group = std::make_unique<HloModuleGroup>(std::move(hlo_module));
-
   if (aot) {
     AotCompilationOptions aot_options(platform->id());
-    aot_options.set_target_config(*target_config);
+    aot_options.set_gpu_target_config(*target_config);
     // We need the optimized module, so we call RunHloPasses ourselves above.
     aot_options.set_run_backend_only(true);
 
     TF_ASSIGN_OR_RETURN(
         std::vector<std::unique_ptr<AotCompilationResult>> aot_results,
-        gpu_compiler->CompileAheadOfTime(std::move(module_group), aot_options));
+        gpu_compiler->CompileAheadOfTime(std::move(hlo_module), aot_options));
     TF_ASSIGN_OR_RETURN(std::string compile_result,
                         aot_results[0]->SerializeAsString());
     *result.mutable_hlo_module() =
@@ -128,7 +125,7 @@ static absl::StatusOr<std::string> CompileGpuExecutable(
 
   TF_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<Executable>> executables,
-      gpu_compiler->Compile(std::move(module_group), {{stream_executor}},
+      gpu_compiler->Compile(std::move(hlo_module), {stream_executor},
                             compile_options));
   *result.mutable_hlo_module() = executables[0]->module().ToProto();
   return executables[0]->module().ToString();
@@ -136,7 +133,7 @@ static absl::StatusOr<std::string> CompileGpuExecutable(
 
 absl::StatusOr<std::string> CompileExecutable(
     std::unique_ptr<HloModule> hlo_module, BackendType backend,
-    std::optional<Compiler::TargetConfig> target_config,
+    std::optional<Compiler::GpuTargetConfig> target_config,
     CompilationResult& result) {
   if (backend == BackendType::kCpu) {
     return AotCompileCpuExecutable(std::move(hlo_module));
@@ -151,7 +148,7 @@ absl::Status WriteResultFile(const absl::string_view result_output_file,
   if (result_output_file.empty()) {
     return absl::OkStatus();
   }
-  absl::MutexLock ml(&stats.stats_mutex);
+  absl::MutexLock ml(stats.stats_mutex);
   const double secs = std::floor(stats.cumulative_secs);
   const double nanos =
       (stats.cumulative_secs - secs) * tsl::EnvTime::kSecondsToNanos;
@@ -221,7 +218,7 @@ ReadModuleFromSymbolRepo(absl::string_view symbol_repo,
   return mod;
 }
 
-static std::unique_ptr<Compiler::TargetConfig> ReadTargetConfigFromModule(
+static std::unique_ptr<Compiler::GpuTargetConfig> ReadTargetConfigFromModule(
     HloModuleAndMetadata* mod, BackendType backend) {
   if (backend == BackendType::kGpu) {
     if (auto* data = static_cast<gpu::GpuBackendSpecificData*>(
@@ -256,7 +253,7 @@ absl::StatusOr<bool> LoadAutotuneDataFromModule(HloModuleAndMetadata* mod,
 
 absl::Status XlaCompileMain(const XlaCompileOptions& options) {
   std::unique_ptr<HloModule> hlo_module;
-  std::unique_ptr<Compiler::TargetConfig> target_config;
+  std::unique_ptr<Compiler::GpuTargetConfig> target_config;
   if (options.platform != "cpu" && options.platform != "gpu") {
     return absl::UnimplementedError(
         absl::StrCat("platform", options.platform, " is not supported"));
@@ -309,7 +306,7 @@ absl::Status XlaCompileMain(const XlaCompileOptions& options) {
     }
   });
   // Run AOT compilation.
-  std::optional<Compiler::TargetConfig> cfg = std::nullopt;
+  std::optional<Compiler::GpuTargetConfig> cfg = std::nullopt;
   if (backend == BackendType::kGpu) {
     if (absl::string_view gpu_target_config_path =
             options.gpu_options.gpu_target_config_path;
@@ -327,9 +324,9 @@ absl::Status XlaCompileMain(const XlaCompileOptions& options) {
       }
 
       TF_ASSIGN_OR_RETURN(
-          Compiler::TargetConfig parsed_target_config,
-          Compiler::TargetConfig::FromProto(gpu_target_config_proto));
-      target_config = std::make_unique<Compiler::TargetConfig>(
+          Compiler::GpuTargetConfig parsed_target_config,
+          Compiler::GpuTargetConfig::FromProto(gpu_target_config_proto));
+      target_config = std::make_unique<Compiler::GpuTargetConfig>(
           std::move(parsed_target_config));
 
       if (absl::string_view autotune_results_path =

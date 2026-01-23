@@ -794,8 +794,15 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
       break;
     }
     case TabGridPageTabGroups: {
+      if (IsVivaldiRunning()) {
+        // Use same style as not selected.
+        iconSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
+                                          /*is_system_symbol=*/true);
+      } else {
       iconSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/true,
                                         /*is_system_symbol=*/true);
+      } // End Vivaldi
+
       iconNotSelected = ImageViewForSymbol(kTabGroupsSymbol, /*selected=*/false,
                                            /*is_system_symbol=*/true);
       self.tabGroupsSelectedIcon = iconSelected;
@@ -838,6 +845,12 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   iconSelected.tintColor = UIColor.blackColor;
 
   if (IsVivaldiRunning()) {
+    if (@available(iOS 26, *)) {
+      // Use same color as not selected. Contrast depends on the
+      // slider background instead.
+      iconSelected.tintColor = [UIColor colorNamed: vNotSelectedColor];
+    }
+
     iconNotSelected.tintColor = [UIColor colorNamed: vNotSelectedColor];
   } // End Vivaldi
 
@@ -873,7 +886,7 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
     if (IsVivaldiRunning()) {
       backgroundView.frame = CGRectMake(0, 0, vOverallWidth, vOverallHeight);
-      backgroundView.layer.cornerRadius = vCornerRadius;
+      backgroundView.layer.cornerRadius = vSegmentHeight / 2;
       backgroundView.center =
         CGPointMake(vOverallWidth / 2.0, vOverallHeight / 2.0);
     } // End Vivaldi
@@ -1012,7 +1025,7 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
   if (@available(iOS 26, *)) {
     if (IsVivaldiRunning()) {
-      slider.layer.cornerRadius = vSliderCornerRadius;
+      slider.layer.cornerRadius = vSliderHeight / 2.0;
     } else {
     slider.layer.cornerRadius = kSliderHeight / 2.0;
     } // End Vivaldi
@@ -1029,7 +1042,11 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
   slider.layer.masksToBounds = YES;
   if (IsVivaldiRunning()) {
-    slider.backgroundColor = vSliderColor;
+    if (@available(iOS 26, *)) {
+      slider.backgroundColor = vSliderColoriOS26;
+    } else {
+      slider.backgroundColor = vSliderColor;
+    }
   } else {
   slider.backgroundColor = UIColor.whiteColor;
   } // End Vivaldi
@@ -1123,7 +1140,14 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
       TextForTabCount(_tabCount, kSelectedLabelSize * kLabelSizeToFontSize);
 
   if (IsVivaldiRunning()) {
-    self.regularLabel.textColor = UIColor.labelColor;
+    // Do not make text bold for selected state.
+    self.regularSelectedLabel.attributedText =
+        TextForTabCount(_tabCount, kLabelSize * kLabelSizeToFontSize);
+
+    if (@available(iOS 26, *)) {
+      self.regularLabel.textColor = UIColor.labelColor;
+      self.regularSelectedLabel.textColor = UIColor.labelColor;
+    }
   } // End Vivaldi
 }
 
@@ -1166,9 +1190,8 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   } else if (CGRectContainsPoint(self.closedGuide.layoutFrame, point)) {
     page = TabGridPageClosedTabs;
   } else {
-    // bug: taps in the left- or rightmost `kSliderOverhang` points of the
-    // control will fall through to this case.
-    // TODO(crbug.com/41366258): Fix this.
+    // TODO(crbug.com/451554492): taps in the left- or rightmost
+    // `kSliderOverhang` points of the control will fall through to this case.
     page = TabGridPageRegularTabs;
   }
 

@@ -9,7 +9,6 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/commerce/core/commerce_feature_list.h"
 #import "google_apis/gaia/gaia_id.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_tile_layout_util.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_collection_utils.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_constants.h"
@@ -21,11 +20,11 @@
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_module_content_view_delegate.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_module_contents_factory.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_utils.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/safety_check_state.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/utils.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/shop_card_data.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/shop_card_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/tab_resumption_item.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/model/safety_check_utils.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/safety_check/ui/safety_check_state.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/ui/shop_card_data.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/shop_card/ui/shop_card_item.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/ui/tab_resumption_item.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
@@ -45,12 +44,6 @@
 #import "url/gurl.h"
 
 namespace {
-
-// The horizontal inset for the content within this container.
-const CGFloat kContentHorizontalInset = 20.0f;
-
-// The top inset for the content within this container.
-const CGFloat kContentTopInset = 16.0f;
 
 // The bottom inset for the content within this container.
 const CGFloat kContentBottomInset = 24.0f;
@@ -89,7 +82,7 @@ const CGFloat kSeparatorHeight = 0.5;
   MagicStackModuleBackgroundView* _backgroundView;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame {
+- (instancetype)initWithFrame:(CGRect)frame noInset:(BOOL)noInset {
   self = [super initWithFrame:frame];
   if (self) {
     self.maximumContentSizeCategory = UIContentSizeCategoryAccessibilityMedium;
@@ -200,8 +193,7 @@ const CGFloat kSeparatorHeight = 0.5;
     AddSameConstraintsToSidesWithInsets(
         _stackView, self,
         (LayoutSides::kTop | LayoutSides::kLeading | LayoutSides::kTrailing),
-        NSDirectionalEdgeInsetsMake(kContentTopInset, kContentHorizontalInset,
-                                    0, kContentHorizontalInset));
+        noInset ? NSDirectionalEdgeInsetsZero : kMagicStackContainerInsets);
     _contentStackViewBottomMarginAnchor =
         [_stackView.bottomAnchor constraintEqualToAnchor:self.bottomAnchor
                                                 constant:-kContentBottomInset];
@@ -219,6 +211,10 @@ const CGFloat kSeparatorHeight = 0.5;
     [self applyBackgroundColors];
   }
   return self;
+}
+
+- (instancetype)initWithFrame:(CGRect)frame {
+  return [self initWithFrame:frame noInset:NO];
 }
 
 - (void)dealloc {
@@ -408,12 +404,6 @@ const CGFloat kSeparatorHeight = 0.5;
       }
       return l10n_util::GetNSString(IDS_IOS_TAB_RESUMPTION_TITLE);
     }
-    case ContentSuggestionsModuleType::kSetUpListDefaultBrowser:
-    case ContentSuggestionsModuleType::kSetUpListAutofill:
-    case ContentSuggestionsModuleType::kCompactedSetUpList:
-    case ContentSuggestionsModuleType::kSetUpListAllSet:
-    case ContentSuggestionsModuleType::kSetUpListNotifications:
-      return content_suggestions::SetUpListTitleString();
     case ContentSuggestionsModuleType::kSafetyCheck:
       return l10n_util::GetNSString(IDS_IOS_SAFETY_CHECK_TITLE);
     case ContentSuggestionsModuleType::kPriceTrackingPromo:
@@ -431,6 +421,11 @@ const CGFloat kSeparatorHeight = 0.5;
             IDS_IOS_CONTENT_SUGGESTIONS_SHOPCARD_REVIEWS_ALT_TITLE);
       }
     }
+    case ContentSuggestionsModuleType::kSetUpListDefaultBrowser:
+    case ContentSuggestionsModuleType::kSetUpListAutofill:
+    case ContentSuggestionsModuleType::kCompactedSetUpList:
+    case ContentSuggestionsModuleType::kSetUpListAllSet:
+    case ContentSuggestionsModuleType::kSetUpListNotifications:
     case ContentSuggestionsModuleType::kTipsWithProductImage:
     case ContentSuggestionsModuleType::kTips:
     case ContentSuggestionsModuleType::kAppBundlePromo:
@@ -449,8 +444,10 @@ const CGFloat kSeparatorHeight = 0.5;
       return kMagicStackContentSuggestionsModuleTabResumptionAccessibilityIdentifier;
 
     default:
-      // TODO(crbug.com/40946679): the code should use constants for
-      // accessibility identifiers, and not localized strings.
+      // Ideally the accessibility identifier should not depend on localized
+      // strings (as the test module only has access to the "en-US" locale,
+      // thus this forces the test to run the application in the same locale
+      // and prevents testing it in another configuration, i.e. LTR-language).
       return [self titleStringForModule:type config:config];
   }
 }

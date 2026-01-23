@@ -288,7 +288,9 @@ struct AuthenticatorRequestDialogModel
     kErrorFetchingChallenge,
     // OS authentication after selecting a password.
     kPasswordOsAuth,
-    kMaxValue = kPasswordOsAuth,
+    // The request is being dispatched to a platform authenticator.
+    kPlatformAuthenticator,
+    kMaxValue = kPlatformAuthenticator,
   };
 
   // Views and controllers implement this interface to receive events, which
@@ -346,14 +348,14 @@ struct AuthenticatorRequestDialogModel
     using WindowsAPI = base::StrongAlias<class WindowsAPITag, std::monostate>;
     using ICloudKeychain =
         base::StrongAlias<class iCloudKeychainTag, std::monostate>;
-    using AddPhone = base::StrongAlias<class AddPhoneTag, std::monostate>;
+    using Hybrid = base::StrongAlias<class HybridTag, std::monostate>;
     using Enclave = base::StrongAlias<class EnclaveTag, std::monostate>;
     using SignInAgain = base::StrongAlias<class SignInAgainTag, std::monostate>;
     using Type = std::variant<Credential,
                               Password,
                               Transport,
                               WindowsAPI,
-                              AddPhone,
+                              Hybrid,
                               ICloudKeychain,
                               Enclave,
                               SignInAgain>;

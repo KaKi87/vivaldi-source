@@ -130,7 +130,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.saveButton.activityInProgress = NO;
   self.saveButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_ACTIVATE_ACCOUNT_BUTTON);
-  self.saveButton.textAlignment = NSTextAlignmentNatural;
   self.saveButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
   self.saveButton.buttonTextColor = [UIColor colorNamed:kSolidButtonTextColor];
   self.saveButton.cellBackgroundColor = _saveButton.buttonBackgroundColor;

@@ -38,7 +38,7 @@ import metadata.fields.custom.mitigated as mitigated_util
 import metadata.fields.known as known_fields
 import metadata.fields.util as util
 import metadata.validation_result as vr
-from metadata.fields.custom.license_allowlist import OPEN_SOURCE_SPDX_LICENSES
+import metadata.fields.custom.license_allowlist as allowlist_util
 
 
 class DependencyMetadata:
@@ -126,30 +126,6 @@ class DependencyMetadata:
                                field: field_types.MetadataField) -> List[int]:
         return sorted(self._metadata_line_numbers[field])
 
-    def all_licenses_allowlisted(self, license_field_value: str, is_open_source_project: bool) -> bool:
-        """Returns whether all licenses in the field are allowlisted.
-        Assumes a non-empty license_field_value"""
-        licenses = license_util.process_license_value(
-            license_field_value,
-            atomic_delimiter=known_fields.LICENSE.VALUE_DELIMITER)
-        for lic, valid in licenses:
-            allowed = license_util.is_license_allowlisted(lic, is_open_source_project=is_open_source_project)
-            if not valid or not allowed:
-                return False
-        return True
-
-
-    def only_open_source_licenses(self, license_field_value: str) ->List[str]:
-        """Returns a list of licenses that are only allowed in open source projects."""
-        licenses = license_util.process_license_value(
-            license_field_value,
-            atomic_delimiter=known_fields.LICENSE.VALUE_DELIMITER)
-        open_source_only = []
-        for lic, valid in licenses:
-            if valid and lic in OPEN_SOURCE_SPDX_LICENSES:
-                open_source_only.append(lic)
-        return open_source_only
-
     def _assess_required_fields(self, is_open_source_project: bool = False) -> Set[field_types.MetadataField]:
         """Returns the set of required fields, based on the current
         metadata.
@@ -169,7 +145,8 @@ class DependencyMetadata:
             # package is shipped and the license is not in the
             # allowlist.
             license_value = self._metadata.get(known_fields.LICENSE)
-            if not license_value or not self.all_licenses_allowlisted(license_value, is_open_source_project):
+            if not license_value or not known_fields.LICENSE.all_licenses_allowed(
+                    license_value, is_open_source_project):
                 required.add(known_fields.LICENSE_ANDROID_COMPATIBLE)
 
         return required
@@ -266,9 +243,10 @@ class DependencyMetadata:
 
         # If the repository is hosted somewhere (i.e. Chromium isn't the
         # canonical repositroy of the dependency), at least one of the fields
-        # Version, Date or Revision must be provided.
-        if (not (self.is_canonical or self.version or self.date or self.revision
-                 or self.revision_in_deps)):
+        # Version, Date or Revision must be provided, unless it is canonical or internal.
+        if not (self.is_canonical or self.is_internal) and not (
+                self.version or self.date or self.revision
+                or self.revision_in_deps):
             versioning_fields = [
                 known_fields.VERSION, known_fields.DATE, known_fields.REVISION
             ]
@@ -299,7 +277,8 @@ class DependencyMetadata:
         if not is_open_source_project:
             license_value = self._metadata.get(known_fields.LICENSE)
             if license_value is not None:
-                not_allowed_licenses = self.only_open_source_licenses(license_value)
+                not_allowed_licenses = known_fields.LICENSE.filter_open_source_project_only_licenses(
+                    license_value)
                 if len(not_allowed_licenses) > 0:
                     license_result = vr.ValidationWarning(
                         reason=f"License has a license not in the allowlist."
@@ -341,6 +320,23 @@ class DependencyMetadata:
                         f"List these IDs in the 'Mitigated:' field: {util.quoted(extra_descriptions)}"
                     ]))
 
+        # Begin by only warning for a small subset of cases.
+        # TODO(b/438384123): Expand this to all cases.
+        if (self.security_critical
+            and self.shipped
+            and self.vuln_scan_sufficiency == "insufficient"):
+            # TODO(b/448003595): Provide a pre-populated bug link for when people
+            # think this is incorrect.
+            results.append(
+                vr.ValidationWarning(
+                    reason=
+                    "Dependency metadata is insufficient for vulnerability scanning.",
+                    additional=[
+                        "Please provide one of the following combinations:",
+                        "- 'CPEPrefix' with a version.",
+                        "- A git clonable 'URL' and a 'Revision'.",
+                        "- A package manager 'URL' and a 'Version'. ",
+                    ]))
         return results
 
     def _cpe_prefix_lacks_version(self) -> List[vr.ValidationResult]:
@@ -415,6 +411,16 @@ class DependencyMetadata:
         """
         value = self._metadata.get(known_fields.URL, "")
         return known_fields.URL.repo_is_canonical(value)
+
+    @property
+    def is_internal(self) -> bool:
+        """
+        Returns whether this repository is internal to google/chromium.
+
+        This is derived from a special value in the URL field.
+        """
+        value = self._metadata.get(known_fields.URL, "")
+        return known_fields.URL.repo_is_internal(value)
 
     @property
     def version(self) -> Optional[str]:
@@ -536,10 +542,11 @@ class DependencyMetadata:
             - 'sufficient:CPE' if a CPE prefix is provided and a version is included in the README.
             - 'sufficient:URL and Revision' if URL is a git url and a Revision is provided.
             - 'sufficient:URL and Revision[DEPS]' as above, but 'Revision:DEPS'.
-            - 'sufficient:URL and Version' if URL and version are provided.
+            - 'sufficient:Package Manager URL and Version' if a package manager URL and a Version are provided.
             - 'ignore:Canonical' if the dependency is the canonical repository.
             - 'ignore:Internal' if the dependency is internal.
             - 'ignore:Static' if the dependency's update mechanism is static.
+            - 'ignore:GoogleManaged' if the dependency's update mechanism ends in .GoogleManaged.
             - 'insufficient' otherwise.
         """
 
@@ -551,18 +558,18 @@ class DependencyMetadata:
             if self.revision_in_deps:
                 return "sufficient:URL and Revision[DEPS]"
             if self.version:
-                if self.url_is_git_clonable:
-                    return "sufficient:Git URL and Version"
                 if self.url_is_package_manager:
                     return "sufficient:Package Manager URL and Version"
 
-        raw_url = self._metadata.get(known_fields.URL, None)
-        if raw_url is not None and known_fields.URL.repo_is_canonical(raw_url):
+        if self.is_canonical:
             return "ignore:Canonical"
-        if raw_url is not None and known_fields.URL.repo_is_internal(raw_url):
+        if self.is_internal:
             return "ignore:Internal"
-        if (self.update_mechanism and self.update_mechanism[0]
-                and self.update_mechanism[0].lower() == "static"):
-            return "ignore:Static"
+        if self.update_mechanism and self.update_mechanism[0]:
+            if self.update_mechanism[0].lower() == "static":
+                return "ignore:Static"
+            if (self.update_mechanism[1]
+                    and self.update_mechanism[1].lower() == "googlemanaged"):
+                return "ignore:GoogleManaged"
 
         return "insufficient"

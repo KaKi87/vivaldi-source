@@ -10,6 +10,9 @@ import android.view.View;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.browser_controls.BottomControlsStacker;
+import org.chromium.chrome.browser.browser_controls.BottomControlsStacker.LayerType;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
@@ -40,6 +43,7 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
     private final Context mContext;
     private final ObservableSupplier<Integer> mTabStripHeightSupplier;
     private final Callback<Integer> mTabStripHeightChangeCallback;
+    private final BottomControlsStacker mBottomControlsStacker;
 
     // Vivaldi
     private int mTopMargin;
@@ -61,9 +65,11 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
             LocationBarDataProvider locationBarDataProvider,
             Runnable clickDelegate,
             View scrimTarget,
-            ObservableSupplier<Integer> tabStripHeightSupplier) {
+            ObservableSupplier<Integer> tabStripHeightSupplier,
+            BottomControlsStacker bottomControlsStacker) {
         mScrimManager = scrimManager;
         mLocationBarDataProvider = locationBarDataProvider;
+        mBottomControlsStacker = bottomControlsStacker;
         mClickDelegate = clickDelegate;
         mContext = context;
 
@@ -86,6 +92,13 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
 
     @Override
     public void onUrlFocusChange(boolean hasFocus) {
+        if (ChromeFeatureList.sOmniboxAutofocusOnIncognitoNtp.isEnabled()
+                && mLocationBarDataProvider
+                        .getNewTabPageDelegate()
+                        .isIncognitoNewTabPageCurrentlyVisible()) {
+            return;
+        }
+
         boolean isTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext);
         boolean useLightColor =
                 !isTablet
@@ -94,6 +107,9 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
         mScrimModel.set(
                 ScrimProperties.BACKGROUND_COLOR,
                 useLightColor ? mLightScrimColor : ScrimProperties.INVALID_COLOR);
+        mScrimModel.set(
+                ScrimProperties.BOTTOM_MARGIN,
+                mBottomControlsStacker.getHeightFromLayerToBottom(LayerType.BOTTOM_CHIN));
 
         if (hasFocus && !showScrimAfterAnimationCompletes()) {
             // Note(david@vivaldi.com): Apply the correct top margin and check if we can show scrim.
@@ -111,6 +127,11 @@ public class LocationBarFocusScrimHandler implements UrlFocusChangeListener {
             mScrimManager.hideScrim(mScrimModel, /* animate= */ true);
             mScrimShown = false;
         }
+        // Note(david@vivaldi.com): Reset the FOCUS_ADDRESS_BAR_ON_NEW_TAB preference so that the
+        // next URL-bar focus can be proceeded as expected.
+        if (hasFocus)
+            VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
+                    VivaldiPreferences.FOCUS_ADDRESS_BAR_ON_NEW_TAB, false);
     }
 
     @Override

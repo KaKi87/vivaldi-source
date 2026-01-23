@@ -7,7 +7,6 @@ package org.chromium.chrome.browser;
 import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
-import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
 import android.os.Handler;
@@ -43,6 +42,7 @@ import org.chromium.components.browser_ui.share.ShareParams;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.content_public.browser.ActionModeCallback;
 import org.chromium.content_public.browser.ActionModeCallbackHelper;
+import org.chromium.content_public.browser.SelectionMenuItem;
 import org.chromium.content_public.browser.SelectionPopupController;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import android.content.Intent;
-
+import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.build.BuildConfig;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.vivaldi.browser.notes.NoteAppendActivity;
@@ -268,16 +268,9 @@ public class ChromeActionModeHandler {
         }
 
         @Override
-        public boolean onDropdownItemClicked(
-                int groupId,
-                int id,
-                @Nullable Intent intent,
-                View.@Nullable OnClickListener clickListener,
-                boolean closeMenu) {
+        public boolean onDropdownItemClicked(SelectionMenuItem item, boolean closeMenu) {
             boolean res =
-                    handleItemClick(id)
-                            || mHelper.onDropdownItemClicked(
-                                    groupId, id, intent, clickListener, closeMenu);
+                    handleItemClick(item.id) || mHelper.onDropdownItemClicked(item, closeMenu);
             if (closeMenu) mHelper.dismissMenu();
             return res;
         }
@@ -328,7 +321,7 @@ public class ChromeActionModeHandler {
             } else if (mShareDelegateSupplier.get() != null
                     && id
                             == org.chromium.chrome.R.id.select_action_menu_append_to_note) { // Vivaldi
-                NotesModel notesModel = new NotesModel();
+                NotesModel notesModel = NotesModel.getForProfile(ProfileManager.getLastUsedRegularProfile());
                 int notesCount = notesModel.getChildCount(notesModel.getMainFolderId());
                 // Directly save the note if there are no notes already.
                 if (notesCount == 0) {

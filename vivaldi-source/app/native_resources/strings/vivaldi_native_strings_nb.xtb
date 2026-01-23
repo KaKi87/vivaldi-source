@@ -11,6 +11,7 @@
 <translation id="1276145862619442150">Hurtigvalg</translation>
 <translation id="1281950884873973195">Dyr 6</translation>
 <translation id="1411638389238344450">Send lenken på e-post</translation>
+<translation id="1444961972702494601">Kunne ikke lese innstillingsfilen for Opera</translation>
 <translation id="1454726940098520109">Ikke vis bekreftelse igjen</translation>
 <translation id="1462666970065907900">Sikker på at du vil lukke dette vinduet?</translation>
 <translation id="1480046233931937785">Anerkjennelser</translation>
@@ -26,8 +27,11 @@
 <translation id="1702758681952953055">Hvis feilen ikke forsvinner, vennligst rapporter den med følgende detaljer:</translation>
 <translation id="1728549374069268714">Lim inn og gå</translation>
 <translation id="1756026472674246267">Åpne lenken i ny fane</translation>
+<translation id="1756609631857154536">Passordfilen (wand) finnes ikke</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Bildeegenskaper...</translation>
+<translation id="1826707182290941822">Innstillingene dine fra Chrome er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Chrome-vinduer. Klikk deretter på Fortsett.</translation>
+<translation id="1836997307232631937">Passordfilen kan ikke leses og kan være ødelagt</translation>
 <translation id="1919345977826869612">Reklame</translation>
 <translation id="1920297417712412573">Kopier til notat</translation>
 <translation id="1924750141060565109">Landskap 15</translation>
@@ -36,12 +40,17 @@
 <translation id="1973351931613083086">automatisk avspilling</translation>
 <translation id="1985669426322966465">Programoppdatering</translation>
 <translation id="2079036669923635404">Klikk her for å oppdatere Vivaldi til versjon <ph name="VERSION" />.</translation>
+<translation id="2096375219036704155">Bokmerke­filen finnes ikke</translation>
+<translation id="2101054359190001133">Innstillingene dine fra Opera er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Opera-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="2141974047387702305">En feil oppstod under nedlasting av oppdateringsfilene. Sjekk internettilkoblingen din og prøv igjen.</translation>
+<translation id="2142146492302700970">Finner ikke 'encrypted_key'-oppføring for kildeprofilen</translation>
+<translation id="2209970441698102782">Kunne ikke finne Local State for kildeprofilen</translation>
 <translation id="2225863440766607138">Sporing</translation>
 <translation id="2226825946708954262">⚠ Fortsett med tap av data</translation>
 <translation id="2339641773402824483">Ser etter oppdateringer...</translation>
 <translation id="2429571091666452569">Fra listen:</translation>
 <translation id="2441056087170876076">Monster 2</translation>
+<translation id="2443880093901730341">Kunne ikke forespørre databasefilen for historikk</translation>
 <translation id="2444387452209867610">Lim inn notat</translation>
 <translation id="2486841023299517366">Dyr 4</translation>
 <translation id="2501278716633472235">Gå tilbake</translation>
@@ -62,6 +71,7 @@
 <translation id="2989805286512600854">Åpne i ny fane</translation>
 <translation id="3084011186245865060">Landskap 6</translation>
 <translation id="3085906383264247940">Opera (beta)</translation>
+<translation id="3089483810725397237">Notatfilen finnes ikke</translation>
 <translation id="3093931836425623631">Vivaldi er mulig takket være åpen kildekode-prosjektet Chromium, samt andre åpen kildekode-prosjekter.</translation>
 <translation id="3119245580849443327">Vivaldi Personvernrapport</translation>
 <translation id="3126903660515914763">https://vivaldi.com/blog/news/alert-no-google-topics-in-vivaldi/</translation>
@@ -77,8 +87,10 @@
 <translation id="3308738399950580893">reklame</translation>
 <translation id="3334610655141903168">(ingen tittel)</translation>
 <translation id="3372505110412186107">Vivaldi <ph name="VERSION" /> er nyeste tilgjengelige versjon.</translation>
+<translation id="3378346665180477942">Ugyldig bokmerke­fil</translation>
 <translation id="3383198080133834965">Du er oppdatert!</translation>
 <translation id="3402602684546832928">Velg Opera bokmerkefil</translation>
+<translation id="3427361875526086153">Login Data -filen ble ikke funnet</translation>
 <translation id="3451317331714872347">Landskap 8</translation>
 <translation id="3457498675806041407">Bekreft avslutning</translation>
 <translation id="3470981972195599598">Vivaldi <ph name="VERSION" /> er allerede installert, og vil bli aktivert etter en omstart av nettleseren.</translation>
@@ -99,6 +111,8 @@
 <translation id="3732157130969736834">Bokmerk lenke</translation>
 <translation id="3732388226447288666">Dyr 2</translation>
 <translation id="3732439195215136813">Dyr 5</translation>
+<translation id="3807270291741046903">Nøkkelen er ikke en DPAPI-nøkkel, kan ikke dekrypteres</translation>
+<translation id="3821561970091304474">Kunne ikke åpne databasefilen for historikk</translation>
 <translation id="3822431842304177896">Nytt skilletegn</translation>
 <translation id="3832132597516774400">Landskap 5</translation>
 <translation id="3861977424605124250">Vis ved oppstart</translation>
@@ -107,19 +121,23 @@
 <translation id="3921292902397893431">Monster 8</translation>
 <translation id="3943857333388298514">Lim inn</translation>
 <translation id="4005270918754737597">Hopp over denne versjonen</translation>
+<translation id="4012248391474116967">Bokmerke­filen finnes ikke</translation>
 <translation id="4044951018940382324">Vivaldi</translation>
 <translation id="4064545092083709582">Vivaldi kunne ikke låse opp ditt sikre nøkkellager. Uten nøkkellageret vil du miste lagrede innlogginger og sikre infokapsler, og noen funksjoner som Sync, E-post, og Kalender vil slutte å virke.
 
     Avslutt nå, lås opp eller reparer nøkkellageret ditt, og prøv igjen. Vil du virkelig fortsette, men miste data?</translation>
 <translation id="4074744496918018786">Åpne bilde i privatvindu</translation>
 <translation id="410351446219883937">Automatisk avspilling</translation>
+<translation id="4241573219093785166">Innstillingene dine kan ikke importeres fra en annen Vivaldi-instans mens den fortsatt kjører. For å importere dem til denne nettleseren, lukk alle vinduer som tilhører den andre Vivaldi-instansen, og klikk deretter på Fortsett.</translation>
 <translation id="4281844954008187215">Vilkår for bruk</translation>
 <translation id="430967081421617822">For alltid</translation>
 <translation id="4324492550286218827">Landskap 2</translation>
+<translation id="436942009209245676">Kunne ikke tolke JSON i Local State-filen</translation>
 <translation id="4406101500523955324">Åpne i nytt privatvindu</translation>
 <translation id="4420816922321010053">Sikker på at du vil avslutte Vivaldi?</translation>
 <translation id="4430019312045809116">Volum</translation>
 <translation id="443008484043213881">Verktøy</translation>
+<translation id="4441649773969751521">nnstillingene dine fra Yandex er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Yandex-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="4456211719108566931">Monster 6</translation>
 <translation id="4459169140545916303">Aktiv for <ph name="DEVICE_LAST_ACTIVATED_TIME" /> dager siden</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
@@ -131,14 +149,17 @@
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Åpne bilde i ny bakgrunnsfane</translation>
 <translation id="4582480609585453144">Åpne lenken i bakgrunnsfane</translation>
+<translation id="461909702339733257">Innstillingene dine fra Edge er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Edge-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="4636708767492582204">Send med epost</translation>
 <translation id="4677434526832593569">Dyr 8</translation>
+<translation id="4729666228450010210">Kunne ikke lese hurtigvalgfilen</translation>
 <translation id="4736016046474602958">Sporingsblokkering</translation>
 <translation id="474217410105706308">Slå av lyd for fane</translation>
 <translation id="4861715717329665002">Automatisk lagrede økter</translation>
 <translation id="4881695831933465202">Åpne</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> av <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Importert Speed Dial</translation>
+<translation id="5034185370374718631">Innstillingene dine fra Opera GX er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Opera GX-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="5092656712000637858">Legg til siden som nettpanel</translation>
 <translation id="5106275083540628394">Dekryptering feilet: Risiko for tap av data</translation>
 <translation id="5177818338935286353">Monster 7</translation>
@@ -158,9 +179,11 @@
 <translation id="5648110075441906505">Åpne bilde i nytt vindu</translation>
 <translation id="5648166631817621825">Siste 7 dager</translation>
 <translation id="5656371807944747581">Oppdateringsfeil!</translation>
+<translation id="5707114137287591385">Kunne ikke lese importerte data</translation>
 <translation id="5732584064771442623">Vivaldi <ph name="NEW_VERSION" /> er nå tilgjengelig (du har <ph name="OLD_VERSION" />). Vil du laste ned nå?</translation>
 <translation id="5741670635761443575">Varsel: Ingen Google Topics i Vivaldi.</translation>
 <translation id="5770433027661640693">Landskap 10</translation>
+<translation id="5786053688537975020">Kunne ikke lese Local State fra disken</translation>
 <translation id="5857090052475505287">Ny mappe</translation>
 <translation id="588258955323874662">Fullskjerm</translation>
 <translation id="6040143037577758943">Lukk</translation>
@@ -180,6 +203,7 @@
 <translation id="6630781781151951863">Landskap 18</translation>
 <translation id="6635049669875534328">Versjonsmerknader:</translation>
 <translation id="6653655836861174026">Med Vivaldi-profiler kan du atskille alle dine Vivaldi-greier. Opprett profiler for venner og familie, eller skill mellom arbeid og lek.</translation>
+<translation id="6693551000972665087">Hovedpassord kreves, men ingen ble oppgitt - prøv igjen.</translation>
 <translation id="6693585104974197539">Velg mappen for Edge-profilen som skal importeres</translation>
 <translation id="6726279523566323394">Velg mappen for Brave-profilen som skal importeres</translation>
 <translation id="6736243959894955139">Adresse</translation>
@@ -193,12 +217,16 @@
 <translation id="7099506190679014195">Sikker oppgradering av nøkkellager</translation>
 <translation id="7111492742514999492">Landskap 9</translation>
 <translation id="7113310725918019676">Tillat <ph name="BLOCKED_TYPE" /> fra <ph name="DOMAIN" /></translation>
+<translation id="7230790743794586907">Kunne ikke åpne databasefilen for pålogginger</translation>
 <translation id="7277237102285741596">https://vivaldi.com/blog/manifest-v3-webrequest-and-ad-blockers/</translation>
 <translation id="7283555985781738399">Gjestemodus</translation>
+<translation id="7319087656340696133">Dekrypteringsnøkkelen er ugyldig</translation>
 <translation id="7321500017121629018">Aktiv i går</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7382439465323652245">Kunne ikke finne 'os_crypt'-oppføringen for kildeprofilen</translation>
 <translation id="7421665776469827022">Data spart</translation>
 <translation id="7454640759045234067">Sporinger blokkert</translation>
+<translation id="7508642657131162635">Innstillingene dine fra Brave er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Brave-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="7515032462649518126">Velg tilpasset avatarbilde</translation>
 <translation id="7581266044164103589">Kunne ikke starte oppdateringsprogrammet. Sjekk at datamaskinen har nok ledig diskplass og arbeidsminne og prøv igjen.</translation>
 <translation id="7658239707568436148">Avbryt</translation>
@@ -212,6 +240,7 @@
 <translation id="788493840831967104">Tid spart</translation>
 <translation id="7957213167373139414">Min kalender</translation>
 <translation id="7981965265950405093">Vivaldi har sin egen innebygde blokkering av annonser og sporere, massevis av tilpasningsmuligheter, innebygd Mail og Kalender, og mer. Kommer den til å følge Googles strenge krav til Manifest V3? Vivaldi-utvikler Julien Picalausa går i dybden på dette temaet.</translation>
+<translation id="7985415590384688462">Kunne ikke dekryptere passord</translation>
 <translation id="8027581147000338959">Åpne i nytt vindu</translation>
 <translation id="8034402064393340023">Vår forpliktelse til ditt personvern</translation>
 <translation id="8044382196220116469">Ikke tillat sider å automatisk spille av video</translation>
@@ -239,13 +268,16 @@
 <translation id="8774017153185436870">Nettsteder vil kanskje spille av video automatisk</translation>
 <translation id="8813277370772331957">Minn meg på dette senere</translation>
 <translation id="8837256239226739065">Undersøk Service Worker i bakgrunnen</translation>
+<translation id="8861872665418508137">nnstillingene dine fra Arc er ikke tilgjengelige mens nettleseren kjører. For å importere dem til Vivaldi, lagre arbeidet ditt og lukk alle Arc-vinduer. Klikk deretter på Fortsett.</translation>
 <translation id="8894900864683381599">Legg til lenken som nettpanel</translation>
 <translation id="8912720443398351457">Er du sikker på at du vil avslutte Vivaldi?</translation>
+<translation id="8924818205225323428">Historikkfilen finnes ikke</translation>
 <translation id="8940028675168378100">Blokkert av <ph name="BLOCKER_NAME" /></translation>
 <translation id="8947109330183116400">Velg HTML bokmerkefil</translation>
 <translation id="9017566390391482291">Velg Vivaldi profilkatalog for import</translation>
 <translation id="9048058608784130603">Venter på oppdatering <ph name="VERSION" /></translation>
 <translation id="9048224371732578627">Tillatelse for automatisk avspilling av video</translation>
+<translation id="9051519327745317142">Opera-innstillingsfilen ble ikke funnet</translation>
 <translation id="9065203028668620118">Rediger</translation>
 <translation id="9090254883741610153">La meg fortsette</translation>
 <translation id="910680796491389880">Thunderbird</translation>

@@ -5,6 +5,7 @@ if (!is_ios) {
 import("//tools/grit/grit_args.gni")
 import("//vivaldi/gn/config/features.gni")
 import("//vivaldi/gn/config/locales.gni")
+import("//vivaldi/gn/config/product.gni")
 
 import("//vivaldi/app/resources/generate_untranslated.gni")
 
@@ -22,7 +23,6 @@ template("vivaldi_extract_untranslated") {
                            "source",
                            "vivaldi_source",
                            "deps",
-                           "extra_grit_defines",
                            "grit_defines",
                            "source_translations",
                            "vivaldi_translations",
@@ -30,9 +30,6 @@ template("vivaldi_extract_untranslated") {
   # Some of these jobs are memory intensive, use link pool to limit
   # number of parallel jobs (link pool allocates 8 GB to each link job)
   pool = "//build/toolchain:link_pool($default_toolchain)"
-  if (!defined(extra_grit_defines)) {
-    extra_grit_defines = []
-  }
   if (!defined(grit_defines)) {
     grit_defines = []
   }

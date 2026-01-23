@@ -324,6 +324,10 @@ TEST_P(SurfaceTests, SwitchPresentMode) {
     // crbug.com/358166481
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan());
 
+    // TODO(crbug.com/463614521): Flakily causes a device loss on Snapdragon X
+    // Elite SoCs which causes all subsequent tests to fail.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
+
     constexpr wgpu::PresentMode kAllPresentModes[] = {
         wgpu::PresentMode::Immediate,
         wgpu::PresentMode::Fifo,
@@ -391,6 +395,8 @@ TEST_P(SurfaceTests, ResizingSurfaceOnly) {
 TEST_P(SurfaceTests, ResizingWindowOnly) {
     // Hangs on NVIDIA GTX 1660
     DAWN_SUPPRESS_TEST_IF(IsD3D12() && IsNvidia());
+    // TODO(crbug.com/42241486): Crashes on Linux NVIDIA GTX 1660 with 535.183.01 driver
+    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan() && IsNvidia());
 
     wgpu::Surface surface = CreateTestSurface();
     wgpu::SurfaceConfiguration config = GetPreferredConfiguration(surface);
@@ -675,6 +681,7 @@ TEST_P(SurfaceTests, Storage) {
     ASSERT_EQ(wgpu::Status::Success, surface.Present());
 }
 
+// TODO(crbug.com/440123094): Implement swap chain for WebGPUBackend.
 DAWN_INSTANTIATE_TEST(SurfaceTests,
                       D3D11Backend(),
                       D3D11Backend({"d3d11_delay_flush_to_gpu"}),

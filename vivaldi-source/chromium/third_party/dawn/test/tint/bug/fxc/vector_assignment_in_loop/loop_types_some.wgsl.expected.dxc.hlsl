@@ -20,12 +20,12 @@ void main() {
       } else {
         break;
       }
-      v2f[min(uint(i), 1u)] = 1.0f;
-      v2i[min(uint(i), 1u)] = int(1);
-      v2u[min(uint(i), 1u)] = 1u;
-      v2b[min(uint(i), 1u)] = true;
+      v2f[i] = 1.0f;
+      v2i[i] = int(1);
+      v2u[i] = 1u;
+      v2b[i] = true;
       {
-        i = (i + int(1));
+        i = asint((asuint(i) + asuint(int(1))));
       }
       continue;
     }

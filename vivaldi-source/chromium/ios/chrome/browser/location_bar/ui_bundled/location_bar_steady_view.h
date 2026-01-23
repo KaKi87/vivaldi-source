@@ -7,6 +7,8 @@
 
 #import <UIKit/UIKit.h>
 
+#include "ios/chrome/browser/location_bar/ui_bundled/location_bar_placeholder_type.h"
+
 // Vivaldi
 #import "ios/chrome/browser/sharing/ui_bundled/sharing_positioner.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_setting_type.h"
@@ -14,6 +16,7 @@
 
 @protocol BadgeViewVisibilityDelegate;
 @protocol IncognitoBadgeViewVisibilityDelegate;
+@protocol PageActionMenuCommands;
 @protocol ReaderModeChipVisibilityDelegate;
 @protocol ContextualPanelEntrypointVisibilityDelegate;
 @class LocationBarBadgesContainerView;
@@ -97,7 +100,8 @@
     incognitoBadgeViewVisibilityDelegate;
 
 // Set the placeholder view when there is no badge to display.
-- (void)setPlaceholderView:(UIView*)placeholderView;
+- (void)setPlaceholderView:(UIView*)placeholderView
+                      type:(LocationBarPlaceholderType)placeholderType;
 
 // The tappable button representing the location bar.
 @property(nonatomic, strong) UIButton* locationButton;
@@ -112,6 +116,10 @@
 // The view containing the infobar badge and contextual panel entrypoint.
 @property(nonatomic, strong)
     LocationBarBadgesContainerView* badgesContainerView;
+// The page action menu handler.
+@property(nonatomic, weak) id<PageActionMenuCommands> pageActionMenuHandler;
+// Whether the browser is in incognito mode.
+@property(nonatomic, assign, getter=isIncognito) BOOL incognito;
 
 // Vivaldi
 // The button displayed in the leading button view, i.e. site info button.

@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoomniveau voor <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi is traag, crasht of warmt op</translation>
 <translation id="1929299157575856072">STANDAARD BLOKKERINGSNIVEAU</translation>
+<translation id="1933618400514506228">Servo-Kroatisch (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Afbeelding in achtergrond-tabblad openen</translation>
 <translation id="1986733655397734221">Geen van deze</translation>
 <translation id="1994506778397655062">In achtergrond-tabblad openen</translation>
@@ -167,7 +168,6 @@ geblokkeerd</translation>
 <translation id="309084557304084991">Ik wil geen vooraf geladen bladwijzers en snelkiezers</translation>
 <translation id="3091563570137981919">Tracering- en reclamefilter</translation>
 <translation id="3097968995088564986">Knop Toevoegen weergeven</translation>
-<translation id="3102790820790869053">Recente tabbladen doorzoeken</translation>
 <translation id="3134385238404760368">Geen recente tabs</translation>
 <translation id="3142562627629111859">Nieuwe groep</translation>
 <translation id="3157931365184549694">Herstellen</translation>
@@ -226,6 +226,7 @@ geblokkeerd</translation>
 <translation id="383723620494271391">Wil je nog iets toevoegen?</translation>
 <translation id="3842727926262967527">Selecteer waar je de tabbalk en het adresveld wilt hebben.</translation>
 <translation id="3845564230651302310">Nieuwe traceringsfilterinstellingen toepassen…</translation>
+<translation id="385051799172605136">Terug</translation>
 <translation id="3858860766373142691">Naam</translation>
 <translation id="3861379244432690245">Direct Match inschakelen</translation>
 <translation id="3866249974567520381">Beschrijving</translation>
@@ -310,7 +311,6 @@ geblokkeerd</translation>
 <translation id="462860218383788109">Datum aangepast</translation>
 <translation id="4640946580087069269">Naar notitie kopiëren</translation>
 <translation id="4643117005422448078">Belangrijkste websites</translation>
-<translation id="4654428449690716275">Toon geen banners voor of na het aanbieden van vertalingen</translation>
 <translation id="4654578955713250802">Blokkering van reclame en traceerders</translation>
 <translation id="4655510151391078468">Deze code komt niet overeen met hetgeen we je hebben gestuurd.
         Je hebt <ph name="ATTEMPTS" /> resterende pogingen.</translation>
@@ -496,6 +496,7 @@ geblokkeerd</translation>
 <translation id="6946395294519639514">Met panelen houd je belangrijke hulpmiddelen binnen handbereik in de zijbalk van de browser.</translation>
 <translation id="6951435330868954105">Standaardinstellingen beheren</translation>
 <translation id="6951948201878750661">Tik om deze kleur te selecteren</translation>
+<translation id="6954630860045222581">Paneel weergeven</translation>
 <translation id="6967884871145366229">Privacy-instellingen beheren</translation>
 <translation id="6973630695168034713">Mappen</translation>
 <translation id="7000227144065890583">Url-suggestie</translation>
@@ -663,6 +664,7 @@ geblokkeerd</translation>
 <translation id="8948792607467387336">Als achtergrond kiezen</translation>
 <translation id="8964449607824577665">Zonder het huidige coderingswachtwoord kunnen we de gegevens niet decoderen. Om dit wachtwoord opnieuw in te voeren, moeten alle bestaande synchronisatiegegevens op Vivaldi-servers worden verwijderd.</translation>
 <translation id="8965371804397726192">Alle gegevens synchroniseren</translation>
+<translation id="896787570003733070">Geen banners tonen voor of na het aanbieden van de vertaling</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Bladwijzer verplaatst naar "{title}"}
           other {Bladwijzers verplaatst naar "{title}"}}</translation>

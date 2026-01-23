@@ -32,6 +32,10 @@ class EditMenuTabHelper : public web::WebStateUserData<EditMenuTabHelper> {
   // Build the edit menu using `edit_menu_builder_`.
   void BuildEditMenu(id<UIMenuBuilder> builder) const;
 
+  // Vivaldi
+  void BuildSelectionlessEditMenu(id<UIMenuBuilder> builder) const;
+  // End Vivaldi
+
  private:
   explicit EditMenuTabHelper(web::WebState* web_state);
   friend class web::WebStateUserData<EditMenuTabHelper>;

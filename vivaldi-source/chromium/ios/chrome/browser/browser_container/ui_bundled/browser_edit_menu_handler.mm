@@ -16,6 +16,8 @@
 
   if (vivaldi::IsVivaldiRunning()) {
     [self.vivaldiCopyToNoteDelegate buildMenuWithBuilder:builder];
+    [self.vivaldiAddSearchDelegate buildEditMenuWithBuilder:builder
+                                                 inWebState:webState];
   } // End Vivaldi
 
   [self.linkToTextDelegate buildEditMenuWithBuilder:builder
@@ -26,6 +28,16 @@
                                                 inWebState:webState];
   [self.partialTranslateDelegate buildEditMenuWithBuilder:builder
                                                inWebState:webState];
+  [self.dataControlsDelegate buildEditMenuWithBuilder:builder
+                                           inWebState:webState];
 }
+
+// Vivaldi
+- (void)buildSelectionlessEditMenuWithBuilder:(id<UIMenuBuilder>)builder
+                                   inWebState:(web::WebState*)webState {
+  [self.vivaldiAddSearchDelegate buildEditMenuWithBuilder:builder
+                                               inWebState:webState];
+}
+// End Vivaldi
 
 @end

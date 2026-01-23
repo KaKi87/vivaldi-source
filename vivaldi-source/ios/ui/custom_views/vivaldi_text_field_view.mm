@@ -25,6 +25,8 @@ const UIEdgeInsets deleteTextButtonPadding = UIEdgeInsetsMake(0.0, 8.0, 0.0, 12.
 // Padding for the underline view on the textfield
 // In order - Top, Leading, Bottom, Trailing
 const UIEdgeInsets underlinePadding = UIEdgeInsetsMake(2.0, 12.0, 0.0, 0.0);
+const UIEdgeInsets underlinePaddingiOS26 =
+    UIEdgeInsetsMake(2.0, 12.0, 0.0, 12.0);
 // Size for the underline
 // In order - Width, Height
 const CGSize underlineSize = CGSizeMake(0.0, 1.0);
@@ -115,11 +117,17 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
   _underlineView = underlineView;
 
   [self addSubview:underlineView];
+
+  UIEdgeInsets padding = underlinePadding;
+  if (@available(iOS 26, *)) {
+    padding = underlinePaddingiOS26;
+  }
+
   [underlineView anchorTop:textField.bottomAnchor
                    leading:self.leadingAnchor
                     bottom:self.bottomAnchor
                   trailing:self.trailingAnchor
-                   padding:underlinePadding
+                   padding:padding
                       size:underlineSize];
 }
 

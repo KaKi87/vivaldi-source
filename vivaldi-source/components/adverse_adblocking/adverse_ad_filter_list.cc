@@ -289,8 +289,8 @@ void AdverseAdFilterListService::LoadAndInitializeFromUniqueString(
 
   ComputeSHA256Sum(json_string->c_str(), json_string->length());
 
-  std::optional<base::Value> loaded_json_list =
-      base::JSONReader::Read(*json_string);
+  std::optional<base::Value> loaded_json_list = base::JSONReader::Read(
+      *json_string, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 
   DLOG_IF(WARNING, loaded_json_list);
 
@@ -331,7 +331,7 @@ bool AdverseAdFilterListService::IsSiteInList(const GURL& url) {
     return false;
 
   size_t pos = 0;
-  std::string hostname = url.host();
+  std::string hostname(url.host());
   while (pos != std::string::npos && pos < hostname.length()) {
     if (adverse_ad_sites_.find(hostname.substr(pos)) != adverse_ad_sites_.end())
       return true;

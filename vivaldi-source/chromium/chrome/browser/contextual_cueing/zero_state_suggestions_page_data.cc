@@ -20,6 +20,7 @@
 #include "chrome/browser/page_content_annotations/page_content_extraction_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_extraction/content/browser/inner_text.h"
+#include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/content/browser/page_context_eligibility.h"
 #include "components/optimization_guide/core/model_execution/optimization_guide_model_execution_error.h"
 #include "components/optimization_guide/core/optimization_guide_common.mojom.h"
@@ -30,6 +31,7 @@
 #include "components/optimization_guide/proto/features/zero_state_suggestions.pb.h"
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/blink/public/mojom/content_extraction/ai_page_content.mojom.h"
 
 namespace {
 
@@ -55,12 +57,12 @@ void GetEligibilityAndRunCallback(
     base::OnceCallback<
         void(std::optional<optimization_guide::proto::AnnotatedPageContent>)>
         callback,
-    std::optional<optimization_guide::AIPageContentResult> content) {
+    optimization_guide::AIPageContentResultOrError content) {
   bool is_eligible =
-      content &&
+      content.has_value() &&
       (!page_context_eligibility ||
        optimization_guide::IsPageContextEligible(
-           url.host(), url.path(),
+           url.GetHost(), url.GetPath(),
            optimization_guide::GetFrameMetadataFromPageContent(*content),
            page_context_eligibility));
   std::move(callback).Run(is_eligible ? std::make_optional(content->proto)
@@ -368,7 +370,8 @@ void ZeroStateSuggestionsPageData::InvokePageContextCallbacksIfComplete() {
   // Check if we are allowed to request suggestions for this page.
   if (!IsEligibleForContextualSuggestions(optimization_decision_,
                                           optimization_metadata_)) {
-    page_context_callbacks_.Notify(std::nullopt);
+    page_context_callbacks_.Notify(
+        base::unexpected(PageContextIneligibilityType::kOptimizationMetadata));
     return;
   }
 
@@ -382,9 +385,12 @@ void ZeroStateSuggestionsPageData::InvokePageContextCallbacksIfComplete() {
         "ContextualCueing.ZeroStateSuggestions.ContextExtractionDone", true);
   }
 
-  page_context_callbacks_.Notify(
-      has_page_context ? std::make_optional(ConstructPageContextProto())
-                       : std::nullopt);
+  if (has_page_context) {
+    page_context_callbacks_.Notify(base::ok(ConstructPageContextProto()));
+  } else {
+    page_context_callbacks_.Notify(
+        base::unexpected(PageContextIneligibilityType::kPageContext));
+  }
 }
 
 const GURL ZeroStateSuggestionsPageData::GetUrl() const {

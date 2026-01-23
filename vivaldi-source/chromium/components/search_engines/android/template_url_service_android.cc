@@ -327,9 +327,13 @@ TemplateUrlServiceAndroid::GetComposeplateUrl(
   }
 
   return url::GURLAndroid::FromNativeGURL(
-      env, GetUrlForAim(template_url_service_,
-                        omnibox::ANDROID_CHROME_NTP_FAKE_OMNIBOX_ENTRY_POINT,
-                        /*query_start_time=*/base::Time::Now()));
+      env,
+      GetUrlForAim(template_url_service_,
+                   omnibox::ANDROID_CHROME_NTP_FAKE_OMNIBOX_ENTRY_POINT,
+                   /*query_start_time=*/base::Time::Now(),
+                   /*query_text=*/std::u16string(),
+                   lens::LensOverlayInvocationSource::kOmniboxContextualQuery,
+                   /*additional_params=*/{}));
 }
 
 base::android::ScopedJavaLocalRef<jobject>
@@ -609,21 +613,22 @@ void TemplateUrlServiceAndroid::AddCustomSearchEngine(
     const base::android::JavaParamRef<jobject>& obj,
     const JavaParamRef<jstring>& short_name,
     const JavaParamRef<jstring>& nickname,
-    const base::android::JavaParamRef<jobject>& searchable_jurl,
-    const base::android::JavaParamRef<jobject>& suggest_jurl,
+    const JavaParamRef<jstring>& searchable_jurl,
+    const JavaParamRef<jstring>& suggestion_jurl,
     const JavaParamRef<jstring>& jsearch_url_post_params,
     const JavaParamRef<jstring>& jimage_url,
     const JavaParamRef<jstring>& jimage_url_post_params) {
-  GURL searchable_url = url::GURLAndroid::ToNativeGURL(env, searchable_jurl);
-  GURL suggest_url = url::GURLAndroid::ToNativeGURL(env, suggest_jurl);
+  std::string searchable_url =
+      base::android::ConvertJavaStringToUTF8(env, searchable_jurl);
+  std::string suggest_url =
+      base::android::ConvertJavaStringToUTF8(env, suggestion_jurl);
 
   TemplateURLData data;
   data.safe_for_autoreplace = false;
   data.SetShortName(base::android::ConvertJavaStringToUTF16(short_name));
   data.SetKeyword(base::android::ConvertJavaStringToUTF16(nickname));
-  data.SetURL(searchable_url.spec());
-  data.favicon_url = TemplateURL::GenerateFaviconURL(searchable_url);
-  data.suggestions_url = suggest_url.spec();
+  data.SetURL(searchable_url);
+  data.suggestions_url = suggest_url;
 
   std::string search_url_post_params;
   if (jsearch_url_post_params) {
@@ -680,15 +685,17 @@ jboolean TemplateUrlServiceAndroid::UpdateTemplateUrl(
     const JavaParamRef<jstring>& jkeyword,
     const JavaParamRef<jstring>& jnew_keyword,
     const JavaParamRef<jstring>& jshort_name,
-    const base::android::JavaParamRef<jobject>& searchable_jurl,
-    const base::android::JavaParamRef<jobject>& suggestion_jurl,
+    const JavaParamRef<jstring>& searchable_jurl,
+    const JavaParamRef<jstring>& suggestion_jurl,
     const JavaParamRef<jstring>& jsearch_url_post_params,
     const JavaParamRef<jstring>& jimage_url,
     const JavaParamRef<jstring>& jimage_url_post_params) {
   std::u16string keyword =
       base::android::ConvertJavaStringToUTF16(env, jkeyword);
-  GURL searchable_url = url::GURLAndroid::ToNativeGURL(env, searchable_jurl);
-  GURL suggest_url = url::GURLAndroid::ToNativeGURL(env, suggestion_jurl);
+  std::string searchable_url =
+      base::android::ConvertJavaStringToUTF8(env, searchable_jurl);
+  std::string suggest_url =
+      base::android::ConvertJavaStringToUTF8(env, suggestion_jurl);
   TemplateURL* template_url =
       template_url_service_->GetTemplateURLForKeyword(keyword);
   TemplateURLData data =
@@ -696,8 +703,8 @@ jboolean TemplateUrlServiceAndroid::UpdateTemplateUrl(
 
   data.SetShortName(base::android::ConvertJavaStringToUTF16(env, jshort_name));
   data.SetKeyword(base::android::ConvertJavaStringToUTF16(env, jnew_keyword));
-  data.SetURL(searchable_url.spec());
-  data.suggestions_url = suggest_url.spec();
+  data.SetURL(searchable_url);
+  data.suggestions_url = suggest_url;
   std::string search_url_post_params;
   if (jsearch_url_post_params) {
     search_url_post_params =
@@ -737,3 +744,5 @@ TemplateUrlServiceAndroid::GetUrlFromDisplayBridge(
   return base::android::ConvertUTF8ToJavaString(env, GetUrlFromDisplay(url));
 }
 // End Vivaldi
+
+DEFINE_JNI(TemplateUrlService)

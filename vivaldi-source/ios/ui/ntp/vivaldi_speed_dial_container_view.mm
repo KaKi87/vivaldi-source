@@ -398,7 +398,7 @@ const CGFloat commonPadding = 20;
   }
 
   __weak VivaldiSpeedDialContainerView* weakSelf = self;
-  auto faviconLoadedBlock = ^(FaviconAttributes* attributes) {
+  auto faviconLoadedBlock = ^(FaviconAttributes* attributes, bool cached) {
     VivaldiSpeedDialContainerView* strongSelf = weakSelf;
     if (!strongSelf)
       return;
@@ -438,7 +438,7 @@ const CGFloat commonPadding = 20;
     // If a direct match image is found, create attributes and call the block.
     FaviconAttributes* attributes =
         [FaviconAttributes attributesWithImage:directMatchImage];
-    faviconLoadedBlock(attributes);
+    faviconLoadedBlock(attributes, /*cached*/true);
   } else {
     // No direct match found, use the favicon loader.
     self.faviconLoader->FaviconForPageUrlOrHost(

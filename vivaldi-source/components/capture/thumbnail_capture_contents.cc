@@ -20,6 +20,7 @@
 #include "content/public/browser/web_contents.h"
 
 #include "components/capture/capture_page.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "ui/vivaldi_skia_utils.h"
 #include "extensions/buildflags/buildflags.h"
@@ -341,9 +342,10 @@ void ThumbnailCaptureContents::CaptureViaIpc() {
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
-void ThumbnailCaptureContents::OnCopyImageReady(const SkBitmap& bitmap) {
-  if (!bitmap.drawsNothing()) {
-    RespondAndDelete(bitmap);
+void ThumbnailCaptureContents::OnCopyImageReady(
+    const viz::CopyOutputBitmapWithMetadata& bitmap) {
+  if (!bitmap.bitmap.drawsNothing()) {
+    RespondAndDelete(bitmap.bitmap);
     return;
   }
 

@@ -81,6 +81,7 @@ class VivaldiNativeWidgetMac : public views::NativeWidgetMac {
     LightPadding,
     MediumPadding,
     HeavyPadding,
+    AutohideHeavyPadding,
   };
   void SetTrafficLightPosition(TrafficLightPosition position);
   void RedrawTrafficLight();
@@ -250,6 +251,8 @@ bool ScreenHasNotch(NSScreen* screen) {
     position = VivaldiNativeWidgetMac::TrafficLightPosition::MediumPadding;
   } else if ([position_str isEqual:@"heavyPadding"]) {
     position = VivaldiNativeWidgetMac::TrafficLightPosition::HeavyPadding;
+  } else if ([position_str isEqual:@"autohideHeavyPadding"]) {
+    position = VivaldiNativeWidgetMac::TrafficLightPosition::AutohideHeavyPadding;
   }
   native_widget_->SetTrafficLightPosition(position);
 }
@@ -397,6 +400,15 @@ void VivaldiNativeWidgetMac::SetTrafficLightPosition(
         traffic_light_position_ = {19, 19};
       } else {
         traffic_light_position_ = {19, 18};
+      }
+      break;
+    case TrafficLightPosition::AutohideHeavyPadding:
+    // The border of autohide tabs is 6px, this is HeavyPadding + 6px.
+      if (@available(macos 26, *)) {
+        // Adjust padding slightly for macOS 26 (Tahoe).
+        traffic_light_position_ = {25, 25};
+      } else {
+        traffic_light_position_ = {25, 24};
       }
       break;
   }

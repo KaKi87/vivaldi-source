@@ -8,6 +8,7 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
@@ -140,7 +141,7 @@ void VmSKForwardingNativeMessageHost::DeliverMessageToSKForwardingExtension(
     if (extensions::ExtensionRegistry::Get(profile)
             ->enabled_extensions()
             .GetExtensionOrAppByURL(url)) {
-      DeliverMessageToExtensionByID(profile, url.host(), json_message,
+      DeliverMessageToExtensionByID(profile, url.GetHost(), json_message,
                                     std::move(response_callback));
       return;
     }

@@ -15,7 +15,9 @@
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/performance_controls/memory_saver_utils.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
@@ -85,7 +87,7 @@ TabRendererData MakeTabRendererData() {
   TabRendererData new_tab_data = TabRendererData();
   new_tab_data.title = kTabTitle;
   new_tab_data.last_committed_url = GURL(kTabUrl);
-  new_tab_data.alert_state = {tabs::TabAlert::AUDIO_PLAYING};
+  new_tab_data.alert_state = {tabs::TabAlert::kAudioPlaying};
   return new_tab_data;
 }
 
@@ -115,14 +117,17 @@ class TabHoverCardInteractiveUiTest
           MemorySaverInteractiveTestMixin<InteractiveBrowserTest>>,
       public test::TabHoverCardTestUtil {
  public:
-  ~TabHoverCardInteractiveUiTest() override = default;
-
-  void SetUp() override {
-    set_open_about_blank_on_browser_launch(true);
+  TabHoverCardInteractiveUiTest() {
     scoped_feature_list_.InitWithFeatures(
         {features::kTabHoverCardImages,
          data_sharing::features::kDataSharingFeature},
         {});
+  }
+
+  ~TabHoverCardInteractiveUiTest() override = default;
+
+  void SetUp() override {
+    set_open_about_blank_on_browser_launch(true);
     MemorySaverInteractiveTestMixin::SetUp();
   }
 
@@ -289,17 +294,18 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
                        InactiveWindowStaysInactiveOnHover) {
   resource_coordinator::GetTabLifecycleUnitSource()
       ->SetFocusedTabStripModelForTesting(nullptr);
-  const BrowserList* active_browser_list = BrowserList::GetInstance();
 
   // Open a second browser window.
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL(url::kAboutBlankURL), WindowOpenDisposition::NEW_WINDOW,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_BROWSER);
-  ASSERT_EQ(2u, active_browser_list->size());
+  ASSERT_EQ(2u, chrome::GetTotalBrowserCount());
 
   // Choose one browser to be active; the other to be inactive.
-  Browser* active_window = active_browser_list->get(0);
-  Browser* inactive_window = active_browser_list->get(1);
+  BrowserWindowInterface* const active_window =
+      GetLastActiveBrowserWindowInterfaceWithAnyProfile();
+  BrowserWindowInterface* const inactive_window =
+      ui_test_utils::GetBrowserNotInSet({active_window});
 
   // Activate the active browser and wait for the inactive browser to be
   // inactive.
@@ -522,8 +528,7 @@ class TabHoverCardFadeFooterWithDiscardInteractiveUiTest
     : public TabHoverCardFadeFooterInteractiveUiTest,
       public ::testing::WithParamInterface<bool> {
  public:
-  void SetUp() override {
-    TabHoverCardFadeFooterInteractiveUiTest::SetUp();
+  TabHoverCardFadeFooterWithDiscardInteractiveUiTest() {
     scoped_feature_list_.InitWithFeatureState(features::kWebContentsDiscard,
                                               GetParam());
   }
@@ -752,7 +757,7 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
   browser()->tab_strip_model()->ActivateTabAt(0);
   Tab* const tab = tab_strip->tab_at(1);
   TabRendererData data = tab->data();
-  data.alert_state = {tabs::TabAlert::AUDIO_PLAYING};
+  data.alert_state = {tabs::TabAlert::kAudioPlaying};
   tab->SetData(data);
   tab_strip->GetFocusManager()->SetFocusedView(tab);
   WaitForHoverCardVisible(tab_strip);

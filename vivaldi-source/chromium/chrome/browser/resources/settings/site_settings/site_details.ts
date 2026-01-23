@@ -7,15 +7,17 @@
  * 'site-details' show the details (permissions and usage) for a given origin
  * under Site Settings.
  */
-import 'chrome://resources/js/action_link.js';
 import 'chrome://resources/cr_elements/action_link.css.js';
+import 'chrome://resources/js/action_link.js';
 import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
+import '/shared/settings/controls/cr_policy_pref_indicator.js';
 import '../icons.html.js';
 import '../privacy_icons.html.js';
 import '../settings_page/settings_subpage.js';
@@ -24,6 +26,7 @@ import './all_sites_icons.html.js';
 import './clear_storage_dialog_shared.css.js';
 import './site_details_permission.js';
 
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
@@ -38,7 +41,7 @@ import type {Route} from '../router.js';
 import {RouteObserverMixin, Router} from '../router.js';
 import {SettingsViewMixin} from '../settings_page/settings_view_mixin.js';
 
-import {ChooserType, ContentSetting, ContentSettingsTypes} from './constants.js';
+import {ChooserType, ContentSetting, ContentSettingsTypes, JavascriptOptimizerSetting} from './constants.js';
 import {getTemplate} from './site_details.html.js';
 import type {SiteDetailsPermissionElement} from './site_details_permission.js';
 import {SiteSettingsMixin} from './site_settings_mixin.js';
@@ -61,8 +64,9 @@ export interface SiteDetailsElement {
   };
 }
 
-const SiteDetailsElementBase = RouteObserverMixin(SiteSettingsMixin(
-    SettingsViewMixin(WebUiListenerMixin(I18nMixin(PolymerElement)))));
+const SiteDetailsElementBase =
+    RouteObserverMixin(SiteSettingsMixin(SettingsViewMixin(
+        WebUiListenerMixin(PrefsMixin(I18nMixin(PolymerElement))))));
 
 export class SiteDetailsElement extends SiteDetailsElementBase {
   static get is() {
@@ -149,20 +153,15 @@ export class SiteDetailsElement extends SiteDetailsElementBase {
       },
       // </if>
 
-      autoPictureInPictureEnabled_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('autoPictureInPictureEnabled'),
-      },
-
       enableHandTrackingContentSetting_: {
         type: Boolean,
         value: () =>
             loadTimeData.getBoolean('enableHandTrackingContentSetting'),
       },
 
-      capturedSurfaceControlEnabled_: {
+      enableCapturedSurfaceControl_: {
         type: Boolean,
-        value: () => loadTimeData.getBoolean('capturedSurfaceControlEnabled'),
+        value: () => loadTimeData.getBoolean('enableCapturedSurfaceControl'),
       },
 
       enablePermissionSiteSettingsRadioButton_: {
@@ -195,6 +194,17 @@ export class SiteDetailsElement extends SiteDetailsElementBase {
         type: Boolean,
         value: () => loadTimeData.getBoolean('enableLocalNetworkAccessSetting'),
       },
+
+      /**
+       * Whether the "Block if site is unfamiliar" label should be used for the
+       * default javascript-optimizer content setting.
+       */
+      useBlockIfUnfamiliarLabelForV8OptimizerDefault_: {
+        type: Boolean,
+        computed:
+            'computeShouldUseBlockIfUnfamiliarLabelForV8OptimizerDefault_(' +
+            'prefs.generated.javascript_optimizer.value)',
+      },
     };
   }
 
@@ -210,15 +220,15 @@ export class SiteDetailsElement extends SiteDetailsElementBase {
   // <if expr="is_chromeos">
   declare private enableSmartCardReadersContentSetting_: boolean;
   // </if>
-  declare private autoPictureInPictureEnabled_: boolean;
+  declare private enableCapturedSurfaceControl_: boolean;
   declare private enableHandTrackingContentSetting_: boolean;
-  declare private capturedSurfaceControlEnabled_: boolean;
   declare private enablePermissionSiteSettingsRadioButton_: boolean;
   declare private enableWebAppInstallation_: boolean;
   private websiteUsageProxy_: WebsiteUsageBrowserProxy =
       WebsiteUsageBrowserProxyImpl.getInstance();
   declare private enableKeyboardLockPrompt_: boolean;
   declare private enableLocalNetworkAccessSetting_: boolean;
+  declare private useBlockIfUnfamiliarLabelForV8OptimizerDefault_: boolean;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -417,6 +427,16 @@ export class SiteDetailsElement extends SiteDetailsElementBase {
    */
   private hasDataAndCookies_(storage: string, cookies: string): boolean {
     return storage !== '' && cookies !== '';
+  }
+
+  /**
+   * Returns whether the "Block if site is unfamiliar" label should be used for
+   * the default javascript-optimizer content setting.
+   */
+  private computeShouldUseBlockIfUnfamiliarLabelForV8OptimizerDefault_():
+      boolean {
+    const pref = this.getPref('generated.javascript_optimizer').value;
+    return pref === JavascriptOptimizerSetting.BLOCKED_FOR_UNFAMILIAR_SITES;
   }
 
   private onResetSettingsDialogClosed_() {

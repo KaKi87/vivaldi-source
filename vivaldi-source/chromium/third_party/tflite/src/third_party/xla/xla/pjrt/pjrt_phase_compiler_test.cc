@@ -23,7 +23,7 @@ limitations under the License.
 #include <gtest/gtest.h>
 #include "absl/log/check.h"
 #include "absl/status/status.h"
-#include "absl/status/statusor.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
@@ -38,7 +38,6 @@ limitations under the License.
 #include "xla/pjrt/plugin/xla_cpu/cpu_topology.h"
 #include "xla/pjrt/plugin/xla_cpu/cpu_topology_description.h"
 #include "xla/tsl/lib/core/status_test_util.h"
-#include "xla/tsl/platform/status_matchers.h"
 #include "xla/tsl/util/proto/proto_matchers.h"
 
 namespace pjrt {
@@ -47,8 +46,6 @@ namespace {
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::tsl::proto_testing::EqualsProto;
-using ::tsl::testing::IsOkAndHolds;
-using ::tsl::testing::StatusIs;
 
 constexpr absl::string_view kStablehloModuleStr = R"(
   module {
@@ -79,8 +76,8 @@ std::vector<xla::PjRtPartialProgramProto> PrepareInputPartialPrograms(
   xla::PjRtPartialProgramProto partial_program;
   partial_program.set_program(*bytecode_status);
   partial_program.set_program_format(program_format);
-  partial_program.set_generating_phase("n/a");
-  partial_program.add_next_phases({next_phase});
+  partial_program.set_producer_phase("n/a");
+  partial_program.add_consumer_phases({next_phase});
   partial_program.set_version("1.0");
 
   return {partial_program};

@@ -7,12 +7,20 @@
 #include <string>
 #include <string_view>
 
+#include "base/auto_reset.h"
+#include "base/files/file_enumerator.h"
+#include "base/files/file_util.h"
 #include "base/functional/callback_helpers.h"
+#include "base/json/json_reader.h"
 #include "base/strings/string_util.h"
+#include "base/task/task_traits.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_expected_support.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "base/test/values_test_util.h"
+#include "base/test/with_feature_override.h"
+#include "base/types/expected_macros.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
@@ -41,6 +49,7 @@
 #include "components/webapps/isolated_web_apps/test_support/signing_keys.h"
 #include "components/webapps/isolated_web_apps/types/update_channel.h"
 #include "content/public/test/browser_test.h"
+#include "extensions/browser/extension_dialog_auto_confirm.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/test/embedded_test_server/http_request.h"
 #include "net/test/embedded_test_server/http_response.h"
@@ -60,7 +69,7 @@ using ::testing::Pointee;
 constexpr char kBadIconErrorTemplate[] = R"({
    "!url": "$1banners/manifest_test_page.html",
    "background_installation": false,
-   "install_surface": 15,
+   "install_surface": 0,
    "stages": [ {
       "!stage": "OnIconsRetrieved",
       "icons_downloaded_result": "Completed",
@@ -69,7 +78,20 @@ constexpr char kBadIconErrorTemplate[] = R"({
          "http_status_code": 404,
          "icon_size": "0x0",
          "icon_url": "$1banners/bad_icon.png"
-      }, {
+      } ],
+      "is_generated_icon": true
+   } ]
+}
+)";
+
+constexpr char kBadFaviconErrorTemplate[] = R"({
+   "!url": "$1banners/manifest_test_page.html?manifest=manifest_bad_icon.json",
+   "background_installation": false,
+   "install_surface": 0,
+   "stages": [ {
+      "!stage": "OnIconsRetrieved",
+      "icons_downloaded_result": "Completed",
+      "icons_http_results": [ {
          "http_code_desc": "Not Found",
          "http_status_code": 404,
          "icon_size": "0x0",
@@ -80,18 +102,14 @@ constexpr char kBadIconErrorTemplate[] = R"({
 }
 )";
 
-// Drops all CR and LF characters.
-std::string TrimLineEndings(std::string_view text) {
-  return base::CollapseWhitespaceASCII(
-      text,
-      /*trim_sequences_with_line_breaks=*/true);
-}
-
 }  // namespace
 
 class WebAppInternalsBrowserTest : public WebAppBrowserTestBase {
  public:
-  WebAppInternalsBrowserTest() = default;
+  explicit WebAppInternalsBrowserTest(bool enable_logs_on_disk) {
+    scoped_feature_list_.InitWithFeatureState(features::kRecordWebAppDebugInfo,
+                                              enable_logs_on_disk);
+  }
   WebAppInternalsBrowserTest(const WebAppInternalsBrowserTest&) = delete;
   WebAppInternalsBrowserTest& operator=(const WebAppInternalsBrowserTest&) =
       delete;
@@ -109,33 +127,33 @@ class WebAppInternalsBrowserTest : public WebAppBrowserTestBase {
   }
 
   void SetUpOnMainThread() override {
-    test::WaitUntilReady(WebAppProvider::GetForTest(browser()->profile()));
     WebAppBrowserTestBase::SetUpOnMainThread();
+    WaitForLogDiskTasks();
+  }
+
+  void WaitForLogDiskTasks() {
+    if (provider().install_manager().error_log()) {
+      base::test::TestFuture<void> future;
+      provider().install_manager().error_log()->WaitForLoadAndFlushForTesting(
+          future.GetCallback());
+      ASSERT_TRUE(future.Wait());
+    }
+
+    {
+      base::test::TestFuture<void> future;
+      future.Clear();
+      provider().command_manager().log().WaitForLoadAndFlushForTesting(
+          future.GetCallback());
+      ASSERT_TRUE(future.Wait());
+    }
   }
 
   webapps::AppId InstallWebApp(const GURL& app_url) {
     EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), app_url));
-
-    webapps::AppId app_id;
-    base::RunLoop run_loop;
-    GetProvider().scheduler().FetchManifestAndInstall(
-        webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON,
-        browser()->tab_strip_model()->GetActiveWebContents()->GetWeakPtr(),
-        base::BindOnce(test::TestAcceptDialogCallback),
-        base::BindLambdaForTesting([&](const webapps::AppId& new_app_id,
-                                       webapps::InstallResultCode code) {
-          EXPECT_EQ(code, webapps::InstallResultCode::kSuccessNewInstall);
-          app_id = new_app_id;
-          run_loop.Quit();
-        }),
-        FallbackBehavior::kAllowFallbackDataAlways);
-
-    run_loop.Run();
-    return app_id;
-  }
-
-  WebAppProvider& GetProvider() {
-    return *WebAppProvider::GetForTest(browser()->profile());
+    return test::InstallForWebContents(
+        browser()->profile(),
+        browser()->tab_strip_model()->GetActiveWebContents(),
+        webapps::WebappInstallSource::MENU_BROWSER_TAB);
   }
 
   std::unique_ptr<net::test_server::HttpResponse> RequestHandlerOverride(
@@ -161,15 +179,16 @@ class WebAppInternalsBrowserTest : public WebAppBrowserTestBase {
 
  private:
   net::EmbeddedTestServer::HandleRequestCallback request_override_;
-
-  base::test::ScopedFeatureList scoped_feature_list_{
-      features::kRecordWebAppDebugInfo};
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-// There are 2 error logs being persisted here, one generated from the commands
-// and one generated while parsing the manifest into a `WebAppInstallInfo`,
-// which logs the invalid icon errors.
-IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTest,
+class WebAppInternalsBrowserTestLoggingOn : public WebAppInternalsBrowserTest {
+ public:
+  WebAppInternalsBrowserTestLoggingOn()
+      : WebAppInternalsBrowserTest(/*enable_logs_on_disk=*/true) {}
+};
+
+IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTestLoggingOn,
                        PRE_InstallManagerErrorsPersist) {
   OverrideHttpRequest(embedded_test_server()->GetURL("/banners/bad_icon.png"),
                       net::HTTP_NOT_FOUND);
@@ -177,50 +196,126 @@ IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTest,
   webapps::AppId app_id = InstallWebApp(embedded_test_server()->GetURL(
       "/banners/manifest_test_page.html?manifest=manifest_bad_icon.json"));
 
-  const WebApp* web_app = GetProvider().registrar_unsafe().GetAppById(app_id);
+  const WebApp* web_app = provider().registrar_unsafe().GetAppById(app_id);
   ASSERT_TRUE(web_app);
   EXPECT_TRUE(web_app->is_generated_icon());
 
-  const std::string expected_error = base::ReplaceStringPlaceholders(
+  const std::string expected_error =
+      base::ReplaceStringPlaceholders(kBadIconErrorTemplate, {}, nullptr);
+
+  const std::string expected_error1 = base::ReplaceStringPlaceholders(
       kBadIconErrorTemplate, {embedded_test_server()->base_url().spec()},
       nullptr);
+  const std::string expected_error2 = base::ReplaceStringPlaceholders(
+      kBadFaviconErrorTemplate, {embedded_test_server()->base_url().spec()},
+      nullptr);
 
-  ASSERT_TRUE(GetProvider().install_manager().error_log());
-  ASSERT_EQ(2u, GetProvider().install_manager().error_log()->size());
+  PersistableLog* error_log = provider().install_manager().error_log();
+  ASSERT_TRUE(error_log);
+  EXPECT_THAT(
+      error_log->GetEntries(),
+      testing::UnorderedElementsAre(base::test::IsJson(expected_error1),
+                                    base::test::IsJson(expected_error2)));
 
-  const base::Value& error_log =
-      (*GetProvider().install_manager().error_log())[1];
-  EXPECT_TRUE(error_log.is_dict());
-  EXPECT_EQ(4u, error_log.GetDict().size());
-
-  EXPECT_EQ(TrimLineEndings(expected_error),
-            TrimLineEndings(error_log.DebugString()));
+  WaitForLogDiskTasks();
 }
 
-IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTest,
+IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTestLoggingOn,
                        InstallManagerErrorsPersist) {
-  test::WaitUntilReady(WebAppProvider::GetForTest(browser()->profile()));
+  ASSERT_TRUE(provider().install_manager().error_log());
+  ASSERT_FALSE(provider().install_manager().error_log()->GetEntries().empty());
 
-  ASSERT_TRUE(GetProvider().install_manager().error_log());
-  ASSERT_EQ(2u, GetProvider().install_manager().error_log()->size());
-
-  const base::Value& error_log =
-      (*GetProvider().install_manager().error_log())[1];
-  EXPECT_TRUE(error_log.is_dict());
-  EXPECT_EQ(4u, error_log.GetDict().size());
-
-  // Parses base url from the log: the port for embedded_test_server() changes
+  GURL start_url =
+      (*provider().registrar_unsafe().GetApps().begin()).start_url();
+  // Parses base url from the app: the port for embedded_test_server() changes
   // on every test run.
-  const std::string* url_value = error_log.GetDict().FindString("!url");
-  ASSERT_TRUE(url_value);
-  GURL url{*url_value};
-  ASSERT_TRUE(url.is_valid());
+  ASSERT_TRUE(start_url.is_valid());
 
-  const std::string expected_error = base::ReplaceStringPlaceholders(
-      kBadIconErrorTemplate, {url.GetWithEmptyPath().spec()}, nullptr);
+  const std::string expected_error1 = base::ReplaceStringPlaceholders(
+      kBadIconErrorTemplate, {start_url.GetWithEmptyPath().spec()}, nullptr);
+  const std::string expected_error2 = base::ReplaceStringPlaceholders(
+      kBadFaviconErrorTemplate, {start_url.GetWithEmptyPath().spec()}, nullptr);
 
-  EXPECT_EQ(TrimLineEndings(expected_error),
-            TrimLineEndings(error_log.DebugString()));
+  PersistableLog* error_log = provider().install_manager().error_log();
+  ASSERT_TRUE(error_log);
+  EXPECT_THAT(
+      error_log->GetEntries(),
+      testing::UnorderedElementsAre(base::test::IsJson(expected_error1),
+                                    base::test::IsJson(expected_error2)));
+}
+
+class WebAppInternalsBrowserTestPersistedLogsChanged
+    : public WebAppInternalsBrowserTest {
+ public:
+  WebAppInternalsBrowserTestPersistedLogsChanged()
+      : WebAppInternalsBrowserTest(/*enable_logs_on_disk=*/GetTestPreCount() ==
+                                   1) {}
+};
+
+IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTestPersistedLogsChanged,
+                       PRE_PersistedLogsDeleted) {
+  webapps::AppId app_id = InstallWebApp(
+      embedded_test_server()->GetURL("/web_apps/simple/index.html"));
+
+  WaitForLogDiskTasks();
+  {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    EXPECT_TRUE(base::PathExists(
+        PersistableLog::GetLogPath(profile(), "InstallManager.log")));
+  }
+}
+
+IN_PROC_BROWSER_TEST_F(WebAppInternalsBrowserTestPersistedLogsChanged,
+                       PersistedLogsDeleted) {
+  base::ScopedAllowBlockingForTesting allow_blocking;
+  // Flushing logs will make sure the deletion occurs.
+  WaitForLogDiskTasks();
+  EXPECT_FALSE(base::PathExists(
+      PersistableLog::GetLogPath(profile(), "InstallManager.log")));
+}
+
+class WebAppInternalsLogRotationBrowserTest
+    : public WebAppInternalsBrowserTestLoggingOn {
+ public:
+  int CountRotatedLogs(const base::FilePath& log_path) {
+    base::ScopedAllowBlockingForTesting allow_blocking;
+    base::FileEnumerator enumerator(
+        log_path.DirName(), false, base::FileEnumerator::FILES,
+        log_path.BaseName().RemoveExtension().value() + FILE_PATH_LITERAL("*") +
+            log_path.Extension());
+    int count = 0;
+    for (base::FilePath name = enumerator.Next(); !name.empty();
+         name = enumerator.Next()) {
+      if (name != log_path) {
+        count++;
+      }
+    }
+    return count;
+  }
+};
+
+IN_PROC_BROWSER_TEST_F(WebAppInternalsLogRotationBrowserTest, LogFileRotates) {
+  base::ScopedAllowBlockingForTesting allow_blocking;
+
+  base::FilePath command_manager_log_path =
+      PersistableLog::GetLogPath(profile(), "CommandManager.log");
+
+  // There should be logs, but not enough to roll them.
+  WaitForLogDiskTasks();
+  EXPECT_TRUE(base::PathExists(command_manager_log_path));
+  EXPECT_EQ(0, CountRotatedLogs(command_manager_log_path));
+
+  // Set the max log file size to 1 byte to force a rotation on the next write.
+  base::AutoReset<int> rotation_count_reset =
+      PersistableLog::SetMaxLogFileSizeBytesForTesting(1);
+
+  // Install an app to generate logs.
+  InstallWebApp(embedded_test_server()->GetURL("/web_apps/simple/index.html"));
+  WaitForLogDiskTasks();
+
+  // Logs should have been rotated, and we still should have a current log file.
+  EXPECT_TRUE(base::PathExists(command_manager_log_path));
+  EXPECT_GT(CountRotatedLogs(command_manager_log_path), 0);
 }
 
 class WebAppInternalsIwaInstallationBrowserTest
@@ -564,6 +659,60 @@ IN_PROC_BROWSER_TEST_F(
   handler->InstallIsolatedWebAppFromBundleUrl(std::move(params),
                                               install_future.GetCallback());
   ASSERT_TRUE(install_future.Take()->is_error());
+}
+
+// Tests the Isolated Web App deletion flow through the internals page handler.
+IN_PROC_BROWSER_TEST_F(WebAppInternalsIwaInstallationBrowserTest,
+                       DeleteIsolatedWebApp) {
+  // Install a test IWA.
+  auto bundle = IsolatedWebAppBuilder(ManifestBuilder()).BuildBundle();
+  ASSERT_OK_AND_ASSIGN(auto url_info, bundle->Install(profile()));
+  webapps::AppId app_id = url_info.app_id();
+
+  EXPECT_NE(provider().registrar_unsafe().GetAppById(app_id), nullptr);
+
+  auto* handler = OpenWebAppInternals();
+
+  // Auto-accept the uninstall dialog.
+  extensions::ScopedTestDialogAutoConfirm auto_accept(
+      extensions::ScopedTestDialogAutoConfirm::ACCEPT);
+
+  // Call the delete method on the handler.
+  base::test::TestFuture<bool> delete_future;
+  handler->DeleteIsolatedWebApp(app_id, delete_future.GetCallback());
+
+  // Verify the deletion was successful and the app is no longer registered.
+  EXPECT_TRUE(delete_future.Get());
+
+  EXPECT_EQ(provider().registrar_unsafe().GetAppById(app_id), nullptr);
+}
+
+// Tests the Isolated Web App deletion flow through the internals page handler
+// when the dialog box is cancelled.
+IN_PROC_BROWSER_TEST_F(WebAppInternalsIwaInstallationBrowserTest,
+                       DeleteIsolatedWebAppCancelled) {
+  // Install a test IWA.
+  auto bundle = IsolatedWebAppBuilder(ManifestBuilder()).BuildBundle();
+  ASSERT_OK_AND_ASSIGN(auto url_info, bundle->Install(profile()));
+  webapps::AppId app_id = url_info.app_id();
+
+  EXPECT_NE(provider().registrar_unsafe().GetAppById(app_id), nullptr);
+
+  auto* handler = OpenWebAppInternals();
+
+  // Auto-cancel the uninstall dialog.
+  extensions::ScopedTestDialogAutoConfirm auto_cancel(
+      extensions::ScopedTestDialogAutoConfirm::CANCEL);
+
+  // Call the delete method on the handler.
+  base::test::TestFuture<bool> delete_future;
+  handler->DeleteIsolatedWebApp(app_id, delete_future.GetCallback());
+
+  // Verify the deletion was not successful because it was cancelled.
+  EXPECT_FALSE(delete_future.Get());
+
+  // Verify the app is still registered.
+  EXPECT_NE(provider().registrar_unsafe().GetAppById(app_id), nullptr);
 }
 
 }  // namespace web_app

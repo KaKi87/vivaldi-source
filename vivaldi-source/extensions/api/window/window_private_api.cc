@@ -122,7 +122,6 @@ class VivaldiBrowserObserver : public BrowserListObserver,
   void OnBrowserRemoved(Browser* browser) override;
   void OnBrowserAdded(Browser* browser) override;
   void OnBrowserSetLastActive(Browser* browser) override;
-  void OnBrowserClosing(Browser* browser) override;
 
   // TabStripModelObserver implementation
   void TabChangedAt(content::WebContents* contents,
@@ -173,11 +172,6 @@ void VivaldiBrowserObserver::OnBrowserAdded(Browser* browser) {
   if (browser->is_vivaldi()) {
     ZoomAPI::AddZoomObserver(browser);
   }
-}
-
-void VivaldiBrowserObserver::OnBrowserClosing(Browser* browser) {
-  // All unloads has fired and all tab-webcontents will be destroyed.
-  browser->window()->Hide();
 }
 
 void VivaldiBrowserObserver::OnBrowserRemoved(Browser* browser) {
@@ -248,8 +242,10 @@ void VivaldiBrowserObserver::OnTabStripModelChanged(
       old_fill_client->OnWebContentsLostFocus(
           selection.old_contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
     }
-    new_fill_client->OnWebContentsFocused(
-        selection.new_contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
+    if (new_fill_client) {
+      new_fill_client->OnWebContentsFocused(
+          selection.new_contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
+    }
   }
 
   TabsPrivateAPI::FromBrowserContext(
@@ -609,6 +605,35 @@ WindowPrivateSetControlButtonsPositionFunction::Run() {
 ExtensionFunction::ResponseAction
 WindowPrivatePerformHapticFeedbackFunction::Run() {
   PerformHapticFeedback();
+  return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction WindowPrivateSetHotSpotFunction::Run() {
+  using vivaldi::window_private::SetHotSpot::Params;
+  std::optional<Params> params = Params::Create(args());
+  EXTENSION_FUNCTION_VALIDATE(params);
+
+  extensions::WindowController* controller;
+  std::string error;
+  if (!windows_util::GetControllerFromWindowID(
+          this, params->window_id, WindowController::GetAllWindowFilter(),
+          &controller, &error)) {
+    return RespondNow(Error(error));
+  }
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserWindow::FromBrowser(controller->GetBrowser());
+  if (!window) {
+    return RespondNow(Error("No window for browser."));
+  }
+
+  VivaldiBrowserWindow::HotSpot hotspot;
+
+  hotspot.location = params->location;
+  hotspot.width = params->width;
+  hotspot.height = params->height;
+
+  window->SetHotSpot(hotspot);
+
   return RespondNow(NoArguments());
 }
 

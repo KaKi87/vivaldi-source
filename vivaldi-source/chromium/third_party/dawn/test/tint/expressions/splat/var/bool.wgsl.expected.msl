@@ -1,7 +1,8 @@
 #include <metal_stdlib>
 using namespace metal;
 
-void f() {
+[[max_total_threads_per_threadgroup(1)]]
+kernel void f() {
   bool v = true;
   bool2 v2 = bool2(v);
   bool3 v3 = bool3(v);

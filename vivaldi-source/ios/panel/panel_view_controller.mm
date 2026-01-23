@@ -22,9 +22,10 @@
 
 using l10n_util::GetNSString;
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
+namespace {
+  constexpr CGFloat kSegmentedControlHeight = 40.0;
+  constexpr CGFloat kSegmentedControlCornerRadius = 20.0;
+}
 
 @interface PanelViewController (){
     UISegmentedControl* segmentedControl;
@@ -59,12 +60,12 @@ using l10n_util::GetNSString;
   if (!navController)
     return;
   int position = navController.navigationBar.frame.size.height;
-
+  if (![self isIPad]) {
+    if (@available(iOS 26, *))
+      position += panel_top_padding;
+  }
   // Adjust topAnchor if neccessary
   if (position != 0.0) {
-    if (@available(iOS 26, *)) {
-      position += panel_top_padding;
-    }
     positionConstraint.active = NO;
     positionConstraint.constant = position;
     positionConstraint.active = YES;
@@ -86,7 +87,7 @@ using l10n_util::GetNSString;
   UIView* topView = [[UIView alloc] init];
   pageSwitcherBackgroundView = topView;
   topView.frame = CGRectMake(0, 0, 0, panel_top_view_height);
-  topView.backgroundColor = [UIColor clearColor];
+  topView.backgroundColor = [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   topView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:topView];
 
@@ -134,7 +135,46 @@ using l10n_util::GetNSString;
   [segmentedControl.leadingAnchor constraintEqualToAnchor:
     self.view.safeLeftAnchor constant:panel_horizontal_padding].active = YES;
   [topView addConstraint:centerHorizontallyConstraint];
+
+  if (@available(iOS 26.0, *)) {
+    topView.backgroundColor = [UIColor clearColor];
+    [segmentedControl.heightAnchor
+      constraintEqualToConstant:kSegmentedControlHeight].active = YES;
+    UIGlassEffect* glassEffect =
+      [UIGlassEffect effectWithStyle:UIGlassEffectStyleClear];
+    glassEffect.tintColor = [UIColor clearColor];
+    UIVisualEffectView* segmentedGlassEffectView =
+      [[UIVisualEffectView alloc] initWithEffect:glassEffect];
+    segmentedGlassEffectView.translatesAutoresizingMaskIntoConstraints = NO;
+    [topView insertSubview:segmentedGlassEffectView
+              belowSubview:segmentedControl];
+    [segmentedGlassEffectView.centerXAnchor constraintEqualToAnchor:
+      segmentedControl.centerXAnchor].active = YES;
+    [segmentedGlassEffectView.centerYAnchor constraintEqualToAnchor:
+      segmentedControl.centerYAnchor].active = YES;
+    [segmentedGlassEffectView.widthAnchor constraintEqualToAnchor:
+      segmentedControl.widthAnchor].active = YES;
+    [segmentedGlassEffectView.heightAnchor constraintEqualToAnchor:
+      segmentedControl.heightAnchor].active = YES;
+    segmentedGlassEffectView.contentView.clipsToBounds = YES;
+    segmentedControl.layer.cornerRadius = kSegmentedControlCornerRadius;
+    segmentedControl.clipsToBounds = YES;
+    segmentedControl.selectedSegmentTintColor =
+      [UIColor secondarySystemFillColor];
+    segmentedGlassEffectView.layer.cornerRadius = kSegmentedControlCornerRadius;
+    segmentedGlassEffectView.layer.masksToBounds = YES;
+
+    NSDictionary* selectedAttrs = @{
+        NSForegroundColorAttributeName: [UIColor colorNamed: kBlueColor] };
+    [segmentedControl
+        setTitleTextAttributes:selectedAttrs forState:UIControlStateSelected];
+  }
   [self setIndexForControl:BookmarksPage];
+}
+
+- (void)viewWillAppear:(BOOL)animated {
+  [super viewWillAppear:animated];
+  [self applyTransparecyOn:self.navigationController];
 }
 
 /*
@@ -152,8 +192,15 @@ using l10n_util::GetNSString;
   translateController = tc;
   nvc.navigationBar.prefersLargeTitles = NO;
   bvc.navigationBar.prefersLargeTitles = NO;
+  rvc.navigationBar.prefersLargeTitles = NO;
   hc.navigationBar.prefersLargeTitles = NO;
   tc.navigationBar.prefersLargeTitles = NO;
+
+  [self applyTransparecyOn:nvc];
+  [self applyTransparecyOn:bvc];
+  [self applyTransparecyOn:rvc];
+  [self applyTransparecyOn:hc];
+  [self applyTransparecyOn:tc];
 }
 
 - (void)setIndexForControl:(int)index {
@@ -212,6 +259,31 @@ using l10n_util::GetNSString;
   noteNavigationController = nil;
   historyController = nil;
   translateController = nil;
+}
+
+- (void)applyTransparecyOn:(UINavigationController*)controller {
+  if (!controller) {
+    return;
+  }
+  if (@available(iOS 26, *)) {
+    UINavigationBarAppearance* appearance =
+        [[UINavigationBarAppearance alloc] init];
+    [appearance configureWithTransparentBackground];
+    appearance.backgroundColor = [UIColor clearColor];
+    appearance.backgroundEffect = nil;
+    appearance.shadowColor = [UIColor clearColor];
+    controller.navigationBar.standardAppearance = appearance;
+    controller.navigationBar.scrollEdgeAppearance = appearance;
+    controller.navigationBar.compactAppearance = appearance;
+    controller.navigationBar.compactScrollEdgeAppearance = appearance;
+    controller.navigationBar.translucent = YES;
+    controller.navigationBar.barTintColor = [UIColor clearColor];
+    controller.navigationBar.backgroundColor = [UIColor clearColor];
+  }
+}
+
+- (BOOL)isIPad {
+  return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
 }
 
 @end

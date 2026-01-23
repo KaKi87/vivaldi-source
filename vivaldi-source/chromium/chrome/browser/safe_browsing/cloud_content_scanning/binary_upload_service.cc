@@ -8,13 +8,14 @@
 #include <variant>
 
 #include "base/command_line.h"
+#include "base/logging.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/policy/chrome_browser_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/cloud_binary_upload_service_factory.h"
+#include "components/enterprise/buildflags/buildflags.h"
 #include "components/enterprise/common/strings.h"
 #include "components/enterprise/connectors/core/analysis_settings.h"
 #include "components/safe_browsing/core/common/safebrowsing_switches.h"
@@ -49,31 +50,6 @@ std::optional<GURL> GetUrlOverride() {
 }
 
 }  // namespace
-
-std::string BinaryUploadService::ResultToString(Result result) {
-  switch (result) {
-    case Result::UNKNOWN:
-      return "UNKNOWN";
-    case Result::SUCCESS:
-      return "SUCCESS";
-    case Result::UPLOAD_FAILURE:
-      return "UPLOAD_FAILURE";
-    case Result::TIMEOUT:
-      return "TIMEOUT";
-    case Result::FILE_TOO_LARGE:
-      return "FILE_TOO_LARGE";
-    case Result::FAILED_TO_GET_TOKEN:
-      return "FAILED_TO_GET_TOKEN";
-    case Result::UNAUTHORIZED:
-      return "UNAUTHORIZED";
-    case Result::FILE_ENCRYPTED:
-      return "FILE_ENCRYPTED";
-    case Result::TOO_MANY_REQUESTS:
-      return "TOO_MANY_REQUESTS";
-    case Result::INCOMPLETE_RESPONSE:
-      return "INCOMPLETE_RESPONSE";
-  }
-}
 
 BinaryUploadService::Request::Data::Data() = default;
 
@@ -265,6 +241,11 @@ void BinaryUploadService::Request::set_is_content_encrypted(
   content_analysis_request_.set_is_content_encrypted(is_content_encrypted);
 }
 
+void BinaryUploadService::Request::set_is_content_too_large(
+    bool is_content_too_large) {
+  is_content_too_large_ = is_content_too_large;
+}
+
 void BinaryUploadService::Request::set_blocking(bool blocking) {
   content_analysis_request_.set_blocking(blocking);
 }
@@ -381,6 +362,14 @@ void BinaryUploadService::Request::set_image_paste(bool image_paste) {
   image_paste_ = image_paste;
 }
 
+bool BinaryUploadService::Request::is_content_too_large() const {
+  return is_content_too_large_;
+}
+
+bool BinaryUploadService::Request::is_content_encrypted() const {
+  return content_analysis_request_.is_content_encrypted();
+}
+
 void BinaryUploadService::Request::StartRequest() {
   if (!request_start_callback_.is_null()) {
     std::move(request_start_callback_).Run(*this);
@@ -388,7 +377,7 @@ void BinaryUploadService::Request::StartRequest() {
 }
 
 void BinaryUploadService::Request::FinishRequest(
-    Result result,
+    enterprise_connectors::ScanRequestUploadResult result,
     enterprise_connectors::ContentAnalysisResponse response) {
   if (content_analysis_callback_) {
     std::move(content_analysis_callback_).Run(result, response);

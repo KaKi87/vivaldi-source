@@ -40,8 +40,7 @@ std::unique_ptr<KeyedService> BuildHistoryService(
           context->GetPath(), chrome::GetChannel());
   param.number_of_days_to_keep_visits = number_of_days_to_keep_visits;
 
-  if (!history_service->Init(history::HistoryDatabaseParamsForPath(
-          context->GetPath(), chrome::GetChannel()))) {
+  if (!history_service->Init(param)) {
     return nullptr;
   }
   return history_service;

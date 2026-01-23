@@ -33,6 +33,7 @@ import org.chromium.ui.base.LocalizationUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -81,6 +82,8 @@ public class ReorderDelegate {
     }
 
     // Strip update delegate.
+    // TODO(crbug.com/445735939): Rename to something more accurate, now that this does more than
+    //  just push/request updates.
     public interface StripUpdateDelegate {
 
         /**
@@ -106,6 +109,18 @@ public class ReorderDelegate {
          * @param visible Whether buttons should be visible.
          */
         void setCompositorButtonsVisible(boolean visible);
+
+        /**
+         * Returns the next index to select when the provided list of tabs is closed. This is
+         * different from the default {@link TabModel} behavior, as tab strip closures prefer
+         * expanded tabs, and also tabs after (as opposed to before) the closed tab if the feature
+         * flag {@link ChromeFeatureList#TAB_STRIP_AUTO_SELECT_ON_CLOSE_CHANGE} is enabled.
+         *
+         * @param closingTabs The closing {@link StripLayoutTab}s.
+         * @return The next index to select. {@link TabModel#INVALID_TAB_INDEX} if no valid index
+         *     found.
+         */
+        int getNextIndexAfterClose(Collection<StripLayoutTab> closingTabs);
     }
 
     // Tab State.
@@ -238,6 +253,7 @@ public class ReorderDelegate {
             @Nullable TabStripDragHandler tabStripDragHandler,
             ActionConfirmationManager actionConfirmationManager,
             Supplier<Float> tabWidthSupplier,
+            Supplier<Float> pinnedTabsBoundarySupplier,
             ObservableSupplierImpl<@Nullable Token> groupIdToHideSupplier,
             View containerView) {
         mStripUpdateDelegate = stripUpdateDelegate;
@@ -269,6 +285,7 @@ public class ReorderDelegate {
                         containerView,
                         groupIdToHideSupplier,
                         mTabWidthSupplier,
+                        pinnedTabsBoundarySupplier,
                         mLastReorderScrollTimeSupplier,
                         mInReorderModeSupplier);
         mGroupStrategy =
@@ -413,12 +430,10 @@ public class ReorderDelegate {
 
         float scrollOffsetDelta =
                 computeScrollOffsetDeltaForAutoScroll(time, leftBound, rightBound);
-        float scrollOffset =
-                mScrollDelegate.setScrollOffset(
-                        mScrollDelegate.getScrollOffset() + scrollOffsetDelta);
         if (scrollOffsetDelta != 0f) {
-            // Skip deltaX since pinned tabs don't scroll.
-            float deltaX = isInteractingViewPinnedTab() ? 0f : scrollOffset;
+            float deltaX =
+                    mScrollDelegate.setScrollOffset(
+                            mScrollDelegate.getScrollOffset() + scrollOffsetDelta);
 
             if (mScrollDelegate.isFinished()) {
                 mActiveStrategy.updateReorderPosition(
@@ -431,12 +446,6 @@ public class ReorderDelegate {
             }
             mStripUpdateDelegate.refresh();
         }
-    }
-
-    private boolean isInteractingViewPinnedTab() {
-        if (mActiveStrategy == mExternalViewDragDropReorderStrategy) return false;
-        StripLayoutView interactingView = getInteractingView();
-        return (interactingView instanceof StripLayoutTab tab) && tab.getIsPinned();
     }
 
     /** See {@link ReorderStrategy#stopReorderMode} */
@@ -557,8 +566,14 @@ public class ReorderDelegate {
             StripLayoutView reorderingView,
             boolean toLeft) {
         if (reorderingView instanceof StripLayoutTab) {
-            mTabStrategy.reorderViewInDirection(
-                    tabDelegate, stripViews, groupTitles, stripTabs, reorderingView, toLeft);
+            if (mModel.isTabMultiSelected(((StripLayoutTab) reorderingView).getTabId())
+                    && mModel.getMultiSelectedTabsCount() > 1) {
+                mMultiTabStrategy.reorderViewInDirection(
+                        tabDelegate, stripViews, groupTitles, stripTabs, reorderingView, toLeft);
+            } else {
+                mTabStrategy.reorderViewInDirection(
+                        tabDelegate, stripViews, groupTitles, stripTabs, reorderingView, toLeft);
+            }
         } else if (reorderingView instanceof StripLayoutGroupTitle) {
             mGroupStrategy.reorderViewInDirection(
                     tabDelegate, stripViews, groupTitles, stripTabs, reorderingView, toLeft);

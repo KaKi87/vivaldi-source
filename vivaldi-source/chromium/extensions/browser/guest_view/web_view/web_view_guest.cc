@@ -127,6 +127,7 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 
 #include "extensions/vivaldi_browser_component_wrapper.h"
+#include "components/navigation_throttle/vivaldi_exdata_util.h"
 
 using vivaldi::IsVivaldiApp;
 using vivaldi::IsVivaldiRunning;
@@ -2156,6 +2157,25 @@ content::WebContents* WebViewGuest::AddNewContents(
   CHECK(!base::FeatureList::IsEnabled(features::kGuestViewMPArch));
 
   // Vivaldi
+  if (disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) {
+    auto parent_follower_id = ::vivaldi::GetFollowerTabExtId(source);
+    if (parent_follower_id.has_value()) {
+      Browser* browser =
+          VivaldiBrowserComponentWrapper::GetInstance()->FindBrowserWithTab(
+              source);
+      content::WebContents* web_content =
+          VivaldiBrowserComponentWrapper::GetInstance()->GetFollowerTab(
+              browser, parent_follower_id.value());
+      if (web_content) {
+        content::NavigationController::LoadURLParams load_params(target_url);
+        load_params.transition_type = ui::PAGE_TRANSITION_LINK;
+        load_params.source_site_instance = web_content->GetSiteInstance();
+        web_content->GetController().LoadURLWithParams(load_params);
+        return nullptr;
+      }
+    }
+  }
+
   if (disposition == WindowOpenDisposition::NEW_PICTURE_IN_PICTURE) {
     Browser* browser =
         VivaldiBrowserComponentWrapper::GetInstance()->FindBrowserWithTab(
@@ -2217,7 +2237,7 @@ WebContents* WebViewGuest::OpenURLFromTab(
   if (params.url.scheme() == "devtools" || !IsVivaldiRunning()) {
   if (!params.is_renderer_initiated &&
       (!content::ChildProcessSecurityPolicy::GetInstance()->IsWebSafeScheme(
-           params.url.scheme()) ||
+           params.url.GetScheme()) ||
        params.disposition != WindowOpenDisposition::CURRENT_TAB)) {
     if (!owner_web_contents()->GetDelegate()) {
       return nullptr;
@@ -2382,7 +2402,7 @@ void WebViewGuest::LoadURLWithParams(
 
   bool scheme_is_blocked =
       (!content::ChildProcessSecurityPolicy::GetInstance()->IsWebSafeScheme(
-           url.scheme()) &&
+           url.GetScheme()) &&
        !url.SchemeIs(url::kAboutScheme)) ||
       url.SchemeIs(url::kJavaScriptScheme);
 

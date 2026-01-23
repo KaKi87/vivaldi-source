@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="fr">
-<translation id="208033313373016095">Mode lecture pour pages Web</translation>
-<translation id="2191622533795666879">Afficher un bouton dans le menu principal quand un article peut être affiché en mode lecture</translation>
 <translation id="4165986682804962316">Paramètres des sites</translation>
 <translation id="5216942107514965959">Dernière visite aujourd’hui</translation>
+<translation id="5802121420922181398">Afficher le bouton Mode Lecture dans le champ d’adresse lorsque l’option est disponible.</translation>
 <translation id="5860033963881614850">Désactivé</translation>
 <translation id="5939518447894949180">Réinitialiser</translation>
+<translation id="6877535416649928189">Mode lecture pour les pages Web</translation>
 </translationbundle>

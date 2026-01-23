@@ -115,6 +115,14 @@ if (is_linux && use_dbus) {
 
     defines += [ "USE_XDG_DESKTOP_PORTAL" ]
   }
+
+  # Vivaldi: Async version of secret portal provider with raw secret compatibility.
+  update_target("//components/os_crypt/async/browser:secret_portal_key_provider") {
+    sources += [
+      "//vivaldi/components/os_crypt/async_secret_portal_key_provider_vivaldi.cc",
+      "//vivaldi/components/os_crypt/async_secret_portal_key_provider_vivaldi.h",
+    ]
+  }
 }
 
 update_template_instance("//third_party/search_engines_data:prepopulated_engines") {

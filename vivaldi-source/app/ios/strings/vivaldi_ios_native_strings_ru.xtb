@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Масштаб для <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Медленный, падает, нагревает устройство</translation>
 <translation id="1929299157575856072">УРОВЕНЬ БЛОКИРОВКИ</translation>
+<translation id="1933618400514506228">Сербско-Хорватский (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Открыть картинку в фоновой вкладке</translation>
 <translation id="1986733655397734221">Ничего из этого</translation>
 <translation id="1994506778397655062">Открыть в новой фоновой вкладке</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">Мне мешают закладки и Экспресс-панели по умолчанию</translation>
 <translation id="3091563570137981919">Блокировка слежки и рекламы</translation>
 <translation id="3097968995088564986">Показывать кнопку добавления</translation>
-<translation id="3102790820790869053">Искать в недавних вкладках</translation>
 <translation id="3134385238404760368">Нет закрытых вкладок</translation>
 <translation id="3142562627629111859">Новая категория</translation>
 <translation id="3157931365184549694">Восстановить</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">Хотите ещё что-то добавить?</translation>
 <translation id="3842727926262967527">Выберите расположение панели вкладок и адресной строки.</translation>
 <translation id="3845564230651302310">Применение настроек блокировщика...</translation>
+<translation id="385051799172605136">Назад</translation>
 <translation id="3858860766373142691">Имя</translation>
 <translation id="3861379244432690245">Включить Direct Match</translation>
 <translation id="3866249974567520381">Описание</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">По дате изменения</translation>
 <translation id="4640946580087069269">В заметки</translation>
 <translation id="4643117005422448078">Популярные</translation>
-<translation id="4654428449690716275">Не показывать баннеры до или после предложения переводов</translation>
 <translation id="4654578955713250802">Блокировка слежки и рекламы</translation>
 <translation id="4655510151391078468">Код не совпадает с отправленным вам.
         Вы можете <ph name="ATTEMPTS" /> попробовать ещё раз.</translation>
@@ -496,6 +496,7 @@
 <translation id="6946395294519639514">С помощью панелей вы можете держать под рукой полезные инструменты.</translation>
 <translation id="6951435330868954105">Изменить настройки</translation>
 <translation id="6951948201878750661">Коснитесь, чтобы выбрать цвет</translation>
+<translation id="6954630860045222581">Показать панель</translation>
 <translation id="6967884871145366229">Настройки приватности</translation>
 <translation id="6973630695168034713">Папки</translation>
 <translation id="7000227144065890583">Адрес для подсказок</translation>
@@ -663,6 +664,7 @@
 <translation id="8948792607467387336">Установить фоном</translation>
 <translation id="8964449607824577665">Без вашего текущего пароля шифрования мы не сможем расшифровать данные. Для сброса этого пароля необходимо очистить данные синхронизации на сервере Vivaldi.</translation>
 <translation id="8965371804397726192">Начать синхронизацию</translation>
+<translation id="896787570003733070">Не показывать баннеры до или после предложения перевода</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Закладка перемещена в "{title}"}
           other {Закладок перемещено в "{title}"}}</translation>

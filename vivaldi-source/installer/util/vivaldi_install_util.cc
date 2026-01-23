@@ -181,6 +181,7 @@ void AppendInstallChildProcessSwitches(base::CommandLine& command_line) {
   const char* const switched_to_copy[] = {
       vivaldi::constants::kVivaldiInstallDir,
       vivaldi::constants::kVivaldiStandalone,
+      vivaldi::constants::kVivaldiEnableCrashlogUpload,
   };
   const base::CommandLine& current = *base::CommandLine::ForCurrentProcess();
   command_line.CopySwitchesFrom(current, switched_to_copy);
@@ -273,7 +274,7 @@ void SendQuitUpdateNotifier(const base::FilePath& install_binary_dir,
   DLOG(INFO) << "Sending quit event " << event_name;
   base::win::ScopedHandle quit_event(
       ::OpenEvent(EVENT_MODIFY_STATE, FALSE, event_name.c_str()));
-  if (!quit_event.IsValid()) {
+  if (!quit_event.is_valid()) {
     // No modifiers listen for the event
     return;
   }

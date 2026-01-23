@@ -62,9 +62,6 @@ constexpr base::TimeDelta kMainIntentCheckDelay = base::Seconds(1);
   MainController* _mainController;
   // Memory helper used to log the number of memory warnings received.
   MemoryWarningHelper* _memoryHelper;
-  // Metrics mediator used to check and update the metrics accordingly to the
-  // user preferences.
-  MetricsMediator* _metricsMediator;
 }
 
 // YES if application:didFinishLaunchingWithOptions: was called. Used to
@@ -83,11 +80,11 @@ constexpr base::TimeDelta kMainIntentCheckDelay = base::Seconds(1);
   if ((self = [super init])) {
     _memoryHelper = [[MemoryWarningHelper alloc] init];
     _mainController = [[MainController alloc] init];
-    _metricsMediator = [[MetricsMediator alloc] init];
-    [_mainController setMetricsMediator:_metricsMediator];
     _appState = [[AppState alloc] initWithStartupInformation:_mainController];
-    _pushNotificationDelegate =
-        [[PushNotificationDelegate alloc] initWithAppState:_appState];
+    _pushNotificationDelegate = [[PushNotificationDelegate alloc]
+              initWithAppState:_appState
+        userNotificationCenter:UNUserNotificationCenter
+                                   .currentNotificationCenter];
     [_mainController setAppState:_appState];
   }
   return self;
@@ -152,6 +149,11 @@ constexpr base::TimeDelta kMainIntentCheckDelay = base::Seconds(1);
   // Any report captured from this point on should be noted as after terminate.
   crash_keys::SetCrashedAfterAppWillTerminate();
   base::ios::ScopedCriticalAction::ApplicationWillTerminate();
+
+  UNUserNotificationCenter* center =
+      [UNUserNotificationCenter currentNotificationCenter];
+  center.delegate = nil;
+  _pushNotificationDelegate = nil;
 
   // If `self.didFinishLaunching` is NO, that indicates that the app was
   // terminated before startup could be run. In this situation, skip running
@@ -306,8 +308,6 @@ constexpr base::TimeDelta kMainIntentCheckDelay = base::Seconds(1);
 }
 
 - (void)sceneWillConnect:(NSNotification*)notification {
-  // TODO(crbug.com/40679152): This should be called later, or this flow should
-  // be changed completely.
   if (self.foregroundSceneCount == 0) {
     [_mainController
         applicationWillEnterForeground:UIApplication.sharedApplication

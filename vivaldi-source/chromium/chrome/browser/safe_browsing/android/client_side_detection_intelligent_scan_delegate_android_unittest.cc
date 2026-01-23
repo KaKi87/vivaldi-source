@@ -9,10 +9,12 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "base/unguessable_token.h"
+#include "components/optimization_guide/core/model_execution/on_device_capability.h"
+#include "components/optimization_guide/core/model_execution/test/fake_model_assets.h"
 #include "components/optimization_guide/core/model_execution/test/fake_model_broker.h"
 #include "components/optimization_guide/core/model_execution/test/feature_config_builder.h"
 #include "components/optimization_guide/core/model_execution/test/substitution_builder.h"
-#include "components/optimization_guide/core/optimization_guide_model_executor.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
@@ -25,11 +27,36 @@ namespace safe_browsing {
 
 namespace {
 using optimization_guide::FakeAdaptationAsset;
+using optimization_guide::FakeModelBroker;
 using optimization_guide::proto::ModelExecutionFeature;
 using optimization_guide::proto::OnDeviceModelExecutionFeatureConfig;
 using ::testing::_;
 using IntelligentScanResult =
     ClientSideDetectionHost::IntelligentScanDelegate::IntelligentScanResult;
+
+OnDeviceModelExecutionFeatureConfig FeatureConfig() {
+  OnDeviceModelExecutionFeatureConfig config;
+  config.set_feature(
+      ModelExecutionFeature::MODEL_EXECUTION_FEATURE_SCAM_DETECTION);
+
+  auto& input_config = *config.mutable_input_config();
+  input_config.set_request_base_name(
+      optimization_guide::proto::ScamDetectionRequest().GetTypeName());
+  auto& substitution = *input_config.add_execute_substitutions();
+  substitution.set_string_template("%s");
+  *substitution.add_substitutions()->add_candidates()->mutable_proto_field() =
+      optimization_guide::StringValueField();
+
+  auto& output_config = *config.mutable_output_config();
+  output_config.set_proto_type(
+      optimization_guide::proto::ScamDetectionResponse().GetTypeName());
+  *output_config.mutable_proto_field() = optimization_guide::OutputField();
+  output_config.set_parser_kind(
+      optimization_guide::proto::ParserKind::PARSER_KIND_JSON);
+
+  config.set_can_skip_text_safety(true);
+  return config;
+}
 
 }  // namespace
 
@@ -52,48 +79,26 @@ class ClientSideDetectionIntelligentScanDelegateAndroidTestBase
                                          std::string response) {
     SetEnhancedProtectionPrefForTests(&pref_service_,
                                       is_enhanced_protection_enabled);
-    fake_broker_ = std::make_unique<optimization_guide::FakeModelBroker>(
-        GetFakeAsset(asset_feature));
+    fake_broker_ =
+        std::make_unique<FakeModelBroker>(FakeModelBroker::Options{});
+    if (asset_feature ==
+        ModelExecutionFeature::MODEL_EXECUTION_FEATURE_SCAM_DETECTION) {
+      fake_broker_->UpdateModelAdaptation(fake_asset_);
+    }
     fake_broker_->settings().set_execute_result({response});
     auto model_broker_client =
         std::make_unique<optimization_guide::ModelBrokerClient>(
-            fake_broker_->BindAndPassRemote(),
-            optimization_guide::CreateSessionArgs(nullptr, {}));
+            fake_broker_->BindAndPassRemote(), nullptr);
     delegate_ =
         std::make_unique<ClientSideDetectionIntelligentScanDelegateAndroid>(
             pref_service_, std::move(model_broker_client));
   }
 
-  FakeAdaptationAsset GetFakeAsset(ModelExecutionFeature feature) {
-    return FakeAdaptationAsset({.config = [feature] {
-      OnDeviceModelExecutionFeatureConfig config;
-      config.set_feature(feature);
-
-      auto& input_config = *config.mutable_input_config();
-      input_config.set_request_base_name(
-          optimization_guide::proto::ScamDetectionRequest().GetTypeName());
-      auto& substitution = *input_config.add_execute_substitutions();
-      substitution.set_string_template("%s");
-      *substitution.add_substitutions()
-           ->add_candidates()
-           ->mutable_proto_field() = optimization_guide::StringValueField();
-
-      auto& output_config = *config.mutable_output_config();
-      output_config.set_proto_type(
-          optimization_guide::proto::ScamDetectionResponse().GetTypeName());
-      *output_config.mutable_proto_field() = optimization_guide::OutputField();
-      output_config.set_parser_kind(
-          optimization_guide::proto::ParserKind::PARSER_KIND_JSON);
-
-      config.set_can_skip_text_safety(true);
-      return config;
-    }()});
-  }
-
   base::test::ScopedFeatureList feature_list_;
   content::BrowserTaskEnvironment task_environment_;
   sync_preferences::TestingPrefServiceSyncable pref_service_;
-  std::unique_ptr<optimization_guide::FakeModelBroker> fake_broker_;
+  FakeAdaptationAsset fake_asset_{{.config = FeatureConfig()}};
+  std::unique_ptr<FakeModelBroker> fake_broker_;
   base::HistogramTester histogram_tester_;
   std::unique_ptr<ClientSideDetectionIntelligentScanDelegateAndroid> delegate_;
 };
@@ -285,14 +290,11 @@ TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
   delegate_->InquireOnDeviceModel("test rendered text", future.GetCallback());
 
   EXPECT_TRUE(future.Get().execution_success);
-  EXPECT_EQ(future.Get().model_version,
-            GetFakeAsset(
-                ModelExecutionFeature::MODEL_EXECUTION_FEATURE_SCAM_DETECTION)
-                .version());
+  EXPECT_EQ(future.Get().model_version, fake_asset_.version());
   EXPECT_EQ(future.Get().brand, "test_brand");
   EXPECT_EQ(future.Get().intent, "test_intent");
   // Session should be reset after a successful response.
-  EXPECT_FALSE(delegate_->IsSessionAliveForTesting());
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 0);
   histogram_tester_.ExpectTotalCount(
       "SBClientPhishing.OnDeviceModelSessionCreationTime", 1);
   histogram_tester_.ExpectUniqueSample(
@@ -311,7 +313,7 @@ TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
   base::test::TestFuture<IntelligentScanResult> future;
   delegate_->InquireOnDeviceModel("test rendered text", future.GetCallback());
   EXPECT_FALSE(future.Get().execution_success);
-  EXPECT_EQ(future.Get().model_version, -1);
+  EXPECT_EQ(future.Get().model_version, fake_asset_.version());
   EXPECT_EQ(future.Get().brand, "");
   EXPECT_EQ(future.Get().intent, "");
   histogram_tester_.ExpectTotalCount(
@@ -347,7 +349,7 @@ TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
   base::test::TestFuture<IntelligentScanResult> future1;
   delegate_->InquireOnDeviceModel("test rendered text", future1.GetCallback());
   task_environment_.RunUntilIdle();
-  EXPECT_TRUE(delegate_->IsSessionAliveForTesting());
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 1);
 
   // The second inquire is sent before the first one completes.
   delegate_->SetPauseSessionExecutionForTesting(false);
@@ -361,17 +363,19 @@ TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
 }
 
 TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
-       ResetOnDeviceSession_AfterSessionCreation) {
+       CancelOnDeviceSession_AfterSessionCreation) {
   CreateDelegate(/*is_enhanced_protection_enabled=*/true,
                  ModelExecutionFeature::MODEL_EXECUTION_FEATURE_SCAM_DETECTION);
   task_environment_.RunUntilIdle();
   delegate_->SetPauseSessionExecutionForTesting(true);
-  delegate_->InquireOnDeviceModel("test rendered text", base::DoNothing());
+  std::optional<base::UnguessableToken> session_id =
+      delegate_->InquireOnDeviceModel("test rendered text", base::DoNothing());
   task_environment_.RunUntilIdle();
-  EXPECT_TRUE(delegate_->IsSessionAliveForTesting());
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 1);
+
   // Reset the session after session is created.
-  EXPECT_TRUE(delegate_->ResetOnDeviceSession());
-  EXPECT_FALSE(delegate_->IsSessionAliveForTesting());
+  EXPECT_TRUE(delegate_->CancelSession(*session_id));
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 0);
 }
 
 TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
@@ -382,11 +386,11 @@ TEST_F(ClientSideDetectionIntelligentScanDelegateAndroidTest,
   delegate_->SetPauseSessionExecutionForTesting(true);
   delegate_->InquireOnDeviceModel("test rendered text", base::DoNothing());
   task_environment_.RunUntilIdle();
-  EXPECT_TRUE(delegate_->IsSessionAliveForTesting());
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 1);
   SetEnhancedProtectionPrefForTests(&pref_service_, false);
   task_environment_.RunUntilIdle();
   // Session should be reset after the enhanced protection is disabled.
-  EXPECT_FALSE(delegate_->IsSessionAliveForTesting());
+  EXPECT_EQ(delegate_->GetAliveSessionCountForTesting(), 0);
 }
 
 class ClientSideDetectionIntelligentScanDelegateAndroidTestWithFeatureDisabled

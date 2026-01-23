@@ -30,11 +30,7 @@ import org.chromium.url.GURL;
 import java.util.Iterator;
 
 // Vivaldi
-import java.util.List;
-import org.chromium.build.BuildConfig;
-import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.StreamUtil;
 import org.chromium.base.task.AsyncTask;
@@ -161,7 +157,6 @@ public class BookmarkImageFetcher {
     public void fetchFaviconForBookmark(BookmarkItem item, Callback<Drawable> callback) {
         GURL faviconUrl = item.getUrl();
         int faviconDisplaySize = BookmarkViewUtils.getFaviconDisplaySize(mContext.getResources());
-
         FaviconHelper.FaviconImageCallback faviconCallback =
                 (image, iconUrl) -> {
                     callback.onResult(
@@ -291,5 +286,6 @@ public class BookmarkImageFetcher {
         if (imagePath != null) {
             requestIconFromPath(imagePath, faviconDisplaySize, callback);
         }
-    } // End Vivaldi
+    }
+    // End Vivaldi
 }

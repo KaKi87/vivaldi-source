@@ -74,23 +74,38 @@ vivaldi::content_blocking::ExceptionList ToVivaldiContentBlockingExceptionList(
   }
 }
 
-vivaldi::content_blocking::FetchResult ToVivaldiContentBlockingFetchResult(
-    adblock_filter::FetchResult fetch_result) {
-  switch (fetch_result) {
-    case adblock_filter::FetchResult::kSuccess:
-      return vivaldi::content_blocking::FetchResult::kSuccess;
-    case adblock_filter::FetchResult::kDownloadFailed:
-      return vivaldi::content_blocking::FetchResult::kDownloadFailed;
-    case adblock_filter::FetchResult::kFileNotFound:
-      return vivaldi::content_blocking::FetchResult::kFileNotFound;
-    case adblock_filter::FetchResult::kFileReadError:
-      return vivaldi::content_blocking::FetchResult::kFileReadError;
-    case adblock_filter::FetchResult::kFileUnsupported:
-      return vivaldi::content_blocking::FetchResult::kFileUnsupported;
-    case adblock_filter::FetchResult::kFailedSavingParsedRules:
-      return vivaldi::content_blocking::FetchResult::kFailedSavingParsedRules;
-    case adblock_filter::FetchResult::kUnknown:
-      return vivaldi::content_blocking::FetchResult::kUnknown;
+vivaldi::content_blocking::DownloadResult
+ToVivaldiContentBlockingDownloadResult(
+    std::optional<adblock_filter::DownloadResult> download_result) {
+  if (!download_result) {
+    return vivaldi::content_blocking::DownloadResult::kUnknown;
+  }
+  switch (*download_result) {
+    case adblock_filter::DownloadResult::kSuccess:
+      return vivaldi::content_blocking::DownloadResult::kSuccess;
+    case adblock_filter::DownloadResult::kDownloadFailed:
+      return vivaldi::content_blocking::DownloadResult::kDownloadFailed;
+    case adblock_filter::DownloadResult::kReplaceFailed:
+      return vivaldi::content_blocking::DownloadResult::kReplaceFailed;
+  }
+}
+
+vivaldi::content_blocking::ReadResult ToVivaldiContentBlockingReadResult(
+    std::optional<adblock_filter::ReadResult> read_result) {
+  if (!read_result) {
+    return vivaldi::content_blocking::ReadResult::kUnknown;
+  }
+  switch (*read_result) {
+    case adblock_filter::ReadResult::kSuccess:
+      return vivaldi::content_blocking::ReadResult::kSuccess;
+    case adblock_filter::ReadResult::kFileNotFound:
+      return vivaldi::content_blocking::ReadResult::kFileNotFound;
+    case adblock_filter::ReadResult::kFileReadError:
+      return vivaldi::content_blocking::ReadResult::kFileReadError;
+    case adblock_filter::ReadResult::kFileUnsupported:
+      return vivaldi::content_blocking::ReadResult::kFileUnsupported;
+    case adblock_filter::ReadResult::kFailedSavingParsedRules:
+      return vivaldi::content_blocking::ReadResult::kFailedSavingParsedRules;
   }
 }
 
@@ -147,7 +162,9 @@ ToVivaldiContentBlockingRuleSourceFromCore(
   result.unsafe_adblock_metadata.version = 0;
   result.last_update = 0;
   result.next_fetch = 0;
-  result.last_fetch_result = vivaldi::content_blocking::FetchResult::kUnknown;
+  result.last_download_result =
+      vivaldi::content_blocking::DownloadResult::kUnknown;
+  result.last_read_result = vivaldi::content_blocking::ReadResult::kUnknown;
   result.rules_info.valid_rules = 0;
   result.rules_info.unsupported_rules = 0;
   result.rules_info.invalid_rules = 0;
@@ -176,8 +193,10 @@ void UpdateVivaldiContentBlockingRuleSourceWithLoadedSource(
   result->last_update = rule_source.last_update.InMillisecondsFSinceUnixEpoch();
   result->next_fetch = rule_source.next_fetch.InMillisecondsFSinceUnixEpoch();
   result->is_fetching = rule_source.is_fetching;
-  result->last_fetch_result =
-      ToVivaldiContentBlockingFetchResult(rule_source.last_fetch_result);
+  result->last_download_result =
+      ToVivaldiContentBlockingDownloadResult(rule_source.last_download_result);
+  result->last_read_result =
+      ToVivaldiContentBlockingReadResult(rule_source.last_read_result);
   result->rules_info.valid_rules = rule_source.rules_info.valid_rules;
   result->rules_info.unsupported_rules =
       rule_source.rules_info.unsupported_rules;
@@ -407,6 +426,24 @@ void ContentBlockingAPI::Shutdown() {
   if (content_blocking_event_router_)
     content_blocking_event_router_->Shutdown();
   EventRouter::Get(browser_context_)->UnregisterObserver(this);
+}
+
+AdBlockFunction::~AdBlockFunction() {
+  StopObserving();
+}
+void AdBlockFunction::OnBrowserContextShutdown() {
+  StopObserving();
+}
+
+void AdBlockFunction::StopObserving() {
+  if (browser_context()) {
+    adblock_filter::RuleService* rules_service =
+        adblock_filter::RuleServiceFactory::GetForBrowserContext(
+            browser_context());
+    if (rules_service) {
+      rules_service->RemoveObserver(this);
+    }
+  }
 }
 
 ExtensionFunction::ResponseAction AdBlockFunction::Run() {
@@ -931,7 +968,7 @@ ContentBlockingIsExemptByPartnerURLFunction::RunWithService(
   auto* templateURLService = TemplateURLServiceFactory::GetForProfile(
       Profile::FromBrowserContext(browser_context()));
   TemplateURL* templateURL =
-      templateURLService->GetTemplateURLForHost(url.host());
+      templateURLService->GetTemplateURLForHost(url.GetHost());
 
   if (templateURL)
     url_partner_info.name = base::UTF16ToUTF8(templateURL->short_name());

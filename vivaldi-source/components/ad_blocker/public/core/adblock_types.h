@@ -59,17 +59,24 @@ template <typename T>
 using RuleGroupArray =
     base::EnumArray<T, RuleGroup, RuleGroup::kFirst, RuleGroup::kLast>;
 
-enum class FetchResult {
+enum class DownloadResult {
   kSuccess = 0,
   kDownloadFailed,
+  kReplaceFailed,
+
+  kFirst = kSuccess,
+  kLast = kReplaceFailed,
+};
+
+enum class ReadResult {
+  kSuccess = 0,
   kFileNotFound,
   kFileReadError,
   kFileUnsupported,
   kFailedSavingParsedRules,
-  kUnknown,
 
   kFirst = kSuccess,
-  kLast = kUnknown
+  kLast = kFailedSavingParsedRules
 };
 
 struct RuleSourceSettings {
@@ -138,7 +145,8 @@ struct ActiveRuleSource {
   base::Time last_update;
   base::Time next_fetch;
   bool is_fetching = false;
-  FetchResult last_fetch_result = FetchResult::kUnknown;
+  std::optional<DownloadResult> last_download_result;
+  std::optional<ReadResult> last_read_result;
   RulesInfo rules_info;
   bool has_tracker_infos = false;
 };

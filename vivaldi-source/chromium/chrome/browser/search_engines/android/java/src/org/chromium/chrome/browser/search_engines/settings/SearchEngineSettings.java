@@ -121,6 +121,11 @@ public class SearchEngineSettings extends ListFragment
         return SettingsFragment.AnimationType.PROPERTY;
     }
 
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "search_engine";
+    }
+
     // Vivaldi
     public void setCustomAdapter(SearchEngineAdapter adapter) {
         mSearchEngineAdapter = adapter;

@@ -109,8 +109,6 @@ std::optional<ActionType> ActionTypeForStringName(std::string action) {
     return overflow_menu::ActionType::NewIncognitoTab;
   } else if (action == "NewWindow") {
     return overflow_menu::ActionType::NewWindow;
-  } else if (action == "Follow") {
-    return overflow_menu::ActionType::Follow;
   } else if (action == "Bookmark") {
     return overflow_menu::ActionType::Bookmark;
   } else if (action == "ReadingList") {
@@ -145,6 +143,8 @@ std::optional<ActionType> ActionTypeForStringName(std::string action) {
     return overflow_menu::ActionType::AskBWG;
   } else if (action == "HideToolbars") {
     return overflow_menu::ActionType::HideToolbars;
+  } else if (action == "TabGroup") {
+    return overflow_menu::ActionType::TabGroup;
 
 #if defined(VIVALDI_BUILD)
   } else if (action == "Bookmarks") {
@@ -182,8 +182,6 @@ std::string StringNameForActionType(ActionType action) {
       return "NewIncognitoTab";
     case overflow_menu::ActionType::NewWindow:
       return "NewWindow";
-    case overflow_menu::ActionType::Follow:
-      return "Follow";
     case overflow_menu::ActionType::Bookmark:
       return "Bookmark";
     case overflow_menu::ActionType::ReadingList:
@@ -218,6 +216,8 @@ std::string StringNameForActionType(ActionType action) {
       return "AskBWG";
     case overflow_menu::ActionType::HideToolbars:
       return "HideToolbars";
+    case overflow_menu::ActionType::TabGroup:
+      return "TabGroup";
 
     // Vivaldi
     case overflow_menu::ActionType::vAddPageTo:

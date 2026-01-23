@@ -32,6 +32,7 @@
 #import "ios/chrome/browser/location_bar/ui_bundled/fakebox_buttons_snapshot_provider.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_constants.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_metrics.h"
+#import "ios/chrome/browser/location_bar/ui_bundled/location_bar_placeholder_type.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_steady_view.h"
 #import "ios/chrome/browser/omnibox/public/omnibox_constants.h"
 #import "ios/chrome/browser/omnibox/ui/text_field_view_containing.h"
@@ -92,9 +93,22 @@ const NSString* kScribbleOmniboxElementId = @"omnibox";
 // the white space on top.
 const CGFloat kShareIconBalancingHeightPadding = 1;
 
+// Vivaldi
+const CGFloat kVivaldiTabSwitcherMinSwipeDistance = 50.0;
+const CGFloat kVivaldiTabSwitcherMinSwipeVelocity = 300.0;
+const CGFloat kVivaldiTabSwitcherVerticalMovementRatio = 2.0;
+const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
+// End Vivaldi
+
 }  // namespace
 
-@interface LocationBarViewController () <UIContextMenuInteractionDelegate,
+@interface LocationBarViewController () <TextFieldViewContainingHeightDelegate,
+                                         UIContextMenuInteractionDelegate,
+
+                                         // Vivaldi
+                                         UIGestureRecognizerDelegate,
+                                         // End Vivaldi
+
                                          UIIndirectScribbleInteractionDelegate>
 // The injected edit view.
 @property(nonatomic, strong) UIView<TextFieldViewContaining>* editView;
@@ -151,6 +165,8 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 - (void)startVoiceSearch;
 
 // Vivaldi
+// Pan gesture recognizer for tab switcher swipe
+@property(nonatomic, strong) UIPanGestureRecognizer* tabSwitcherSwipeGesture;
 // Whether current page is loading.
 @property(nonatomic, assign, getter=isLoading) BOOL loading;
 // End Vivaldi
@@ -172,6 +188,13 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
   // The placeholder view that holds the DSE icon.
   UIImageView* _defaultSearchEngineIconView;
+
+  // Vivaldi
+  // Property to track active swipe gesture
+  BOOL _swipeGestureActive;
+  // Property to track whether swipe gesture is enabled
+  BOOL _addressBarSwipeGestureEnabled;
+  // End Vivaldi
 }
 
 #pragma mark - public
@@ -187,6 +210,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 - (void)setEditView:(UIView<TextFieldViewContaining>*)editView {
   DCHECK(!self.editView);
   _editView = editView;
+  _editView.heightDelegate = self;
   _textField = editView.textFieldView;
 }
 
@@ -248,6 +272,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
 - (void)setIncognito:(BOOL)incognito {
   _incognito = incognito;
+  self.locationBarSteadyView.incognito = incognito;
   self.locationBarSteadyView.colorScheme =
       [LocationBarSteadyViewColorScheme standardScheme];
 
@@ -372,11 +397,13 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       [[UIIndirectScribbleInteraction alloc] initWithDelegate:self];
   [_locationBarSteadyView addInteraction:scribbleInteraction];
 
-  DCHECK(self.editView) << "The edit view must be set at this point";
+  if (!IsComposeboxIOSEnabled()) {
+    DCHECK(self.editView) << "The edit view must be set at this point";
 
-  [self.view addSubview:self.editView];
-  self.editView.translatesAutoresizingMaskIntoConstraints = NO;
-  AddSameConstraints(self.editView, self.view);
+    [self.view addSubview:self.editView];
+    self.editView.translatesAutoresizingMaskIntoConstraints = NO;
+    AddSameConstraints(self.editView, self.view);
+  }
 
   [self.view addSubview:self.locationBarSteadyView];
   self.locationBarSteadyView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -386,15 +413,13 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
   [self updateTrailingButtonState];
   [self switchToEditing:NO];
 
-  if (@available(iOS 17, *)) {
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-        @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]);
-    [self registerForTraitChanges:traits
-                       withAction:@selector(updateTrailingButtonState)];
+  NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+      @[ UITraitHorizontalSizeClass.class, UITraitVerticalSizeClass.class ]);
+  [self registerForTraitChanges:traits
+                     withAction:@selector(updateTrailingButtonState)];
 
-    [self registerForTraitChanges:@[ UITraitHorizontalSizeClass.class ]
-                       withAction:@selector(sizeClassDidChange)];
-  }
+  [self registerForTraitChanges:@[ UITraitHorizontalSizeClass.class ]
+                     withAction:@selector(sizeClassDidChange)];
 
   if (base::FeatureList::IsEnabled(omnibox::kOmniboxMobileParityUpdateV2)) {
     _defaultSearchEngineIconView = [[UIImageView alloc] init];
@@ -405,21 +430,16 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
         CGSizeMake(kOmniboxLeadingImageSize + 12.0f, kOmniboxLeadingImageSize));
   }
 
+  if (IsProactiveSuggestionsFrameworkEnabled()) {
+    _locationBarSteadyView.pageActionMenuHandler = self.pageActionMenuHandler;
+  }
+
   // Vivaldi
   [self setUpLeadingButton];
+  [self setUpABSwipeGesture];
   // End Vivaldi
 
 }
-
-#if !defined(__IPHONE_17_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
-- (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
-  [super traitCollectionDidChange:previousTraitCollection];
-  if (@available(iOS 17, *)) {
-    return;
-  }
-  [self updateTrailingButtonState];
-}
-#endif
 
 #pragma mark - FullscreenUIElement
 
@@ -429,6 +449,9 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
   self.locationBarSteadyView.trailingButton.alpha = alphaValue;
   self.locationBarSteadyView.badgesContainerView.placeholderView.alpha =
       alphaValue;
+  if (IsProactiveSuggestionsFrameworkEnabled() && !self.incognito) {
+    self.locationBarSteadyView.badgesContainerView.alpha = alphaValue;
+  }
   BOOL badgeViewShouldCollapse = progress <= kFullscreenProgressThreshold;
   [self.locationBarSteadyView
       setFullScreenCollapsedMode:badgeViewShouldCollapse];
@@ -525,7 +548,7 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 }
 
 - (BOOL)canShowLargeContextualPanelEntrypoint {
-  // TODO(crbug.com/330701617): Add actual checks when implementing badge view
+  // TODO(crbug.com/445786272): Add actual checks when implementing badge view
   // loud moment blocking (check might need to be in the actual view).
   return !self.locationBarSteadyView.hidden;
 }
@@ -803,16 +826,21 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       // padding to balance it.
       UIImage* shareImage =
           DefaultSymbolWithPointSize(kShareSymbol, kSymbolImagePointSize);
-      // TODO(crbug.com/411039614): Replace
-      // UIGraphicsBeginImageContextWithOptions with UIGraphicsImageRenderer.
-      UIGraphicsBeginImageContextWithOptions(
-          CGSizeMake(shareImage.size.width,
-                     shareImage.size.height + kShareIconBalancingHeightPadding),
-          NO, 0.0);
-      [shareImage drawInRect:CGRectMake(0, 0, shareImage.size.width,
-                                        shareImage.size.height)];
-      UIImage* paddedShareImage = UIGraphicsGetImageFromCurrentImageContext();
-      UIGraphicsEndImageContext();
+
+      UIGraphicsImageRendererFormat* format =
+          [UIGraphicsImageRendererFormat preferredFormat];
+      format.scale = 0.0;
+      format.opaque = NO;
+      UIGraphicsImageRenderer* renderer = [[UIGraphicsImageRenderer alloc]
+          initWithSize:CGSizeMake(shareImage.size.width,
+                                  shareImage.size.height +
+                                      kShareIconBalancingHeightPadding)
+                format:format];
+      UIImage* paddedShareImage = [renderer
+          imageWithActions:^(UIGraphicsImageRendererContext* context) {
+            [shareImage drawInRect:CGRectMake(0, 0, shareImage.size.width,
+                                              shareImage.size.height)];
+          }];
 
       [self.locationBarSteadyView.trailingButton setImage:paddedShareImage
                                                  forState:UIControlStateNormal];
@@ -944,15 +972,14 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       }
 
       pasteImage =
-          [[UIImage imageNamed:vToolbarPaste]
-              imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+          CustomSymbolWithPointSize(vToolbarPaste, kSymbolActionPointSize);
       // Copy link action.
       if (!self.locationBarSteadyView.hidden && !_isNTP) {
         UIAction* copyAction = [UIAction
-            actionWithTitle:
-                l10n_util::GetNSString(IDS_IOS_COPY_LINK_ACTION_TITLE)
-                      image:[[UIImage imageNamed:vToolbarCopyLink]
-                    imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
+            actionWithTitle:l10n_util::GetNSString(
+                                IDS_IOS_COPY_LINK_ACTION_TITLE)
+                      image:CustomSymbolWithPointSize(vToolbarCopyLink,
+                                                      kSymbolActionPointSize)
                  identifier:nil
                     handler:^(UIAction* action) {
                       [weakSelf.delegate locationBarCopyTapped];
@@ -1047,20 +1074,16 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       UIImage* image = nil;
       ToolbarType targetToolbarType;
       if (GetApplicationContext()->GetLocalState()->GetBoolean(
-             omnibox::kIsOmniboxInBottomPosition)) {
+              omnibox::kIsOmniboxInBottomPosition)) {
         title = l10n_util::GetNSString(IDS_IOS_TOOLBAR_MENU_TOP_OMNIBOX);
-        image =
-            [[UIImage imageNamed:vToolbarMoveToTop]
-                imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-
+        image = CustomSymbolWithPointSize(vToolbarMoveToTop,
+                                          kSymbolActionPointSize);
         targetToolbarType = ToolbarType::kPrimary;
       } else {
         title = l10n_util::GetNSString(IDS_IOS_TOOLBAR_MENU_BOTTOM_OMNIBOX);
 
-        image =
-            [[UIImage imageNamed:vToolbarMoveToBottom]
-                imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-
+        image = CustomSymbolWithPointSize(vToolbarMoveToBottom,
+                                          kSymbolActionPointSize);
         targetToolbarType = ToolbarType::kSecondary;
       }
       UIAction* moveAddressBarAction = [UIAction
@@ -1131,9 +1154,10 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 
   // Use the location bar's container view because that's the view that has the
   // background color and corner radius.
-  return [[UITargetedPreview alloc]
-      initWithView:self.view.superview
-        parameters:[[UIPreviewParameters alloc] init]];
+  UIPreviewParameters* previewParameters = [[UIPreviewParameters alloc] init];
+  previewParameters.backgroundColor = self.view.superview.backgroundColor;
+  return [[UITargetedPreview alloc] initWithView:self.view.superview
+                                      parameters:previewParameters];
 }
 
 - (UIContextMenuConfiguration*)contextMenuInteraction:
@@ -1297,15 +1321,17 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
 - (void)updatePlaceholderView {
   switch (_placeholderType) {
     case LocationBarPlaceholderType::kNone:
-      self.locationBarSteadyView.placeholderView = nil;
+      [self.locationBarSteadyView setPlaceholderView:nil type:_placeholderType];
       break;
     case LocationBarPlaceholderType::kLensOverlay:
-      self.locationBarSteadyView.placeholderView = _lensOverlayPlaceholderView;
+      [self.locationBarSteadyView setPlaceholderView:_lensOverlayPlaceholderView
+                                                type:_placeholderType];
       break;
     case LocationBarPlaceholderType::kPageActionMenu:
       CHECK(IsPageActionMenuEnabled());
-      self.locationBarSteadyView.placeholderView =
-          _pageActionMenuEntrypointView;
+      [self.locationBarSteadyView
+          setPlaceholderView:_pageActionMenuEntrypointView
+                        type:_placeholderType];
       if (!_pageActionMenuEntrypointView.newBadgeVisible) {
         _pageActionMenuEntrypointView.newBadgeVisible =
             [self.delegate shouldShowAIHubNewFeatureBadge];
@@ -1313,9 +1339,12 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       break;
     case LocationBarPlaceholderType::kDefaultSearchEngineIcon:
       if (IsVivaldiRunning()) {
-        self.locationBarSteadyView.placeholderView = nil;
+        [self.locationBarSteadyView
+            setPlaceholderView:nil type:LocationBarPlaceholderType::kNone];
       } else  {
-      self.locationBarSteadyView.placeholderView = _defaultSearchEngineIconView;
+      [self.locationBarSteadyView
+          setPlaceholderView:_defaultSearchEngineIconView
+                        type:_placeholderType];
       } // End Vivaldi
       break;
   }
@@ -1344,6 +1373,29 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
       setLensOverlayActive:shouldIndicateLensInUse && _lensOverlayVisible];
 }
 
+#pragma mark - TextFieldViewContainingHeightDelegate
+
+- (void)textFieldViewContaining:(UIView<TextFieldViewContaining>*)sender
+                didChangeHeight:(CGFloat)height {
+  [self.delegate locationBarViewController:self
+                  didChangeEditStateHeight:height];
+}
+
+- (UIView*)locationBarSteadyViewVisualCopy {
+  LocationBarSteadyView* copyView = [[LocationBarSteadyView alloc] init];
+  copyView.locationLabel.text = self.locationBarSteadyView.locationLabel.text;
+  copyView.locationLabel.textColor =
+      self.locationBarSteadyView.locationLabel.textColor;
+  UIImage* trailingButtonImage =
+      self.locationBarSteadyView.trailingButton.currentImage;
+  [copyView.trailingButton setImage:trailingButtonImage
+                           forState:UIControlStateNormal];
+  copyView.colorScheme = self.locationBarSteadyView.colorScheme;
+  copyView.frame = self.locationBarSteadyView.frame;
+
+  return copyView;
+}
+
 #pragma mark VIVALDI
 - (LocationBarSteadyView*)sharingSourceView {
   return self.locationBarSteadyView;
@@ -1361,6 +1413,18 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
                    action:@selector(locationBarSteadyViewTapped)];
   [self.locationBarSteadyView.locationContainerView
       addGestureRecognizer:tapGestureLocationBar];
+}
+
+- (void)setUpABSwipeGesture {
+  if (_addressBarSwipeGestureEnabled) {
+    self.tabSwitcherSwipeGesture = [[UIPanGestureRecognizer alloc]
+        initWithTarget:self
+                action:@selector(handleTabSwitcherSwipe:)];
+    self.tabSwitcherSwipeGesture.delegate = self;
+    self.tabSwitcherSwipeGesture.maximumNumberOfTouches = 1;
+    self.tabSwitcherSwipeGesture.cancelsTouchesInView = NO;
+    [_locationBarSteadyView addGestureRecognizer:self.tabSwitcherSwipeGesture];
+  }
 }
 
 - (void)setLoadingState:(BOOL)loading {
@@ -1401,6 +1465,112 @@ const CGFloat kShareIconBalancingHeightPadding = 1;
   _atbSettingForActiveWebState = atbSettingForActiveWebState;
   [self.locationBarSteadyView
       setLeadingButtonIconFromATBSetting:atbSettingForActiveWebState];
+}
+
+#pragma mark - Tab Switcher Swipe Gesture
+
+- (void)handleTabSwitcherSwipe:(UIPanGestureRecognizer*)gestureRecognizer {
+  CGPoint translation =
+      [gestureRecognizer translationInView:self.locationBarSteadyView];
+  CGPoint velocity =
+      [gestureRecognizer velocityInView:self.locationBarSteadyView];
+
+  switch (gestureRecognizer.state) {
+    case UIGestureRecognizerStateBegan:
+      _swipeGestureActive = NO;
+      break;
+
+    case UIGestureRecognizerStateChanged: {
+      // Determine if this is a valid vertical swipe
+      CGFloat verticalMovement = fabs(translation.y);
+      CGFloat horizontalMovement = fabs(translation.x);
+
+      // Only consider it a swipe if vertical movement is significantly greater
+      // than horizontal movement (at least 2x)
+      if (verticalMovement >
+              horizontalMovement * kVivaldiTabSwitcherVerticalMovementRatio &&
+          verticalMovement > kVivaldiTabSwitcherMinVerticalMovement) {
+        _swipeGestureActive = YES;
+      }
+      break;
+    }
+
+    case UIGestureRecognizerStateEnded: {
+      if (!_swipeGestureActive) {
+        break;
+      }
+
+      // Minimum swipe distance (in points)
+      // Minimum swipe velocity (in points per second)
+      CGFloat verticalMovement = translation.y;
+      CGFloat verticalVelocity = velocity.y;
+
+      // Check if swipe meets minimum requirements
+      BOOL meetsDistanceRequirement =
+          fabs(verticalMovement) >= kVivaldiTabSwitcherMinSwipeDistance;
+      BOOL meetsVelocityRequirement =
+          fabs(verticalVelocity) >= kVivaldiTabSwitcherMinSwipeVelocity;
+
+      if (meetsDistanceRequirement || meetsVelocityRequirement) {
+        // Trigger tab switcher for any valid vertical swipe (up or down).
+        [self.dispatcher displayTabGridInMode:TabGridOpeningMode::kDefault];
+      }
+
+      _swipeGestureActive = NO;
+      break;
+    }
+
+    case UIGestureRecognizerStateCancelled:
+    case UIGestureRecognizerStateFailed:
+      _swipeGestureActive = NO;
+      break;
+
+    default:
+      break;
+  }
+}
+
+#pragma mark - UIGestureRecognizerDelegate
+
+// Allow pan gesture to recognize simultaneously with other gestures
+- (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
+    shouldRecognizeSimultaneouslyWithGestureRecognizer:
+        (UIGestureRecognizer*)otherGestureRecognizer {
+  // Allow our pan gesture to work with tap gestures
+  if (gestureRecognizer == self.tabSwitcherSwipeGesture) {
+    return
+        [otherGestureRecognizer isKindOfClass:[UITapGestureRecognizer class]];
+  }
+
+  return NO;
+}
+
+#pragma mark - LocationBarConsumer (Vivaldi)
+- (void)setAddressBarSwipeGestureEnabled:(BOOL)enabled {
+  if (_addressBarSwipeGestureEnabled == enabled) {
+    return;
+  }
+  _addressBarSwipeGestureEnabled = enabled;
+  if (self.isViewLoaded) {
+    if (enabled) {
+      if (!self.tabSwitcherSwipeGesture) {
+        self.tabSwitcherSwipeGesture = [[UIPanGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(handleTabSwitcherSwipe:)];
+        self.tabSwitcherSwipeGesture.delegate = self;
+        self.tabSwitcherSwipeGesture.maximumNumberOfTouches = 1;
+        self.tabSwitcherSwipeGesture.cancelsTouchesInView = NO;
+        [self.locationBarSteadyView
+            addGestureRecognizer:self.tabSwitcherSwipeGesture];
+      }
+    } else {
+      if (self.tabSwitcherSwipeGesture) {
+        [self.locationBarSteadyView
+            removeGestureRecognizer:self.tabSwitcherSwipeGesture];
+        self.tabSwitcherSwipeGesture = nil;
+      }
+    }
+  }
 }
 // End Vivaldi
 

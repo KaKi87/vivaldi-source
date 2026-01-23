@@ -271,9 +271,7 @@
   },
   "desktopCapture": {
     "channel": "stable",
-    "extension_types": ["extension", "platform_app"],
-    // "desktop_android" is not supported.
-    "platforms": ["chromeos", "linux", "mac", "win"]
+    "extension_types": ["extension", "platform_app"]
   },
   "documentScan": {
     "channel": "stable",
@@ -283,10 +281,8 @@
   "downloads": [{
     "channel": "stable",
     "extension_types": ["extension"],
-    "default_parent": true,
-    // "desktop_android" is not supported.
-    "platforms": ["chromeos", "linux", "mac", "win"]
-    },{
+    "default_parent": true
+  },{
     "channel": "stable",
     "extension_types": ["platform_app"],
     "allowlist": ["A414F2F4543AC9C68DDF663D0A459E6053E3373C"]   // Vivaldi
@@ -790,10 +786,6 @@
     "channel": "stable",
     "extension_types": ["platform_app"],
     "platforms": ["chromeos", "linux", "mac", "win"]
-  },
-  {
-    "channel": "dev",
-    "extension_types": ["extension"]
   }],
   "notifications": [{
     // The chrome.notifications functionality listed in notifications.idl is
@@ -1097,9 +1089,7 @@
   ],
   "tabCapture": {
     "channel": "stable",
-    "extension_types": ["extension", "legacy_packaged_app"],
-    // "desktop_android" is not supported.
-    "platforms": ["chromeos", "linux", "mac", "win"]
+    "extension_types": ["extension", "legacy_packaged_app"]
   },
   "terminalPrivate": {
     "channel": "stable",

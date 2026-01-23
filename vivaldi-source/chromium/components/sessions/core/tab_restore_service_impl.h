@@ -61,10 +61,12 @@ class SESSIONS_EXPORT TabRestoreServiceImpl : public TabRestoreService {
   void DeleteLastSession() override;
   bool IsRestoring() const override;
   void Shutdown() override;
-  void VivaldiRequestSave(int num_removed) override;
-  int VivaldiRemoveEntryById(SessionID id) override;
 
   void CreateRestoredEntryCommandForTest(SessionID id);
+
+  // Vivaldi
+  void VivaldiRequestSave(int num_removed) override;
+  int VivaldiRemoveEntryById(SessionID id) override;
 
  private:
   friend class ::TabRestoreServiceImplTest;

@@ -25,4 +25,14 @@
         Ha ettől nem szűnik meg a probléma, javasoljuk, hogy jelöld be ismét
         ezt a lehetőséget a jobb teljesítmény érdekében.</translation>
 <translation id="7496505986576158197">A Vivaldi létrejöttét a <ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" /> nyílt forráskódú projekt és más <ph name="BEGIN_LINK_OSS" />nyílt forráskódú szoftverek<ph name="END_LINK_OSS" /> tették lehetővé.</translation>
+<translation id="89559930087159128">Menj
+          a Vivaldi menübe &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          Hálózat és internet &gt; Proxy
+          és kapcsold ki a "Beállítások automatikus észlelése" lehetőséget.</translation>
 </translationbundle>

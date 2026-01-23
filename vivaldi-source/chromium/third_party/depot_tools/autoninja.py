@@ -26,6 +26,7 @@ import sys
 import time
 import uuid
 import warnings
+from typing import Optional
 
 import android_build_server_helper
 import build_telemetry
@@ -47,7 +48,10 @@ go/siso-bug and switch back temporarily by setting the GN arg
 
 _SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 _NINJALOG_UPLOADER = os.path.join(_SCRIPT_DIR, "ninjalog_uploader.py")
+_GSUTIL_PY = os.path.join(_SCRIPT_DIR, "gsutil.py")
+_SISO_FILES_TO_UPLOAD = ["siso_metrics.json", "siso_metadata.json"]
 
+_LOGS_STORAGE_BUCKET = "chrome-build-logs"
 # See [1] and [2] for the painful details of this next section, which handles
 # escaping command lines so that they can be copied and pasted into a cmd
 # window.
@@ -151,29 +155,6 @@ def _print_cmd(cmd):
     print(*[shell_quoter(arg) for arg in cmd], file=sys.stderr)
 
 
-def _get_remoteexec_defaults(output_dir):
-    root_dir = gclient_paths.GetPrimarySolutionPath(output_dir)
-    if not root_dir:
-        return None
-    default_file = os.path.join(root_dir,
-                                "build/toolchain/remoteexec_defaults.gni")
-    values = {
-        "use_reclient_on_siso": True,
-        "use_reclient_on_ninja": True,
-    }
-    if not os.path.exists(default_file):
-        return values
-    pattern = re.compile(r"(^|\s*)([^=\s]*)\s*=\s*(\S*)\s*$")
-    with open(default_file, encoding="utf-8") as f:
-        for line in f:
-            line = line.split("#")[0]
-            m = pattern.match(line)
-            if not m:
-                continue
-            values[m.group(2)] = m.group(3) == "true"
-    return values
-
-
 # `use_siso` value is used to determine whether siso or ninja is used,
 # and used to determine default value of `use_reclient`, so
 # this logic should match with //build/toolchain/siso.gni
@@ -251,7 +232,54 @@ def _convert_ninja_j_to_siso_flags(j_value, use_remoteexec, args):
     return return_args
 
 
-def _main_inner(input_args, build_id):
+def _check_reclient_cfgs(output_dir):
+    root_dir = gclient_paths.GetPrimarySolutionPath(output_dir)
+    if not root_dir:
+        return
+    if not os.path.exists(
+            os.path.join(
+                root_dir,
+                "buildtools/reclient_cfgs/chromium-browser-clang/.cipd")):
+        # reclient cfgs is not deployed by cipd
+        return
+    cr_build_revision_path = os.path.join(
+        root_dir, "third_party/llvm-build/Release+Asserts/cr_build_revision")
+    cr_build_revision = None
+    if os.path.exists(cr_build_revision_path):
+        with open(cr_build_revision_path) as f:
+            cr_build_revision = f.read().strip()
+    rewrapper_cfg_path = os.path.join(
+        root_dir, "buildtools/reclient_cfgs/chromium-browser-clang/rewrapper_")
+    if sys.platform.startswith("win"):
+        rewrapper_cfg_path += "windows.cfg"
+    elif sys.platform == "darwin":
+        rewrapper_cfg_path += "mac.cfg"
+    else:
+        rewrapper_cfg_path += "linux.cfg"
+    rewrapper_cfg_lines = None
+    if os.path.exists(rewrapper_cfg_path):
+        with open(rewrapper_cfg_path) as f:
+            rewrapper_cfg_lines = f.readlines()
+    if cr_build_revision and rewrapper_cfg_lines:
+        rewrapper_cfg_revision = rewrapper_cfg_lines[0].strip().lstrip("# ")
+        if not "llvmorg" in rewrapper_cfg_revision:
+            # linux.cfg may set revision in 2nd line.
+            rewrapper_cfg_revision = rewrapper_cfg_lines[1].strip().lstrip("# ")
+        if rewrapper_cfg_revision != cr_build_revision:
+            print(
+                "You have wrong version of reclient_cfgs "
+                "not matched with third_party/llvm-build.\n"
+                " cr_build_revision=" + cr_build_revision + "\n"
+                " recleint_cfgs=" + rewrapper_cfg_revision + "\n"
+                "Make sure you have 'download_remoteexec_cfg' in "
+                ".gclient custom_vars and run 'gclient runhooks'\n",
+                file=sys.stderr,
+            )
+
+
+def _main_inner(input_args,
+                build_id,
+                telemetry_cfg: Optional[build_telemetry.Config] = None):
     # If running in the Gemini CLI, automatically add --quiet if it's not
     # already present to avoid filling the context window.
     if os.environ.get('GEMINI_CLI') == '1':
@@ -265,11 +293,9 @@ def _main_inner(input_args, build_id):
     # and keep workspace clean.
     if not os.environ.get("PYTHONPYCACHEPREFIX"):
         os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
-    # Workaround for reproxy timing out on startup due to the Google Cloud
-    # Go SDK making a call to user.Current(), which can be slow on Googler
-    # machines due to go.dev/issue/68312. This can be removed once Go 1.24
-    # has been released, and reproxy + other tools have been rebuilt with
-    # that.
+    # Despite go.dev/issue/68312 being fixed, the issue is still reproducible
+    # for googlers. Due to this, the flag is still applied while the
+    # issue is being investigated.
     if _is_google_corp_machine():
         os.environ.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
     # The -t tools are incompatible with -j
@@ -364,11 +390,10 @@ def _main_inner(input_args, build_id):
                 use_siso = False
 
         if use_reclient is None and use_remoteexec:
-            if values := _get_remoteexec_defaults(output_dir):
-                if use_siso:
-                    use_reclient = values["use_reclient_on_siso"]
-                else:
-                    use_reclient = values["use_reclient_on_ninja"]
+            if use_siso:
+                use_reclient = False
+            else:
+                use_reclient = True
 
     # Use the server for target_os="android" (where it is relevant), unless it
     # is disabled via GN arg.
@@ -382,6 +407,9 @@ def _main_inner(input_args, build_id):
             # siso runs locally if empty project is given
             # even if use_remoteexec=true is set.
             project = _siso_rbe_project(output_dir)
+
+        if sys.platform.startswith("win") or sys.platform == "darwin":
+            _check_reclient_cfgs(output_dir)
 
         if _has_internal_checkout(output_dir):
             # user may login on non-@google.com account on corp,
@@ -433,6 +461,36 @@ def _main_inner(input_args, build_id):
                 file=sys.stderr,
             )
 
+    # A large build (with or without RBE) tends to hog all system resources.
+    # Depending on the operating system, we might have mechanisms available
+    # to run at a lower priority, which improves this situation.
+    if os.environ.get("NINJA_BUILD_IN_BACKGROUND") == "1":
+        if sys.platform in ["darwin", "linux"]:
+            # nice-level 10 is usually considered a good default for background
+            # tasks. The niceness is inherited by child processes, so we can
+            # just set it here for us and it'll apply to the build tool we
+            # spawn later.
+            os.nice(10)
+
+    # On macOS and most Linux distributions, the default limit of open file
+    # descriptors is too low (256 and 1024, respectively).
+    # This causes a large j value to result in 'Too many open files' errors.
+    # Check whether the limit can be raised to a large enough value. If yes,
+    # use `ulimit -n .... &&` as a prefix to increase the limit when running
+    # ninja.
+    if sys.platform in ["darwin", "linux"]:
+        import resource
+        # Increase the number of allowed open file descriptors to the maximum.
+        fileno_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if fileno_limit < hard_limit:
+            try:
+                resource.setrlimit(resource.RLIMIT_NOFILE,
+                                   (hard_limit, hard_limit))
+            except Exception:
+                pass
+            fileno_limit, hard_limit = resource.getrlimit(
+                resource.RLIMIT_NOFILE)
+
     # use_siso may not be set when running `autoninja -help` without `-C`.
     if use_siso is None:
         use_siso = _get_use_siso_default(output_dir)
@@ -468,7 +526,7 @@ def _main_inner(input_args, build_id):
                     # Print the command-line to reassure the user that the right
                     # settings are being used.
                     _print_cmd(args)
-                return siso.main(args)
+                return siso.main(args, telemetry_cfg)
             if use_remoteexec:
                 if use_reclient and not t_specified:
                     # TODO: crbug.com/379584977 - Remove siso/reclient
@@ -494,36 +552,6 @@ def _main_inner(input_args, build_id):
 
     # Strip -o/--offline so ninja doesn't see them.
     input_args = [arg for arg in input_args if arg not in ("-o", "--offline")]
-
-    # A large build (with or without RBE) tends to hog all system resources.
-    # Depending on the operating system, we might have mechanisms available
-    # to run at a lower priority, which improves this situation.
-    if os.environ.get("NINJA_BUILD_IN_BACKGROUND") == "1":
-        if sys.platform in ["darwin", "linux"]:
-            # nice-level 10 is usually considered a good default for background
-            # tasks. The niceness is inherited by child processes, so we can
-            # just set it here for us and it'll apply to the build tool we
-            # spawn later.
-            os.nice(10)
-
-    # On macOS and most Linux distributions, the default limit of open file
-    # descriptors is too low (256 and 1024, respectively).
-    # This causes a large j value to result in 'Too many open files' errors.
-    # Check whether the limit can be raised to a large enough value. If yes,
-    # use `ulimit -n .... &&` as a prefix to increase the limit when running
-    # ninja.
-    if sys.platform in ["darwin", "linux"]:
-        import resource
-        # Increase the number of allowed open file descriptors to the maximum.
-        fileno_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-        if fileno_limit < hard_limit:
-            try:
-                resource.setrlimit(resource.RLIMIT_NOFILE,
-                                   (hard_limit, hard_limit))
-            except Exception:
-                pass
-            fileno_limit, hard_limit = resource.getrlimit(
-                resource.RLIMIT_NOFILE)
 
     ninja_args = ['ninja']
     num_cores = multiprocessing.cpu_count()
@@ -583,7 +611,6 @@ def _main_inner(input_args, build_id):
 
 
 def _upload_ninjalog(args, exit_code, build_duration):
-    warnings.simplefilter("ignore", ResourceWarning)
     # Run upload script without wait.
     creationflags = 0
     if platform.system() == "Windows":
@@ -606,6 +633,40 @@ def _upload_ninjalog(args, exit_code, build_duration):
     )
 
 
+def _upload_sisolog(input_args: list[str], build_id: str):
+    timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    datetime = time.strftime("%Y_%m_%d", time.gmtime())
+    top_dir = time.strftime("%Y/%m/%d/siso/", time.gmtime())
+    _, out_dir = ninja.parse_args(input_args)
+    for file in _SISO_FILES_TO_UPLOAD:
+        # This folder structure mimics the recipe used by the RBE workers
+        # https://source.chromium.org/chromium/infra/infra_superproject/+/main:build/recipes/recipe_modules/siso/api.py
+        formatted_gcs_path = os.path.join(
+            _LOGS_STORAGE_BUCKET, top_dir,
+            f"{datetime}_siso_reports.{timestamp}.{build_id}", file)
+        siso_logs_file = os.path.join(out_dir, file)
+
+        # Run upload script without wait.
+        creationflags = 0
+        if platform.system() == "Windows":
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+        cmd = [
+            sys.executable,
+            _GSUTIL_PY,
+            "cp",
+            "-r",
+            siso_logs_file,
+            f"gs://{formatted_gcs_path}",
+        ]
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            creationflags=creationflags,
+        )
+
+
 def main(args):
     start = time.time()
     # Generate Build ID randomly.
@@ -624,18 +685,21 @@ def main(args):
     # are not supported by autoninja, but that is not a real limitation.
     input_args = args
     exit_code = 127
+    telemetry_cfg = build_telemetry.load_config()
+    should_collect_logs = telemetry_cfg.enabled()
     if sys.platform.startswith("win") and len(args) == 2:
         input_args = args[:1] + args[1].split()
     try:
-        exit_code = _main_inner(input_args, build_id)
+        exit_code = _main_inner(input_args, build_id, telemetry_cfg)
     except KeyboardInterrupt:
         exit_code = 1
     finally:
         # Check the log collection opt-in/opt-out status, and display notice if necessary.
-        should_collect_logs = build_telemetry.enabled()
         if should_collect_logs:
+            warnings.simplefilter("ignore", ResourceWarning)
             elapsed = time.time() - start
             _upload_ninjalog(input_args, exit_code, elapsed)
+            _upload_sisolog(input_args, build_id)
     return exit_code
 
 

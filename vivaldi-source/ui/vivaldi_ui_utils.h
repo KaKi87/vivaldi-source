@@ -44,6 +44,12 @@ extern bool MoveTabToWindow(Browser* source_browser,
                             int* new_index,
                             int iteration,
                             int add_types);
+extern content::WebContents* CloneTab(Browser* source_browser,
+                                      Browser* target_browser,
+                                      int source_index,
+                                      int* target_index,
+                                      int add_types,
+                                      std::string* error_out);
 extern bool GetTabById(int tab_id, content::WebContents** contents, int* index);
 
 // Detects if the current thread can show UI elements. Used to detect if we can safely

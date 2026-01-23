@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.omnibox.suggestions;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.ui.base.KeyNavigationUtil.isTabNavigation;
 
 import android.content.Context;
 import android.os.Handler;
@@ -18,6 +19,7 @@ import androidx.core.view.ViewCompat;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
@@ -27,8 +29,7 @@ import org.chromium.chrome.browser.omnibox.DeferredIMEWindowInsetApplicationCall
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
-import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
-import org.chromium.chrome.browser.omnibox.navattach.NavigationAttachmentsCoordinator;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController.OnSuggestionsReceivedListener;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionListViewBinder.SuggestionListViewHolder;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewBinder;
@@ -37,7 +38,6 @@ import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.OmniboxFeatures;
@@ -68,8 +68,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
 /** Coordinator that handles the interactions with the autocomplete system. */
 @NullMarked
-public class AutocompleteCoordinator
-        implements UrlFocusChangeListener, OmniboxSuggestionsVisualState {
+public class AutocompleteCoordinator implements OmniboxSuggestionsVisualState {
     private final ViewGroup mParent;
     private final ObservableSupplier<Profile> mProfileSupplier;
     private final Callback<Profile> mProfileChangeCallback;
@@ -105,9 +104,7 @@ public class AutocompleteCoordinator
             @Nullable Supplier<ShareDelegate> shareDelegateSupplier,
             LocationBarDataProvider locationBarDataProvider,
             ObservableSupplier<Profile> profileObservableSupplier,
-            Callback<Tab> bringToForegroundCallback,
             Callback<String> bringTabGroupToForegroundCallback,
-            Supplier<TabWindowManager> tabWindowManagerSupplier,
             BookmarkState bookmarkState,
             OmniboxActionDelegate omniboxActionDelegate,
             @Nullable OmniboxSuggestionsDropdownScrollListener scrollListener,
@@ -115,7 +112,7 @@ public class AutocompleteCoordinator
             boolean forcePhoneStyleOmnibox,
             WindowAndroid windowAndroid,
             DeferredIMEWindowInsetApplicationCallback deferredIMEWindowInsetApplicationCallback,
-            NavigationAttachmentsCoordinator navigationAttachmentsCoordinator) {
+            FuseboxCoordinator fuseboxCoordinator) {
         mParent = parent;
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
         Context context = parent.getContext();
@@ -144,16 +141,14 @@ public class AutocompleteCoordinator
                         activityTabSupplier,
                         shareDelegateSupplier,
                         locationBarDataProvider,
-                        bringToForegroundCallback,
                         bringTabGroupToForegroundCallback,
-                        tabWindowManagerSupplier,
                         bookmarkState,
                         omniboxActionDelegate,
                         lifecycleDispatcher,
                         dropdownEmbedder,
                         windowAndroid,
                         deferredIMEWindowInsetApplicationCallback,
-                        navigationAttachmentsCoordinator,
+                        fuseboxCoordinator,
                         forcePhoneStyleOmnibox);
         mMediator.initDefaultProcessors();
 
@@ -293,7 +288,6 @@ public class AutocompleteCoordinator
         };
     }
 
-    @Override
     public void onUrlFocusChange(boolean hasFocus) {
         mMediator.onOmniboxSessionStateChange(hasFocus);
 
@@ -303,7 +297,6 @@ public class AutocompleteCoordinator
                     hasFocus && showSearchEngineSuggestionBar() ? View.VISIBLE : View.GONE);
     }
 
-    @Override
     public void onUrlAnimationFinished(boolean hasFocus) {
         mMediator.onUrlAnimationFinished(hasFocus);
     }
@@ -412,9 +405,10 @@ public class AutocompleteCoordinator
                 return true;
             }
 
+            boolean openInNewTab = event.isAltPressed();
+            boolean openInNewWindow = !openInNewTab && event.isShiftPressed();
             if (mParent.getVisibility() == View.VISIBLE) {
-                mMediator.loadTypedOmniboxText(
-                        event.getEventTime(), /* openInNewTab= */ event.isAltPressed());
+                mMediator.loadTypedOmniboxText(event.getEventTime(), openInNewTab, openInNewWindow);
                 return true;
             }
 
@@ -431,7 +425,7 @@ public class AutocompleteCoordinator
         // Suggestion, simulating press/long press of the UI element.
         if ((keyCode == KeyEvent.KEYCODE_DPAD_UP)
                 || (keyCode == KeyEvent.KEYCODE_DPAD_DOWN)
-                || (keyCode == KeyEvent.KEYCODE_TAB)) {
+                || isTabNavigation(event)) {
             mMediator.allowPendingItemSelection();
             assumeNonNull(mContainer).onKeyDown(keyCode, event);
             return true;
@@ -497,6 +491,12 @@ public class AutocompleteCoordinator
      */
     public @Nullable OmniboxSuggestionsContainer getSuggestionsContainerForTest() {
         return mContainer;
+    }
+
+    public void setSuggestionsContainerForTest(OmniboxSuggestionsContainer container) {
+        OmniboxSuggestionsContainer oldValue = mContainer;
+        mContainer = container;
+        ResettersForTesting.register(() -> mContainer = oldValue);
     }
 
     /**

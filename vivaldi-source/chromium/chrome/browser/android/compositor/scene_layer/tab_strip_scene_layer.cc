@@ -256,8 +256,10 @@ void TabStripSceneLayer::UpdateTabStripLayer(JNIEnv* env,
   } else {
     left_padding_layer_->SetHideLayerAndSubtree(false);
     left_padding_layer_->SetBounds(gfx::Size(left_padding, height));
+    if (!vivaldi::IsVivaldiRunning()) {
     left_padding_layer_->SetBackgroundColor(
         SkColor4f::FromColor(background_color));
+    }
   }
 
   if (right_padding == 0) {
@@ -266,8 +268,10 @@ void TabStripSceneLayer::UpdateTabStripLayer(JNIEnv* env,
     right_padding_layer_->SetHideLayerAndSubtree(false);
     right_padding_layer_->SetBounds(gfx::Size(right_padding, height));
     right_padding_layer_->SetPosition(gfx::PointF(width - right_padding, 0));
+    if (!vivaldi::IsVivaldiRunning()) {
     right_padding_layer_->SetBackgroundColor(
         SkColor4f::FromColor(background_color));
+    }
   }
 
   // Hide scrim layer if it's not visible.
@@ -529,6 +533,7 @@ void TabStripSceneLayer::PutStripTabLayer(
     jboolean should_hide_favicon,
     jboolean should_show_media_indicator,
     jint media_indicator_resource_id,
+    jint media_indicator_tint,
     jfloat media_indicator_width,
     jfloat toolbar_width,
     jfloat x,
@@ -595,7 +600,7 @@ void TabStripSceneLayer::PutStripTabLayer(
   ui::Resource* media_indicator_drawable = nullptr;
   if (should_show_media_indicator) {
     media_indicator_drawable = resource_manager_->GetStaticResourceWithTint(
-        media_indicator_resource_id, close_tint);
+        media_indicator_resource_id, media_indicator_tint);
   }
 
   layer->SetProperties(
@@ -724,6 +729,8 @@ void TabStripSceneLayer::SetTabStripBackgroundColor(
   SkColor4f color =
       SkColor4f::FromColor(ui::JavaColorToOptionalSkColor(java_color).value());
   tab_strip_layer_->SetBackgroundColor(color);
+  left_padding_layer_->SetBackgroundColor(color);
+  right_padding_layer_->SetBackgroundColor(color);
   use_light_foreground_on_background = use_light;
 }
 
@@ -767,3 +774,5 @@ static jlong JNI_TabStripSceneLayer_Init(JNIEnv* env,
 }
 
 }  // namespace android
+
+DEFINE_JNI(TabStripSceneLayer)

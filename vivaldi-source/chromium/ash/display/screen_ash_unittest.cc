@@ -4,7 +4,6 @@
 
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
-#include "base/functional/callback_forward.h"
 #include "base/test/test_future.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window.h"
@@ -22,11 +21,11 @@ TEST_F(ScreenAshTest, TestGetWindowAtScreenPoint) {
   UpdateDisplay("300x200,500x400");
 
   aura::test::TestWindowDelegate delegate;
-  std::unique_ptr<aura::Window> win1(CreateTestWindowInShellWithDelegate(
-      &delegate, 0, gfx::Rect(0, 0, 200, 200)));
+  std::unique_ptr<aura::Window> win1(CreateTestWindowInShell(
+      {.delegate = &delegate, .bounds = {0, 0, 200, 200}, .window_id = 0}));
 
-  std::unique_ptr<aura::Window> win2(CreateTestWindowInShellWithDelegate(
-      &delegate, 1, gfx::Rect(300, 200, 100, 100)));
+  std::unique_ptr<aura::Window> win2(CreateTestWindowInShell(
+      {.delegate = &delegate, .bounds = {300, 200, 100, 100}, .window_id = 1}));
 
   ASSERT_NE(win1->GetRootWindow(), win2->GetRootWindow());
 

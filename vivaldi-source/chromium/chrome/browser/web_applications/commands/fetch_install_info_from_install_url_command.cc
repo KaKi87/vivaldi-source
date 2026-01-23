@@ -10,6 +10,8 @@
 #include "base/check_op.h"
 #include "base/feature_list.h"
 #include "base/memory/weak_ptr.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/strings/to_string.h"
 #include "chrome/browser/web_applications/jobs/manifest_to_web_app_install_info_job.h"
 #include "chrome/browser/web_applications/locks/shared_web_contents_lock.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
@@ -39,6 +41,8 @@ std::ostream& operator<<(std::ostream& os, FetchInstallInfoResult result) {
       return os << "kWrongManifestId";
     case FetchInstallInfoResult::kFailure:
       return os << "kFailure";
+    case FetchInstallInfoResult::kShutdown:
+      return os << "kShutdown";
   }
 }
 
@@ -52,11 +56,19 @@ FetchInstallInfoFromInstallUrlCommand::FetchInstallInfoFromInstallUrlCommand(
     GURL install_url,
     std::optional<webapps::ManifestId> parent_manifest_id,
     base::OnceCallback<void(std::unique_ptr<WebAppInstallInfo>)> callback)
-    : WebAppCommand<SharedWebContentsLock, std::unique_ptr<WebAppInstallInfo>>(
+    : WebAppCommand<SharedWebContentsLock,
+                    FetchInstallInfoResult,
+                    std::unique_ptr<WebAppInstallInfo>>(
           "FetchInstallInfoFromInstallUrlCommand",
           SharedWebContentsLockDescription(),
-          std::move(callback),
-          /*args_for_shutdown=*/nullptr),
+          base::BindOnce([](FetchInstallInfoResult result,
+                            std::unique_ptr<WebAppInstallInfo> install_info) {
+            base::UmaHistogramEnumeration(
+                "WebApp.Install.FetchInstallInfoFromInstallUrlResult", result);
+            return install_info;
+          }).Then(std::move(callback)),
+          /*args_for_shutdown=*/
+          std::make_tuple(FetchInstallInfoResult::kShutdown, nullptr)),
       manifest_id_(manifest_id),
       install_url_(install_url),
       parent_manifest_id_(parent_manifest_id),
@@ -107,8 +119,7 @@ void FetchInstallInfoFromInstallUrlCommand::StartWithLock(
 void FetchInstallInfoFromInstallUrlCommand::
     OnWebAppUrlLoadedGetWebAppInstallInfo(
         webapps::WebAppUrlLoaderResult result) {
-  GetMutableDebugValue().Set("url_loading_result",
-                             ConvertUrlLoaderResultToString(result));
+  GetMutableDebugValue().Set("url_loading_result", base::ToString(result));
 
   if (result != webapps::WebAppUrlLoaderResult::kUrlLoaded) {
     install_error_log_entry_.LogUrlLoaderError(
@@ -247,7 +258,7 @@ void FetchInstallInfoFromInstallUrlCommand::CompleteCommandAndSelfDestruct(
         install_error_log_entry_.TakeErrorDict());
   }
 
-  CompleteAndSelfDestruct(command_result, std::move(install_info));
+  CompleteAndSelfDestruct(command_result, result, std::move(install_info));
 }
 
 }  // namespace web_app

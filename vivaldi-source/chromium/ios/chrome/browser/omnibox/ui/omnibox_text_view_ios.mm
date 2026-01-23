@@ -13,7 +13,6 @@
 #import "base/not_fatal_until.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
-#import "base/task/sequenced_task_runner.h"
 #import "components/grit/components_scaled_resources.h"
 #import "components/omnibox/browser/autocomplete_input.h"
 #import "components/open_from_clipboard/clipboard_async_wrapper_ios.h"
@@ -45,6 +44,13 @@
 
 using enum OmniboxKeyboardAction;
 
+namespace {
+
+/// Minimum vertical inset, defaults from UITextView.
+const CGFloat kMinVerticalInset = 8.0;
+
+}  // namespace
+
 @interface OmniboxTextViewIOS () <UIGestureRecognizerDelegate,
                                   UITextViewDelegate>
 
@@ -65,6 +71,23 @@ using enum OmniboxKeyboardAction;
   OmniboxPresentationContext _presentationContext;
   /// The default foreground color for text.
   UIColor* _defaultTextColor;
+
+  /// The omnibox typing attributes.
+  NSDictionary<NSAttributedStringKey, id>* _omniboxTypingAttributes;
+
+  /// Whether to force disable the return key.
+  BOOL _forceDisableReturnKey;
+
+  // The default and custom placeholder texts to be shown when there is no other
+  // text present.
+  NSString* _customPlaceholderText;
+  NSString* _defaultPlaceholderText;
+
+  // Constraint for the placeholder label top anchor.
+  NSLayoutConstraint* _placeholderTopConstraint;
+
+  // Cached single line height.
+  CGFloat _cachedSingleLineHeight;
 }
 
 @synthesize omniboxTextInputDelegate = _omniboxTextInputDelegate;
@@ -96,8 +119,12 @@ using enum OmniboxKeyboardAction;
     self.textAlignment = NSTextAlignmentNatural;
     self.keyboardType = UIKeyboardTypeWebSearch;
     self.smartQuotesType = UITextSmartQuotesTypeNo;
-    self.textContainer.lineFragmentPadding = 0;
     self.dataDetectorTypes = UIDataDetectorTypeNone;
+    self.allowsEditingTextAttributes = NO;
+    if (@available(iOS 18, *)) {
+      self.writingToolsBehavior = UIWritingToolsBehaviorNone;
+    }
+    [self updateOmniboxTypingAttributes];
 
     // Disable drag on iPhone because there's nowhere to drag to
     if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_TABLET) {
@@ -106,6 +133,7 @@ using enum OmniboxKeyboardAction;
 
     // Force initial layout of internal text label.
     self.font = self.currentFont;
+    [self updateTextContainerInset];
 
     _tapGestureRecognizer =
         [[UITapGestureRecognizer alloc] initWithTarget:self
@@ -150,9 +178,11 @@ using enum OmniboxKeyboardAction;
   // directly to the text view's frame and then adding the internal insets.
   UIEdgeInsets textInsets = self.textContainerInset;
   CGFloat linePadding = self.textContainer.lineFragmentPadding;
+  _placeholderTopConstraint =
+      [placeholderLabel.topAnchor constraintEqualToAnchor:self.topAnchor
+                                                 constant:textInsets.top];
   [NSLayoutConstraint activateConstraints:@[
-    [placeholderLabel.topAnchor constraintEqualToAnchor:self.topAnchor
-                                               constant:textInsets.top],
+    _placeholderTopConstraint,
     [placeholderLabel.leadingAnchor
         constraintEqualToAnchor:self.leadingAnchor
                        constant:textInsets.left + linePadding],
@@ -162,18 +192,19 @@ using enum OmniboxKeyboardAction;
 }
 
 - (void)setAllowsReturnKeyWithEmptyText:(BOOL)allowsReturnKeyWithEmptyText {
+  if (_allowsReturnKeyWithEmptyText == allowsReturnKeyWithEmptyText) {
+    return;
+  }
   _allowsReturnKeyWithEmptyText = allowsReturnKeyWithEmptyText;
+  [self reloadInputViews];
+}
 
-  // To make sure the keyboard is correctly taking the new value into account,
-  // call `-reloadInputViews`. That being said, `-reloadInputViews` can
-  // update the input mode, which can itself call again this method.
-  // `-reloadInputViews` being non-reentrant (contention on
-  // `+[UIKeyboardAutomatic sharedInstance]`), call this asynchronously.
-  __weak __typeof(self) weakSelf = self;
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(^{
-        [weakSelf reloadInputViews];
-      }));
+- (void)setMinimumHeight:(CGFloat)minimumHeight {
+  if (_minimumHeight == minimumHeight) {
+    return;
+  }
+  _minimumHeight = minimumHeight;
+  [self updateTextContainerInset];
 }
 
 - (void)setText:(NSAttributedString*)text
@@ -251,6 +282,16 @@ using enum OmniboxKeyboardAction;
                                     ? self.text.length - addedTextLength
                                     : self.text.length;
   return [self.text substringToIndex:userTextEndIndex];
+}
+
+- (NSAttributedString*)attributedUserText {
+  const NSUInteger addedTextLength = [self addedTextLength];
+  DCHECK_LE(addedTextLength, self.text.length);
+  NSUInteger userTextEndIndex = self.text.length >= addedTextLength
+                                    ? self.text.length - addedTextLength
+                                    : self.text.length;
+  return [self.attributedText
+      attributedSubstringFromRange:NSMakeRange(0, userTextEndIndex)];
 }
 
 - (NSString*)markedText {
@@ -351,17 +392,12 @@ using enum OmniboxKeyboardAction;
 - (void)updateTextDirection {
   // If the keyboard language direction does not match the device
   // language direction, the alignment of the placeholder text will be off.
-  if (self.text.length == 0 ||
-      _presentationContext == OmniboxPresentationContext::kLensOverlay) {
-    NSLocaleLanguageDirection direction = [NSLocale
-        characterDirectionForLanguage:self.textInputMode.primaryLanguage];
-    if (direction == NSLocaleLanguageDirectionRightToLeft) {
-      [self setTextAlignment:NSTextAlignmentRight];
-    } else {
-      [self setTextAlignment:NSTextAlignmentLeft];
-    }
+  NSLocaleLanguageDirection direction = [NSLocale
+      characterDirectionForLanguage:self.textInputMode.primaryLanguage];
+  if (direction == NSLocaleLanguageDirectionRightToLeft) {
+    [self setTextAlignment:NSTextAlignmentRight];
   } else {
-    [self setTextAlignment:NSTextAlignmentNatural];
+    [self setTextAlignment:NSTextAlignmentLeft];
   }
   self.placeholderLabel.textAlignment = self.textAlignment;
 }
@@ -402,7 +438,6 @@ using enum OmniboxKeyboardAction;
   [attributes setValue:self.currentFont forKey:NSFontAttributeName];
   [attributes setValue:self.selectedTextBackgroundColor
                 forKey:NSBackgroundColorAttributeName];
-  self.typingAttributes = attributes;
 
   // Also apply the attributes to the whole text.
   NSMutableAttributedString* attributedText = [self.attributedText mutableCopy];
@@ -413,6 +448,7 @@ using enum OmniboxKeyboardAction;
   // clearsOnInsertion calls selectAll which remove preEditing.
   self.clearsOnInsertion = YES;
   self.preEditing = YES;
+  [self.heightDelegate textViewContentChanged:self];
 }
 
 /// Exits pre-edit state.
@@ -431,10 +467,14 @@ using enum OmniboxKeyboardAction;
   self.typingAttributes = attributes;
 
   // Also apply the attributes to the whole text.
-  NSMutableAttributedString* attributedText = [self.attributedText mutableCopy];
-  [attributedText addAttributes:attributes
-                          range:NSMakeRange(0, self.attributedText.length)];
-  self.attributedText = attributedText;
+  if (!self.clearingPreEditText) {
+    NSMutableAttributedString* attributedText =
+        [self.attributedText mutableCopy];
+    [attributedText addAttributes:attributes
+                            range:NSMakeRange(0, self.attributedText.length)];
+    self.attributedText = attributedText;
+    [self.heightDelegate textViewContentChanged:self];
+  }
 }
 
 #pragma mark - UITextView
@@ -476,10 +516,6 @@ using enum OmniboxKeyboardAction;
   [super setAttributedText:mutableText];
 }
 
-- (void)setPlaceholder:(NSString*)placeholder {
-  self.placeholderLabel.text = placeholder;
-}
-
 - (void)setText:(NSString*)text {
   NSAttributedString* as = [[NSAttributedString alloc] initWithString:text];
   [self setTextInternal:as autocompleteLength:0];
@@ -505,6 +541,9 @@ using enum OmniboxKeyboardAction;
 - (BOOL)hasText {
   // Returns YES when `allowsReturnKeyWithEmptyText` to enable the 'Go' key in
   // the keyboard.
+  if (_forceDisableReturnKey) {
+    return NO;
+  }
   return self.allowsReturnKeyWithEmptyText || [super hasText];
 }
 
@@ -537,6 +576,13 @@ using enum OmniboxKeyboardAction;
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
     shouldRecognizeSimultaneouslyWithGestureRecognizer:
         (UIGestureRecognizer*)otherGestureRecognizer {
+  // Prevent conflicts between the pan gesture from the UIScrollView and the
+  // long press scroll gesture (crbug.com/457389541).
+  if ([gestureRecognizer isKindOfClass:UIPanGestureRecognizer.class] &&
+      [otherGestureRecognizer
+          isKindOfClass:UILongPressGestureRecognizer.class]) {
+    return NO;
+  }
   return YES;
 }
 
@@ -793,6 +839,9 @@ using enum OmniboxKeyboardAction;
       return ([self isPreEditing] || [self hasAutocompleteText] ||
               [self hasAdditionalText]);
     case kReturnKey: {
+      if (_forceDisableReturnKey) {
+        return NO;
+      }
       NSString* trimmedText =
           [self.text stringByTrimmingCharactersInSet:
                          [NSCharacterSet whitespaceAndNewlineCharacterSet]];
@@ -882,6 +931,15 @@ using enum OmniboxKeyboardAction;
 
 #pragma mark - Private methods
 
+- (void)updatePlaceholder {
+  if (_customPlaceholderText) {
+    self.placeholderLabel.text = _customPlaceholderText;
+    return;
+  }
+
+  self.placeholderLabel.text = _defaultPlaceholderText;
+}
+
 #pragma mark Font
 
 /// Font to use in regular x regular size class. If not set, the regular font is
@@ -903,6 +961,17 @@ using enum OmniboxKeyboardAction;
 /// Font that should be used in current size class.
 - (UIFont*)currentFont {
   return IsCompactWidth(self) ? self.normalFont : self.largerFont;
+}
+
+/// Updates the omnibox typing attributes with the current font.
+- (void)updateOmniboxTypingAttributes {
+  NSMutableDictionary<NSAttributedStringKey, id>* attributes =
+      self.typingAttributes.mutableCopy;
+  [attributes setValue:self.currentFont forKey:NSFontAttributeName];
+  [attributes setValue:UIColor.clearColor
+                forKey:NSBackgroundColorAttributeName];
+  [attributes setValue:_defaultTextColor forKey:NSForegroundColorAttributeName];
+  _omniboxTypingAttributes = attributes;
 }
 
 #pragma mark Helpers
@@ -1058,8 +1127,7 @@ using enum OmniboxKeyboardAction;
   // baseline changes so text is out of alignment.
   [self setFont:self.currentFont];
   [self updateTextDirection];
-  [self updatePlaceholderVisibility];
-  [self.heightDelegate textViewContentChanged:self];
+  [self updateUIForCurrentText];
 }
 
 /// Returns the background color for selected text.
@@ -1087,8 +1155,57 @@ using enum OmniboxKeyboardAction;
 - (void)updateTextProperitesOnTraitChange {
   // Reset the fonts to the appropriate ones in this size class.
   self.font = self.currentFont;
+  _cachedSingleLineHeight = 0;
+  [self updateTextContainerInset];
   self.placeholderLabel.font = self.font;
   [self setAttributedText:self.attributedText];
+  [self updateOmniboxTypingAttributes];
+}
+
+- (void)updateTextContainerInset {
+  if (self.minimumHeight <= 0) {
+    // Reset to default values.
+    self.textContainerInset =
+        UIEdgeInsetsMake(kMinVerticalInset, 0, kMinVerticalInset, 0);
+    _placeholderTopConstraint.constant = kMinVerticalInset;
+    return;
+  }
+  CGFloat lineHeight = [self singleLineHeight];
+  CGFloat minHeight = self.minimumHeight;
+  CGFloat verticalPadding =
+      MAX(kMinVerticalInset * 2.0, (minHeight - lineHeight));
+  // Distribute padding.
+  CGFloat topPadding = verticalPadding / 2.0;
+  CGFloat bottomPadding = verticalPadding - topPadding;
+  self.textContainerInset = UIEdgeInsetsMake(topPadding, 0, bottomPadding, 0);
+  _placeholderTopConstraint.constant = topPadding;
+}
+
+/// Returns the height of a single line of text with the current font.
+- (CGFloat)singleLineHeight {
+  if (_cachedSingleLineHeight > 0) {
+    return _cachedSingleLineHeight;
+  }
+  UIFont* font = self.font ?: self.currentFont;
+  // Create a sample attributed string for one line.
+  NSAttributedString* singleLineSampler =
+      [[NSAttributedString alloc] initWithString:@"T"
+                                      attributes:@{NSFontAttributeName : font}];
+  CGSize singleLineConstraint = CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX);
+  NSStringDrawingOptions options =
+      NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading;
+  CGRect singleLineBoundingRect =
+      [singleLineSampler boundingRectWithSize:singleLineConstraint
+                                      options:options
+                                      context:nil];
+  CGFloat measuredSingleLineHeight = ceilf(singleLineBoundingRect.size.height);
+
+  // If for some reason measurement fails, fall back to font.lineHeight.
+  if (measuredSingleLineHeight <= 0) {
+    measuredSingleLineHeight = font.lineHeight;
+  }
+  _cachedSingleLineHeight = measuredSingleLineHeight;
+  return measuredSingleLineHeight;
 }
 
 - (void)updatePlaceholderVisibility {
@@ -1113,12 +1230,32 @@ using enum OmniboxKeyboardAction;
   return self.placeholderLabel.text;
 }
 
+- (void)forceDisableReturnKey:(BOOL)forceDisable {
+  _forceDisableReturnKey = forceDisable;
+  [self reloadInputViews];
+}
+
+- (void)setDefaultPlaceholderText:(NSString*)defaultPlaceholderText {
+  _defaultPlaceholderText = [defaultPlaceholderText copy];
+  [self updatePlaceholder];
+}
+
+- (void)setCustomPlaceholderText:(NSString*)customPlaceholderText {
+  _customPlaceholderText = [customPlaceholderText copy];
+  [self updatePlaceholder];
+}
+
 #pragma mark - UITextViewDelegate
 
 - (void)textViewDidChange:(UITextView*)textView {
   [self.omniboxTextInputDelegate textInputDidChange:self];
-  [self updatePlaceholderVisibility];
-  [self.heightDelegate textViewContentChanged:self];
+  [self updateUIForCurrentText];
+}
+
+- (void)textViewDidChangeSelection:(UITextView*)textView {
+  // UITextView resets typing attributes on text selection change, reapply them
+  // here.
+  self.typingAttributes = _omniboxTypingAttributes;
 }
 
 - (BOOL)textView:(UITextView*)textView
@@ -1136,6 +1273,7 @@ using enum OmniboxKeyboardAction;
 - (void)textViewDidBeginEditing:(UITextView*)textView {
   _editing = YES;
   [self.omniboxTextInputDelegate textInputDidBeginEditing:self];
+  [self updateOmniboxTypingAttributes];
 }
 
 - (void)textViewDidEndEditing:(UITextView*)textView {
@@ -1149,6 +1287,16 @@ using enum OmniboxKeyboardAction;
   return [self.omniboxTextInputDelegate textInput:self
                      editMenuForCharactersInRange:range
                                  suggestedActions:suggestedActions];
+}
+
+#pragma mark - Private
+
+/// Updates the UI for the current text without triggering autocomplete.
+- (void)updateUIForCurrentText {
+  [self updatePlaceholderVisibility];
+  [self.heightDelegate textViewContentChanged:self];
+  self.typingAttributes = _omniboxTypingAttributes;
+  [self.omniboxTextInputDelegate textInputDidUpdateUIForText:self];
 }
 
 @end

@@ -97,7 +97,7 @@
 #include "chrome/install_static/install_details.h"
 #include "chrome/installer/util/helper.h"
 #include "chrome/installer/util/install_util.h"
-#include "chrome/installer/util/installer_util_strings.h"
+//#include "chrome/installer/util/installer_util_strings.h"
 #include "chrome/installer/util/l10n_string_util.h"
 #include "chrome/installer/util/shell_util.h"
 #include "chrome/installer/util/util_constants.h"
@@ -141,6 +141,7 @@
 #include "extraparts/vivaldi_keystore_checker.h"
 
 #include "vivaldi/app/grit/vivaldi_installer_strings.h"
+#include "vivaldi/installer/mini_installer/util/installer_util_strings.h"
 
 namespace {
 
@@ -494,7 +495,7 @@ int DoUninstallTasks(bool chrome_still_running) {
     ShowCloseBrowserFirstMessageBox();
     return CHROME_RESULT_CODE_UNINSTALL_CHROME_ALIVE;
   }
-  int result = chrome::ShowUninstallBrowserPrompt();
+  int result = ShowUninstallBrowserPrompt();
   if (browser_util::IsBrowserAlreadyRunning()) {
     ShowCloseBrowserFirstMessageBox();
     return CHROME_RESULT_CODE_UNINSTALL_CHROME_ALIVE;

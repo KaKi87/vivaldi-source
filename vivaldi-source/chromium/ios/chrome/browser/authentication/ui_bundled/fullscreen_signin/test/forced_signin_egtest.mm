@@ -219,8 +219,8 @@ void CompleteSigninFlow() {
                                                        fakeIdentity1]
                                      assertVisible:NO];
   // History sync opt-in screen.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::
-                                          PromoScreenPrimaryButtonMatcher()]
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::ButtonStackPrimaryButton()]
       performAction:grey_tap()];
 }
 
@@ -336,7 +336,7 @@ void CompleteSigninFlow() {
 
   // Make sure the SSO view controller is fully removed before ending the test.
   // The tear down needs to remove other view controllers, and it cannot be done
-  // during the animation of the SSO view controler.
+  // during the animation of the SSO view controller.
   [ChromeEarlGreyUI waitForAppToIdle];
 
   FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
@@ -588,11 +588,6 @@ void CompleteSigninFlow() {
 // Tests that the forced sign-in prompt isn't shown when sign-in is done from
 // the regular sign-in prompt.
 - (void)testNoSignInScreenWhenSigninFromRegularSigninPrompt {
-  // TODO(crbug.com/439982418): Re-enable the test on iOS26.
-  if (base::ios::IsRunningOnIOS26OrLater()) {
-    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.");
-  }
-
   // Restart the app to reset the policies.
   [self restartAppWithoutEnterprisePolicy];
 

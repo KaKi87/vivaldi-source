@@ -12,6 +12,7 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/button_stack/button_stack_configuration.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/instruction_view/instruction_view.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
@@ -76,18 +77,16 @@ const CGFloat kTitleTopMarginWhenNoHeaderImage = 30;
   self.titleTopMarginWhenNoHeaderImage = kTitleTopMarginWhenNoHeaderImage;
   self.preferToCompressContent = YES;
 
-  if (@available(iOS 17, *)) {
-    NSArray<UITrait>* traits =
-        TraitCollectionSetForTraits(@[ UITraitUserInterfaceStyle.class ]);
-    [self registerForTraitChanges:traits
-                       withAction:@selector(selectAnimationForCurrentStyle)];
-  }
+  NSArray<UITrait>* traits =
+      TraitCollectionSetForTraits(@[ UITraitUserInterfaceStyle.class ]);
+  [self registerForTraitChanges:traits
+                     withAction:@selector(selectAnimationForCurrentStyle)];
 
   if (![self.titleText length] || ![self.subtitleText length]) {
     // Sets default promo text if title and subtitle text are not explicitly
     // set.
-    CHECK(![self.titleText length], base::NotFatalUntil::M138);
-    CHECK(![self.subtitleText length], base::NotFatalUntil::M138);
+    CHECK(![self.titleText length]);
+    CHECK(![self.subtitleText length]);
     BOOL usesTabletStrings =
         ui::GetDeviceFormFactor() == ui::DEVICE_FORM_FACTOR_TABLET;
     [self setPromoTitle:
@@ -101,15 +100,15 @@ const CGFloat kTitleTopMarginWhenNoHeaderImage = 30;
                       ? IDS_IOS_FIRST_RUN_DEFAULT_BROWSER_SCREEN_SUBTITLE_IPAD
                       : IDS_IOS_FIRST_RUN_DEFAULT_BROWSER_SCREEN_SUBTITLE)];
   }
-  self.primaryActionString = l10n_util::GetNSString(
+  self.configuration.primaryActionString = l10n_util::GetNSString(
       IDS_IOS_FIRST_RUN_DEFAULT_BROWSER_SCREEN_PRIMARY_ACTION);
-  self.secondaryActionString = l10n_util::GetNSString(
+  self.configuration.secondaryActionString = l10n_util::GetNSString(
       IDS_IOS_FIRST_RUN_DEFAULT_BROWSER_SCREEN_SECONDARY_ACTION);
 
   if (first_run::AnimatedDefaultBrowserPromoInFREExperimentTypeEnabled() ==
       first_run::AnimatedDefaultBrowserPromoInFREExperimentType::
           kAnimationWithShowMeHow) {
-    self.tertiaryActionString =
+    self.configuration.tertiaryActionString =
         l10n_util::GetNSString(IDS_IOS_SHOW_ME_HOW_FIRST_RUN_TITLE);
   }
 
@@ -131,17 +130,6 @@ const CGFloat kTitleTopMarginWhenNoHeaderImage = 30;
 
   [super viewDidLoad];
 }
-
-#if !defined(__IPHONE_17_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
-- (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
-  [super traitCollectionDidChange:previousTraitCollection];
-  if (@available(iOS 17, *)) {
-    return;
-  }
-
-  [self selectAnimationForCurrentStyle];
-}
-#endif
 
 #pragma mark - DefaultBrowserScreenConsumer
 
@@ -283,7 +271,7 @@ const CGFloat kTitleTopMarginWhenNoHeaderImage = 30;
   LottieAnimationConfiguration* config =
       [[LottieAnimationConfiguration alloc] init];
   config.animationName = animationAssetName;
-  config.loopAnimationCount = -1;  // Always loop.
+  config.shouldLoop = YES;
   return ios::provider::GenerateLottieAnimation(config);
 }
 

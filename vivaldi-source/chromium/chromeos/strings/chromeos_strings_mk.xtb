@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">портокали</translation>
 <translation id="1275718070701477396">Избран</translation>
 <translation id="1290331692326790741">Слаб сигнал</translation>
+<translation id="1292474106138697109">Екран на „Алатки за клас“</translation>
 <translation id="1300115153046603471">APN е од стандарден и тип <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">Конвертирајте</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> слики</translation>
 <translation id="4300272766492248925">Отвори ја апликацијата</translation>
 <translation id="430786093962686457">шифон</translation>
+<translation id="4309762678330556039">Автоматски создавајте транскрипции и пребарувајте аудио. Може да создавате снимки дури и кога не сте поврзани на интернет.</translation>
 <translation id="4310735698903592804">Неодамнешни тапети овозможени од Google AI</translation>
 <translation id="4320904097188876154">неонска розова</translation>
 <translation id="432961742358282111">Кликнете со десното копче или притиснете и задржете за да добиете дефиниции, преводи или конверзии на единици. Користете го копчето со стрелка налево или со стрелка надесно за да управувате со функцијава.</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">Повеќе опции</translation>
 <translation id="5600027863942488546">Копчето <ph name="KEY_NAME" /> е тестирано</translation>
 <translation id="5606865426897221650">Картичка</translation>
+<translation id="5612205513582918357">„Алатки за клас“ го споделува вашиот екран со <ph name="RECEIVER_NAME" /></translation>
 <translation id="5613201299517339763">Одјавени сте</translation>
 <translation id="5620281292257375798">Само интерно</translation>
 <translation id="5628106863521633649">Достапни јазици</translation>
@@ -1423,7 +1426,7 @@
 <translation id="723419678599947502">Создајте наслов со Google AI</translation>
 <translation id="725133483556299729">Избери е-пошта</translation>
 <translation id="7255187042098209569">розова и виолетова</translation>
-<translation id="7267918995585557751">Ресетирајте за да се погрижите дека стандардната страница на стартување не е веб-сајт за фишинг. Користете само веб-сајтови во коишто имате доверба.</translation>
+<translation id="7267918995585557751">Ресетирајте за да се погрижите дека стандардната страница на стартување не е вебсајт за фишинг. Користете само вебсајтови во коишто имате доверба.</translation>
 <translation id="7271000785316964275">класичар</translation>
 <translation id="7271040990581020067">Скенерот се користи во моментов. Обидете се повторно подоцна.</translation>
 <translation id="7271932918253517778">Кратенка со копчиња во најгорниот ред треба да го опфаќа копчето за <ph name="META_KEY" />.</translation>

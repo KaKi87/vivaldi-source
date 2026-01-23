@@ -20,6 +20,7 @@ limitations under the License.
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/strings/string_view.h"
 #include "xla/backends/gpu/runtime/thunk.h"
 #include "xla/hlo/ir/hlo_casting_utils.h"
@@ -28,11 +29,7 @@ limitations under the License.
 #include "xla/hlo/ir/hlo_instructions.h"
 #include "xla/hlo/ir/hlo_module.h"
 #include "xla/hlo/testlib/hlo_hardware_independent_test_base.h"
-#include "xla/tsl/platform/status_matchers.h"
 #include "xla/tsl/platform/statusor.h"
-
-using ::tsl::testing::IsOkAndHolds;
-using ::tsl::testing::StatusIs;
 
 using AsyncExecutionStreamIds =
     ::xla::gpu::ExecutionStreamAssignment::AsyncExecutionStreamIds;
@@ -330,17 +327,17 @@ TEST_F(ExecutionStreamAssignmentTest, AsyncCollectiveTest) {
                      /*number_of_collective_execution_streams=*/2});
   EXPECT_THAT(assignment.GetSyncExecutionStreamId(
                   FindInstruction(module.get(), "add.0")),
-              IsOkAndHolds(ExecutionStreamId(0)));
+              absl_testing::IsOkAndHolds(ExecutionStreamId(0)));
   EXPECT_THAT(
       assignment.GetAsyncExecutionStreamIds(Cast<HloAllReduceInstruction>(
           FindInstruction(module.get(), "ar-start"))),
-      IsOkAndHolds(AsyncExecutionStreamIds{
+      absl_testing::IsOkAndHolds(AsyncExecutionStreamIds{
           /*source_stream_id=*/ExecutionStreamId(0),
           /*destination_stream_id=*/ExecutionStreamId(5)}));
   EXPECT_THAT(
       assignment.GetAsyncExecutionStreamIds(Cast<HloAsyncStartInstruction>(
           FindInstruction(module.get(), "rs-start"))),
-      IsOkAndHolds(AsyncExecutionStreamIds{
+      absl_testing::IsOkAndHolds(AsyncExecutionStreamIds{
           /*source_stream_id=*/ExecutionStreamId(0),
           /*destination_stream_id=*/ExecutionStreamId(6)}));
 
@@ -351,17 +348,17 @@ TEST_F(ExecutionStreamAssignmentTest, AsyncCollectiveTest) {
                      /*number_of_collective_execution_streams=*/1});
   EXPECT_THAT(assignment.GetSyncExecutionStreamId(
                   FindInstruction(module.get(), "add.0")),
-              IsOkAndHolds(ExecutionStreamId(0)));
+              absl_testing::IsOkAndHolds(ExecutionStreamId(0)));
   EXPECT_THAT(
       assignment.GetAsyncExecutionStreamIds(Cast<HloAllReduceInstruction>(
           FindInstruction(module.get(), "ar-start"))),
-      IsOkAndHolds(AsyncExecutionStreamIds{
+      absl_testing::IsOkAndHolds(AsyncExecutionStreamIds{
           /*source_stream_id=*/ExecutionStreamId(0),
           /*destination_stream_id=*/ExecutionStreamId(5)}));
   EXPECT_THAT(
       assignment.GetAsyncExecutionStreamIds(Cast<HloAsyncStartInstruction>(
           FindInstruction(module.get(), "rs-start"))),
-      IsOkAndHolds(AsyncExecutionStreamIds{
+      absl_testing::IsOkAndHolds(AsyncExecutionStreamIds{
           /*source_stream_id=*/ExecutionStreamId(0),
           /*destination_stream_id=*/ExecutionStreamId(5)}));
 }

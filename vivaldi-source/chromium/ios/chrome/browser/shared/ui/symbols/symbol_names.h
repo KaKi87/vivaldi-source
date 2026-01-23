@@ -116,6 +116,7 @@ extern NSString* const kIncognitoRectangle;
 // only.
 extern NSString* const kIncognitoCircleFillSymbol;
 extern NSString* const kPlusCircleFillSymbol;
+extern NSString* const kPDFFillSymbol;
 
 // Symbols available on iOS 18.0+.
 extern NSString* const kClockArrowTriangleheadCounterclockwiseRotate90Symbol
@@ -153,6 +154,7 @@ extern NSString* const kAutofillDataSymbol;
 extern NSString* const kSecureLocationBarSymbol;
 extern NSString* const kNavigateToTabSymbol;
 extern NSString* const kRefineQuerySymbol;
+extern NSString* const kRefineQueryDownSymbol;
 extern NSString* const kLinkActionSymbol;
 extern NSString* const kQRCodeFinderActionSymbol;
 extern NSString* const kNewTabActionSymbol;
@@ -169,6 +171,7 @@ extern NSString* const kCopyActionSymbol;
 extern NSString* const kPasteActionSymbol;
 extern NSString* const kPlusRectangleSymbol;
 extern NSString* const kNewWindowActionSymbol;
+extern NSString* const kEyedropperSymbol;
 extern NSString* const kShowActionSymbol;
 extern NSString* const kHideActionSymbol;
 extern NSString* const kFindInPageActionSymbol;
@@ -184,6 +187,7 @@ extern NSString* const kMagnifyingglassSymbol;
 extern NSString* const kMagnifyingglassCircleSymbol;
 extern NSString* const kEllipsisCircleFillSymbol;
 extern NSString* const kEllipsisRectangleSymbol;
+extern NSString* const kEllipsisSymbol;
 extern NSString* const kPinSymbol;
 extern NSString* const kPinSlashSymbol;
 extern NSString* const kSettingsSymbol;
@@ -192,6 +196,7 @@ extern NSString* const kShareSymbol;
 extern NSString* const kXMarkSymbol;
 extern NSString* const kXMarkSquareSymbol;
 extern NSString* const kXMarkSquareFillSymbol;
+extern NSString* const kXMarkCircleSymbol;
 extern NSString* const kXMarkCircleFillSymbol;
 extern NSString* const kPlusSymbol;
 extern NSString* const kSearchSymbol;
@@ -220,6 +225,7 @@ extern NSString* const kExpandSymbol;
 extern NSString* const kBackSymbol;
 extern NSString* const kForwardSymbol;
 extern NSString* const kPersonFillSymbol;
+extern NSString* const kPersonBadgeKeyFillSymbol;
 extern NSString* const kPersonClockFillSymbol;
 extern NSString* const kPersonFillBadgePlusSymbol;
 extern NSString* const kMailFillSymbol;
@@ -316,6 +322,12 @@ extern NSString* const kTextSparkSymbol;
 extern NSString* const kBookSymbol;
 extern NSString* const kKeySymbol;
 extern NSString* const kTextDocument;
+extern NSString* const kPhotoOnRectangleSymbol;
+extern NSString* const kSystemCameraSymbol;
+extern NSString* const kTextJustifyLeftSymbol;
+extern NSString* const kVideoSymbol;
+extern NSString* const kWaveformSymbol;
+extern NSString* const kRightArrowCircleFillSymbol;
 
 // Names of the default symbol being non-monochrome by default. When using them,
 // you probably want to set their color to monochrome.

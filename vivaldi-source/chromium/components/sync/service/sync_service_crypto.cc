@@ -289,6 +289,7 @@ void SyncServiceCrypto::SetExplicitPassphraseDecryptionNigoriKey(
 
 std::unique_ptr<Nigori>
 SyncServiceCrypto::GetExplicitPassphraseDecryptionNigoriKey() const {
+  CHECK(state_.engine);
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return ReadNigoriFromBootstrapToken(delegate_->GetEncryptionBootstrapToken());
 }
@@ -338,7 +339,8 @@ void SyncServiceCrypto::SetSyncEngine(const CoreAccountInfo& account_info,
     case RequiredUserAction::kFetchingTrustedVaultKeys:
       // This indicates OnTrustedVaultKeyRequired() was called as part of the
       // engine's initialization.
-      FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false);
+      FetchTrustedVaultKeys(
+          /*is_second_fetch_attempt=*/false, std::nullopt);
       break;
     case RequiredUserAction::kPassphraseRequired:
       // Attempt decryption with bootstrap token if necessary.
@@ -453,7 +455,8 @@ void SyncServiceCrypto::OnTrustedVaultKeyRequired() {
     return;
   }
 
-  FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false);
+  FetchTrustedVaultKeys(
+      /*is_second_fetch_attempt=*/false, std::nullopt);
 }
 
 void SyncServiceCrypto::OnTrustedVaultKeyAccepted() {
@@ -527,7 +530,8 @@ void SyncServiceCrypto::OnPassphraseTypeChanged(PassphraseType type,
   delegate_->CryptoStateChanged();
 }
 
-void SyncServiceCrypto::OnTrustedVaultKeysChanged() {
+void SyncServiceCrypto::OnTrustedVaultKeysChanged(
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   switch (state_.required_user_action) {
     case RequiredUserAction::kUnknownDuringInitialization:
@@ -552,7 +556,7 @@ void SyncServiceCrypto::OnTrustedVaultKeysChanged() {
       break;
   }
 
-  FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false);
+  FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false, trigger);
 }
 
 void SyncServiceCrypto::OnTrustedVaultRecoverabilityChanged() {
@@ -565,7 +569,9 @@ void SyncServiceCrypto::OnTrustedVaultRecoverabilityChanged() {
   RefreshIsRecoverabilityDegraded();
 }
 
-void SyncServiceCrypto::FetchTrustedVaultKeys(bool is_second_fetch_attempt) {
+void SyncServiceCrypto::FetchTrustedVaultKeys(
+    bool is_second_fetch_attempt,
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger) {
   DCHECK(state_.engine);
   DCHECK(state_.required_user_action ==
              RequiredUserAction::kFetchingTrustedVaultKeys ||
@@ -579,11 +585,13 @@ void SyncServiceCrypto::FetchTrustedVaultKeys(bool is_second_fetch_attempt) {
   trusted_vault_client_->FetchKeys(
       state_.account_info,
       base::BindOnce(&SyncServiceCrypto::TrustedVaultKeysFetchedFromClient,
-                     weak_factory_.GetWeakPtr(), is_second_fetch_attempt));
+                     weak_factory_.GetWeakPtr(), is_second_fetch_attempt,
+                     trigger));
 }
 
 void SyncServiceCrypto::TrustedVaultKeysFetchedFromClient(
     bool is_second_fetch_attempt,
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger,
     const std::vector<std::vector<uint8_t>>& keys) {
   if (state_.required_user_action !=
           RequiredUserAction::kFetchingTrustedVaultKeys &&
@@ -600,17 +608,19 @@ void SyncServiceCrypto::TrustedVaultKeysFetchedFromClient(
     // Nothing to do if no keys have been fetched from the client (e.g. user
     // action is required for fetching additional keys). Let's avoid unnecessary
     // steps like marking keys as stale.
-    FetchTrustedVaultKeysCompletedButInsufficient();
+    FetchTrustedVaultKeysCompletedButInsufficient(trigger);
     return;
   }
 
   state_.engine->AddTrustedVaultDecryptionKeys(
-      keys,
-      base::BindOnce(&SyncServiceCrypto::TrustedVaultKeysAdded,
-                     weak_factory_.GetWeakPtr(), is_second_fetch_attempt));
+      keys, base::BindOnce(&SyncServiceCrypto::TrustedVaultKeysAdded,
+                           weak_factory_.GetWeakPtr(), is_second_fetch_attempt,
+                           trigger));
 }
 
-void SyncServiceCrypto::TrustedVaultKeysAdded(bool is_second_fetch_attempt) {
+void SyncServiceCrypto::TrustedVaultKeysAdded(
+    bool is_second_fetch_attempt,
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger) {
   // Having kFetchingTrustedVaultKeys or kTrustedVaultKeyRequiredButFetching
   // indicates OnTrustedVaultKeyAccepted() was not triggered, so the fetched
   // trusted vault keys were insufficient.
@@ -623,6 +633,10 @@ void SyncServiceCrypto::TrustedVaultKeysAdded(bool is_second_fetch_attempt) {
                             success);
 
   if (success) {
+    if (trigger.has_value()) {
+      base::UmaHistogramEnumeration("Sync.TrustedVaultAddKeysSuccessfully",
+                                    trigger.value());
+    }
     return;
   }
 
@@ -630,11 +644,13 @@ void SyncServiceCrypto::TrustedVaultKeysAdded(bool is_second_fetch_attempt) {
   trusted_vault_client_->MarkLocalKeysAsStale(
       state_.account_info,
       base::BindOnce(&SyncServiceCrypto::TrustedVaultKeysMarkedAsStale,
-                     weak_factory_.GetWeakPtr(), is_second_fetch_attempt));
+                     weak_factory_.GetWeakPtr(), is_second_fetch_attempt,
+                     trigger));
 }
 
 void SyncServiceCrypto::TrustedVaultKeysMarkedAsStale(
     bool is_second_fetch_attempt,
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger,
     bool result) {
   if (state_.required_user_action !=
           RequiredUserAction::kFetchingTrustedVaultKeys &&
@@ -647,14 +663,15 @@ void SyncServiceCrypto::TrustedVaultKeysMarkedAsStale(
   // disallowed by the API) or this is already a second attempt, the fetching
   // procedure can be considered completed.
   if (!result || is_second_fetch_attempt) {
-    FetchTrustedVaultKeysCompletedButInsufficient();
+    FetchTrustedVaultKeysCompletedButInsufficient(trigger);
     return;
   }
 
-  FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/true);
+  FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/true, trigger);
 }
 
-void SyncServiceCrypto::FetchTrustedVaultKeysCompletedButInsufficient() {
+void SyncServiceCrypto::FetchTrustedVaultKeysCompletedButInsufficient(
+    std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger) {
   DCHECK(state_.required_user_action ==
              RequiredUserAction::kFetchingTrustedVaultKeys ||
          state_.required_user_action ==
@@ -663,7 +680,7 @@ void SyncServiceCrypto::FetchTrustedVaultKeysCompletedButInsufficient() {
   // If FetchKeys() was intended to be called during an already existing ongoing
   // FetchKeys(), it needs to be invoked now that it's possible.
   if (state_.deferred_trusted_vault_fetch_keys_pending) {
-    FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false);
+    FetchTrustedVaultKeys(/*is_second_fetch_attempt=*/false, trigger);
     return;
   }
 
@@ -732,6 +749,13 @@ void SyncServiceCrypto::GetIsRecoverabilityDegradedCompleted(
     return;
   }
 
+  if (!initial_trusted_vault_recoverability_logged_to_uma_) {
+    initial_trusted_vault_recoverability_logged_to_uma_ = true;
+    RecordTrustedVaultHistogramBooleanWithMigrationSuffix(
+        "Sync.TrustedVaultRecoverabilityDegradedOnStartup",
+        is_recoverability_degraded, state_.engine->GetDetailedStatus());
+  }
+
   // Transition from non-degraded to degraded recoverability.
   if (is_recoverability_degraded &&
       state_.required_user_action == RequiredUserAction::kNone) {
@@ -746,15 +770,6 @@ void SyncServiceCrypto::GetIsRecoverabilityDegradedCompleted(
           RequiredUserAction::kTrustedVaultRecoverabilityDegraded) {
     UpdateRequiredUserActionAndNotify(RequiredUserAction::kNone);
     delegate_->CryptoStateChanged();
-  }
-
-  if (!initial_trusted_vault_recoverability_logged_to_uma_) {
-    DCHECK(state_.engine);
-
-    initial_trusted_vault_recoverability_logged_to_uma_ = true;
-    RecordTrustedVaultHistogramBooleanWithMigrationSuffix(
-        "Sync.TrustedVaultRecoverabilityDegradedOnStartup",
-        is_recoverability_degraded, state_.engine->GetDetailedStatus());
   }
 }
 

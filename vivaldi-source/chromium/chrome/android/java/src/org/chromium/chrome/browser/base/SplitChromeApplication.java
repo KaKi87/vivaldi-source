@@ -14,16 +14,17 @@ import android.os.SystemClock;
 import android.util.ArraySet;
 
 import org.chromium.base.BundleUtils;
+import org.chromium.base.CommandLine;
 import org.chromium.base.JNIUtils;
 import org.chromium.base.JavaUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.build.BuildConfig;
 import org.chromium.build.annotations.IdentifierNameString;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.modules.on_demand.OnDemandModule;
 
 /**
@@ -160,14 +161,6 @@ public class SplitChromeApplication extends SplitCompatApplication {
 
     @Override
     protected void performBrowserProcessPreloading(Context context) {
-        // Only load the native library early for non-test builds since some tests use the
-        // "--disable-native-initialization" switch and test the native library loading.
-        if (!BuildConfig.IS_FOR_TEST
-                && ChromeFeatureList.sLoadNativeEarly.isEnabled()
-                && !ChromeFeatureList.sLoadNativeEarlyConcurrentLoad.getValue()) {
-            LibraryLoader.getInstance().ensureInitialized();
-        }
-
         // The chrome split has a large amount of code, which can slow down startup. Loading
         // this in the background allows us to do this in parallel with startup tasks which do
         // not depend on code in the chrome split.
@@ -234,11 +227,9 @@ public class SplitChromeApplication extends SplitCompatApplication {
                     }
                 });
 
-        // Only load the native library early for non-test builds since some tests use the
-        // "--disable-native-initialization" switch and test the native library loading.
-        if (!BuildConfig.IS_FOR_TEST
-                && ChromeFeatureList.sLoadNativeEarly.isEnabled()
-                && ChromeFeatureList.sLoadNativeEarlyConcurrentLoad.getValue()) {
+        if (ChromeFeatureList.sLoadNativeEarly.isEnabled()
+                && !CommandLine.getInstance()
+                        .hasSwitch(ChromeSwitches.DISABLE_NATIVE_INITIALIZATION)) {
             LibraryLoader.getInstance().ensureInitialized();
         }
     }

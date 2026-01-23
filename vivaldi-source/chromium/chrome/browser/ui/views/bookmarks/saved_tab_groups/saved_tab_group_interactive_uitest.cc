@@ -35,6 +35,7 @@
 #include "chrome/browser/ui/views/frame/tab_strip_view_interface.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_close_button.h"
+#include "chrome/browser/ui/views/tabs/tab_group_editor_bubble_view.h"
 #include "chrome/browser/ui/views/tabs/tab_group_header.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/test/tab_strip_interactive_test_mixin.h"
@@ -201,12 +202,16 @@ class SavedTabGroupInteractiveTest
   void SetUp() override {
     if (GetParam()) {
       scoped_feature_list_.InitWithFeatures(
-          {data_sharing::features::kDataSharingFeature},
+          {features::kTabGroupMenuImprovements,
+           features::kTabGroupMenuMoreEntryPoints,
+           data_sharing::features::kDataSharingFeature},
           {data_sharing::features::kDataSharingJoinOnly});
     } else {
       scoped_feature_list_.InitWithFeatures(
-          {}, {data_sharing::features::kDataSharingFeature,
-               data_sharing::features::kDataSharingJoinOnly});
+          {features::kTabGroupMenuImprovements,
+           features::kTabGroupMenuMoreEntryPoints},
+          {data_sharing::features::kDataSharingFeature,
+           data_sharing::features::kDataSharingJoinOnly});
     }
 
     SavedTabGroupInteractiveTestBase::SetUp();
@@ -856,7 +861,10 @@ IN_PROC_BROWSER_TEST_P(SavedTabGroupInteractiveTest,
       PressButton(kTabGroupEditorBubbleCloseGroupButtonId),
       FinishTabstripAnimations(), CheckIfSavedGroupIsClosed(&saved_guid),
       // Reopen the tab group and expect the saved group is linked again.
-      PressButton(kSavedTabGroupButtonElementId), FinishTabstripAnimations(),
+      PressButton(kSavedTabGroupButtonElementId),
+      EnsurePresent(STGTabsMenuModel::kOpenGroup),
+      SelectMenuItem(STGTabsMenuModel::kOpenGroup),
+      WaitForShow(kTabGroupHeaderElementId),
       CheckIfSavedGroupIsOpen(&saved_guid),
       // Verify the first tab in the group is the active tab.
       CheckActiveTabIndex(1));
@@ -959,7 +967,7 @@ IN_PROC_BROWSER_TEST_P(SavedTabGroupInteractiveTest,
                 ->tab_strip_model()
                 ->GetActiveWebContents()
                 ->GetVisibleURL()
-                .host_piece();
+                .host();
           },
           chrome::kChromeUINewTabHost));
 }
@@ -997,6 +1005,8 @@ IN_PROC_BROWSER_TEST_P(SavedTabGroupInteractiveTest,
       PressButton(kSavedTabGroupOverflowButtonElementId),
       WaitForHide(kTabGroupEditorBubbleId),
       SelectMenuItem(STGEverythingMenu::kTabGroup), FinishTabstripAnimations(),
+      EnsurePresent(STGTabsMenuModel::kOpenGroup),
+      SelectMenuItem(STGTabsMenuModel::kOpenGroup), FinishTabstripAnimations(),
       WaitForShow(kTabGroupHeaderElementId));
 }
 
@@ -1020,7 +1030,7 @@ IN_PROC_BROWSER_TEST_P(SavedTabGroupInteractiveTest,
                 ->tab_strip_model()
                 ->GetActiveWebContents()
                 ->GetVisibleURL()
-                .host_piece();
+                .host();
           },
           chrome::kChromeUINewTabHost));
 }
@@ -1198,12 +1208,24 @@ IN_PROC_BROWSER_TEST_F(SavedTabGroupEverythingMenuMoreEntryPointsFeature,
       EnsurePresent(STGTabsMenuModel::kTab));
 }
 
-IN_PROC_BROWSER_TEST_F(SavedTabGroupEverythingMenuMoreEntryPointsFeature,
-                       CheckCreateNewTabGroupPresentInAppMenuEverythingMenu) {
+class SavedTabGroupsCreateNewTabGroupAppMenu
+    : public SavedTabGroupInteractiveTestBase {
+ public:
+  SavedTabGroupsCreateNewTabGroupAppMenu() {
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kCreateNewTabGroupAppMenuTopLevel);
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(
+    SavedTabGroupsCreateNewTabGroupAppMenu,
+    CheckCreateNewTabGroupPresentInEverythingMenuFromAppMenu) {
   RunTestSequence(FinishTabstripAnimations(),
                   EnsurePresent(kToolbarAppMenuButtonElementId),
                   PressButton(kToolbarAppMenuButtonElementId),
-                  EnsurePresent(AppMenuModel::kCreateNewTabGroupTopLevel),
                   WaitForShow(AppMenuModel::kTabGroupsMenuItem),
                   SelectMenuItem(AppMenuModel::kTabGroupsMenuItem),
                   EnsurePresent(STGEverythingMenu::kCreateNewTabGroup));
@@ -1234,13 +1256,13 @@ IN_PROC_BROWSER_TEST_P(SavedTabGroupInteractiveTest,
 class TabGroupShortcutsInteractiveTest
     : public SavedTabGroupInteractiveTestBase {
  public:
-  TabGroupShortcutsInteractiveTest() = default;
+  TabGroupShortcutsInteractiveTest() {
+    scoped_feature_list_.InitAndEnableFeature(
+        features::kTabGroupMenuImprovements);
+  }
   ~TabGroupShortcutsInteractiveTest() override = default;
 
-  void SetUp() override {
-    scoped_feature_list_.InitWithFeatures({tabs::kTabGroupShortcuts}, {});
-    SavedTabGroupInteractiveTestBase::SetUp();
-  }
+  void SetUp() override { SavedTabGroupInteractiveTestBase::SetUp(); }
 
   StepBuilder WaitForIndexToBecomeActiveTab(int index) {
     return Do([=, this]() {
@@ -1302,8 +1324,16 @@ IN_PROC_BROWSER_TEST_F(TabGroupShortcutsInteractiveTest,
       WaitForHide(kTabGroupEditorBubbleCloseGroupButtonId));
 }
 
+// TODO(crbug.com/456197972): This test is flaky on Windows.
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_ScreenshotAcceleratorsInTabGroupSubmenu \
+  DISABLED_ScreenshotAcceleratorsInTabGroupSubmenu
+#else
+#define MAYBE_ScreenshotAcceleratorsInTabGroupSubmenu \
+  ScreenshotAcceleratorsInTabGroupSubmenu
+#endif
 IN_PROC_BROWSER_TEST_F(TabGroupShortcutsInteractiveTest,
-                       ScreenshotAcceleratorsInTabGroupSubmenu) {
+                       MAYBE_ScreenshotAcceleratorsInTabGroupSubmenu) {
   // Add 1 tab into the browser. And verify there are 2 tabs (The tab when you
   // open the browser and the added one).
   ASSERT_TRUE(
@@ -1347,8 +1377,12 @@ IN_PROC_BROWSER_TEST_F(TabGroupShortcutsInteractiveTest,
       // Use the keyboard shortcut command to create a new tab group.
       SendAccelerator(kBrowserViewElementId, create_accelerator),
       EnsurePresent(kTabGroupHeaderElementId),
-      // Refocus the first tab in order to close the tab group editor bubble.
+      // Refocus the first tab in the group to close the tab group editor
+      // bubble. We do this by opening the group.
       PressButton(kSavedTabGroupButtonElementId),
+      PressButton(kSavedTabGroupButtonElementId),
+      WaitForShow(STGTabsMenuModel::kOpenGroup),
+      SelectMenuItem(STGTabsMenuModel::kOpenGroup),
       // Use the keyboard shortcut command to add a new tab at the end of the
       // group.
       SendAccelerator(kBrowserViewElementId, add_new_tab_to_group_accelerator),
@@ -1387,8 +1421,11 @@ IN_PROC_BROWSER_TEST_F(TabGroupShortcutsInteractiveTest,
       // Use the keyboard shortcut command to create a new tab group.
       SendAccelerator(kBrowserViewElementId, create_accelerator),
       EnsurePresent(kTabGroupHeaderElementId),
-      // Refocus the first tab in order to close the tab group editor bubble.
+      // Refocus the first tab in the group to close the tab group editor
+      // bubble. We do this by opening the group.
       PressButton(kSavedTabGroupButtonElementId),
+      WaitForShow(STGTabsMenuModel::kOpenGroup),
+      SelectMenuItem(STGTabsMenuModel::kOpenGroup),
       // Use the keyboard shortcut command to close the tab group.
       SendAccelerator(kBrowserViewElementId, close_accelerator),
       WaitForHide(kTabGroupHeaderElementId),

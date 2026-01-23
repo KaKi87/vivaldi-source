@@ -1,5 +1,4 @@
 // Copyright (c) 2019 Vivaldi Technologies AS. All rights reserved
-
 [
   {
     "namespace": "contentBlocking",
@@ -12,32 +11,65 @@
         "id": "RuleGroup",
         "description": "Used to specify whether a specific operation should apply to tracking blocking or adblocking.",
         "type": "string",
-        "enum": [ "tracking", "ad_blocking" ]
+        "enum": [
+          "tracking",
+          "ad_blocking"
+        ]
       },
       {
         "id": "ExceptionList",
         "description": "Used to inform whether the exception list used in a rule group is a list of exemptions or a list for which process is enabled",
         "type": "string",
-        "enum": [ "process_list", "exempt_list" ]
+        "enum": [
+          "process_list",
+          "exempt_list"
+        ]
       },
       {
         "id": "PresetKind",
         "description": "Which rough category a given preset list falls in",
         "type": "string",
-        "enum": [ "ads", "trackers", "partners", "annoyances", "cookie_notices", "other", "regional" ]
+        "enum": [
+          "ads",
+          "trackers",
+          "partners",
+          "annoyances",
+          "cookie_notices",
+          "other",
+          "regional"
+        ]
       },
       {
-        "id": "FetchResult",
-        "description": "The result of a fetch operation on a rule source.",
+        "id": "DownloadResult",
+        "description": "The result of downloading an online rule source.",
+        "type": "string",
+        "enum": [
+          {
+            "name": "success",
+            "description": "Download completed successfully."
+          },
+          {
+            "name": "download_failed",
+            "description": "Failed to download using the provided URL."
+          },
+          {
+            "name": "replace_failed",
+            "description": "Failed to move the downloaded file to its final path, replacing the previous one."
+          },
+          {
+            "name": "unknown",
+            "description": "No download has been attempted yet."
+          }
+        ]
+      },
+      {
+        "id": "ReadResult",
+        "description": "The result of a reading a downloaded or local rule source.",
         "type": "string",
         "enum": [
           {
             "name": "success",
             "description": "Fetch completed successfully."
-          },
-          {
-            "name": "download_failed",
-            "description": "For an online source, failed to download using the provided URL."
           },
           {
             "name": "file_not_found",
@@ -57,7 +89,7 @@
           },
           {
             "name": "unknown",
-            "description": "No fetching attempt has completed yet."
+            "description": "No reading has been attempted yet."
           }
         ]
       },
@@ -169,9 +201,13 @@
             "description": "Whether fetching of the rule source is in progress",
             "type": "boolean"
           },
-          "last_fetch_result": {
+          "last_download_result": {
             "description": "The result of the last fetch attempt",
-            "$ref": "FetchResult"
+            "$ref": "DownloadResult"
+          },
+          "last_read_result": {
+            "description": "The result of the last fetch attempt",
+            "$ref": "ReadResult"
           },
           "rules_info": {
             "$ref": "RulesInfo"
@@ -367,7 +403,6 @@
           }
         }
       }
-
     ],
     "functions": [
       {
@@ -612,7 +647,7 @@
       {
         "name": "addExceptionForDomain",
         "type": "function",
-        "description":"Adds an item to the exception list",
+        "description": "Adds an item to the exception list",
         "parameters": [
           {
             "name": "rule_group",
@@ -631,7 +666,7 @@
       {
         "name": "removeExceptionForDomain",
         "type": "function",
-        "description":"Removes an item from the exception list",
+        "description": "Removes an item from the exception list",
         "parameters": [
           {
             "name": "rule_group",
@@ -650,7 +685,7 @@
       {
         "name": "removeAllExceptions",
         "type": "function",
-        "description":"Removes all domains from the exception list",
+        "description": "Removes all domains from the exception list",
         "parameters": [
           {
             "name": "rule_group",
@@ -665,7 +700,7 @@
       {
         "name": "getExceptions",
         "type": "function",
-        "description":"Retrieves all domains from the exeption list",
+        "description": "Retrieves all domains from the exeption list",
         "parameters": [
           {
             "name": "rule_group",
@@ -692,7 +727,7 @@
       {
         "name": "getAllExceptionLists",
         "type": "function",
-        "description":"Retrieves all the exception lists",
+        "description": "Retrieves all the exception lists",
         "parameters": [],
         "returns_async": {
           "name": "callback",
@@ -908,7 +943,7 @@
         "description": "Fired when a known rule source has been added",
         "parameters": [
           {
-            "name" : "rule_source",
+            "name": "rule_source",
             "$ref": "RuleSource"
           },
           {
@@ -923,7 +958,7 @@
         "description": "The properties of a rule source have been updated, either because a fetch started or completed.",
         "parameters": [
           {
-            "name" : "rule_source",
+            "name": "rule_source",
             "$ref": "RuleSource"
           },
           {

@@ -178,10 +178,6 @@ bool IsContentNotificationEnabled(ProfileIOS* profile) {
     return false;
   }
 
-  if (!IsContentNotificationExperimentEnabled()) {
-    return false;
-  }
-
   BOOL user_signed_in = IsProfileSignedIn(profile);
 
   if (!ios::TemplateURLServiceFactory::GetForProfile(profile)) {
@@ -206,10 +202,6 @@ bool IsContentNotificationEnabled(ProfileIOS* profile) {
 
 bool IsContentNotificationRegistered(ProfileIOS* profile) {
   if (!profile) {
-    return false;
-  }
-
-  if (!IsContentNotificationExperimentEnabled()) {
     return false;
   }
 

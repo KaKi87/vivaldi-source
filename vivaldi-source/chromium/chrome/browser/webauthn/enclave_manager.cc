@@ -56,6 +56,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/webauthn/proto/enclave_local_state.pb.h"
 #include "chrome/browser/webauthn/unexportable_key_utils.h"
+#include "chrome/browser/webauthn/webauthn_metrics_util.h"
 #include "components/cbor/diagnostic_writer.h"
 #include "components/cbor/values.h"
 #include "components/cbor/writer.h"
@@ -148,6 +149,21 @@ struct EnclaveManager::PendingAction {
 #endif                      // BUILDFLAG(IS_MAC)
   bool unregister = false;  // whether to unregister from the enclave.
 };
+
+EnclaveManager::StoreKeysLock::StoreKeysLock(
+    base::WeakPtr<EnclaveManager> manager)
+    : manager_(std::move(manager)) {}
+
+EnclaveManager::StoreKeysLock::~StoreKeysLock() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (!manager_) {
+    return;
+  }
+
+  CHECK_GT(manager_->store_keys_lock_depth_, 0u);
+  manager_->store_keys_lock_depth_--;
+}
 
 namespace {
 
@@ -1165,6 +1181,29 @@ class UvKeyCreationLockImpl : public EnclaveManager::UvKeyCreationLock {
  private:
   base::OnceClosure on_release_;
 };
+
+webauthn::metrics::WebAuthenticationGPMRecoveryEvent
+ToWebAuthenticationGPMRecoveryEvent(
+    EnclaveManager::OutOfContextRecoveryOutcome outcome) {
+  switch (outcome) {
+    case EnclaveManager::OutOfContextRecoveryOutcome::
+        kStoreKeysFromOpportunisticFlowSucceeded:
+      return webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+          kStoreKeysFromOpportunisticFlowSucceeded;
+    case EnclaveManager::OutOfContextRecoveryOutcome::
+        kStoreKeysFromOpportunisticFlowIgnoredNoUV:
+      return webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+          kStoreKeysFromOpportunisticFlowIgnoredNoUV;
+    case EnclaveManager::OutOfContextRecoveryOutcome::
+        kStoreKeysFromOpportunisticFlowIgnoredRedundant:
+      return webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+          kStoreKeysFromOpportunisticFlowIgnoredRedundant;
+    case EnclaveManager::OutOfContextRecoveryOutcome::
+        kStoreKeysFromOpportunisticFlowFailed:
+      return webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+          kStoreKeysFromOpportunisticFlowFailed;
+  }
+}
 
 }  // namespace
 
@@ -2876,6 +2915,48 @@ EnclaveManager::UVKeyOptions::UVKeyOptions(UVKeyOptions&&) = default;
 EnclaveManager::UVKeyOptions& EnclaveManager::UVKeyOptions::operator=(
     EnclaveManager::UVKeyOptions&& other) = default;
 
+// Observes the `IdentityManager` and tells the `EnclaveManager` when the
+// primary account for the profile has changed.
+class EnclaveManager::IdentityObserver
+    : public signin::IdentityManager::Observer {
+ public:
+  IdentityObserver(signin::IdentityManager* identity_manager,
+                   EnclaveManager* manager)
+      : identity_manager_(identity_manager), manager_(manager) {
+    identity_manager_->AddObserver(this);
+  }
+
+  ~IdentityObserver() override {
+    if (observing_) {
+      identity_manager_->RemoveObserver(this);
+    }
+  }
+
+  void OnPrimaryAccountChanged(
+      const signin::PrimaryAccountChangeEvent& event_details) override {
+    manager_->HandleIdentityChange();
+  }
+
+  void OnAccountsInCookieUpdated(
+      const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
+      const GoogleServiceAuthError& error) override {
+    manager_->HandleIdentityChange();
+  }
+
+  void OnIdentityManagerShutdown(
+      signin::IdentityManager* identity_manager) override {
+    if (observing_) {
+      identity_manager_->RemoveObserver(this);
+      observing_ = false;
+    }
+  }
+
+ private:
+  bool observing_ = true;
+  const raw_ptr<signin::IdentityManager> identity_manager_;
+  const raw_ptr<EnclaveManager> manager_;
+};
+
 EnclaveManager::EnclaveManager(
     const base::FilePath& base_dir,
     signin::IdentityManager* identity_manager,
@@ -2903,10 +2984,7 @@ EnclaveManager::EnclaveManager(
   // Automatically load the enclave state shortly after startup so that any
   // renewals will be considered without the user having to do something to
   // trigger a WebAuthn operation.
-  load_timer_.Start(
-      FROM_HERE, base::Minutes(4),
-      base::BindOnce(&EnclaveManager::Load, weak_ptr_factory_.GetWeakPtr(),
-                     base::DoNothing()));
+  LoadAfterDelay(base::Minutes(4), base::DoNothing());
   // Also consider renewing the PIN every day, for users who keep Chrome open
   // for long periods.
   renewal_timer_.Start(FROM_HERE, base::Hours(24),
@@ -2949,6 +3027,14 @@ unsigned EnclaveManager::store_keys_count() const {
   return store_keys_count_;
 }
 
+void EnclaveManager::LoadAfterDelay(base::TimeDelta delay,
+                                    base::OnceClosure closure) {
+  load_timer_.Start(
+      FROM_HERE, delay,
+      base::BindOnce(&EnclaveManager::Load, weak_ptr_factory_.GetWeakPtr(),
+                     std::move(closure)));
+}
+
 void EnclaveManager::Load(base::OnceClosure closure) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -2961,6 +3047,9 @@ void EnclaveManager::Load(base::OnceClosure closure) {
   load_duration_timer_ = std::make_unique<base::ElapsedTimer>();
 
   load_callbacks_.emplace_back(std::move(closure));
+  load_callbacks_.emplace_back(
+      base::BindOnce(&EnclaveManager::NotifyObserversThatStateUpdated,
+                     weak_ptr_factory_.GetWeakPtr()));
   Act();
 }
 
@@ -2990,6 +3079,12 @@ void EnclaveManager::SetupWithPIN(std::string pin,
   action->setup_account = true;
   pending_actions_.emplace_back(std::move(action));
   Act();
+}
+
+std::unique_ptr<EnclaveManager::StoreKeysLock>
+EnclaveManager::GetStoreKeysLock() {
+  store_keys_lock_depth_++;
+  return std::make_unique<StoreKeysLock>(GetWeakPtr());
 }
 
 bool EnclaveManager::AddDeviceToAccount(
@@ -3025,6 +3120,7 @@ void EnclaveManager::AddDeviceAndPINToAccount(
     std::optional<std::string> previous_pin_public_key,
     EnclaveManager::Callback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(has_pending_keys());
 
   auto action = std::make_unique<PendingAction>();
   action->pin_public_key = std::move(previous_pin_public_key);
@@ -3642,6 +3738,18 @@ EnclaveManager::UvKeyState EnclaveManager::uv_key_state(
 #endif
 }
 
+void EnclaveManager::CheckGpmPinAvailability(
+    GpmPinAvailabilityCallback callback) {
+  CoreAccountInfo account_info =
+      identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+  download_account_state_request_ =
+      trusted_vault_conn_->DownloadAuthenticationFactorsRegistrationState(
+          account_info,
+          base::BindOnce(&EnclaveManager::OnCheckGpmPinAvailabilityResult,
+                         weak_ptr_factory_.GetWeakPtr(), std::move(callback)),
+          base::DoNothing());
+}
+
 // static
 void EnclaveManager::AreUserVerifyingKeysSupported(Callback callback) {
   if (base::FeatureList::IsEnabled(
@@ -3692,9 +3800,9 @@ void EnclaveManager::RemoveObserver(Observer* observer) {
   observer_list_.RemoveObserver(observer);
 }
 
-void EnclaveManager::StoreKeys(const GaiaId& gaia_id,
-                               std::vector<std::vector<uint8_t>> keys,
-                               int last_key_version) {
+void EnclaveManager::StorePendingKeys(const GaiaId& gaia_id,
+                                      std::vector<std::vector<uint8_t>> keys,
+                                      int last_key_version) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   pending_keys_ = std::make_unique<StoreKeysArgs>();
@@ -3707,6 +3815,62 @@ void EnclaveManager::StoreKeys(const GaiaId& gaia_id,
   for (Observer& observer : observer_list_) {
     observer.OnKeysStored();
   }
+}
+
+void EnclaveManager::StoreKeys(const GaiaId& gaia_id,
+                               std::vector<std::vector<uint8_t>> keys,
+                               int last_key_version) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (base::FeatureList::IsEnabled(device::kWebAuthnOpportunisticRetrieval)) {
+    if (store_keys_lock_depth_) {
+      webauthn::metrics::RecordGPMRecoveryEvent(
+          webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+              kStoreKeysFromExplicitFlowStarted);
+      StorePendingKeys(gaia_id, std::move(keys), last_key_version);
+    } else {
+      webauthn::metrics::RecordGPMRecoveryEvent(
+          webauthn::metrics::WebAuthenticationGPMRecoveryEvent::
+              kStoreKeysFromOpportunisticFlowStarted);
+      // TODO(crbug.com/450851888): Refactor the logic related to storing the
+      // keys from the out of context retrieval.
+      StoreKeysFromOutOfContextRetrieval(gaia_id, std::move(keys),
+                                         last_key_version);
+    }
+  } else {
+    // Use the old implementation:
+    StorePendingKeys(gaia_id, std::move(keys), last_key_version);
+  }
+}
+
+void EnclaveManager::StoreKeysFromOutOfContextRetrieval(
+    const GaiaId& gaia_id,
+    std::vector<std::vector<uint8_t>> keys,
+    int last_key_version) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  CHECK(!store_keys_lock_depth_);
+
+  auto pending_keys = std::make_unique<StoreKeysArgs>();
+  pending_keys->gaia_id = gaia_id;
+  pending_keys->keys = std::move(keys);
+  pending_keys->last_key_version = last_key_version;
+
+  if (is_registered()) {
+    FIDO_LOG(EVENT) << "Redundant opportunistic keys provided for version "
+                    << last_key_version;
+    NotifyObserversAboutOutOfContextRecoveryOutcome(
+        OutOfContextRecoveryOutcome::
+            kStoreKeysFromOpportunisticFlowIgnoredRedundant);
+    return;
+  }
+
+  FIDO_LOG(EVENT) << "Opportunistic keys provided";
+  // These keys were provided opportunistically so that a MagicArch flow can
+  // be avoided in the future. However, as an invariant, we only register with
+  // the enclave if we can serve requests, which means having a form of local
+  // user verification (either system UV or GPM PIN).
+  AreUserVerifyingKeysSupported(
+      base::BindOnce(&EnclaveManager::OpportunisticStoreKeysUVCheckComplete,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(pending_keys)));
 }
 
 std::unique_ptr<enclave::ClaimedPIN> EnclaveManager::MakeClaimedPINSlowly(
@@ -3842,48 +4006,6 @@ std::vector<uint8_t> EnclaveManager::EncryptWrappedPIN(
   wrapped_pin.insert(wrapped_pin.begin(), std::begin(nonce), std::end(nonce));
   return wrapped_pin;
 }
-
-// Observes the `IdentityManager` and tells the `EnclaveManager` when the
-// primary account for the profile has changed.
-class EnclaveManager::IdentityObserver
-    : public signin::IdentityManager::Observer {
- public:
-  IdentityObserver(signin::IdentityManager* identity_manager,
-                   EnclaveManager* manager)
-      : identity_manager_(identity_manager), manager_(manager) {
-    identity_manager_->AddObserver(this);
-  }
-
-  ~IdentityObserver() override {
-    if (observing_) {
-      identity_manager_->RemoveObserver(this);
-    }
-  }
-
-  void OnPrimaryAccountChanged(
-      const signin::PrimaryAccountChangeEvent& event_details) override {
-    manager_->HandleIdentityChange();
-  }
-
-  void OnAccountsInCookieUpdated(
-      const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
-      const GoogleServiceAuthError& error) override {
-    manager_->HandleIdentityChange();
-  }
-
-  void OnIdentityManagerShutdown(
-      signin::IdentityManager* identity_manager) override {
-    if (observing_) {
-      identity_manager_->RemoveObserver(this);
-      observing_ = false;
-    }
-  }
-
- private:
-  bool observing_ = true;
-  const raw_ptr<signin::IdentityManager> identity_manager_;
-  const raw_ptr<EnclaveManager> manager_;
-};
 
 void EnclaveManager::Act() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -4076,6 +4198,13 @@ void EnclaveManager::HandleIdentityChange(bool is_post_load) {
 void EnclaveManager::Stopped() {
   state_machine_.reset();
   Act();
+  NotifyObserversThatStateUpdated();
+}
+
+void EnclaveManager::NotifyObserversThatStateUpdated() {
+  for (Observer& observer : observer_list_) {
+    observer.OnStateUpdated();
+  }
 }
 
 void EnclaveManager::CancelAllActions() {
@@ -4179,8 +4308,13 @@ void EnclaveManager::ClearRegistration() {
       FROM_HERE, {base::TaskPriority::BEST_EFFORT, base::MayBlock()},
       base::BindOnce(
           [](std::vector<uint8_t> wrapped_identity_private_key) {
-            if (auto provider = GetWebAuthnUnexportableKeyProvider()) {
-              provider->DeleteSigningKeySlowly(wrapped_identity_private_key);
+            std::unique_ptr<crypto::UnexportableKeyProvider> provider =
+                GetWebAuthnUnexportableKeyProvider();
+            if (crypto::StatefulUnexportableKeyProvider* stateful_provider =
+                    provider ? provider->AsStatefulUnexportableKeyProvider()
+                             : nullptr) {
+              stateful_provider->DeleteSigningKeySlowly(
+                  wrapped_identity_private_key);
             }
           },
           ToVector(user_->wrapped_identity_private_key())));
@@ -4301,6 +4435,79 @@ void EnclaveManager::OnOsCryptReady(os_crypt_async::Encryptor encryptor) {
   encryptor_.emplace(std::move(encryptor));
   loading_ = false;
   Act();
+}
+
+void EnclaveManager::OnCheckGpmPinAvailabilityResult(
+    base::OnceCallback<void(GpmPinAvailability)> callback,
+    trusted_vault::DownloadAuthenticationFactorsRegistrationStateResult
+        result) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  download_account_state_request_.reset();
+  auto pin_availability = GpmPinAvailability::kGpmPinUnset;
+  if (result.gpm_pin_metadata) {
+    pin_availability = result.gpm_pin_metadata->usable_pin_metadata
+                           ? GpmPinAvailability::kGpmPinSetAndUsable
+                           : GpmPinAvailability::kGpmPinSetButNotUsable;
+  }
+  // Calling the callback after fetching the GPM PIN info:
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), pin_availability));
+}
+
+void EnclaveManager::OpportunisticStoreKeysUVCheckComplete(
+    std::unique_ptr<StoreKeysArgs> pending_keys,
+    bool can_make_uv_keys) {
+  FIDO_LOG(EVENT) << "Opportunistic keys UV key result: " << can_make_uv_keys;
+  if (!can_make_uv_keys) {
+    // Without local UV we can store keys only if the GPM pin is available and
+    // usable.
+    CheckGpmPinAvailability(base::BindOnce(
+        &EnclaveManager::OpportunisticStoreKeysGpmPinCheckComplete,
+        weak_ptr_factory_.GetWeakPtr(), std::move(pending_keys)));
+    return;
+  }
+  OpportunisticStoreKeys(std::move(pending_keys));
+}
+
+void EnclaveManager::OpportunisticStoreKeysGpmPinCheckComplete(
+    std::unique_ptr<StoreKeysArgs> pending_keys,
+    GpmPinAvailability gpm_pin_availability) {
+  if (gpm_pin_availability != GpmPinAvailability::kGpmPinSetAndUsable) {
+    NotifyObserversAboutOutOfContextRecoveryOutcome(
+        OutOfContextRecoveryOutcome::
+            kStoreKeysFromOpportunisticFlowIgnoredNoUV);
+    return;
+  }
+  OpportunisticStoreKeys(std::move(pending_keys));
+}
+
+void EnclaveManager::OpportunisticStoreKeys(
+    std::unique_ptr<StoreKeysArgs> pending_keys) {
+  pending_keys_ = std::move(pending_keys);
+  store_keys_count_++;
+  AddDeviceToAccount(
+      /*pin_metadata=*/std::nullopt,
+      base::BindOnce(&EnclaveManager::OpportunisticStoreKeysAddComplete,
+                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void EnclaveManager::OpportunisticStoreKeysAddComplete(bool success) {
+  FIDO_LOG(EVENT) << "Opportunistic keys device add result: " << success;
+  auto outcome =
+      success
+          ? OutOfContextRecoveryOutcome::
+                kStoreKeysFromOpportunisticFlowSucceeded
+          : OutOfContextRecoveryOutcome::kStoreKeysFromOpportunisticFlowFailed;
+  NotifyObserversAboutOutOfContextRecoveryOutcome(outcome);
+}
+
+void EnclaveManager::NotifyObserversAboutOutOfContextRecoveryOutcome(
+    OutOfContextRecoveryOutcome outcome) {
+  webauthn::metrics::RecordGPMRecoveryEvent(
+      ToWebAuthenticationGPMRecoveryEvent(outcome));
+  for (Observer& observer : observer_list_) {
+    observer.OnOutOfContextRecoveryCompletion(outcome);
+  }
 }
 
 base::WeakPtr<EnclaveManager> EnclaveManager::GetWeakPtr() {

@@ -34,6 +34,8 @@ class VivaldiLocationBar : public LocationBar {
 
   OmniboxView* GetOmniboxView() override;
 
+  OmniboxController* GetOmniboxController() override;
+
   content::WebContents* GetWebContents() override;
 
   LocationBarModel* GetLocationBarModel() override;
@@ -41,8 +43,6 @@ class VivaldiLocationBar : public LocationBar {
   std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor() override;
 
   void OnChanged() override {}
-
-  void OnPopupVisibilityChanged() override {}
 
   void UpdateWithoutTabRestore() override {}
 

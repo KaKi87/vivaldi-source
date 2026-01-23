@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Suurendusaste saidil <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi on aeglane, jookseb kokku või ajab seadme kuumaks</translation>
 <translation id="1929299157575856072">VAIKIMISI BLOKEERIMISTASE</translation>
+<translation id="1933618400514506228">Serbohorvaadi (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Ava pilt taustakaardil</translation>
 <translation id="1986733655397734221">Midagi muud</translation>
 <translation id="1994506778397655062">Ava uuel taustakaardil</translation>
@@ -125,7 +126,7 @@
 <translation id="2590350610957954839">Viimati kasutatud kiirvalimisleht</translation>
 <translation id="261264557609353020">Avaleht</translation>
 <translation id="2619628557366098325">Portugali (<ph name="ORIGIN" />)</translation>
-<translation id="2620436844016719705">Süsteemi järgi</translation>
+<translation id="2620436844016719705">Süsteemne</translation>
 <translation id="2653659639078652383">Edasta</translation>
 <translation id="2666092431469916601">Üleval</translation>
 <translation id="2677862276555105603">reklaam
@@ -136,6 +137,7 @@ blokeeritud</translation>
 <translation id="2709516037105925701">Vormide täitmise andmed</translation>
 <translation id="271033894570825754">Uus</translation>
 <translation id="2712076950889800659">Jätkates nõustud Vivaldi<ph name="BEGIN_LINK" />litsentsilepingu<ph name="END_LINK" /> ja <ph name="BEGIN_LINK" />privaatsuspõhimõtetega<ph name="END_LINK" />.</translation>
+<translation id="2720646732332242062">Valik hüüdnimega</translation>
 <translation id="2725892265692641195">Uus <ph name="ITEM_TYPE" /></translation>
 <translation id="2745324713975967671">Krüptimisparool</translation>
 <translation id="276436995507680929">Süngitakse lugemisnimekiri</translation>
@@ -166,7 +168,6 @@ blokeeritud</translation>
 <translation id="309084557304084991">Ma ei taha vaikimisi kaasa pandud järjehoidjaid ja kiirvalimisi</translation>
 <translation id="3091563570137981919">Jälitajate ja reklaamide blokeerimine</translation>
 <translation id="3097968995088564986">Lisamisnupp</translation>
-<translation id="3102790820790869053">Otsi hiljutiste kaartide hulgast</translation>
 <translation id="3134385238404760368">Viimatisi kaarte pole</translation>
 <translation id="3142562627629111859">Uus kiirvalimisleht</translation>
 <translation id="3157931365184549694">Taasta</translation>
@@ -344,6 +345,7 @@ blokeeritud</translation>
 <translation id="4950266778127803750">Sulgemisnupp taustakaartidel</translation>
 <translation id="495421405224926623">Olen nõus kasutustingimuste ja privaatsuspõhimõtetega</translation>
 <translation id="497942794017668482">Blokeeritakse jälitajaid ja reklaame</translation>
+<translation id="4983968022327077496">Sinu asutus nõuab veebisirvimist privaatses režiimis. Privaatses režiimis kaarte ei salvestata. <ph name="BEGIN_LINK" />Lisateave<ph name="END_LINK" /></translation>
 <translation id="4993477362660748586">Sünkimine</translation>
 <translation id="500392125908657603">Aadressivälja valikud</translation>
 <translation id="5037761343305489956">Märkmeks kopeeritud</translation>
@@ -629,6 +631,7 @@ Tõrke kõrvaldamiseks ava seaded.</translation>
 <translation id="851451113245350202">Hiljuti suletud kaartide loend</translation>
 <translation id="8515808232153642813">Krüpti lahti</translation>
 <translation id="8517852590337319813">Konto aktiveerimine</translation>
+<translation id="8529159259480052204">Hüpikdialoog ei ilmu automaatselt</translation>
 <translation id="8546963963006468833">Vivaldi abil saad sujuvalt linke avada, vidinast otsingut alustada ja automaatselt ka teistes rakendustes paroole sisestada.</translation>
 <translation id="8562452229998620586">Salvestatud paroolid ilmuksid siia.</translation>
 <translation id="856439694359429369">Lisavalikute saamiseks toksa, avamiseks toksa kaks korda.</translation>
@@ -672,6 +675,7 @@ blokeeritud</translation>
 <translation id="9091665118798175641">Süngitakse vormide automaatse täitmise andmed</translation>
 <translation id="9097127519290088802">Krüptimisparool on kohustuslik</translation>
 <translation id="9139318394846604261">Poed</translation>
+<translation id="9148058034647219655">Välju</translation>
 <translation id="9152984048904392513">Ava kõik taustakaartidel</translation>
 <translation id="9157459516617966251">Lingi muutmine</translation>
 <translation id="9157539936604258187">Ava link</translation>

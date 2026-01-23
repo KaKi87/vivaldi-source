@@ -11,6 +11,7 @@
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service.h"
 #include "chrome/browser/bookmarks/bookmark_merged_surface_service_observer.h"
 #include "chrome/browser/ui/bookmarks/bookmark_stats.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_controller_observer.h"
 #include "chrome/browser/ui/views/bookmarks/bookmark_menu_delegate.h"
@@ -54,11 +55,9 @@ BookmarkMenuController::BookmarkMenuController(
     run_type |= views::MenuRunner::FOR_DROP;
   }
 
-  if (vivaldi::IsVivaldiRunning()) {
-    // Enables the menu to draw mnemonics
+  if (base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements)) {
     run_type |= views::MenuRunner::HAS_MNEMONICS;
-  } // Vivaldi
-
+  }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       base::WrapUnique<MenuItemView>(menu_delegate_->menu()), run_type);
 }
@@ -200,27 +199,8 @@ views::MenuItemView* BookmarkMenuController::GetSiblingMenu(
   menu_delegate_->SetActiveMenu(*folder, start_index);
   *button = bookmark_bar_->GetMenuButtonForFolder(*folder);
   bookmark_bar_->GetAnchorPositionForButton(*button, anchor);
-  *has_mnemonics = false;
-  return this->menu();
-}
-
-views::MenuItemView* BookmarkMenuController::GetVivaldiSiblingMenu(
-    views::MenuItemView* menu,
-    const gfx::Point& screen_point,
-    gfx::Rect* rect,
-    views::MenuAnchorPosition* anchor) {
-  int start_index;
-  const BookmarkNode* node = vivaldi::GetNodeByPosition(
-      menu_delegate_->GetBookmarkMergedSurfaceService()->bookmark_model(),
-      screen_point, &start_index, rect);
-  if (!node || !node->is_folder() ||
-      menu_delegate_->GetBookmarkMergedSurfaceService()
-          ->bookmark_model()
-          ->is_root_node(node))
-    return nullptr;
-  menu_delegate_->SetActiveMenu(BookmarkParentFolder::FromFolderNode(node),
-                                start_index);
-  *anchor = views::MenuAnchorPosition::kTopLeft;
+  *has_mnemonics =
+      base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements);
   return this->menu();
 }
 
@@ -312,14 +292,36 @@ bool BookmarkMenuController::ShouldTryPositioningBesideAnchor() const {
   return false;
 }
 
-// Added by vivaldi
-void BookmarkMenuController::VivaldiSelectionChanged(MenuItemView* menu) {
-  menu_delegate_->VivaldiSelectionChanged(menu);
-}
-
 BookmarkMenuController::~BookmarkMenuController() {
   menu_delegate_->GetBookmarkMergedSurfaceService()->RemoveObserver(this);
   if (observer_) {
     observer_->BookmarkMenuControllerDeleted(this);
   }
 }
+
+// Vivaldi
+views::MenuItemView* BookmarkMenuController::GetVivaldiSiblingMenu(
+    views::MenuItemView* menu,
+    const gfx::Point& screen_point,
+    gfx::Rect* rect,
+    views::MenuAnchorPosition* anchor) {
+  int start_index;
+  const BookmarkNode* node = vivaldi::GetNodeByPosition(
+      menu_delegate_->GetBookmarkMergedSurfaceService()->bookmark_model(),
+      screen_point, &start_index, rect);
+  if (!node || !node->is_folder() ||
+      menu_delegate_->GetBookmarkMergedSurfaceService()
+          ->bookmark_model()
+          ->is_root_node(node))
+    return nullptr;
+  menu_delegate_->SetActiveMenu(BookmarkParentFolder::FromFolderNode(node),
+                                start_index);
+  *anchor = views::MenuAnchorPosition::kTopLeft;
+  return this->menu();
+}
+
+// Added by vivaldi
+void BookmarkMenuController::VivaldiSelectionChanged(MenuItemView* menu) {
+  menu_delegate_->VivaldiSelectionChanged(menu);
+}
+// End Vivaldi

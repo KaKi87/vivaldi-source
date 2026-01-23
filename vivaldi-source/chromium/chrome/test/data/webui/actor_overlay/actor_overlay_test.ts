@@ -61,6 +61,36 @@ suite('Scrim', function() {
     assertFalse(page.classList.contains('background-visible'));
   });
 
+  test('SetTheme', async function() {
+    const mockTheme = {
+      borderColor: {value: 0xFFFF0000},
+      borderGlowColor: {value: 0xFF0000FF},
+      scrimColors: [
+        {value: 0xFF00FF00},
+        {value: 0xFFFFFF00},
+        {value: 0xFF00FFFF},
+      ],
+    };
+    testRemote.setTheme(mockTheme);
+    await microtasksFinished();
+
+    assertEquals(
+        'rgba(255, 0, 0, 1.00)',
+        page.style.getPropertyValue('--actor-border-color'));
+    assertEquals(
+        'rgba(0, 0, 255, 1.00)',
+        page.style.getPropertyValue('--actor-border-glow-color'));
+    assertEquals(
+        'rgba(0, 255, 0, 1.00)',
+        page.style.getPropertyValue('--actor-scrim-background-val1'));
+    assertEquals(
+        'rgba(255, 255, 0, 1.00)',
+        page.style.getPropertyValue('--actor-scrim-background-val2'));
+    assertEquals(
+        'rgba(0, 255, 255, 1.00)',
+        page.style.getPropertyValue('--actor-scrim-background-val3'));
+  });
+
   test('MagicCursorDisabled', function() {
     const magicCursor =
         page.shadowRoot.querySelector<HTMLElement>('#magicCursor');
@@ -81,6 +111,86 @@ suite('Scrim', function() {
     page.dispatchEvent(wheelEvent);
     await microtasksFinished();
     assertTrue(wheelEvent.defaultPrevented);
+  });
+});
+
+suite('BorderGlow', function() {
+  let page: ActorOverlayAppElement;
+  let testHandler: TestActorOverlayPageHandler;
+  let testRemote: ActorOverlayPageRemote;
+
+  suiteSetup(function() {
+    loadTimeData.overrideValues({
+      isMagicCursorEnabled: false,
+      isStandaloneBorderGlowEnabled: true,
+    });
+    const testBrowserProxy = new TestActorOverlayBrowserProxy();
+    ActorOverlayBrowserProxy.setInstance(testBrowserProxy);
+    testHandler = testBrowserProxy.handler;
+    testRemote = testBrowserProxy.remote;
+  });
+
+  setup(async function() {
+    testHandler.reset();
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    page = document.createElement('actor-overlay-app');
+    document.body.appendChild(page);
+    await microtasksFinished();
+  });
+
+  teardown(function() {
+    page.remove();
+  });
+
+  test('InitialState', function() {
+    const borderGlow =
+        page.shadowRoot.querySelector<HTMLElement>('#border-glow');
+    assertTrue(!!borderGlow);
+    assertTrue(borderGlow.parentElement!.hidden);
+  });
+
+  test('SetBorderGlowVisibility', async function() {
+    const borderGlow =
+        page.shadowRoot.querySelector<HTMLElement>('#border-glow');
+    assertTrue(!!borderGlow);
+
+    testRemote.setBorderGlowVisibility(true);
+    await microtasksFinished();
+    assertFalse(borderGlow.parentElement!.hidden);
+
+    testRemote.setBorderGlowVisibility(false);
+    await microtasksFinished();
+    assertTrue(borderGlow.parentElement!.hidden);
+  });
+
+  test('InitialStateIsTrueWhenHandlerReturnsTrue', async function() {
+    testHandler.setBorderGlowVisibilityForTesting(true);
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const pageWithGlow = document.createElement('actor-overlay-app');
+    document.body.appendChild(pageWithGlow);
+    await microtasksFinished();
+
+    const borderGlow =
+        pageWithGlow.shadowRoot.querySelector<HTMLElement>('#border-glow');
+    assertTrue(!!borderGlow);
+    assertFalse(borderGlow.parentElement!.hidden);
+  });
+
+  test('DoesNotShowBorderGlowWhenFeatureIsDisabled', async function() {
+    loadTimeData.overrideValues({isStandaloneBorderGlowEnabled: false});
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
+    const pageWithoutGlow = document.createElement('actor-overlay-app');
+    document.body.appendChild(pageWithoutGlow);
+    await microtasksFinished();
+
+    const borderGlow =
+        pageWithoutGlow.shadowRoot.querySelector<HTMLElement>('#border-glow');
+    assertTrue(!!borderGlow);
+    assertTrue(borderGlow.parentElement!.hidden);
+
+    testRemote.setBorderGlowVisibility(true);
+    await microtasksFinished();
+    assertTrue(borderGlow.parentElement!.hidden);
   });
 });
 

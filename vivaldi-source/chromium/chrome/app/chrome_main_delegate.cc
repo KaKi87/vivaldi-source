@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/app/chrome_main_delegate.h"
 
 #include <stddef.h>
@@ -17,6 +12,7 @@
 #include "base/base_paths.h"
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/cpu.h"
 #include "base/dcheck_is_on.h"
 #include "base/features.h"
@@ -40,7 +36,6 @@
 #include "base/threading/hang_watcher.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "base/trace_event/trace_event_impl.h"
 #include "build/build_config.h"
 #include "chrome/browser/buildflags.h"
 #include "chrome/browser/chrome_content_browser_client.h"
@@ -199,7 +194,7 @@
 #include "components/crash/core/app/crashpad.h"
 #endif
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/extensions/startup_helper.h"  // nogncheck
 #include "extensions/common/constants.h"
 #endif
@@ -229,7 +224,7 @@ base::LazyInstance<ChromeContentRendererClient>::DestructorAtExit
     g_chrome_content_renderer_client = LAZY_INSTANCE_INITIALIZER;
 
 const char* const ChromeMainDelegate::kNonWildcardDomainNonPortSchemes[] = {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
     extensions::kExtensionScheme,
 #endif
     chrome::kChromeSearchScheme,
@@ -374,23 +369,23 @@ bool HandleVersionSwitches(const base::CommandLine& command_line) {
 #if !BUILDFLAG(IS_MAC)
   if (command_line.HasSwitch(switches::kProductVersion)) {
 #if defined(VIVALDI_BUILD)
-    printf("%s\n", vivaldi::GetVivaldiVersionString().data());
+    UNSAFE_TODO(printf("%s\n", vivaldi::GetVivaldiVersionString().data()));
 #else
-    printf("%s\n", version_info::GetVersionNumber().data());
+    UNSAFE_TODO(printf("%s\n", version_info::GetVersionNumber().data()));
 #endif
     return true;
   }
 #endif
 
   if (command_line.HasSwitch(switches::kVersion)) {
-    printf("%s %s %s\n", version_info::GetProductName().data(),
+    UNSAFE_TODO(printf(
+        "%s %s %s\n", version_info::GetProductName().data(),
 #if defined(VIVALDI_BUILD)
-           vivaldi::GetVivaldiVersionString().data(),
-#else
-    printf("%s %s %s\n", version_info::GetProductName().data(),
-           version_info::GetVersionNumber().data(),
-#endif
-           chrome::GetChannelName(chrome::WithExtendedStable(true)).c_str());
+         vivaldi::GetVivaldiVersionString().data(),
+#else // Vivaldi
+         version_info::GetVersionNumber().data(),
+#endif // Vivaldi
+        chrome::GetChannelName(chrome::WithExtendedStable(true)).c_str()));
     return true;
   }
 
@@ -413,7 +408,7 @@ void HandleHelpSwitches(const base::CommandLine& command_line) {
 void SIGTERMProfilingShutdown(int signal) {
   content::Profiling::Stop();
   struct sigaction sigact;
-  memset(&sigact, 0, sizeof(sigact));
+  UNSAFE_TODO(memset(&sigact, 0, sizeof(sigact)));
   sigact.sa_handler = SIG_DFL;
   CHECK_EQ(sigaction(SIGTERM, &sigact, nullptr), 0);
   raise(signal);
@@ -1002,11 +997,10 @@ void ChromeMainDelegate::CommonEarlyInitialization() {
     hang_watcher_process_type = base::HangWatcher::ProcessType::kUnknownProcess;
   }
 
-  const bool is_canary_dev = IsCanaryDev();
   const bool emit_crashes =
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC) || \
     BUILDFLAG(IS_WIN)
-      is_canary_dev;
+      IsCanaryDev();
 #else
       false;
 #endif
@@ -1014,13 +1008,7 @@ void ChromeMainDelegate::CommonEarlyInitialization() {
   base::HangWatcher::InitializeOnMainThread(hang_watcher_process_type,
                                             emit_crashes);
 
-  // Force emitting `ThreadController` profiler metadata on Canary and Dev only,
-  // since they are the only channels where the data is used.
-  base::features::Init(
-      is_canary_dev
-          ? base::features::EmitThreadControllerProfilerMetadata::kForce
-          : base::features::EmitThreadControllerProfilerMetadata::
-                kFeatureDependent);
+  base::features::Init();
 }
 
 #if BUILDFLAG(IS_WIN)
@@ -1555,8 +1543,10 @@ std::variant<int, content::MainFunctionParams> ChromeMainDelegate::RunProcess(
   };
 
   for (size_t i = 0; i < std::size(kMainFunctions); ++i) {
-    if (process_type == kMainFunctions[i].name)
-      return kMainFunctions[i].function(std::move(main_function_params));
+    if (process_type == UNSAFE_TODO(kMainFunctions[i]).name) {
+      return UNSAFE_TODO(kMainFunctions[i])
+          .function(std::move(main_function_params));
+    }
   }
 #endif  // BUILDFLAG(IS_MAC)
 
@@ -1677,12 +1667,6 @@ std::optional<int> ChromeMainDelegate::PreBrowserMain() {
 
   // Initialize NSApplication using the custom subclass.
   chrome_browser_application_mac::RegisterBrowserCrApp();
-
-  // Perform additional initialization when running in headless mode: hide
-  // dock icon and menu bar.
-  if (headless::IsHeadlessMode()) {
-    chrome_browser_application_mac::InitializeHeadlessMode();
-  }
 
   if (l10n_util::GetLocaleOverride().empty()) {
     // The browser process only wants to support the language Cocoa will use,

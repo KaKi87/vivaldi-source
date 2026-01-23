@@ -200,11 +200,13 @@ const views::Widget* VivaldiWindowWidgetDelegate::GetWidget() const {
 
 std::unique_ptr<views::FrameView> VivaldiWindowWidgetDelegate::CreateFrameView(views::Widget* widget) {
   DCHECK_EQ(widget, window_->GetWidget());
+
 #if defined(USE_AURA)
   // On Mac Vivaldi Frame view handles both frameless and with-native-frame
   // cases.
-  if (window_->with_native_frame())
-    return views::WidgetDelegate::CreateFrameView(widget);
+  if (window_->with_native_frame()) {
+    return std::make_unique<VivaldiNativeFrameView>(widget, window_);
+  }
 #endif
   return CreateVivaldiWindowFrameView(window_);
 }
@@ -366,10 +368,14 @@ bool VivaldiWindowWidgetDelegate::GetSavedWindowPlacement(
     const views::Widget* widget,
     gfx::Rect* bounds,
     ui::mojom::WindowShowState* show_state) const {
-  chrome::GetSavedWindowBoundsAndShowState(window_->browser(), bounds,
-                                           show_state);
+  Browser* browser = window_->browser();
+  if (!browser) {
+    return false;
+  }
 
-  if (chrome::SavedBoundsAreContentBounds(window_->browser())) {
+  chrome::GetSavedWindowBoundsAndShowState(browser, bounds, show_state);
+
+  if (chrome::SavedBoundsAreContentBounds(browser)) {
     // This is normal non-app popup window. The value passed in |bounds|
     // represents two pieces of information:
     // - the position of the window, in screen coordinates (outer position).
@@ -430,6 +436,10 @@ void VivaldiWindowWidgetDelegate::HandleKeyboardCode(ui::KeyboardCode code) {
 }
 
 bool VivaldiWindowWidgetDelegate::ExecuteWindowsCommand(int command_id) {
+  Browser* browser = window_->browser();
+  if (!browser) {
+    return false;
+  }
 #if BUILDFLAG(IS_WIN)
   // Windows-specific, see BrowserView::ExecuteWindowsCommand()
   int command_id_from_app_command =
@@ -439,7 +449,7 @@ bool VivaldiWindowWidgetDelegate::ExecuteWindowsCommand(int command_id) {
   }
 #endif
 
-  return chrome::ExecuteCommand(window_->browser(), command_id);
+  return chrome::ExecuteCommand(browser, command_id);
 }
 
 void VivaldiWindowWidgetDelegate::WindowClosing() {

@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Per bloccare le tue schede private, imposta Touch ID, Face ID o un Passcode.</translation>
 <translation id="1189137610071296104">Apri in gruppo schede</translation>
 <translation id="1310184829257917508">Chiedi di aprire link da altre app in modalità privata</translation>
+<translation id="1624481300475123200">Compilazione automatica delle password</translation>
 <translation id="1743244221910283364">Elimina modifiche</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Aggiungi scheda al gruppo}
         other {Aggiungi schede al gruppo}}</translation>
 <translation id="207677936531967364">Pagina nuova scheda privata</translation>
 <translation id="2099591136582442348">Questo eliminerà permanentemente il gruppo dal tuo dispositivo.</translation>
+<translation id="2104086191144208395">Hai riscontrato un problema?</translation>
 <translation id="2181990701313127304">Nuova scheda nel gruppo</translation>
 <translation id="2351280151183279120">Condividi gruppo</translation>
 <translation id="2353953000228441783">Visualizzazione predefinita sito</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Apri ${url} in privato</translation>
 <translation id="398477389655464998">Copia link da evidenziare</translation>
 <translation id="3993429087389909418">Le schede rimarranno aperte su questo dispositivo, ma il gruppo sarà eliminato da tutti i dispositivi a cui si è acceduto <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Hai notato un problema?</translation>
 <translation id="4216644171369573466">Gruppo di schede, <ph name="GROUP_TITLE" />, Menu.</translation>
 <translation id="4304713468139749426">Gestore password</translation>
 <translation id="4439281775431634915">I gruppi di schede sono salvate qui</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">Pagine che hai letto</translation>
 <translation id="5521301883748677039">Elimina gruppo?</translation>
 <translation id="5544011153887687593">Scheda in gruppo schede <ph name="TAB_INDEX_IN_GROUP" /> di <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Handoff ti consente di iniziare a navigare su un sito web su questo dispositivo e poi continuare facilmente sul tuo Mac. Il sito web attualmente aperto apparirà nel Dock del tuo Mac.
+
+Handoff deve essere abilitato anche nella sezione Generale delle Impostazioni e i tuoi dispositivi devono usare lo stesso account iCloud.</translation>
 <translation id="5614553682702429503">Salvare la password?</translation>
+<translation id="5620163320393916465">Nessuna password salvata</translation>
 <translation id="570209299585559496">Puoi cambiare la visualizzazione predefinita del sito in Desktop vai in Impostazioni e poi in Impostazioni contenuto</translation>
 <translation id="5719777162751096990">Sposta in un gruppo di schede</translation>
+<translation id="5869522115854928033">Password salvate</translation>
 <translation id="5962477178930921574">Incolla e cerca</translation>
 <translation id="6163856768888310791">Separa</translation>
 <translation id="6168969409902608220">Nome gruppo</translation>
 <translation id="6192561334825788389">Puoi scorrere a destra per navigare in privato.</translation>
 <translation id="6233792867654386826">Apre gli indirizzi inseriti in Vivaldi.</translation>
 <translation id="6271462272606946663">Nascondi richiesta sito mobile</translation>
+<translation id="6309282378909663947">Password dal Gestore password di Vivaldi</translation>
 <translation id="6478587527114893588">Chiudi gruppo.</translation>
 <translation id="6527405730445064713">Gruppo di schede. Espanso.</translation>
 <translation id="6532106788206463496">Salva le modifiche</translation>
+<translation id="6636411080833380839">Rimuovi dal gruppo</translation>
+<translation id="6644512095122093795">Chiedi di salvare le password</translation>
 <translation id="6666425778700353369">Questo eliminerà il gruppo da tutti i dispositivi a cui si è acceduto <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Personalizza menu</translation>
 <translation id="6695835495840050460">Tocca "Aggiungi scheda a nuovo gruppo"</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">Nuova scheda privata nel gruppo</translation>
 <translation id="7661319142491611883">Espandi gruppo di schede.</translation>
 <translation id="7706213624515206557">Mostra tutte le schede nel gruppo schede</translation>
+<translation id="7937179923651776879">Accedi alle tue password da qualsiasi app</translation>
 <translation id="7961015016161918242">Mai</translation>
 <translation id="8326104954595890674">Nuova scheda privata</translation>
 <translation id="8345989863850359861">Rimuovere la scheda ed eliminare il gruppo?</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">Nuova scheda nel gruppo</translation>
 <translation id="9042893549633094279">Privacy e Sicurezza</translation>
 <translation id="9094033019050270033">Aggiorna password</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Lascia gruppo</translation>
 <translation id="959061183386231608">Le schede rimarranno aperte su questo dispositivo, ma il gruppo sarà eliminato in modo permanente.</translation>
+<translation id="988141524645182168">Altri dispositivi</translation>
 </translationbundle>

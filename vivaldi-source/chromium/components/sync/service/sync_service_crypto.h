@@ -67,9 +67,18 @@ class SyncServiceCrypto : public SyncEncryptionHandler::Observer,
   bool IsTrustedVaultKeyRequired() const;
   bool IsTrustedVaultRecoverabilityDegraded() const;
   bool IsEncryptEverythingEnabled() const;
+
+  // The following methods may only be called if the sync engine is initialized.
   void SetEncryptionPassphrase(const std::string& passphrase);
   bool SetDecryptionPassphrase(const std::string& passphrase);
+
+  // Asynchronously decrypts pending keys using `nigori`. `nigori` must not be
+  // null. It's safe to call this method with wrong `nigori` and, unlike
+  // SetDecryptionPassphrase(), when passphrase isn't required.
   void SetExplicitPassphraseDecryptionNigoriKey(std::unique_ptr<Nigori> nigori);
+  // Returns stored decryption key, corresponding to the last successfully
+  // decrypted explicit passphrase Nigori. Returns nullptr if there is no such
+  // stored decryption key.
   std::unique_ptr<Nigori> GetExplicitPassphraseDecryptionNigoriKey() const;
 
   // Returns whether it's already possible to determine whether trusted vault
@@ -111,7 +120,9 @@ class SyncServiceCrypto : public SyncEncryptionHandler::Observer,
   DataTypeSet GetAllEncryptedDataTypes() const override;
 
   // TrustedVaultClient::Observer implementation.
-  void OnTrustedVaultKeysChanged() override;
+  void OnTrustedVaultKeysChanged(
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger)
+      override;
   void OnTrustedVaultRecoverabilityChanged() override;
 
  private:
@@ -135,7 +146,10 @@ class SyncServiceCrypto : public SyncEncryptionHandler::Observer,
   };
 
   // Reads trusted vault keys from the client and feeds them to the sync engine.
-  void FetchTrustedVaultKeys(bool is_second_fetch_attempt);
+  void FetchTrustedVaultKeys(
+      bool is_second_fetch_attempt,
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA>
+          trigger);
 
   // Called at various stages of asynchronously fetching and processing trusted
   // vault encryption keys. `is_second_fetch_attempt` is useful for the case
@@ -143,10 +157,19 @@ class SyncServiceCrypto : public SyncEncryptionHandler::Observer,
   // client.
   void TrustedVaultKeysFetchedFromClient(
       bool is_second_fetch_attempt,
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger,
       const std::vector<std::vector<uint8_t>>& keys);
-  void TrustedVaultKeysAdded(bool is_second_fetch_attempt);
-  void TrustedVaultKeysMarkedAsStale(bool is_second_fetch_attempt, bool result);
-  void FetchTrustedVaultKeysCompletedButInsufficient();
+  void TrustedVaultKeysAdded(
+      bool is_second_fetch_attempt,
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA>
+          trigger);
+  void TrustedVaultKeysMarkedAsStale(
+      bool is_second_fetch_attempt,
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA> trigger,
+      bool result);
+  void FetchTrustedVaultKeysCompletedButInsufficient(
+      std::optional<trusted_vault::TrustedVaultUserActionTriggerForUMA>
+          trigger);
 
   // Updates required user action and notifies observers via
   // `notify_required_user_action_changed_`.

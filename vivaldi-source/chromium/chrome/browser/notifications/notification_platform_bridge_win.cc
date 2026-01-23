@@ -57,7 +57,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/notifications/notification_image_retainer.h"
 #include "chrome/install_static/install_util.h"
-#include "chrome/installer/util/install_util.h"
+//#include "chrome/installer/util/install_util.h"
 #include "chrome/installer/util/shell_util.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -66,6 +66,7 @@
 #include "url/origin.h"
 
 #include "installer/util/vivaldi_install_util.h"
+#include "installer/mini_installer/util/install_util.h"
 
 namespace mswr = Microsoft::WRL;
 namespace winfoundtn = ABI::Windows::Foundation;
@@ -140,7 +141,8 @@ void ForwardNotificationOperationOnUiThread(
       incognito,
       base::BindOnce(&NotificationDisplayServiceImpl::ProfileLoadedCallback,
                      operation, notification_type, origin, notification_id,
-                     action_index, reply, by_user, base::DoNothing()));
+                     action_index, reply, by_user, /*is_suspicious=*/false,
+                     base::DoNothing()));
 }
 
 GetSettingPolicy ConvertSettingPolicy(

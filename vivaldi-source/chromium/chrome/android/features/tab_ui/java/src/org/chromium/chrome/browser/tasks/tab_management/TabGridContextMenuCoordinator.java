@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.vivaldi.browser.tabmodel.VivaldiTabModelUtils;
 
 /**
  * A coordinator for the context menu accessed by long-pressing on a tab. It is responsible for
@@ -83,6 +83,7 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
             ShowTabListEditor showTabListEditor) {
         super(
                 R.layout.tab_switcher_action_menu_layout,
+                R.layout.tab_switcher_action_menu_layout,
                 getMenuItemClickedCallback(
                         tabBookmarkerSupplier,
                         tabGroupModelFilter,
@@ -119,7 +120,6 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
             TabGroupCreationDialogManager tabGroupCreationDialogManager,
             Supplier<ShareDelegate> shareDelegateSupplier,
             ShowTabListEditor showTabListEditor) {
-        if (ChromeApplicationImpl.isVivaldi()) return null;
         Profile profile = assumeNonNull(tabGroupModelFilter.getTabModel().getProfile());
         @Nullable TabGroupSyncService tabGroupSyncService =
                 profile.isOffTheRecord() ? null : TabGroupSyncServiceFactory.getForProfile(profile);
@@ -150,6 +150,7 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
     public void showMenu(RectProvider anchorViewRectProvider, int tabId, boolean focusable) {
         mIsMenuFocusableUponCreation = focusable;
         boolean isIncognito = mTabGroupModelFilter.getTabModel().isIncognitoBranded();
+        dismiss();
         createAndShowMenu(
                 anchorViewRectProvider,
                 tabId,
@@ -208,7 +209,7 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
                 showTabListEditor.show(tab.getId());
                 recordUserActionWithPrefix("SelectTabs");
             } else if (menuId == R.id.pin_tab) {
-                tabModel.pinTab(tab.getId());
+                tabModel.pinTab(tab.getId(), /* showUngroupDialog= */ true);
                 recordUserActionWithPrefix("PinTab");
             } else if (menuId == R.id.unpin_tab) {
                 tabModel.unpinTab(tab.getId());
@@ -300,6 +301,10 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
                         .withStartIconRes(R.drawable.material_ic_close_24dp)
                         .withIsIncognito(isIncognito)
                         .build());
+
+        // Note(david@vivaldi.com): Remove the pin tab menu item when tab pinning is not available.
+        VivaldiTabModelUtils.checkPinAvailabilityAndMaybeRemoveMenuItem(
+                mTabModelSupplier.get(), List.of(tab), itemList, R.id.pin_tab);
     }
 
     @Override
@@ -335,11 +340,12 @@ public class TabGridContextMenuCoordinator extends TabOverflowMenuCoordinator<@T
         boolean isTabPinned = tab.getIsPinned();
         @StringRes int titleRes = isTabPinned ? R.string.unpin_tab : R.string.pin_tab;
         @IdRes int menuId = isTabPinned ? R.id.unpin_tab : R.id.pin_tab;
+        int iconRes = isTabPinned ? R.drawable.ic_keep_off_24dp : R.drawable.ic_keep_24dp;
 
         return new ListItemBuilder()
                 .withTitleRes(titleRes)
                 .withMenuId(menuId)
-                .withStartIconRes(R.drawable.ic_keep_24dp)
+                .withStartIconRes(iconRes)
                 .withIsIncognito(tab.isIncognitoBranded())
                 .build();
     }

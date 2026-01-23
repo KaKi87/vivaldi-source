@@ -15,12 +15,15 @@ import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tabbed_mode.TabbedAppMenuPropertiesDelegate;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.test.transit.CtaAppMenuFacility;
+import org.chromium.chrome.test.transit.bookmarks.BookmarksPhoneStation;
+import org.chromium.chrome.test.transit.bookmarks.BookmarksTabletStation;
 import org.chromium.chrome.test.transit.hub.TabGroupListBottomSheetFacility;
 import org.chromium.chrome.test.transit.ntp.IncognitoNewTabPageAppMenuFacility;
 import org.chromium.chrome.test.transit.ntp.IncognitoNewTabPageStation;
 import org.chromium.chrome.test.transit.ntp.RegularNewTabPageAppMenuFacility;
 import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.settings.SettingsStation;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -46,43 +49,51 @@ public class PageAppMenuFacility<HostPageStationT extends CtaPageStation>
     protected @Nullable Item mNewIncognitoTab;
     protected @Nullable Item mNewIncognitoWindow;
     protected @Nullable Item mAddToGroup;
+    protected @Nullable Item mReaderMode;
     protected Item mNewWindow;
+    protected Item mBookmarks;
     protected Item mSettings;
-    protected Item mPinTab;
-    protected Item mUnpinTab;
 
     @Override
     protected void declareItems(ItemsBuilder items) {
         // TODO: Declare top buttons (forward, reload, bookmark, etc.).
         // TODO: Declare more common menu items
 
-        mNewTab = declareMenuItem(items, NEW_TAB_ID);
-
         if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
-            mNewIncognitoWindow = declareMenuItem(items, NEW_INCOGNITO_WINDOW_ID);
+            if (!mHostStation.isIncognito()) {
+                mNewTab = declareMenuItem(items, NEW_TAB_ID);
+            } else {
+                mNewIncognitoTab = declareMenuItem(items, NEW_INCOGNITO_TAB_ID);
+            }
         } else {
+            mNewTab = declareMenuItem(items, NEW_TAB_ID);
             mNewIncognitoTab = declareMenuItem(items, NEW_INCOGNITO_TAB_ID);
         }
 
         if (ChromeFeatureList.sTabGroupParityBottomSheetAndroid.isEnabled()) {
             mAddToGroup = declareMenuItem(items, ADD_TO_GROUP_ID);
         }
-        if (ChromeFeatureList.sAndroidPinnedTabsTabletTabStrip.isEnabled()
-                || ChromeFeatureList.sAndroidPinnedTabs.isEnabled()) {
-            // At most one of these exist.
-            mPinTab = declarePossibleMenuItem(items, PIN_TAB);
-            mUnpinTab = declarePossibleMenuItem(items, UNPIN_TAB);
+        if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+            mNewWindow = declareMenuItem(items, NEW_WINDOW_ID);
+            mNewIncognitoWindow = declareMenuItem(items, NEW_INCOGNITO_WINDOW_ID);
         }
         mSettings = declareMenuItem(items, SETTINGS_ID);
-
     }
 
-    /** Select "New tab" from the app menu. */
+    /** Select "New tab" from the app menu. If this doesn't exist, select "New window". */
     public RegularNewTabPageStation openNewTab() {
-        return mNewTab.scrollToAndSelectTo().arriveAt(createNewTabPageStation());
+        if (mNewTab != null) {
+            return mNewTab.scrollToAndSelectTo().arriveAt(createNewTabPageStation());
+        } else {
+            assert mNewWindow != null : "App menu does not have 'New tab' or 'New window'";
+            return openNewWindow();
+        }
     }
 
-    /** Select "New Incognito tab" or "New Incognito window" from the app menu. */
+    /**
+     * Select "New Incognito tab" from the app menu. If this doesn't exist, select "New Incognito
+     * window".
+     */
     public IncognitoNewTabPageStation openNewIncognitoTab() {
         if (mNewIncognitoTab != null) {
             return mNewIncognitoTab
@@ -90,11 +101,8 @@ public class PageAppMenuFacility<HostPageStationT extends CtaPageStation>
                     .arriveAt(createNewIncognitoTabPageStation());
         } else {
             assert mNewIncognitoWindow != null
-                    : "App menu is expected to show 'New Incognito window' or 'New Incognito tab";
-            return mNewIncognitoWindow
-                    .scrollToAndSelectTo()
-                    .inNewTask()
-                    .arriveAt(createNewIncognitoWindowStation());
+                    : "App menu does not have 'New Incognito tab' or 'New Incognito window'";
+            return openNewIncognitoWindow();
         }
     }
 
@@ -103,6 +111,18 @@ public class PageAppMenuFacility<HostPageStationT extends CtaPageStation>
         TabbedAppMenuPropertiesDelegate delegate = getTabbedAppMenuPropertiesDelegate();
         assert delegate.shouldShowNewWindow() : "App menu is not expected to show 'New window'";
         return mNewWindow.scrollToAndSelectTo().inNewTask().arriveAt(createNewWindowStation());
+    }
+
+    /** Select "New Incognito window" from the app menu. */
+    public IncognitoNewTabPageStation openNewIncognitoWindow() {
+        TabbedAppMenuPropertiesDelegate delegate = getTabbedAppMenuPropertiesDelegate();
+        assert delegate.shouldShowNewIncognitoWindow()
+                : "App menu is not expected to show 'New Incognito window'";
+        assert mNewIncognitoWindow != null;
+        return mNewIncognitoWindow
+                .scrollToAndSelectTo()
+                .inNewTask()
+                .arriveAt(createNewIncognitoWindowStation());
     }
 
     /**
@@ -122,17 +142,6 @@ public class PageAppMenuFacility<HostPageStationT extends CtaPageStation>
                                 new ArrayList<>(tabGroupIds), /* isNewTabGroupRowVisible= */ true));
     }
 
-    /** Select "Pin tab" from the app menu. */
-    public void pinTab() {
-         mPinTab.scrollToAndSelectTo().complete();
-    }
-
-    /** Select "Unpin tab" from the app menu. */
-    public void unpinTab() {
-         mUnpinTab.scrollToAndSelectTo().complete();
-    }
-
-
     private TabbedAppMenuPropertiesDelegate getTabbedAppMenuPropertiesDelegate() {
         return (TabbedAppMenuPropertiesDelegate)
                 mHostStation
@@ -142,8 +151,32 @@ public class PageAppMenuFacility<HostPageStationT extends CtaPageStation>
                         .getAppMenuPropertiesDelegate();
     }
 
+    /** Select "Bookmarks" from the app menu in tablets. */
+    public BookmarksTabletStation openBookmarksTablet() {
+        assert DeviceFormFactor.isNonMultiDisplayContextOnTablet(mHostStation.getActivity());
+        return mBookmarks
+                .scrollToAndSelectTo()
+                .arriveAt(BookmarksTabletStation.newBuilder().initOpeningNewTab().build());
+    }
+
+    /** Select "Bookmarks" from the app menu in phones. */
+    public BookmarksPhoneStation openBookmarksPhone() {
+        assert !DeviceFormFactor.isNonMultiDisplayContextOnTablet(mHostStation.getActivity());
+        return mBookmarks.scrollToAndSelectTo().arriveAt(new BookmarksPhoneStation());
+    }
+
     /** Select "Settings" from the app menu. */
     public SettingsStation openSettings() {
         return mSettings.scrollToAndSelectTo().arriveAt(createSettingsStation());
+    }
+
+    /** Select "Show Reading Mode" from the app menu. */
+    public WebPageStation enterReaderMode() {
+        return mReaderMode
+                .scrollToAndSelectTo()
+                .arriveAt(
+                        WebPageStation.newBuilder()
+                                .initForLoadingUrlOnSameTab("chrome-distiller://", mHostStation)
+                                .build());
     }
 }

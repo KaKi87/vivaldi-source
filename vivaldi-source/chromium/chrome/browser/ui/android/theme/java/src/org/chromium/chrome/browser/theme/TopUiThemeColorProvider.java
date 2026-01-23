@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabState;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.ui.util.ColorUtils;
 
 import java.util.function.Supplier;
@@ -34,11 +35,9 @@ import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
  */
 @NullMarked
 public class TopUiThemeColorProvider extends ThemeColorProvider {
-    private final CurrentTabObserver mTabObserver;
-
+    protected final Context mContext;
     private final Supplier<Integer> mActivityThemeColorSupplier;
     private final boolean mIsTablet;
-    private final Context mContext;
 
     /** Whether the theme should apply while in dark mode. */
     private final boolean mAllowThemingInNightMode;
@@ -48,6 +47,8 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
 
     /** Whether tab theming is allowed on large screens */
     private final boolean mAllowThemingOnTablets;
+
+    protected CurrentTabObserver mTabObserver;
 
     /** Whether or not the default color is used. */
     private boolean mIsDefaultColorUsed;
@@ -80,6 +81,13 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
                             public void onDidChangeThemeColor(Tab tab, int themeColor) {
                                 updateColor(tab, themeColor, true);
                             }
+
+                            @Override
+                            public void onContentChanged(Tab tab) {
+                                if (tab != null) {
+                                    updateColor(tab, tab.getThemeColor(), false);
+                                }
+                            }
                         },
                         (tab) -> {
                             if (tab != null) updateColor(tab, tab.getThemeColor(), false);
@@ -99,7 +107,7 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
         return (tab == null || mIsDefaultColorUsed) ? fallbackColor : getThemeColor();
     }
 
-    private void updateColor(Tab tab, int themeColor, boolean shouldAnimate) {
+    protected void updateColor(Tab tab, int themeColor, boolean shouldAnimate) {
         updatePrimaryColor(calculateColor(tab, themeColor), shouldAnimate);
         mIsDefaultColorUsed = isUsingDefaultColor(tab, themeColor);
         final @BrandedColorScheme int brandedColorScheme =
@@ -131,7 +139,7 @@ public class TopUiThemeColorProvider extends ThemeColorProvider {
         // This method is used not only for the current tab but also for
         // any given tab. Therefore it should not alter any class state.
         if (!isUsingTabThemeColor(tab, themeColor)) {
-            themeColor = SurfaceColorUpdateUtils.getDefaultThemeColor(mContext, tab.isIncognito());
+            themeColor = ChromeColors.getDefaultThemeColor(mContext, tab.isIncognito());
             if (isThemingAllowed(tab)) {
                 int customThemeColor = mActivityThemeColorSupplier.get();
                 if (customThemeColor != TabState.UNSPECIFIED_THEME_COLOR) {

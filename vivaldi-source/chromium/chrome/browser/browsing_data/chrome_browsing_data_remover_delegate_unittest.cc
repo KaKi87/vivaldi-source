@@ -63,6 +63,8 @@
 #include "chrome/browser/media/webrtc/media_device_salt_service_factory.h"
 #include "chrome/browser/password_manager/account_password_store_factory.h"
 #include "chrome/browser/password_manager/profile_password_store_factory.h"
+#include "chrome/browser/payments/browser_binding/browser_bound_key_deleter_service_factory.h"
+#include "chrome/browser/payments/browser_binding/mock_browser_bound_key_deleter_service.h"
 #include "chrome/browser/permissions/permission_actions_history_factory.h"
 #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
@@ -205,6 +207,7 @@
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/origin_trials/scoped_test_origin_trial_policy.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/favicon_size.h"
@@ -220,8 +223,6 @@
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_test_helper.h"
 #include "components/password_manager/core/browser/split_stores_and_local_upm.h"
-#include "components/payments/content/browser_binding/browser_bound_keys_deleter_factory.h"
-#include "components/payments/content/browser_binding/mock_browser_bound_keys_deleter.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #else
 #include "base/task/current_thread.h"
@@ -3585,6 +3586,90 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest, ClearPermissionPromptCounts) {
   }
 }
 
+TEST_F(ChromeBrowsingDataRemoverDelegateTest, ClearPermissionHeuristicData) {
+  base::test::ScopedFeatureList features;
+  features.InitWithFeatures(
+      {blink::features::kGeolocationElement,
+       permissions::features::kPermissionHeuristicAutoGrant},
+      {});
+  constexpr int kHeuristicGrantThreshold = 3;
+  auto* history = PermissionActionsHistoryFactory::GetForProfile(GetProfile());
+  ContentSettingsType permission = ContentSettingsType::GEOLOCATION;
+
+  std::unique_ptr<BrowsingDataFilterBuilder> filter_builder_1(
+      BrowsingDataFilterBuilder::Create(
+          BrowsingDataFilterBuilder::Mode::kDelete));
+  filter_builder_1->AddRegisterableDomain(kTestRegisterableDomain1);
+
+  std::unique_ptr<BrowsingDataFilterBuilder> filter_builder_2(
+      BrowsingDataFilterBuilder::Create(
+          BrowsingDataFilterBuilder::Mode::kPreserve));
+  filter_builder_2->AddRegisterableDomain(kTestRegisterableDomain1);
+
+  const GURL kOrigin1("http://host1.com:1");
+  const GURL kOrigin2("http://host2.com:1");
+  {
+    // Test REMOVE_HISTORY.
+    EXPECT_FALSE(history->RecordTemporaryGrant(kOrigin1, permission));
+
+    for (int i = 0; i < kHeuristicGrantThreshold; ++i) {
+      history->RecordTemporaryGrant(kOrigin2, permission);
+    }
+
+    BlockUntilOriginDataRemoved(AnHourAgo(), base::Time::Max(),
+                                constants::DATA_TYPE_SITE_USAGE_DATA,
+                                std::move(filter_builder_1));
+
+    // kOrigin1 should be gone, but kOrigin2 remains.
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_EQ(3,
+              history->GetTemporaryGrantCountForTesting(kOrigin2, permission));
+    EXPECT_TRUE(history->CheckHeuristicallyAutoGranted(kOrigin2, permission));
+
+    BlockUntilBrowsingDataRemoved(AnHourAgo(), base::Time::Max(),
+                                  constants::DATA_TYPE_HISTORY, false);
+
+    // Everything should be gone.
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_FALSE(history->CheckHeuristicallyAutoGranted(kOrigin1, permission));
+    EXPECT_FALSE(history->CheckHeuristicallyAutoGranted(kOrigin2, permission));
+  }
+  {
+    // Test REMOVE_SITE_DATA.
+    EXPECT_FALSE(history->RecordTemporaryGrant(kOrigin1, permission));
+
+    for (int i = 0; i < kHeuristicGrantThreshold; ++i) {
+      history->RecordTemporaryGrant(kOrigin2, permission);
+    }
+    EXPECT_TRUE(history->RecordTemporaryGrant(kOrigin2, permission));
+    BlockUntilOriginDataRemoved(AnHourAgo(), base::Time::Max(),
+                                constants::DATA_TYPE_SITE_USAGE_DATA,
+                                std::move(filter_builder_2));
+
+    // kOrigin2 should be gone, but kOrigin1 remains.
+    EXPECT_EQ(1,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin2, permission));
+    EXPECT_FALSE(history->CheckHeuristicallyAutoGranted(kOrigin2, permission));
+
+    BlockUntilBrowsingDataRemoved(AnHourAgo(), base::Time::Max(),
+                                  constants::DATA_TYPE_SITE_USAGE_DATA, false);
+
+    // Everything should be gone.
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_EQ(0,
+              history->GetTemporaryGrantCountForTesting(kOrigin1, permission));
+    EXPECT_FALSE(history->CheckHeuristicallyAutoGranted(kOrigin1, permission));
+    EXPECT_FALSE(history->CheckHeuristicallyAutoGranted(kOrigin2, permission));
+  }
+}
+
 // Test that the remover clears language model data (normally added by the
 // LanguageDetectionDriver).
 TEST_F(ChromeBrowsingDataRemoverDelegateTest,
@@ -4458,27 +4543,26 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTest, ClearNewTabPageLocalStorage) {
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-#if BUILDFLAG(IS_ANDROID)
 // Verify that clearing cookies will also trigger removing invalid browser bound
 // keys.
 TEST_F(ChromeBrowsingDataRemoverDelegateTest,
-       ClearInvalidBrowserBoundKeysForSecurePaymentConfirmation) {
-  auto* mock_browser_bound_keys_deleter = static_cast<
-      payments::MockBrowserBoundKeyDeleter*>(
-      payments::BrowserBoundKeyDeleterFactory::GetInstance()
-          ->SetTestingFactoryAndUse(
-              GetProfile(),
-              base::BindOnce([](content::BrowserContext*)
-                                 -> std::unique_ptr<KeyedService> {
-                return std::make_unique<payments::MockBrowserBoundKeyDeleter>();
-              })));
+       ClearInvalidBrowserBoundKeyForSecurePaymentConfirmation) {
+  auto* mock_browser_bound_key_deleter =
+      static_cast<payments::MockBrowserBoundKeyDeleterService*>(
+          payments::BrowserBoundKeyDeleterServiceFactory::GetInstance()
+              ->SetTestingFactoryAndUse(
+                  GetProfile(),
+                  base::BindOnce([](content::BrowserContext*)
+                                     -> std::unique_ptr<KeyedService> {
+                    return std::make_unique<
+                        payments::MockBrowserBoundKeyDeleterService>();
+                  })));
 
-  EXPECT_CALL(*mock_browser_bound_keys_deleter, RemoveInvalidBBKs());
+  EXPECT_CALL(*mock_browser_bound_key_deleter, RemoveInvalidBBKs());
   BlockUntilBrowsingDataRemoved(base::Time(), base::Time::Max(),
                                 content::BrowsingDataRemover::DATA_TYPE_COOKIES,
                                 false);
 }
-#endif  // BUILDFLAG(IS_ANDROID)
 
 class ChromeBrowsingDataRemoverDelegateOriginTrialsTest
     : public ChromeBrowsingDataRemoverDelegateTest {
@@ -4809,7 +4893,7 @@ TEST_F(ChromeBrowsingDataRemoverDelegateTpcdMetadataTest,
   std::unique_ptr<BrowsingDataFilterBuilder> filter(
       BrowsingDataFilterBuilder::Create(
           BrowsingDataFilterBuilder::Mode::kPreserve));
-  filter->AddRegisterableDomain(GURL(primary_pattern_spec).host());
+  filter->AddRegisterableDomain(GURL(primary_pattern_spec).GetHost());
   ASSERT_TRUE(filter->MatchesMostOriginsAndDomains());
   BlockUntilOriginDataRemoved(base::Time(), base::Time::Max(),
                               content::BrowsingDataRemover::DATA_TYPE_COOKIES,

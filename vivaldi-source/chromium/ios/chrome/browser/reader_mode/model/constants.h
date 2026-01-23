@@ -45,7 +45,9 @@ enum class ReaderModeHeuristicResult {
   kReaderModeNotEligibleContentOnly = 2,
   kReaderModeNotEligibleContentLength = 3,
   kReaderModeNotEligibleContentAndLength = 4,
-  kMaxValue = kReaderModeNotEligibleContentAndLength,
+  kReaderModeNotEligibleOptimizationGuideIneligible = 5,
+  kReaderModeNotEligibleOptimizationGuideUnknown = 6,
+  kMaxValue = kReaderModeNotEligibleOptimizationGuideUnknown,
 };
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:ReaderModeHeuristicResult)
 
@@ -134,16 +136,21 @@ enum class ReaderModeDistillerOutcome {
 // LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:ReaderModeDistillerOutcome)
 
 // Reasons for which Reader mode can be deactivated.
+// Recorded for IOS.ReaderMode.DeactivationReason. Entries should not be
+// renumbered and numeric values should never be reused.
+// LINT.IfChange(ReaderModeDeactivationReason)
 enum class ReaderModeDeactivationReason {
   // User deactivated Reader mode using the UI.
-  kUserDeactivated,
+  kUserDeactivated = 0,
   // Reader mode was deactivated because a navigation occurred.
-  kNavigationDeactivated,
+  kNavigationDeactivated = 1,
   // Reader mode was deactivated because distillation failed.
-  kDistillationFailureDeactivated,
+  kDistillationFailureDeactivated = 2,
   // Reader mode was deactivated because the host tab was destroyed.
-  kHostTabDestructionDeactivated,
+  kHostTabDestructionDeactivated = 3,
+  kMaxValue = kHostTabDestructionDeactivated,
 };
+// LINT.ThenChange(/tools/metrics/histograms/metadata/ios/enums.xml:ReaderModeDeactivationReason)
 
 // Default delay in seconds for triggering Reader Mode distiller heuristic.
 // This allows the page to react to the DOM loading and ensures minimal
@@ -157,6 +164,9 @@ inline constexpr base::TimeDelta kReaderModeDistillationTimeout =
 
 // Histogram name for Reader Mode state.
 extern const char kReaderModeStateHistogram[];
+
+// Histogram name for Reader Mode deactivation reason.
+extern const char kReaderModeDeactivationReasonHistogram[];
 
 // Histogram name for Reader Mode heuristic result.
 extern const char kReaderModeHeuristicResultHistogram[];
@@ -190,6 +200,10 @@ extern const char kReaderModeAccessPointHistogram[];
 
 // Histogram name for Reader Mode access point with application mode.
 extern const char kReaderModeAccessPointWithModeHistogram[];
+
+// Deprecated. Pref holding the latest timestamps of when the user has
+// interacted with Reading Mode.
+extern const char kReaderModeRecentlyUsedTimestampsPref[];
 
 // Returns the Reader mode symbol name.
 NSString* GetReaderModeSymbolName();

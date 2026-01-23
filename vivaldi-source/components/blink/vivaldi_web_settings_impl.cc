@@ -22,6 +22,10 @@ void WebSettingsImpl::SetAllowTabCycleIntoUI(
   settings_->SetAllowTabCycleIntoUI(allow_tab_cycle_from_webpage_into_ui);
 }
 
+void WebSettingsImpl::SetHasVivaldiFollowerTab(bool has_follower_tab) {
+  settings_->SetHasVivaldiFollowerTab(has_follower_tab);
+}
+
 void WebSettingsImpl::SetVivaldiShowContextMenuOnDoubleClick(bool value) {
   settings_->SetVivaldiShowContextMenuOnDoubleClick(value);
 }

@@ -369,6 +369,7 @@ void TranslateManager::TranslatePage(const std::string& original_source_lang,
     RecordTranslateEvent(
         metrics::TranslateEventProto::USER_CONTEXT_MENU_TRANSLATE);
   }
+
 #if !BUILDFLAG(IS_ANDROID) // ref VAB-7372
   if (source_lang == target_lang) {
     // If the languages are the same, try the translation using the unknown
@@ -381,6 +382,7 @@ void TranslateManager::TranslatePage(const std::string& original_source_lang,
     source_lang = language_detection::kUnknownLanguageCode;
   }
 #endif
+
   // Trigger the "translating now" UI.
   translate_client_->ShowTranslateUI(
       translate::TRANSLATE_STEP_TRANSLATING, source_lang, target_lang,
@@ -395,7 +397,7 @@ void TranslateManager::TranslatePage(const std::string& original_source_lang,
       DoTranslatePage(script, source_lang, target_lang);
       return;
     }
-  } else {
+  } else { // Vivaldi
   TranslateScript* script = TranslateDownloadManager::GetInstance()->script();
   DCHECK(script != nullptr);
 
@@ -412,7 +414,7 @@ void TranslateManager::TranslatePage(const std::string& original_source_lang,
                      GetWeakPtr(), source_lang, target_lang);
 
   script->Request(std::move(callback), translate_driver_->IsIncognito());
-  }
+  } // End Vivladi
 }
 
 void TranslateManager::RevertTranslation() {
@@ -494,6 +496,7 @@ void TranslateManager::PageTranslated(const std::string& source_lang,
   if ((error_type == TranslateErrors::NONE) &&
       source_lang != language_detection::kUnknownLanguageCode &&
       !TranslateDownloadManager::IsSupportedLanguage(source_lang)) {
+
     // Vivaldi:
     // This is not an error condition here since we trust
     // the Vivaldi Translate server to auto-detect source language.

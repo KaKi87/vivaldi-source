@@ -15,6 +15,7 @@ import android.graphics.Region;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
+import android.os.Handler;
 import android.os.Looper;
 import android.util.AttributeSet;
 import android.view.Gravity;
@@ -40,10 +41,6 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
-import org.chromium.chrome.browser.browser_controls.TopControlLayer;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker.TopControlType;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker.TopControlVisibility;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
@@ -70,6 +67,7 @@ import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.Sw
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.ViewUtils;
+import org.chromium.ui.resources.Resource;
 import org.chromium.ui.resources.dynamics.ViewResourceAdapter;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.ui.widget.OptimizedFrameLayout;
@@ -85,7 +83,10 @@ import org.chromium.build.BuildConfig;
 /** Layout for the browser controls (omnibox, menu, tab strip, etc..). */
 @NullMarked
 public class ToolbarControlContainer extends OptimizedFrameLayout
-        implements ControlContainer, AppHeaderObserver, TopControlLayer, Observer {
+        implements ControlContainer, AppHeaderObserver, Observer {
+    private static final double SAMPLE_STALE_CAPTURE_PROBABILITY = 0.01;
+    private static boolean sForceStaleCaptureHistogram;
+
     private boolean mIncognito;
     private boolean mMidVisibilityToggle;
     private boolean mIsCompositorInitialized;
@@ -98,7 +99,8 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     private @Nullable OnDragListener mToolbarContainerDragListener;
 
     private boolean mIsAppInUnfocusedDesktopWindow;
-    private final int mToolbarLayoutHeight;
+    private int mToolbarLayoutHeight;
+    private final Rect mToolbarCaptureSize = new Rect();
 
     private View mToolbarHairline;
     private ViewGroup mToolbarView;
@@ -106,9 +108,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     private @Nullable View mLocationBarView;
     private final ObserverList<TouchEventObserver> mTouchEventObservers = new ObserverList<>();
     private final Callback<Boolean> mOnXrSpaceModeChanged = this::onXrSpaceModeChanged;
+    private final Callback<Resource> mOnResourceCaptureCallback = this::onToolbarCaptureUpdated;
     private @Nullable ObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
     private @Nullable ObservableSupplierImpl<Integer> mHeightChangedSupplier;
-    private @Nullable TopControlsStacker mTopControlsStacker;
     private ToolbarDataProvider mToolbarDataProvider;
 
     // Vivaldi
@@ -126,9 +128,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
      */
     public ToolbarControlContainer(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mToolbarLayoutHeight =
-                getResources().getDimensionPixelSize(R.dimen.toolbar_height_no_shadow);
-        mTabStripHeight = context.getResources().getDimension(R.dimen.tab_strip_height);
+        mTabStripHeight = context.getResources().getDimension(R.dimen.tab_strip_height); // Vivaldi
     }
 
     @Override
@@ -179,9 +179,10 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
     @Override
     @Initializer
-    public void initWithToolbar(int toolbarLayoutId) {
+    public void initWithToolbar(int toolbarLayoutId, int toolbarLayoutHeightResId) {
         try (TraceEvent te = TraceEvent.scoped("ToolbarControlContainer.initWithToolbar")) {
             mToolbarContainer = findViewById(R.id.toolbar_container);
+            mToolbarLayoutHeight = getResources().getDimensionPixelSize(toolbarLayoutHeightResId);
             ViewStub toolbarStub = findViewById(R.id.toolbar_stub);
             toolbarStub.setLayoutResource(toolbarLayoutId);
             View toolbar = toolbarStub.inflate();
@@ -326,6 +327,54 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         mAppHeaderState = newState;
     }
 
+    // implements TabStripTransitionDelegate
+    @Override
+    public void onHeightChanged(int tabStripHeight, boolean applyScrimOverlay) {
+        mutateToolbarLayoutParams().topMargin = tabStripHeight;
+
+        int toolbarAndTabStripHeight = tabStripHeight + getToolbarHeight();
+        mutateHairlineLayoutParams().topMargin = toolbarAndTabStripHeight;
+
+        // Update the find toolbar view or view stub. We only do this for tablets
+        // (find_toolbar_tablet_stub) since find_toolbar_stub is used for phone only.
+        // TODO (crbug.com/1517059): Let FindToolbar itself decide how to set the top margin.
+        {
+            View findToolbar = findViewById(R.id.find_toolbar);
+            if (findToolbar == null) {
+                findToolbar = findViewById(R.id.find_toolbar_tablet_stub);
+            }
+            if (findToolbar == null) return;
+
+            // Tablet FIP is anchored at the bottom of the toolbar.
+            ViewGroup.MarginLayoutParams layoutParams =
+                    (ViewGroup.MarginLayoutParams) findToolbar.getLayoutParams();
+            layoutParams.topMargin = toolbarAndTabStripHeight;
+            findToolbar.setLayoutParams(layoutParams);
+        }
+    }
+
+    @Override
+    public void onHeightTransitionFinished(boolean success) {
+        if (!success) return;
+
+        // Remeasure the control container in the next layout pass if needed. The post is needed due
+        // to the existence of ToolbarProgressBar adjusting its position based on ToolbarLayout's
+        // layout pass. The control container needs to remeasure based on the new margin in order to
+        // retain the up-to-date size with size reduction for the tab strip.
+
+        // This is not done during the transition as it could cause visual glitches.
+        new Handler()
+                .post(
+                        () -> {
+                            setMinimumHeight(
+                                    mToolbar.getTabStripHeight()
+                                            + getToolbarHeight()
+                                            + getToolbarHairlineHeight());
+                            ViewUtils.requestLayout(
+                                    this, "ToolbarControlContainer.onHeightTransitionFinished");
+                        });
+    }
+
     private void maybeUpdateTempTabStripDrawableBackground(
             boolean incognito, @Nullable AppHeaderState appHeaderState) {
         // Vivaldi ref. VAB-11909.
@@ -367,10 +416,12 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
 
         // When app header state available, set the state accordingly.
         if (appHeaderState != null && appHeaderState.isInDesktopWindow()) {
+            int topInset =
+                    Math.max(0, appHeaderState.getAppHeaderHeight() - mToolbar.getTabStripHeight());
             backgroundDrawable.setLayerInset(
                     backgroundTabImageIndex,
                     appHeaderState.getLeftPadding(),
-                    0,
+                    topInset,
                     appHeaderState.getRightPadding(),
                     0);
         }
@@ -389,25 +440,22 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
      *     captures are stale and not able to be taken.
      * @param layoutStateProviderSupplier Used to check the current layout type.
      * @param fullscreenManager Used to check whether in fullscreen.
-     * @param topControlsStacker The TopControlsStacker for |this| to query layer states.
      */
     @Initializer
     public void setPostInitializationDependencies(
             Toolbar toolbar,
             ViewGroup toolbarView,
             boolean isIncognito,
-            ObservableSupplier<Integer> constraintsSupplier,
+            ObservableSupplier<@Nullable Integer> constraintsSupplier,
             Supplier<@Nullable Tab> tabSupplier,
             ObservableSupplier<Boolean> compositorInMotionSupplier,
             BrowserStateBrowserControlsVisibilityDelegate
                     browserStateBrowserControlsVisibilityDelegate,
             OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier,
             FullscreenManager fullscreenManager,
-            TopControlsStacker topControlsStacker,
             ToolbarDataProvider toolbarDataProvider) {
         mToolbar = toolbar;
         mIncognito = isIncognito;
-        mTopControlsStacker = topControlsStacker;
         mToolbarDataProvider = toolbarDataProvider;
         mToolbarDataProvider.addToolbarDataProviderObserver(this);
 
@@ -441,6 +489,11 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             lp.topMargin = mToolbar.getTabStripHeight() + mToolbarLayoutHeight;
             mToolbarHairline.setLayoutParams(lp);
         }
+
+        assert mToolbarContainer.getResourceAdapter() != null;
+        mToolbarContainer
+                .getResourceAdapter()
+                .addOnResourceReadyCallback(mOnResourceCaptureCallback);
     }
 
     @Override
@@ -498,7 +551,8 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
      *
      * @param toolbarContainerDragListener Listener to set.
      */
-    public void setToolbarContainerDragListener(OnDragListener toolbarContainerDragListener) {
+    public void setToolbarContainerDragListener(
+            @Nullable OnDragListener toolbarContainerDragListener) {
         mToolbarContainerDragListener = toolbarContainerDragListener;
         mToolbarContainer.setOnDragListener(mToolbarContainerDragListener);
     }
@@ -531,7 +585,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         @Initializer
         public void setPostInitializationDependencies(
                 Toolbar toolbar,
-                ObservableSupplier<Integer> constraintsSupplier,
+                ObservableSupplier<@Nullable Integer> constraintsSupplier,
                 Supplier<@Nullable Tab> tabSupplier,
                 ObservableSupplier<Boolean> compositorInMotionSupplier,
                 BrowserStateBrowserControlsVisibilityDelegate
@@ -640,7 +694,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         @Initializer
         public void setPostInitializationDependencies(
                 Toolbar toolbar,
-                ObservableSupplier<Integer> constraintsSupplier,
+                ObservableSupplier<@Nullable Integer> constraintsSupplier,
                 Supplier<@Nullable Tab> tabSupplier,
                 ObservableSupplier<Boolean> compositorInMotionSupplier,
                 BrowserStateBrowserControlsVisibilityDelegate
@@ -809,17 +863,22 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             }
         }
 
+        private boolean shouldSampleStaleCaptureHistogram() {
+            return sForceStaleCaptureHistogram || Math.random() < SAMPLE_STALE_CAPTURE_PROBABILITY;
+        }
+
         public void onContentViewScrollingStateChanged(boolean scrolling) {
             if (scrolling
                     && mControlsToken == TokenHolder.INVALID_TOKEN
-                    && !mConstraintsObserver.areControlsLocked()) {
+                    && !mConstraintsObserver.areControlsLocked()
+                    && shouldSampleStaleCaptureHistogram()) {
                 boolean isCaptureStale =
                         !mToolbarDataProvider
                                 .getUrlBarData()
                                 .displayText
                                 .equals(mMostRecentlyCapturedUrl);
                 RecordHistogram.recordBooleanHistogram(
-                        "Android.Toolbar.StaleCapturedUrlOnScroll", isCaptureStale);
+                        "Android.Toolbar.StaleCapturedUrlOnScroll.Subsampled", isCaptureStale);
             }
         }
 
@@ -859,7 +918,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 }
             } else if (Boolean.TRUE.equals(compositorInMotion)
                     && super.isDirty()
-                    && (ChromeFeatureList.isEnabled(ChromeFeatureList.TOOLBAR_STALE_CAPTURE_BUG_FIX)
+                    && (ChromeFeatureList.sToolbarStaleCaptureBugFix.isEnabled()
                             || mControlContainerIsVisibleSupplier.getAsBoolean())) {
                 CaptureReadinessResult captureReadinessResult = mToolbar.isReadyForTextureCapture();
                 CaptureReadinessResult.logCaptureReasonFromResult(captureReadinessResult);
@@ -950,6 +1009,24 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         return mToolbarContainer.getVisibility() == VISIBLE;
     }
 
+    private void onToolbarCaptureUpdated(Resource toolbarCaptureResource) {
+        Rect newSize = toolbarCaptureResource.getBitmapSize();
+        if (mToolbarCaptureSize.equals(newSize)) return;
+
+        mToolbarCaptureSize.set(toolbarCaptureResource.getBitmapSize());
+        if (mToolbar != null) {
+            mToolbar.onCaptureSizeUpdated();
+        }
+    }
+
+    /**
+     * @return The height of the screenshot of the toolbar (may include the tabstrip on large form
+     *     factors.)
+     */
+    public int getToolbarCaptureHeight() {
+        return mToolbarCaptureSize.height();
+    }
+
     private class SwipeGestureListenerImpl extends SwipeGestureListener {
         public SwipeGestureListenerImpl(Context context, SwipeHandler handler) {
             super(context, handler);
@@ -972,6 +1049,10 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         mToolbar = testToolbar;
     }
 
+    void setToolbarHairlineForTesting(View hairline) {
+        mToolbarHairline = hairline;
+    }
+
     ToolbarViewResourceCoordinatorLayout getToolbarContainerForTesting() {
         return mToolbarContainer;
     }
@@ -988,35 +1069,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         setVisibility(Boolean.TRUE.equals(fullSpaceMode) ? View.INVISIBLE : View.VISIBLE);
     }
 
-    // TopControlLayer implementation:
-
-    @Override
-    public @TopControlType int getTopControlType() {
-        return TopControlType.TOOLBAR;
-    }
-
-    @Override
-    public int getTopControlHeight() {
-        return getToolbarHeight();
-    }
-
-    @Override
-    public int getTopControlVisibility() {
-        // TODO(crbug.com/417238089): Possibly add way to notify stacker of visibility changes.
-        return isToolbarContainerFullyVisible()
-                ? TopControlVisibility.VISIBLE
-                : TopControlVisibility.HIDDEN;
-    }
-
-    @Override
-    public void onTopControlLayerHeightChanged(int topControlsHeight, int topControlsMinHeight) {
-        // TODO(crbug.com/417238089): This may be better placed in the hairline view itself.
-        // If this layer is at the bottom, the hairline should be visible.
-        mToolbarHairline.setVisibility(
-                mTopControlsStacker != null
-                                && mTopControlsStacker.isLayerAtBottom(getTopControlType())
-                        ? View.VISIBLE
-                        : View.GONE);
+    static Runnable forceStaleCaptureHistogramForTesting() {
+        sForceStaleCaptureHistogram = true;
+        return () -> sForceStaleCaptureHistogram = false;
     }
 
     /** Vivaldi */

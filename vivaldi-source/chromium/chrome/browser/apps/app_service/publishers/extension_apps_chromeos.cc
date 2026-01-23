@@ -200,7 +200,7 @@ std::vector<base::SafeBaseName> GetBaseNamesForIntent(
   std::vector<base::SafeBaseName> base_names;
   for (const auto& file : intent.files) {
     std::optional<base::SafeBaseName> optional_base_name =
-        base::SafeBaseName::Create(file->url.path());
+        base::SafeBaseName::Create(file->url.GetPath());
 
     // Launch requires that every file have a base name.
     if (!optional_base_name.has_value() ||
@@ -434,8 +434,7 @@ void ExtensionAppsChromeOs::GetMenuModel(
   if (!is_platform_app) {
     CreateOpenNewSubmenu(
         extensions::GetLaunchType(extensions::ExtensionPrefs::Get(profile()),
-                                  extension) ==
-                extensions::LaunchType::LAUNCH_TYPE_WINDOW
+                                  extension) == extensions::LaunchType::kWindow
             ? IDS_APP_LIST_CONTEXT_MENU_NEW_WINDOW
             : IDS_APP_LIST_CONTEXT_MENU_NEW_TAB,
         menu_items);

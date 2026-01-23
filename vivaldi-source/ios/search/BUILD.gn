@@ -1,0 +1,22 @@
+import("//ios/web/public/js_messaging/optimize_ts.gni")
+
+optimize_ts("vivaldi_searchable_form_js") {
+  sources = [ "resources/vivaldi_searchable_form.ts" ]
+  deps = [
+    "//ios/web/public/js_messaging:gcrweb",
+    "//ios/web/public/js_messaging:util_scripts",
+  ]
+}
+
+source_set("vivaldi_add_search_engine_feature") {
+  sources = [
+    "vivaldi_add_search_engine_java_script_feature.h",
+    "vivaldi_add_search_engine_java_script_feature.mm",
+  ]
+  deps = [
+    ":vivaldi_searchable_form_js",
+    "//base",
+    "//ios/web/public",
+    "//ios/web/public/js_messaging",
+  ]
+}

@@ -12,6 +12,11 @@
 
 - (void)buildMenuWithBuilder:(id<UIMenuBuilder>)builder;
 
+// Vivaldi
+@optional
+- (void)buildSelectionlessMenuWithBuilder:(id<UIMenuBuilder>)builder;
+// End Vivaldi
+
 @end
 
 #endif  // IOS_WEB_COMMON_CRW_EDIT_MENU_BUILDER_H_

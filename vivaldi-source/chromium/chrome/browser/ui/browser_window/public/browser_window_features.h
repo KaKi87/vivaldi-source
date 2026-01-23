@@ -21,12 +21,14 @@ class GlicLegacySidePanelCoordinator;
 
 namespace tabs {
 class GlicActorTaskIconController;
+class GlicActorNudgeController;
 }  // namespace tabs
 #endif
 
 class ActorUiWindowController;
 
 class ActorBorderViewController;
+class ActorTaskListBubbleController;
 class BookmarkBarController;
 class BookmarksSidePanelCoordinator;
 class BreadcrumbManagerBrowserAgent;
@@ -43,12 +45,15 @@ class BrowserView;
 class BrowserWindowInterface;
 class ChromeLabsCoordinator;
 class ColorProviderBrowserHelper;
+class LocationBar;
 class CommentsSidePanelCoordinator;
 class ContentsBorderController;
+class ContextualTasksEphemeralButtonController;
 class CookieControlsBubbleCoordinator;
 class DataSharingBubbleController;
 class DesktopBrowserWindowCapabilities;
 class DevtoolsUIController;
+class EmbedderBrowserWindowFeatures;
 class ExtensionKeybindingRegistryViews;
 class ExclusiveAccessManager;
 class FindBarController;
@@ -58,6 +63,8 @@ class HistoryClustersSidePanelCoordinator;
 class HistorySidePanelCoordinator;
 class IncognitoClearBrowsingDataDialogCoordinator;
 class ImmersiveModeController;
+class IOSPromoController;
+class InitialWebUIManager;
 class LocationBarModel;
 class MemorySaverOptInIPHController;
 class PinnedToolbarActionsController;
@@ -66,7 +73,9 @@ class ReadingListSidePanelCoordinator;
 class RecentActivityBubbleCoordinator;
 class BrowserSelectFileDialogController;
 class ScrimViewController;
+class SearchboxContextData;
 class SidePanelCoordinator;
+class SidePanelRegistry;
 class SidePanelUI;
 class SigninViewController;
 class SplitViewIphController;
@@ -79,7 +88,9 @@ class ToastController;
 class ToastService;
 class TranslateBubbleController;
 class UpgradeNotificationController;
+class WebUIBrowserExclusiveAccessContext;
 class WebUIBrowserSidePanelUI;
+class ZoomBubbleCoordinator;
 
 class BrowserWindow; // Vivaldi
 namespace vivaldi {
@@ -135,6 +146,12 @@ namespace commerce {
 class ProductSpecificationsEntryPointController;
 }  // namespace commerce
 
+namespace contextual_tasks {
+class ActiveTaskContextProvider;
+class ContextualTasksSidePanelCoordinator;
+class EntryPointEligibilityManager;
+}  // namespace contextual_tasks
+
 namespace tabs {
 class GlicNudgeController;
 }  // namespace tabs
@@ -186,6 +203,11 @@ namespace web_app {
 class AppBrowserController;
 }  // namespace web_app
 
+namespace omnibox {
+class AiModePageActionController;
+class OmniboxPopupCloser;
+}  // namespace omnibox
+
 namespace vivaldi {
   class SidePanelCoordinator;
 }  // namespace vivaldi
@@ -221,15 +243,6 @@ class BrowserWindowFeatures {
   // Called exactly once to tear down state that depends on the window object.
   void TearDownPreBrowserWindowDestruction();
 
-  // Public accessors for features:
-  web_app::AppBrowserController* app_browser_controller() {
-    return app_browser_controller_.get();
-  }
-
-  const web_app::AppBrowserController* app_browser_controller() const {
-    return app_browser_controller_.get();
-  }
-
   BrowserActions* browser_actions() { return browser_actions_.get(); }
 
   chrome::BrowserCommandController* browser_command_controller() {
@@ -243,6 +256,11 @@ class BrowserWindowFeatures {
 
   ChromeLabsCoordinator* chrome_labs_coordinator() {
     return chrome_labs_coordinator_.get();
+  }
+
+  contextual_tasks::ActiveTaskContextProvider*
+  contextual_tasks_active_task_context_provider() {
+    return contextual_tasks_active_task_context_provider_.get();
   }
 
   media_router::CastBrowserController* cast_browser_controller() {
@@ -264,6 +282,10 @@ class BrowserWindowFeatures {
 #if BUILDFLAG(ENABLE_GLIC)
   glic::GlicLegacySidePanelCoordinator* glic_side_panel_coordinator() {
     return glic_side_panel_coordinator_.get();
+  }
+
+  glic::GlicIphController* glic_iph_controller() {
+    return glic_iph_controller_.get();
   }
 #endif
 
@@ -393,6 +415,12 @@ class BrowserWindowFeatures {
   }
 #endif
 
+  // Returns the LocationBar for this browser window. Currently delegates to
+  // BrowserWindow::GetLocationBar() via downcast, but should eventually become
+  // an owned member of BrowserWindowFeatures.
+  LocationBar* location_bar();
+  const LocationBar* location_bar() const;
+
   ReadingListSidePanelCoordinator* reading_list_side_panel_coordinator() {
     return reading_list_side_panel_coordinator_.get();
   }
@@ -447,6 +475,10 @@ class BrowserWindowFeatures {
   // Returns true if a FindBarController exists for this browser window.
   bool HasFindBarController() const;
 
+  WebUIBrowserExclusiveAccessContext* webui_browser_exclusive_access_context() {
+    return webui_browser_exclusive_access_context_.get();
+  }
+
   ExclusiveAccessManager* exclusive_access_manager() {
     return exclusive_access_manager_.get();
   }
@@ -460,16 +492,11 @@ class BrowserWindowFeatures {
     return history_clusters_side_panel_coordinator_.get();
   }
 
-  ImmersiveModeController* immersive_mode_controller() {
-    return immersive_mode_controller_.get();
-  }
-  const ImmersiveModeController* immersive_mode_controller() const {
-    return immersive_mode_controller_.get();
-  }
-
+  #ifndef VIVALDI_BUILD
   UpgradeNotificationController* upgrade_notification_controller() {
     return upgrade_notification_controller_.get();
   }
+  #endif
 
   BrowserContentSettingBubbleModelDelegate*
   content_setting_bubble_model_delegate() {
@@ -483,6 +510,14 @@ class BrowserWindowFeatures {
   }
 
   FindBarOwner* find_bar_owner() { return find_bar_owner_.get(); }
+
+  SearchboxContextData* searchbox_context_data() {
+    return searchbox_context_data_.get();
+  }
+
+  omnibox::OmniboxPopupCloser* omnibox_popup_closer() {
+    return omnibox_popup_closer_.get();
+  }
 
   static ui::UserDataFactoryWithOwner<BrowserWindowInterface>&
   GetUserDataFactoryForTesting();
@@ -528,9 +563,16 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<ImmersiveModeController> immersive_mode_controller_;
 
+  std::unique_ptr<WebUIBrowserExclusiveAccessContext>
+      webui_browser_exclusive_access_context_;
+
   std::unique_ptr<ExclusiveAccessManager> exclusive_access_manager_;
 
   std::unique_ptr<FullscreenControlHost> fullscreen_control_host_;
+
+  std::unique_ptr<InitialWebUIManager> initial_web_ui_manager_;
+
+  std::unique_ptr<IOSPromoController> ios_promo_controller_;
 
   std::unique_ptr<lens::LensOverlayEntryPointController>
       lens_overlay_entry_point_controller_;
@@ -569,6 +611,8 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<ScrimViewController> scrim_view_controller_;
 
+  std::unique_ptr<SidePanelRegistry> side_panel_registry_;
+
   std::unique_ptr<SidePanelCoordinator> side_panel_coordinator_;
 
   std::unique_ptr<WebUIBrowserSidePanelUI> webui_browser_side_panel_ui_;
@@ -597,6 +641,8 @@ class BrowserWindowFeatures {
   std::unique_ptr<DownloadToolbarUIController> download_toolbar_ui_controller_;
 #endif
 
+  std::unique_ptr<ZoomBubbleCoordinator> zoom_bubble_coordinator_;
+
   std::unique_ptr<ActorUiWindowController> actor_ui_window_controller_;
 
   std::unique_ptr<ActorBorderViewController> actor_border_view_controller_;
@@ -612,16 +658,31 @@ class BrowserWindowFeatures {
       session_restore_infobar_controller_;
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
+  std::unique_ptr<contextual_tasks::EntryPointEligibilityManager>
+      contextual_tasks_entry_point_eligibility_manager_;
+
+  std::unique_ptr<ContextualTasksEphemeralButtonController>
+      contextual_tasks_ephemeral_button_controller_;
+
   std::unique_ptr<tabs::GlicNudgeController> glic_nudge_controller_;
 
 #if BUILDFLAG(ENABLE_GLIC)
   std::unique_ptr<tabs::GlicActorTaskIconController>
       glic_actor_task_icon_controller_;
+  std::unique_ptr<tabs::GlicActorNudgeController> glic_actor_nudge_controller_;
+  std::unique_ptr<ActorTaskListBubbleController>
+      actor_task_list_bubble_controller_;
   std::unique_ptr<glic::GlicButtonController> glic_button_controller_;
   std::unique_ptr<glic::GlicIphController> glic_iph_controller_;
   std::unique_ptr<glic::GlicLegacySidePanelCoordinator>
       glic_side_panel_coordinator_;
 #endif
+
+  std::unique_ptr<contextual_tasks::ContextualTasksSidePanelCoordinator>
+      contextual_tasks_side_panel_coordinator_;
+
+  std::unique_ptr<contextual_tasks::ActiveTaskContextProvider>
+      contextual_tasks_active_task_context_provider_;
 
   std::unique_ptr<tab_groups::MostRecentSharedTabUpdateStore>
       most_recent_shared_tab_update_store_;
@@ -695,8 +756,10 @@ class BrowserWindowFeatures {
   std::unique_ptr<HistoryClustersSidePanelCoordinator>
       history_clusters_side_panel_coordinator_;
 
+#ifndef VIVALDI_BUILD
   std::unique_ptr<UpgradeNotificationController>
       upgrade_notification_controller_;
+#endif
 
   // Helper which implements the ContentSettingBubbleModel interface.
   std::unique_ptr<BrowserContentSettingBubbleModelDelegate>
@@ -739,6 +802,20 @@ class BrowserWindowFeatures {
   raw_ptr<ui::AcceleratorProvider> accelerator_provider_;
 
   std::unique_ptr<FindBarOwner> find_bar_owner_;
+
+#ifndef VIVALDI_BUILD
+  std::unique_ptr<omnibox::AiModePageActionController>
+      ai_mode_page_action_controller_;
+#endif
+
+  std::unique_ptr<SearchboxContextData> searchbox_context_data_;
+
+  std::unique_ptr<omnibox::OmniboxPopupCloser> omnibox_popup_closer_;
+
+  // Keep this member last to ensure embedder features are torn down first, in
+  // reverse order of initialization.
+  std::unique_ptr<EmbedderBrowserWindowFeatures>
+      embedder_browser_window_features_;
 
   // Vivaldi
   std::unique_ptr<vivaldi::SidePanelCoordinator> vivaldi_side_panel_coordinator_;

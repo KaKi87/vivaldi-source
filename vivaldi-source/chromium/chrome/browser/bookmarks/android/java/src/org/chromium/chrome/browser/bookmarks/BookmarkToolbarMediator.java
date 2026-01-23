@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.bookmarks;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
 
+
 import android.content.Context;
 import android.content.res.Resources;
 import android.text.TextUtils;
@@ -40,9 +41,12 @@ import java.util.function.BooleanSupplier;
 // Vivaldi
 import android.content.Intent;
 import androidx.appcompat.app.AppCompatActivity;
-
+import org.chromium.base.ContextUtils;
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+
+import static org.vivaldi.browser.bookmarks.VivaldiBookmarkExportHelper.EXPORT_BOOKMARKS_TO_FILE;
+import static org.vivaldi.browser.bookmarks.VivaldiBookmarkExportHelper.IMPORT_BOOKMARKS_FROM_FILE;
 // End Vivaldi
 
 /** Responsible for the business logic for the BookmarkManagerToolbar. */
@@ -115,6 +119,7 @@ class BookmarkToolbarMediator
         mContext = context;
         mProfile = profile;
         mModel = model;
+
         mModel.set(BookmarkToolbarProperties.MENU_ID_CLICKED_FUNCTION, this::onMenuIdClick);
         mDragReorderableRecyclerViewAdapter = dragReorderableRecyclerViewAdapter;
         mDragReorderableRecyclerViewAdapter.addDragListener(this);
@@ -225,7 +230,6 @@ class BookmarkToolbarMediator
             return true;
         } else if (id == R.id.selection_mode_move_menu_id) {
             List<BookmarkId> list = mSelectionDelegate.getSelectedItemsAsList();
-
             if (list.size() >= 1) {
                 if (BuildConfig.IS_VIVALDI) {
                     mBookmarkManagerOpener.startVivaldiFolderSelectActivity(
@@ -345,6 +349,31 @@ class BookmarkToolbarMediator
                     BookmarkDelegate.SortOrder.forNumber(BookmarkDelegate.
                             SortOrder.DATE.getNumber()));
             return true;
+        } else if (id == R.id.export_bookmarks) {
+            if (mContext instanceof AppCompatActivity) {
+                Intent chooseExportFileIntent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                chooseExportFileIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                chooseExportFileIntent.setType("text/html");
+                chooseExportFileIntent.putExtra(Intent.EXTRA_TITLE, "bookmarks.html");
+                if (chooseExportFileIntent.resolveActivity(
+                        ContextUtils.getApplicationContext().getPackageManager()) != null) {
+                    ((AppCompatActivity)mContext).startActivityForResult(chooseExportFileIntent,
+                            EXPORT_BOOKMARKS_TO_FILE);
+                }
+            return true;
+            }
+        } else if ( id == R.id.import_bookmarks) {
+            if (mContext instanceof AppCompatActivity) {
+                Intent chooseFileIntent = new Intent(Intent.ACTION_GET_CONTENT);
+                chooseFileIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                chooseFileIntent.setType("text/html");
+                if (chooseFileIntent.resolveActivity(
+                        ContextUtils.getApplicationContext().getPackageManager()) != null) {
+                    ((AppCompatActivity)mContext).startActivityForResult(chooseFileIntent,
+                            IMPORT_BOOKMARKS_FROM_FILE);
+                }
+            }
+            return true;
         }
 
         assert false : "Unhandled menu click.";
@@ -368,7 +397,6 @@ class BookmarkToolbarMediator
     public void onUiModeChanged(@BookmarkUiMode int mode) {
         mCurrentUiMode = mode;
 
-        // TODO(https://crbug.com/1439583): Update buttons.
         mModel.set(BookmarkToolbarProperties.BOOKMARK_UI_MODE, mode);
         if (mode == BookmarkUiMode.LOADING) {
             mModel.set(BookmarkToolbarProperties.NAVIGATION_BUTTON_STATE, NavigationButton.NONE);
@@ -402,6 +430,11 @@ class BookmarkToolbarMediator
         // Vivaldi
         boolean isReadingListFolder = mCurrentFolder != null &&
                 mCurrentFolder.equals(mBookmarkModel.getDefaultReadingListFolder());
+        boolean isTrashOrInTrash = mCurrentFolder != null &&
+                ((mBookmarkModel.getTrashFolderId() != null &&
+                        mBookmarkModel.getTrashFolderId().equals(mCurrentFolder))
+                || mBookmarkModel.isInsideTrashFolder(mCurrentFolder));
+
         boolean enableAddToReadingListMenu =
                 mBookmarkManagerOpener.getAddToReadingListButtonVisibility(mContext);
         if (BuildConfig.IS_VIVALDI) {
@@ -416,6 +449,9 @@ class BookmarkToolbarMediator
                     BookmarkToolbarProperties.EDIT_BUTTON_VISIBLE,
                     folderItem != null && folderItem.isEditable() && mCurrentFolder != null
                     && !mBookmarkModel.isInsideTrashFolder(mCurrentFolder));
+            mModel.set(BookmarkToolbarProperties.EXPORT_IMPORT_BOOKMARKS_VISIBLE,
+                    !BuildConfig.IS_OEM_AUTOMOTIVE_BUILD && !isReadingListFolder
+                    && !isTrashOrInTrash);
         } else // End Vivaldi
         mModel.set(
                 BookmarkToolbarProperties.EDIT_BUTTON_VISIBLE,

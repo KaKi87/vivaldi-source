@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/feature_list.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -27,6 +28,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_scrubbing_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/common/buildflags.h"
+#include "chrome/common/chrome_features.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
@@ -35,7 +37,6 @@
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 #include "ui/base/models/list_selection_model.h"
 #include "ui/base/page_transition_types.h"
-#include "ui/gfx/range/range.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #error This file should only be included on desktop.
@@ -49,6 +50,10 @@ class TabStripModelObserver;
 
 namespace content {
 class WebContents;
+}
+
+namespace gfx {
+class Range;
 }
 
 namespace split_tabs {
@@ -104,6 +109,7 @@ struct DetachedTabCollection {
 struct DetachedTab {
   DetachedTab(int index_before_any_removals,
               int index_at_time_of_removal,
+              bool was_pinned_at_time_of_removal,
               std::unique_ptr<tabs::TabModel> tab,
               TabStripModelChange::RemoveReason remove_reason,
               tabs::TabInterface::DetachReason tab_detach_reason,
@@ -124,6 +130,9 @@ struct DetachedTab {
   // tabs are being simultaneously removed, the index reflects previously
   // removed tabs in this batch.
   const int index_at_time_of_removal;
+
+  // True if this tab was pinned when it was removed from the tab strip.
+  const bool was_pinned_at_time_of_removal;
 
   // Reasons for detaching a tab. These may differ, for e.g. when a
   // tab is detached for re-insertion into a browser of different type,
@@ -345,16 +354,21 @@ class TabStripModel {
   // necessary once non-normal browser windows do not use Browser, TabStripModel
   // or TabModel.
   std::unique_ptr<content::WebContents> DetachWebContentsAtForInsertion(
-      int index);
+      int index,
+      TabStripModelChange::RemoveReason reason =
+          TabStripModelChange::RemoveReason::kInsertedIntoOtherTabStrip);
 
   // Detaches the WebContents at the specified index and immediately deletes it.
   void DetachAndDeleteWebContentsAt(int index);
 
+  std::vector<std::variant<std::unique_ptr<DetachedTab>,
+                           std::unique_ptr<DetachedTabCollection>>>
+  DetachTabsAndCollectionsForInsertion(const std::vector<int>& tab_indices);
+
   // Makes the tab at the specified index the active tab. |gesture_detail.type|
   // contains the gesture type that triggers the tab activation.
   // |gesture_detail.time_stamp| contains the timestamp of the user gesture, if
-  // any. If |index| refers to a tab in a split view, it won't be activated if
-  // the other tab is blocked.
+  // any.
   void ActivateTabAt(
       int index,
       TabStripUserGestureDetails gesture_detail = TabStripUserGestureDetails(
@@ -448,7 +462,8 @@ class TabStripModel {
   // notifications this method causes.
   void CloseAllTabs();
 
-  // Close all tabs in the given |group| at once.
+  // Close all tabs in the given |group| at once, but sets the focus state
+  // first.
   void CloseAllTabsInGroup(const tab_groups::TabGroupId& group);
 
   // Returns true if there are any WebContentses that are currently loading
@@ -687,6 +702,13 @@ class TabStripModel {
 
   bool SupportsTabGroups() const { return group_model_.get() != nullptr; }
 
+  // Returns the ID of the group that is focused. If no group is focused,
+  // returns nullopt.
+  std::optional<tab_groups::TabGroupId> GetFocusedGroup() const;
+
+  // Sets the group to be focused.
+  void SetFocusedGroup(std::optional<tab_groups::TabGroupId> group);
+
   // Returns true if one or more of the tabs pointed to by |indices| are
   // supported by read later.
   bool IsReadLaterSupportedForAny(const std::vector<int>& indices);
@@ -710,7 +732,11 @@ class TabStripModel {
 
   // Gets the root of the tab strip model. Used to traverse the tab topology.
   const tabs::TabCollection* Root(
-      base::PassKey<tabs_api::MojoTreeBuilder> key) const;
+      std::variant<base::PassKey<tabs_api::MojoTreeBuilder>,
+                   base::PassKey<tabs_api::TabStripModelAdapterImpl>> key)
+      const;
+
+  const tabs::TabCollection* GetRootForTesting() const;
 
   // Finds the group id for a tab collection. Note that this API can be error
   // prone. Make sure to read and understand the potential problems with
@@ -726,6 +752,7 @@ class TabStripModel {
 
   // View API //////////////////////////////////////////////////////////////////
 
+  // LINT.IfChange(TabContextMenuCommand)
   // Context menu functions. Tab groups uses command ids following CommandLast
   // for entries in the 'Add to existing group' submenu.
   enum ContextMenuCommand {
@@ -765,6 +792,7 @@ class TabStripModel {
 #endif
     CommandLast
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/tab/histograms.xml:TabContextMenuCommand)
 
   // Returns true if the specified command is enabled. If |context_index| is
   // selected the response applies to all selected tabs.
@@ -866,6 +894,11 @@ class TabStripModel {
   // Convert between tabs and indices.
   int GetIndexOfTab(const tabs::TabInterface* tab) const;
   tabs::TabInterface* GetTabAtIndex(int index) const;
+  // Gets the tabs at the specified indices using two pointers instead of
+  // calling GetTabAtIndex repeatedly, making the runtime O(count()) instead of
+  // O(indices.size() * count()). Requires indices to be strictly ascending.
+  std::vector<tabs::TabInterface*> GetTabsAtIndices(
+      const std::vector<int>& indices) const;
 
   // TODO(349161508) remove this method once tabs dont need to be converted
   // into webcontents.
@@ -1117,10 +1150,10 @@ class TabStripModel {
                           uint32_t close_types,
                           DetachNotifications* notifications);
 
-  // Returns the WebContentses at the specified indices. This does no checking
-  // of the indices, it is assumed they are valid.
+  // Returns the WebContentses at the specified indices. Requires indices to be
+  // strictly ascending or descending.
   std::vector<content::WebContents*> GetWebContentsesByIndices(
-      const std::vector<int>& indices) const;
+      std::vector<int> indices) const;
 
   // Sets the selection to |new_model| and notifies any observers.
   // Note: This function might end up sending 0 to 3 notifications in the
@@ -1133,6 +1166,9 @@ class TabStripModel {
       ui::ListSelectionModel new_model,
       TabStripModelObserver::ChangeReason reason,
       bool triggered_by_other_operation);
+
+  // Close all tabs in the given |group| at once.
+  void CloseAllTabsInGroupImpl(const tab_groups::TabGroupId& group);
 
   // Direction of relative tab movements or selections. kNext indicates moving
   // forward (positive increment) in the tab strip. kPrevious indicates
@@ -1363,9 +1399,7 @@ class TabStripModel {
       const std::optional<tab_groups::TabGroupId> group,
       bool pin);
 
-  // Returns whether a tab is eligible for activation. If a tab is in a split
-  // view then it cannot be activated if the other tab is blocked.
-  bool CanActivateTabAt(int index);
+  void NotifyForegroundTabsWillEnterBackground();
 
   // The WebContents data currently hosted within this TabStripModel. This must
   // be kept in sync with |selection_model_|.
@@ -1398,6 +1432,9 @@ class TabStripModel {
 
   // Tracks whether a modal UI is showing.
   bool showing_modal_ui_ = false;
+
+  // The focused group. If no group is focused, this is nullopt.
+  std::optional<tab_groups::TabGroupId> focused_group_;
 
   base::WeakPtrFactory<TabStripModel> weak_factory_{this};
 };

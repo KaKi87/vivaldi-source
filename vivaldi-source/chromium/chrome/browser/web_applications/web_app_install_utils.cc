@@ -340,9 +340,7 @@ void PopulateTrustedIconsFromDownloadedBitmapsAndMetadata(
   // Second, start populating the `output_size_to_bitmaps` map with all the
   // parsed bitmaps, once per size.
   for (auto& icon : square_icons_matching_infos) {
-    if (!base::Contains(output_size_to_bitmaps, icon.width())) {
-      output_size_to_bitmaps[icon.width()] = icon;
-    }
+    output_size_to_bitmaps[icon.width()] = icon;
   }
 
   // Third, resize existing icons if any and populate `output_size_to_bitmaps`
@@ -482,7 +480,7 @@ void PopulateProductIcons(WebAppInstallInfo* web_app_info,
   std::u16string icon_letter =
       web_app_info->title.empty()
           ? shortcuts::GenerateIconLetterFromUrl(web_app_info->start_url())
-          : shortcuts::GenerateIconLetterFromName(web_app_info->title);
+          : shortcuts::GenerateIconLetterFromName(web_app_info->title.value());
 
   // Ensure that all top-level icons that are in web_app_info with  Purpose::ANY
   // are present, by generating icons for any sizes that have failed to
@@ -718,15 +716,14 @@ void CreateWebAppInstallTabHelpers(content::WebContents* web_contents) {
 
 void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
                              WebApp& web_app,
-                             bool skip_icons_on_download_failure,
-                             bool should_consider_manifest_icons_as_trusted) {
+                             bool skip_icons_on_download_failure) {
   // TODO(crbug.com/344718166): ManifestId should already be set the same,
   // otherwise setting it here would be changing the app's ID. This should be a
   // CHECK_EQ instead of a set.
   web_app.SetManifestId(web_app_info.manifest_id());
 
   DCHECK(!web_app_info.title.empty());
-  web_app.SetName(base::UTF16ToUTF8(web_app_info.title));
+  web_app.SetName(base::UTF16ToUTF8(web_app_info.title.value()));
 
   web_app.SetStartUrl(web_app_info.start_url());
 
@@ -766,7 +763,7 @@ void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
   // manifest_id above.
   CHECK(sync_proto.has_start_url());
   CHECK(sync_proto.has_relative_manifest_id());
-  sync_proto.set_name(base::UTF16ToUTF8(web_app_info.title));
+  sync_proto.set_name(base::UTF16ToUTF8(web_app_info.title.value()));
   sync_proto.clear_theme_color();
   if (web_app_info.theme_color.has_value()) {
     sync_proto.set_theme_color(web_app_info.theme_color.value());
@@ -786,8 +783,7 @@ void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
   web_app.SetSyncProto(std::move(sync_proto));
 
   if (!skip_icons_on_download_failure) {
-    SetWebAppProductIconFields(web_app_info, web_app,
-                               should_consider_manifest_icons_as_trusted);
+    SetWebAppProductIconFields(web_app_info, web_app);
     web_app.SetShortcutsMenuInfo(GetShortcutsMenuInfoWithIconSizes(
         web_app_info.shortcuts_menu_item_infos,
         web_app_info.shortcuts_menu_icon_bitmaps));
@@ -826,38 +822,22 @@ void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
   web_app.SetRelatedApplications(web_app_info.related_applications);
 }
 
-void SetWebAppProductIconFields(
-    const WebAppInstallInfo& web_app_info,
-    WebApp& web_app,
-    bool should_consider_manifest_icons_as_trusted) {
+void SetWebAppProductIconFields(const WebAppInstallInfo& web_app_info,
+                                WebApp& web_app) {
   web_app.SetManifestIcons(web_app_info.manifest_icons);
   web_app.SetIsGeneratedIcon(web_app_info.is_generated_icon);
-
-  if (should_consider_manifest_icons_as_trusted) {
-    // Fallback to using manifest icons for trusted installs like policy and
-    // default installed apps.
-    web_app.SetTrustedIcons(web_app_info.manifest_icons);
-  } else {
-    web_app.SetTrustedIcons(web_app_info.trusted_icons);
-  }
-
-  // TODO(http://crbug.com/447607762): Move this logic into the creation of the
-  // WebAppInstallInfo, to remove the need for this here.
-  IconBitmaps trusted_icon_bitmaps_to_store =
-      should_consider_manifest_icons_as_trusted
-          ? web_app_info.icon_bitmaps
-          : web_app_info.trusted_icon_bitmaps;
+  web_app.SetTrustedIcons(web_app_info.trusted_icons);
 
   // Cache size information for icons stored on disk.
   for (IconPurpose purpose : kIconPurposes) {
     web_app.SetDownloadedIconSizes(
         purpose, GetSquareSizePxs(web_app_info.icon_bitmaps, purpose));
-    if (trusted_icon_bitmaps_to_store.empty() ||
+    if (web_app_info.trusted_icon_bitmaps.empty() ||
         purpose == IconPurpose::MONOCHROME) {
       continue;
     }
     web_app.SetStoredTrustedIconSizes(
-        purpose, GetSquareSizePxs(trusted_icon_bitmaps_to_store, purpose));
+        purpose, GetSquareSizePxs(web_app_info.trusted_icon_bitmaps, purpose));
   }
 }
 

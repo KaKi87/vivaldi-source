@@ -2,12 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_table_view_controller.h"
+
+#import <array>
 
 #import "base/apple/foundation_util.h"
 #import "base/check_op.h"
@@ -42,7 +39,6 @@
 #import "ios/chrome/browser/shared/ui/list_model/list_item+Controller.h"
 #import "ios/chrome/browser/shared/ui/list_model/list_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -53,8 +49,14 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "base/strings/sys_string_conversions.h"
+#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
 #import "ios/panel/panel_constants.h"
+#import "ios/ui/custom_views/vivaldi_search_bar_view.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
+#import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
+#import "url/gurl.h"
+#import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -64,6 +66,11 @@ namespace {
 // Height for the header on top of the sign-in promo cell.
 constexpr CGFloat kSignInPromoSectionHeaderHeight = 10;
 
+// Vivaldi
+// Estimated cell height for reading list rows.
+constexpr CGFloat kEstimatedRowHeight = 65;
+// End Vivaldi
+
 // Types of ListItems used by the reading list UI.
 enum ReadingListItemType {
   kItemTypeHeader = kItemTypeEnumZero,
@@ -71,12 +78,21 @@ enum ReadingListItemType {
   kSwitchItemType,
   kSwitchItemFooterType,
   kItemTypeSignInPromo,
+
+  // Vivaldi
+  kItemTypeMessage,
+  // End Vivaldi
 };
 // Identifiers for sections in the reading list UI.
 enum ReadingListSectionIdentifier {
   kSectionIdentifierSignInPromo = kSectionIdentifierEnumZero,
   kSectionIdentifierUnread,
   kSectionIdentifierRead,
+
+  // Vivaldi
+  kSectionIdentifierMessages,
+  // End Vivaldi
+
 };
 
 // Returns the ReadingListSelectionState corresponding with the provided numbers
@@ -100,7 +116,13 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 @interface ReadingListTableViewController () <ReadingListDataSink,
                                               ReadingListToolbarButtonCommands,
+
+#if defined(VIVALDI_BUILD)
+                                              TableViewURLDragDataSource,
+                                              VivaldiSearchBarViewDelegate>
+#else
                                               TableViewURLDragDataSource>
+#endif // End Vivaldi
 
 // Redefine the model to return ReadingListListItems
 @property(nonatomic, readonly) TableViewModel<TableViewItem*>* tableViewModel;
@@ -127,6 +149,16 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 @property(nonatomic, readonly, getter=isEditingWithSwipe) BOOL editingWithSwipe;
 // Handler for URL drag interactions.
 @property(nonatomic, strong) TableViewURLDragDropHandler* dragDropHandler;
+
+// Vivaldi
+// The current search term. Set to empty string when search is inactive.
+@property(nonatomic, copy) NSString* searchTerm;
+// If the table view is showing search results.
+@property(nonatomic, assign) BOOL currentlyShowingSearchResults;
+// Custom table header search bar for Vivaldi.
+@property(nonatomic, strong) VivaldiSearchBarView* vivaldiSearchBarView;
+// End Vivaldi
+
 @end
 
 @implementation ReadingListTableViewController
@@ -235,7 +267,18 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   [self.tableView.contextMenuInteraction dismissMenu];
   [self loadModel];
   if (self.viewLoaded) {
+
+    if (IsVivaldiRunning() && self.currentlyShowingSearchResults) {
+      CGPoint currentOffset = self.tableView.contentOffset;
+      [UIView performWithoutAnimation:^{
+        [self.tableView reloadData];
+        [self.tableView layoutIfNeeded];
+      }];
+      [self.tableView setContentOffset:currentOffset animated:NO];
+    } else {
     [self.tableView reloadData];
+    } // End Vivaldi
+
   }
 }
 
@@ -255,11 +298,6 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
   self.title = l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_READING_LIST);
 
-  if (IsVivaldiRunning()) {
-    self.navigationItem.largeTitleDisplayMode =
-      UINavigationItemLargeTitleDisplayModeNever;
-    [self setupHeader];
-  } // End Vivaldi
   self.tableView.accessibilityIdentifier =
       [[self class] accessibilityIdentifier];
   self.tableView.estimatedRowHeight = 56;
@@ -276,6 +314,15 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
       @[ UITraitPreferredContentSizeCategory.class ]);
   [self registerForTraitChanges:traits
                      withAction:@selector(verifyTableIsEmpty)];
+
+  if (IsVivaldiRunning()) {
+    self.navigationItem.largeTitleDisplayMode =
+      UINavigationItemLargeTitleDisplayModeNever;
+    self.searchTerm = @"";
+    self.currentlyShowingSearchResults = NO;
+    self.tableView.estimatedRowHeight = kEstimatedRowHeight;
+  } // End Vivaldi
+
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -318,6 +365,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 - (UISwipeActionsConfiguration*)tableView:(UITableView*)tableView
     trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath*)indexPath {
+
+  if (IsVivaldiRunning() &&
+      [self.tableViewModel itemAtIndexPath:indexPath].type != kItemTypeItem) {
+    return nil;
+  } // End Vivaldi
+
   NSMutableArray<UIContextualAction*>* actions = [NSMutableArray array];
 
   UIContextualAction* deleteAction =
@@ -358,6 +411,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
         break;
       case kSectionIdentifierSignInPromo:
         NOTREACHED();
+
+        // Vivaldi
+      case kSectionIdentifierMessages:
+        break;
+        // End Vivaldi
+
     }
   } else {
     // Open the URL.
@@ -388,6 +447,12 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
         break;
       case kSectionIdentifierSignInPromo:
         NOTREACHED();
+
+        // Vivaldi
+      case kSectionIdentifierMessages:
+        break;
+        // End Vivaldi
+
     }
   }
 }
@@ -419,6 +484,13 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 - (CGFloat)tableView:(UITableView*)tableView
     heightForHeaderInSection:(NSInteger)section {
+
+  if (IsVivaldiRunning()) {
+    if ([self.tableViewModel numberOfItemsInSection:section] == 0) {
+      return 0;
+    }
+  } // End Vivaldi
+
   if ([self.tableViewModel sectionIdentifierForSectionIndex:section] ==
       kSectionIdentifierSignInPromo) {
     return kSignInPromoSectionHeaderHeight;
@@ -816,8 +888,37 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   NSMutableArray<id<ReadingListListItem>>* readArray = [NSMutableArray array];
   NSMutableArray<id<ReadingListListItem>>* unreadArray = [NSMutableArray array];
   [self.dataSource fillReadItems:readArray unreadItems:unreadArray];
+
+  if (IsVivaldiRunning()) {
+    NSArray<id<ReadingListListItem>>* filteredReadItems = readArray;
+    NSArray<id<ReadingListListItem>>* filteredUnreadItems = unreadArray;
+    if (self.currentlyShowingSearchResults) {
+      filteredReadItems = [self filteredItemsFromArray:readArray
+                                            searchText:self.searchTerm];
+      filteredUnreadItems = [self filteredItemsFromArray:unreadArray
+                                              searchText:self.searchTerm];
+      if (!filteredReadItems.count && !filteredUnreadItems.count) {
+        TableViewTextItem* item =
+            [[TableViewTextItem alloc] initWithType:kItemTypeMessage];
+        item.textColor = [UIColor colorNamed:kTextPrimaryColor];
+        item.text = l10n_util::GetNSString(IDS_HISTORY_NO_SEARCH_RESULTS);
+        [self.tableViewModel
+            addSectionWithIdentifier:kSectionIdentifierMessages];
+        [self.tableViewModel addItem:item
+             toSectionWithIdentifier:kSectionIdentifierMessages];
+        [self updateToolbarItems];
+        return;
+      }
+    }
+
+    [self loadItemsFromArray:filteredUnreadItems
+                   toSection:kSectionIdentifierUnread];
+    [self loadItemsFromArray:filteredReadItems
+                   toSection:kSectionIdentifierRead];
+  } else {
   [self loadItemsFromArray:unreadArray toSection:kSectionIdentifierUnread];
   [self loadItemsFromArray:readArray toSection:kSectionIdentifierRead];
+  } // End Vivaldi
 
   [self updateToolbarItems];
 }
@@ -873,6 +974,13 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
     case kSectionIdentifierSignInPromo:
       header = nil;
       break;
+
+      // Vivaldi
+    case kSectionIdentifierMessages:
+      header = nil;
+      break;
+      // End Vivaldi
+
   }
   return header;
 }
@@ -1179,11 +1287,10 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   TableViewModel* model = self.tableViewModel;
   __block NSUInteger removedSectionCount = 0;
   void (^updates)(void) = ^{
-    ReadingListSectionIdentifier sections[] = {kSectionIdentifierRead,
-                                               kSectionIdentifierUnread};
-    for (size_t i = 0; i < std::size(sections); ++i) {
-      ReadingListSectionIdentifier section = sections[i];
-
+    static constexpr auto kSections =
+        std::to_array<ReadingListSectionIdentifier>(
+            {kSectionIdentifierRead, kSectionIdentifierUnread});
+    for (ReadingListSectionIdentifier section : kSections) {
       if ([model hasSectionForSectionIdentifier:section] &&
           ![self hasItemInSection:section]) {
         // If `section` has no items, remove it from the model and the table
@@ -1228,10 +1335,20 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 
 // Called when the table is not empty.
 - (void)tableIsNotEmpty {
+  if (IsVivaldiRunning()) {
+    [self updateSearchHeaderVisibilityForHasItems:YES];
+    [self removeEmptyTableView];
+    [self loadItems];
+    if (!self.currentlyShowingSearchResults) {
+      [self.audience readingListHasItems:YES];
+      self.tableView.alwaysBounceVertical = YES;
+    }
+  } else {
   [self loadItems];
   [self.audience readingListHasItems:YES];
   self.tableView.alwaysBounceVertical = YES;
   [self removeEmptyTableView];
+  } // End Vivaldi
 }
 
 // Called when the table is empty.
@@ -1242,6 +1359,11 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
   // elements may be outdated and the layout triggered by this function will
   // generate access non-existing items.
   [self.tableView reloadData];
+
+  if (IsVivaldiRunning()) {
+    [self updateSearchHeaderVisibilityForHasItems:NO];
+  } // End Vivaldi
+
   UIImage* emptyImage = [UIImage imageNamed:@"reading_list_empty"];
 
   if (vivaldi::IsVivaldiRunning())
@@ -1291,9 +1413,18 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 // Computes the index of the section to be created, given the sections that
 // already exist.
 - (NSInteger)newSectionIndexForId:(ReadingListSectionIdentifier)newSectionID {
+
+#if defined(VIVALDI_BUILD)
+  ReadingListSectionIdentifier sections[] = {kSectionIdentifierSignInPromo,
+                                             kSectionIdentifierUnread,
+                                             kSectionIdentifierRead,
+                                             kSectionIdentifierMessages};
+#else
   ReadingListSectionIdentifier sections[] = {kSectionIdentifierSignInPromo,
                                              kSectionIdentifierUnread,
                                              kSectionIdentifierRead};
+#endif // End Vivaldi
+
   NSInteger sectionIndex = 0;
   for (ReadingListSectionIdentifier section : sections) {
     if (newSectionID == section) {
@@ -1388,15 +1519,78 @@ ReadingListSelectionState GetSelectionStateForSelectedCounts(
 }
 
 #pragma mark Vivaldi
+// Returns items whose title or URL matches `searchText`.
+- (NSArray<id<ReadingListListItem>>*)
+    filteredItemsFromArray:(NSArray<id<ReadingListListItem>>*)items
+                searchText:(NSString*)searchText {
+  if (searchText.length == 0) {
+    return items;
+  }
 
-- (void)setupHeader {
-  UIView* tableHeaderView =
-      [[UIView alloc] initWithFrame:
-       CGRectMake(0, 0, self.tableView.bounds.size.width,
-                  [VivaldiGlobalHelpers
-                      canShowSidePanelForTrait:self.traitCollection] ? 0 :
-                  panel_top_view_height)];
+  NSMutableArray<id<ReadingListListItem>>* filtered = [NSMutableArray array];
+  for (id<ReadingListListItem> item in items) {
+    NSString* title = item.title ?: @"";
+    NSString* urlString = base::SysUTF8ToNSString(item.entryURL.spec());
+    if ([title rangeOfString:searchText options:NSCaseInsensitiveSearch]
+                .location != NSNotFound ||
+        [urlString rangeOfString:searchText options:NSCaseInsensitiveSearch]
+                .location != NSNotFound) {
+      [filtered addObject:item];
+    }
+  }
+  return filtered;
+}
+
+- (void)updateSearchHeaderVisibilityForHasItems:(BOOL)hasItems {
+  if (!IsVivaldiRunning()) {
+    return;
+  }
+
+  if (!hasItems) {
+    self.tableView.tableHeaderView = nil;
+    self.vivaldiSearchBarView = nil;
+    self.searchTerm = @"";
+    self.currentlyShowingSearchResults = NO;
+    return;
+  }
+
+  if (!self.tableView.tableHeaderView) {
+    [self setupHeaderWithSearch];
+  }
+}
+
+- (void)setupHeaderWithSearch {
+  UIView* tableHeaderView = [[UIView alloc]
+      initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width,
+                               [self showingSidePanel]
+                                   ? panel_search_view_height
+                                   : panel_header_height)];
+  VivaldiSearchBarView* searchBarView = [VivaldiSearchBarView new];
+  self.vivaldiSearchBarView = searchBarView;
+  [tableHeaderView addSubview:searchBarView];
+  [searchBarView
+      fillSuperviewWithPadding:UIEdgeInsetsMake([self showingSidePanel]
+                                                    ? 0
+                                                    : search_bar_height,
+                                                0, 0, 0)];
+  searchBarView.delegate = self;
+  [searchBarView
+      setPlaceholder:l10n_util::GetNSString(IDS_VIVALDI_SEARCHBAR_PLACEHOLDER)];
   self.tableView.tableHeaderView = tableHeaderView;
+}
+
+#pragma mark VIVALDI_SEARCH_BAR_VIEW_DELEGATE
+- (void)searchBarTextDidChange:(NSString*)searchText {
+  self.searchTerm = searchText ?: @"";
+  BOOL hasSearchText = self.searchTerm.length > 0;
+  self.currentlyShowingSearchResults = hasSearchText;
+  [self reloadData];
+}
+
+/// Returns true if device is iPad and multitasking UI has
+/// enough space to show iPad side panel.
+- (BOOL)showingSidePanel {
+  return [VivaldiGlobalHelpers canShowSidePanelForTrait:self.traitCollection];
 }
 // End Vivaldi
 

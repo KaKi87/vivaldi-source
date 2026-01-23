@@ -186,12 +186,6 @@ public class TabGroupListBottomSheetMediator {
         Runnable onClickRunnable =
                 () -> {
                     RecordUserAction.record("TabGroupParity.BottomSheetRowSelection.NewGroup");
-                    // Note(david@vivaldi.com): In case of creating a group with a single tab we
-                    // create a Vivaldi group which has always two tabs.
-                    if (tabs.size() == 1) {
-                        org.chromium.chrome.browser.tabmodel.TabGroupUtils.
-                                createNewTabGroupWithExistingTab(tabs.get(0), mFilter);
-                    } else
                     createNewGroupForTabs(
                             tabs, mFilter, mTabMovedCallback, mTabGroupCreationCallback);
                     hide(BottomSheetController.StateChangeReason.INTERACTION_COMPLETE);

@@ -13,12 +13,8 @@
                OpName %firstMatrix "firstMatrix"
                OpName %secondMatrix "secondMatrix"
                OpName %resultMatrix "resultMatrix"
-               OpMemberName %Uniforms 0 "aShape"
-               OpMemberName %Uniforms 1 "bShape"
-               OpMemberName %Uniforms 2 "outShape"
-               OpName %Uniforms "Uniforms"
-               OpMemberName %uniforms_block 0 "inner"
-               OpName %uniforms_block "uniforms_block"
+               OpMemberName %uniforms_block_tint_explicit_layout 0 "inner"
+               OpName %uniforms_block_tint_explicit_layout "uniforms_block_tint_explicit_layout"
                OpName %main_global_invocation_id_Input "main_global_invocation_id_Input"
                OpName %main_inner "main_inner"
                OpName %global_id "global_id"
@@ -43,11 +39,9 @@
                OpDecorate %resultMatrix DescriptorSet 0
                OpDecorate %resultMatrix Binding 2
                OpDecorate %resultMatrix Coherent
-               OpMemberDecorate %Uniforms 0 Offset 0
-               OpMemberDecorate %Uniforms 1 Offset 8
-               OpMemberDecorate %Uniforms 2 Offset 16
-               OpMemberDecorate %uniforms_block 0 Offset 0
-               OpDecorate %uniforms_block Block
+               OpDecorate %_arr_v4uint_uint_2 ArrayStride 16
+               OpMemberDecorate %uniforms_block_tint_explicit_layout 0 Offset 0
+               OpDecorate %uniforms_block_tint_explicit_layout Block
                OpDecorate %9 DescriptorSet 0
                OpDecorate %9 Binding 3
                OpDecorate %9 NonWritable
@@ -60,21 +54,21 @@
 %secondMatrix = OpVariable %_ptr_StorageBuffer_Matrix_tint_explicit_layout StorageBuffer
 %_ptr_StorageBuffer_Matrix_tint_explicit_layout_0 = OpTypePointer StorageBuffer %Matrix_tint_explicit_layout
 %resultMatrix = OpVariable %_ptr_StorageBuffer_Matrix_tint_explicit_layout_0 StorageBuffer
-     %v2uint = OpTypeVector %uint 2
-   %Uniforms = OpTypeStruct %v2uint %v2uint %v2uint
-%uniforms_block = OpTypeStruct %Uniforms
-%_ptr_Uniform_uniforms_block = OpTypePointer Uniform %uniforms_block
-          %9 = OpVariable %_ptr_Uniform_uniforms_block Uniform
+     %v4uint = OpTypeVector %uint 4
+     %uint_2 = OpConstant %uint 2
+%_arr_v4uint_uint_2 = OpTypeArray %v4uint %uint_2
+%uniforms_block_tint_explicit_layout = OpTypeStruct %_arr_v4uint_uint_2
+%_ptr_Uniform_uniforms_block_tint_explicit_layout = OpTypePointer Uniform %uniforms_block_tint_explicit_layout
+          %9 = OpVariable %_ptr_Uniform_uniforms_block_tint_explicit_layout Uniform
      %v3uint = OpTypeVector %uint 3
 %_ptr_Input_v3uint = OpTypePointer Input %v3uint
 %main_global_invocation_id_Input = OpVariable %_ptr_Input_v3uint Input
        %void = OpTypeVoid
-         %20 = OpTypeFunction %void %v3uint
-%_ptr_Uniform_v2uint = OpTypePointer Uniform %v2uint
+         %21 = OpTypeFunction %void %v3uint
+     %v2uint = OpTypeVector %uint 2
+%_ptr_Uniform_v4uint = OpTypePointer Uniform %v4uint
      %uint_0 = OpConstant %uint 0
-%_ptr_Uniform_uint = OpTypePointer Uniform %uint
      %uint_1 = OpConstant %uint 1
-     %uint_2 = OpConstant %uint 2
 %_ptr_Function_uint = OpTypePointer Function %uint
 %_ptr_StorageBuffer__runtimearr_uint = OpTypePointer StorageBuffer %_runtimearr_uint
 %_ptr_StorageBuffer_uint = OpTypePointer StorageBuffer %uint
@@ -82,20 +76,20 @@
 %_ptr_StorageBuffer__runtimearr_uint_0 = OpTypePointer StorageBuffer %_runtimearr_uint
 %_ptr_StorageBuffer_uint_0 = OpTypePointer StorageBuffer %uint
          %90 = OpTypeFunction %void
- %main_inner = OpFunction %void None %20
+ %main_inner = OpFunction %void None %21
   %global_id = OpFunctionParameter %v3uint
-         %21 = OpLabel
+         %22 = OpLabel
      %result = OpVariable %_ptr_Function_uint Function
           %i = OpVariable %_ptr_Function_uint Function
-         %22 = OpCompositeExtract %uint %global_id 1
-         %23 = OpCompositeExtract %uint %global_id 0
- %resultCell = OpCompositeConstruct %v2uint %22 %23
-         %25 = OpAccessChain %_ptr_Uniform_v2uint %9 %uint_0 %uint_0
-         %28 = OpAccessChain %_ptr_Uniform_uint %25 %uint_1
-   %dimInner = OpLoad %uint %28 None
-         %32 = OpAccessChain %_ptr_Uniform_v2uint %9 %uint_0 %uint_2
-         %34 = OpAccessChain %_ptr_Uniform_uint %32 %uint_1
-  %dimOutter = OpLoad %uint %34 None
+         %23 = OpCompositeExtract %uint %global_id 1
+         %24 = OpCompositeExtract %uint %global_id 0
+ %resultCell = OpCompositeConstruct %v2uint %23 %24
+         %27 = OpAccessChain %_ptr_Uniform_v4uint %9 %uint_0 %uint_0
+         %30 = OpLoad %v4uint %27 None
+   %dimInner = OpCompositeExtract %uint %30 1
+         %32 = OpAccessChain %_ptr_Uniform_v4uint %9 %uint_0 %uint_1
+         %34 = OpLoad %v4uint %32 None
+  %dimOutter = OpCompositeExtract %uint %34 1
                OpStore %result %uint_0
                OpBranch %38
          %38 = OpLabel

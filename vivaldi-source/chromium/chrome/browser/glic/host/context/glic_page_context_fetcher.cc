@@ -15,6 +15,7 @@
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/media/glic_media_integration.h"
 #include "chrome/browser/page_content_annotations/multi_source_page_context_fetcher.h"
+#include "chrome/common/actor/journal_details_builder.h"
 #include "components/content_extraction/content/browser/inner_text.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
@@ -76,8 +77,8 @@ void HandleFetchPageResult(
             page_context.inner_text_result->truncated));
   }
 
-  // TODO(crbug.com/446700005): This path is used for both actor and non-actor
-  // context but includes bits specific to actor.
+  // TODO(b/446700005): This path is used for both actor and non-actor context
+  // fetching, but includes bits specific to actor.
   actor::AggregatedJournal* journal = nullptr;
   actor::TaskId task_id;
   if (journal_entry) {
@@ -86,16 +87,17 @@ void HandleFetchPageResult(
   }
   if (page_context.screenshot_result.has_value()) {
     if (journal) {
-      journal->LogScreenshot(tab_context->tab_data->url, task_id, "image/jpeg",
-                             page_context.screenshot_result->jpeg_data);
+      journal->LogScreenshot(tab_context->tab_data->url, task_id,
+                             page_context.screenshot_result->mime_type,
+                             page_context.screenshot_result->screenshot_data);
     }
 
     tab_context->viewport_screenshot = glic::mojom::Screenshot::New(
         page_context.screenshot_result->dimensions.width(),
         page_context.screenshot_result->dimensions.height(),
-        std::move(page_context.screenshot_result->jpeg_data), "image/jpeg",
-        // TODO(b/380495633): Finalize and implement image
-        // annotations.
+        std::move(page_context.screenshot_result->screenshot_data),
+        page_context.screenshot_result->mime_type,
+        // Implement image annotations (see b/380495633).
         glic::mojom::ImageOriginAnnotations::New());
   }
 
@@ -108,7 +110,7 @@ void HandleFetchPageResult(
     tab_context->pdf_document_data = std::move(pdf_document_data);
   }
 
-  if (page_context.annotated_page_content_result) {
+  if (page_context.annotated_page_content_result.has_value()) {
     auto annotated_page_data = mojom::AnnotatedPageData::New();
     if (media_root_node) {
       optimization_guide::proto::ContentNode* media_node =
@@ -161,8 +163,8 @@ void FetchPageContext(
           actor::ActorKeyedService::Get(web_contents->GetBrowserContext())) {
     const GURL& url = web_contents->GetLastCommittedURL();
     journal_entry = actor_keyed_service->GetJournal().CreatePendingAsyncEntry(
-        url, actor::TaskId(), actor::mojom::JournalTrack::kActor,
-        "GlicFetchPageContext", {});
+        url, actor::TaskId(), actor::kGlobalTrackUUID, "GlicFetchPageContext",
+        {});
     progress_listener = actor::CreateActorJournalFetchPageProgressListener(
         actor_keyed_service->GetJournal().GetSafeRef(), url, actor::TaskId());
   }

@@ -57,7 +57,7 @@ SnapGroupExitPoint GetWindowStateChangeExitPoint(WindowState* window_state) {
       return SnapGroupExitPoint::kWindowStateChangedSecondarySnapped;
     case WindowStateType::kPinned:
       return SnapGroupExitPoint::kWindowStateChangedPinned;
-    case WindowStateType::kTrustedPinned:
+    case WindowStateType::kLockedFullscreen:
       return SnapGroupExitPoint::kWindowStateChangedTrustedPinned;
     case WindowStateType::kPip:
       return SnapGroupExitPoint::kWindowStateChangedPip;
@@ -563,7 +563,7 @@ void SnapGroup::StopObservingWindows() {
 void SnapGroup::UpdateGroupWindowsBounds(bool account_for_divider_width) {
   // Return early if in tablet mode, `SplitViewController` will handle window
   // bounds update.
-  if (Shell::Get()->IsInTabletMode()) {
+  if (display::Screen::Get()->InTabletMode()) {
     return;
   }
 

@@ -27,7 +27,7 @@ bool IsVivaldiEditorFrame(content::RenderFrameHost* render_frame_host) {
   if (!owner_site_url.SchemeIs(extensions::kExtensionScheme))
     return false;
 
-  std::string embedder_extension_id = owner_site_url.host();
+  std::string embedder_extension_id(owner_site_url.host());
   if (!vivaldi::IsVivaldiApp(embedder_extension_id))
     return false;
 

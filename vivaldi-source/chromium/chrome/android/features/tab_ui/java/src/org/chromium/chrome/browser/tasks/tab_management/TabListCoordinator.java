@@ -61,6 +61,7 @@ import org.chromium.chrome.browser.tasks.tab_management.TabGridItemTouchHelperCa
 import org.chromium.chrome.browser.tasks.tab_management.TabListModel.CardProperties.ModelType;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.TabActionState;
 import org.chromium.chrome.browser.tasks.tab_management.TabProperties.UiType;
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.undo_tab_close_snackbar.UndoBarExplicitTrigger;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.base.ViewUtils;
@@ -81,11 +82,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
-
-import org.chromium.chrome.browser.ChromeApplicationImpl;
-
-// Vivaldi
-import org.chromium.chrome.browser.profiles.ProfileManager;
 
 /** Coordinator for showing UI for a list of tabs. Can be used in GRID or STRIP modes. */
 @NullMarked
@@ -196,6 +192,7 @@ public class TabListCoordinator implements PriceWelcomeMessageProvider, DestroyO
      *     file.
      * @param onModelTokenChange Callback to invoke whenever a model changes. Only currently
      *     respected in TabListMode.STRIP mode.
+     * @param emptyViewParent {@link ViewGroup} The root view of the empty state view.
      * @param emptyImageResId Drawable resource for empty state.
      * @param emptyHeadingStringResId String resource for empty heading.
      * @param emptySubheadingStringResId String resource for empty subheading.
@@ -224,14 +221,16 @@ public class TabListCoordinator implements PriceWelcomeMessageProvider, DestroyO
             boolean attachToParent,
             String componentName,
             @Nullable Callback<Object> onModelTokenChange,
-            boolean hasEmptyView,
+            @Nullable ViewGroup emptyViewParent,
             @DrawableRes int emptyImageResId,
             @StringRes int emptyHeadingStringResId,
             @StringRes int emptySubheadingStringResId,
             @Nullable Runnable onTabGroupCreation,
             boolean allowDragAndDrop,
             @Nullable TabSwitcherDragHandler tabSwitcherDragHandler,
-            @Nullable UndoBarExplicitTrigger undoBarExplicitTrigger) {
+            @Nullable UndoBarExplicitTrigger undoBarExplicitTrigger,
+            @Nullable SnackbarManager snackbarManager,
+            int allowedSelectionCount) {
         mMode = mode;
         mTabActionState = initialTabActionState;
         mActivity = activity;
@@ -387,17 +386,15 @@ public class TabListCoordinator implements PriceWelcomeMessageProvider, DestroyO
                         initialTabActionState,
                         dataSharingTabManager,
                         onTabGroupCreation,
-                        undoBarExplicitTrigger);
+                        undoBarExplicitTrigger,
+                        snackbarManager,
+                        allowedSelectionCount);
 
         try (TraceEvent e = TraceEvent.scoped("TabListCoordinator.setupRecyclerView")) {
             // Ignore attachToParent initially. In some activitys multiple TabListCoordinators are
             // created with the same parentView. Using attachToParent and subsequently trying to
             // locate the View with findViewById could then resolve to the wrong view. Instead use
             // LayoutInflater to return the inflated view and addView to circumvent the issue.
-            if(ChromeApplicationImpl.isVivaldi()) {
-                mRecyclerView = (TabListRecyclerView) LayoutInflater.from(activity).inflate(
-                        R.layout.vivaldi_tab_list_recycler_view_layout, parentView, false);
-            } else
             mRecyclerView =
                     (TabListRecyclerView)
                             LayoutInflater.from(activity)
@@ -463,11 +460,10 @@ public class TabListCoordinator implements PriceWelcomeMessageProvider, DestroyO
         mEmptyStateHeadingResId = emptyHeadingStringResId;
         mEmptyStateSubheadingResId = emptySubheadingStringResId;
         mEmptyStateImageResId = emptyImageResId;
-        if (hasEmptyView) {
-            assumeNonNull(mTabListEmptyCoordinator);
+        if (emptyViewParent != null) {
             mTabListEmptyCoordinator =
                     new TabListEmptyCoordinator(
-                            parentView, mModelList, this::runOnItemAnimatorFinished);
+                            emptyViewParent, mModelList, this::runOnItemAnimatorFinished);
         }
         mTabListHighlighter = new TabListHighlighter(mModelList);
         mTabListMergeAnimationManager = new TabListMergeAnimationManager(mRecyclerView);

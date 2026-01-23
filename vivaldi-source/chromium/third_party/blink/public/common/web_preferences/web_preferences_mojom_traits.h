@@ -128,6 +128,11 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::WebPreferencesDataView,
     return r.allow_scripts_to_close_windows;
   }
 
+  static bool allow_window_focus_without_user_gesture(
+      const blink::web_pref::WebPreferences& r) {
+    return r.allow_window_focus_without_user_gesture;
+  }
+
   static bool remote_fonts_enabled(const blink::web_pref::WebPreferences& r) {
     return r.remote_fonts_enabled;
   }
@@ -271,8 +276,14 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::WebPreferencesDataView,
     return r.block_mixed_plugin_content;
   }
 
-  static bool password_echo_enabled(const blink::web_pref::WebPreferences& r) {
-    return r.password_echo_enabled;
+  static bool password_echo_enabled_physical(
+      const blink::web_pref::WebPreferences& r) {
+    return r.password_echo_enabled_physical;
+  }
+
+  static bool password_echo_enabled_touch(
+      const blink::web_pref::WebPreferences& r) {
+    return r.password_echo_enabled_touch;
   }
 
   static bool should_clear_document_background(
@@ -650,9 +661,9 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::WebPreferencesDataView,
     return r.long_press_link_select_text;
   }
 
-  static bool increment_local_surface_id_for_mainframe_same_doc_navigation(
+  static bool should_screenshot_on_mainframe_same_doc_navigation(
       const blink::web_pref::WebPreferences& r) {
-    return r.increment_local_surface_id_for_mainframe_same_doc_navigation;
+    return r.should_screenshot_on_mainframe_same_doc_navigation;
   }
 
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -819,21 +830,17 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::WebPreferencesDataView,
     return r.payment_request_enabled;
   }
 
-  static bool api_based_fingerprinting_interventions_enabled(
-      const blink::web_pref::WebPreferences& r) {
-    return r.api_based_fingerprinting_interventions_enabled;
-  }
-
-  static bool content_based_fingerprinting_protection_enabled(
-      const blink::web_pref::WebPreferences& r) {
-    return r.content_based_fingerprinting_protection_enabled;
-  }
-
   static bool ai_prompt_api_enabled(const blink::web_pref::WebPreferences& r) {
     return false; // Vivaldi Keep disabled
     //return r.ai_prompt_api_enabled;
   }
 
+#if BUILDFLAG(IS_MAC)
+  static bool should_disable_external_popups(
+      const blink::web_pref::WebPreferences& r) {
+    return r.should_disable_external_popups;
+  }
+#endif  // BUILDFLAG(IS_MAC)
 
   // Vivaldi
   static bool allow_tab_cycle_from_webpage_into_ui(
@@ -844,6 +851,11 @@ struct BLINK_COMMON_EXPORT StructTraits<blink::mojom::WebPreferencesDataView,
   static bool allow_access_keys(
       const blink::web_pref::WebPreferences& r) {
     return r.allow_access_keys;
+  }
+
+  static bool has_vivaldi_follower_tab(
+      const blink::web_pref::WebPreferences& r) {
+    return r.has_vivaldi_follower_tab;
   }
 
   static bool vivaldi_show_context_menu_on_double_click(

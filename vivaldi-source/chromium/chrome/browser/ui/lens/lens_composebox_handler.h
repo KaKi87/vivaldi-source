@@ -8,8 +8,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/unguessable_token.h"
-#include "chrome/browser/ui/webui/new_tab_page/composebox/base_composebox_handler.h"
-#include "chrome/browser/ui/webui/searchbox/searchbox_handler.h"
+#include "chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h"
 #include "components/omnibox/browser/searchbox.mojom.h"
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -26,8 +25,7 @@ namespace lens {
 class LensComposeboxController;
 
 class LensComposeboxHandler : public composebox::mojom::PageHandler,
-                              public SearchboxHandler,
-                              public composebox::BaseComposeboxHandler {
+                              public SearchboxHandler {
  public:
   explicit LensComposeboxHandler(
       lens::LensComposeboxController* parent_controller,
@@ -38,12 +36,6 @@ class LensComposeboxHandler : public composebox::mojom::PageHandler,
       mojo::PendingReceiver<searchbox::mojom::PageHandler>
           pending_searchbox_handler);
   ~LensComposeboxHandler() override;
-
-  // BaseComposeboxHandler:
-  void SubmitQuery(
-      const std::string& query_text,
-      WindowOpenDisposition disposition,
-      std::map<std::string, std::string> additional_params) override;
 
   // composebox::mojom::PageHandler:
   void SubmitQuery(const std::string& query_text,
@@ -56,7 +48,8 @@ class LensComposeboxHandler : public composebox::mojom::PageHandler,
   void SetDeepSearchMode(bool enabled) override;
   void SetCreateImageMode(bool enabled, bool image_present) override;
   void HandleLensButtonClick() override;
-
+  void HandleFileUpload(bool is_image) override;
+  void NavigateUrl(const GURL& url) override;
   // searchbox::mojom::PageHandler:
   void DeleteAutocompleteMatch(uint8_t line, const GURL& url) override;
   void ExecuteAction(uint8_t line,
@@ -69,6 +62,9 @@ class LensComposeboxHandler : public composebox::mojom::PageHandler,
                      bool meta_key,
                      bool shift_key) override;
   void OnThumbnailRemoved() override;
+  void DeleteContext(const base::UnguessableToken& file_token,
+                     bool from_automatic_chip) override;
+  void ClearFiles() override;
 
  private:
   // Owns this.

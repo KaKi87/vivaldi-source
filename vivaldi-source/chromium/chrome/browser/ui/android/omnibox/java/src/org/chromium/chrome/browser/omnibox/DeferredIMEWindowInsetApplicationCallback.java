@@ -62,7 +62,9 @@ public class DeferredIMEWindowInsetApplicationCallback
 
         Activity activity = windowAndroid.getActivity().get();
         if (activity != null && activity.isFinishing()) return;
+
         if (BuildConfig.IS_VIVALDI) return; // Vivaldi VAB-8066 TODO FIX UNDERLYING CAUSE OF THIS
+
         InsetObserver insetObserver = windowAndroid.getInsetObserver();
         assert insetObserver != null
                 : "DeferredIMEWindowInsetApplicationCallback can only be used in activities with an"

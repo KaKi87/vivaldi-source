@@ -26,7 +26,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/common/chrome_paths.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -163,7 +164,7 @@ std::string ConstructCaptureArgument(CaptureFilePatternType type,
       return short_id;
     }
     case CaptureFilePatternType::HOST: {
-      std::string host = url.host();
+      std::string host(url.host());
       // Special case the vivaldi app id.
       if (::vivaldi::IsVivaldiApp(host)) {
         host = "vivaldi";
@@ -477,9 +478,10 @@ ExtensionFunction::ResponseAction ThumbnailsCaptureTabFunction::Run() {
     tabstrip_contents = ::vivaldi::ui_tools::GetWebContentsFromTabStrip(
         tab_id, browser_context());
   } else {
-    Browser* browser = BrowserList::GetInstance()->GetLastActive();
+    BrowserWindowInterface* browser =
+        GetLastActiveBrowserWindowInterfaceWithAnyProfile();
     tabstrip_contents =
-        browser ? browser->tab_strip_model()->GetActiveWebContents() : nullptr;
+        browser ? browser->GetTabStripModel()->GetActiveWebContents() : nullptr;
   }
   if (!tabstrip_contents)
     return RespondNow(Error("No such tab - " + std::to_string(tab_id)));

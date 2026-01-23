@@ -101,6 +101,7 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   void SetSkipAdButtonVisibility(bool is_visible) override;
   void SetNextTrackButtonVisibility(bool is_visible) override;
   void SetPreviousTrackButtonVisibility(bool is_visible) override;
+  void SetHidePictureInPictureButtonVisibility(bool is_visible) override {}
   void SetMicrophoneMuted(bool muted) override;
   void SetCameraState(bool turned_on) override;
   void SetToggleMicrophoneButtonVisibility(bool is_visible) override;
@@ -169,7 +170,13 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
 
   gfx::Size& GetNaturalSize();
 
-  bool OnGestureEventHandledOrIgnored(ui::GestureEvent* event);
+  // Shows the controls on a gesture tap if they are not already shown. Returns
+  // true if the controls were shown.
+  bool ShowControlsForGestureIfNecessary(ui::GestureEvent* event);
+
+  // Hides the live caption dialog on a gesture tap if it's shown and the tap is
+  // outside of the dialog. Returns true if the dialog was hidden.
+  bool HideLiveCaptionDialogForGestureIfNecessary(ui::GestureEvent* event);
 
   // Returns true if the controls (e.g. close button, play/pause button) are
   // visible.
@@ -195,8 +202,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   gfx::Rect GetToggleMicrophoneButtonBounds();
   gfx::Rect GetToggleCameraButtonBounds();
   gfx::Rect GetHangUpButtonBounds();
-  gfx::Rect GetPreviousSlideControlsBounds();
-  gfx::Rect GetNextSlideControlsBounds();
   gfx::Rect GetProgressViewBounds();
   gfx::Rect GetLiveCaptionButtonBounds();
   gfx::Rect GetLiveCaptionDialogBounds();
@@ -211,9 +216,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   ToggleMicrophoneButton* toggle_microphone_button_for_testing() const;
   ToggleCameraButton* toggle_camera_button_for_testing() const;
   HangUpButton* hang_up_button_for_testing() const;
-  SimpleOverlayWindowImageButton* next_slide_controls_view_for_testing() const;
-  SimpleOverlayWindowImageButton* previous_slide_controls_view_for_testing()
-      const;
   global_media_controls::MediaProgressView* progress_view_for_testing() const;
   views::Label* timestamp_for_testing() const;
   views::Label* live_status_for_testing() const;
@@ -277,11 +279,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
  protected:
   explicit VideoOverlayWindowViews(
       content::VideoPictureInPictureWindowController* controller);
-
-  gfx::Rect GetStoredBoundsFromPrefs();
-  void UpdateStoredBounds();
-  // Vivaldi end
-
 
  private:
   friend class VideoPictureInPictureWindowControllerBrowserTest;
@@ -496,9 +493,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   raw_ptr<ToggleMicrophoneButton> toggle_microphone_button_ = nullptr;
   raw_ptr<ToggleCameraButton> toggle_camera_button_ = nullptr;
   raw_ptr<HangUpButton> hang_up_button_ = nullptr;
-  raw_ptr<SimpleOverlayWindowImageButton> previous_slide_controls_view_ =
-      nullptr;
-  raw_ptr<SimpleOverlayWindowImageButton> next_slide_controls_view_ = nullptr;
   raw_ptr<global_media_controls::MediaProgressView> progress_view_ = nullptr;
   raw_ptr<views::Label> timestamp_ = nullptr;
   raw_ptr<views::Label> live_status_ = nullptr;
@@ -567,9 +561,8 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
 
   // Used for when the title changes visibility. The title and controls top
   // scrim must be animated together.
-  std::unique_ptr<OverlayControlsFadeAnimation> title_fade_animation_;
   std::unique_ptr<OverlayControlsFadeAnimation>
-      controls_top_scrim_fade_animation_;
+      title_and_top_scrim_fade_animation_;
 
   // Callback to get / create an overlay view.  This is a callback to let tests
   // provide alternate implementations.
@@ -588,7 +581,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   bool user_interacted_before_timer_fired_ = false;
 
 // Vivaldi
-  raw_ptr<vivaldi::VideoProgress> vivaldi_progress_view_ = nullptr;
   raw_ptr<vivaldi::MuteButton> mute_button_ = nullptr;
   raw_ptr<vivaldi::VolumeSlider> volume_slider_ = nullptr;
 
@@ -598,7 +590,6 @@ class VideoOverlayWindowViews : public content::VideoOverlayWindow,
   void HandleVivaldiMuteButton();
   void UpdateVivaldiControlsVisibility(bool is_visible);
   void UpdateVivaldiControlsBounds(int primary_control_y, int margin);
-  void HandleVivaldiKeyboardEvents(ui::KeyEvent* event);
   void HandleVivaldiGestureEvent(ui::GestureEvent* event);
 
   std::unique_ptr<vivaldi::VideoPIPController> video_pip_controller_;

@@ -11,9 +11,17 @@ namespace vivaldi_features {
 BASE_DECLARE_FEATURE(kAddCustomSearchEngineOption);
 bool IsAddCustomSearchEngineEnabled();
 
+BASE_DECLARE_FEATURE(kTabsAutoHide);
+
 BASE_DECLARE_FEATURE(kChromePages);
 
 BASE_DECLARE_FEATURE(kCssMods);
+
+BASE_DECLARE_FEATURE(kDesktopBackgroundImage);
+
+BASE_DECLARE_FEATURE(kFollowerTab);
+
+BASE_DECLARE_FEATURE(kDnDTiling);
 
 BASE_DECLARE_FEATURE(kDoubleClickMenu);
 
@@ -21,19 +29,19 @@ BASE_DECLARE_FEATURE(kInternalPageReaderMode);
 
 BASE_DECLARE_FEATURE(kLocationOverride);
 
-BASE_DECLARE_FEATURE(kNewAboutPage);
-
 BASE_DECLARE_FEATURE(kNewPrivacyReport);
 
 BASE_DECLARE_FEATURE(kNoteEditor);
+
+BASE_DECLARE_FEATURE(kOpenLinkTiled);
+
+BASE_DECLARE_FEATURE(kRestrictPinnedTab);
 
 BASE_DECLARE_FEATURE(kShowNewSpeedDialDialog);
 bool IsNewSpeedDialDialogEnabled();
 
 BASE_DECLARE_FEATURE(kShowTopSites);
 bool IsTopSitesEnabled();
-
-BASE_DECLARE_FEATURE(kSpeeddialWidgets);
 
 BASE_DECLARE_FEATURE(kViewMarkdownAsHTML);
 bool IsViewMarkdownAsHTMLEnabled();

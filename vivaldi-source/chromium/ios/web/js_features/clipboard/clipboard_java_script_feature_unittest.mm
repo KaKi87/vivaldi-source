@@ -4,9 +4,13 @@
 
 #import "ios/web/js_features/clipboard/clipboard_java_script_feature.h"
 
+#import <optional>
+
 #import "base/apple/foundation_util.h"
 #import "base/memory/raw_ptr.h"
 #import "base/test/ios/wait_util.h"
+#import "base/test/metrics/histogram_tester.h"
+#import "ios/components/enterprise/data_controls/clipboard_enums.h"
 #import "ios/web/js_features/clipboard/clipboard_constants.h"
 #import "ios/web/public/js_messaging/script_message.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
@@ -44,8 +48,15 @@ class ClipboardFakeWebStateDelegate : public web::FakeWebStateDelegate {
     std::move(callback).Run(should_allow_paste_);
   }
 
+  void DidFinishClipboardRead(web::WebState* source) override {
+    did_finish_clipboard_read_called_ = true;
+  }
+
   bool copy_called() const { return copy_called_; }
   bool paste_called() const { return paste_called_; }
+  bool did_finish_clipboard_read_called() const {
+    return did_finish_clipboard_read_called_;
+  }
 
   void set_should_allow_copy(bool allow) { should_allow_copy_ = allow; }
   void set_should_allow_paste(bool allow) { should_allow_paste_ = allow; }
@@ -53,6 +64,7 @@ class ClipboardFakeWebStateDelegate : public web::FakeWebStateDelegate {
  private:
   bool copy_called_ = false;
   bool paste_called_ = false;
+  bool did_finish_clipboard_read_called_ = false;
   bool should_allow_copy_ = true;
   bool should_allow_paste_ = true;
 };
@@ -81,10 +93,13 @@ class ClipboardJavaScriptFeatureTest : public WebTestWithWebState {
   }
 
   // Simulates a script message from the web page.
-  void SimulateScriptMessage(const std::string& command, int request_id) {
+  void SimulateScriptMessage(const std::string& command,
+                             std::optional<int> request_id = std::nullopt) {
     base::Value::Dict body;
     body.Set(kCommandKey, command);
-    body.Set(kRequestIdKey, request_id);
+    if (request_id) {
+      body.Set(kRequestIdKey, *request_id);
+    }
     web::WebFrame* main_frame = WaitForMainFrame();
     body.Set(kFrameIdKey, main_frame->GetFrameId());
 
@@ -130,6 +145,7 @@ class ClipboardJavaScriptFeatureTest : public WebTestWithWebState {
 
   raw_ptr<ClipboardJavaScriptFeature> feature_;
   ClipboardFakeWebStateDelegate delegate_;
+  base::HistogramTester histogram_tester_;
 };
 
 // Tests that a "write" command is allowed when the delegate allows it.
@@ -144,6 +160,11 @@ TEST_F(ClipboardJavaScriptFeatureTest, WriteAllowed) {
   std::optional<bool> result = GetLastResultForRequestId(1);
   ASSERT_TRUE(result.has_value());
   EXPECT_TRUE(result.value());
+  histogram_tester_.ExpectUniqueSample(
+      "IOS.WebState.Clipboard.Copy.Source",
+      static_cast<int>(data_controls::ClipboardSource::kClipboardAPI), 1);
+  histogram_tester_.ExpectUniqueSample("IOS.WebState.Clipboard.Copy.Outcome",
+                                       true, 1);
 }
 
 // Tests that a "write" command is denied when the delegate denies it.
@@ -158,6 +179,11 @@ TEST_F(ClipboardJavaScriptFeatureTest, WriteDenied) {
   std::optional<bool> result = GetLastResultForRequestId(2);
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result.value());
+  histogram_tester_.ExpectUniqueSample(
+      "IOS.WebState.Clipboard.Copy.Source",
+      static_cast<int>(data_controls::ClipboardSource::kClipboardAPI), 1);
+  histogram_tester_.ExpectUniqueSample("IOS.WebState.Clipboard.Copy.Outcome",
+                                       false, 1);
 }
 
 // Tests that a "read" command is allowed when the delegate allows it.
@@ -172,6 +198,11 @@ TEST_F(ClipboardJavaScriptFeatureTest, ReadAllowed) {
   std::optional<bool> result = GetLastResultForRequestId(3);
   ASSERT_TRUE(result.has_value());
   EXPECT_TRUE(result.value());
+  histogram_tester_.ExpectUniqueSample(
+      "IOS.WebState.Clipboard.Paste.Source",
+      static_cast<int>(data_controls::ClipboardSource::kClipboardAPI), 1);
+  histogram_tester_.ExpectUniqueSample("IOS.WebState.Clipboard.Paste.Outcome",
+                                       true, 1);
 }
 
 // Tests that a "read" command is denied when the delegate denies it.
@@ -186,6 +217,9 @@ TEST_F(ClipboardJavaScriptFeatureTest, ReadDenied) {
   std::optional<bool> result = GetLastResultForRequestId(4);
   ASSERT_TRUE(result.has_value());
   EXPECT_FALSE(result.value());
+  histogram_tester_.ExpectUniqueSample(
+      "IOS.WebState.Clipboard.Paste.Source",
+      static_cast<int>(data_controls::ClipboardSource::kClipboardAPI), 1);
 }
 
 // Tests that commands are allowed if there is no delegate.
@@ -201,6 +235,30 @@ TEST_F(ClipboardJavaScriptFeatureTest, NoDelegate) {
   std::optional<bool> read_result = GetLastResultForRequestId(6);
   ASSERT_TRUE(read_result.has_value());
   EXPECT_TRUE(read_result.value());
+}
+
+// Tests that the DidFinishClipboardRead delegate method is called.
+TEST_F(ClipboardJavaScriptFeatureTest, DidFinishClipboardRead) {
+  ASSERT_FALSE(delegate_.did_finish_clipboard_read_called());
+  SimulateScriptMessage(kDidFinishClipboardReadCommand);
+  EXPECT_TRUE(delegate_.did_finish_clipboard_read_called());
+}
+
+// Tests that the DidFinishClipboardRead delegate method is not called for other
+// commands.
+TEST_F(ClipboardJavaScriptFeatureTest,
+       DidFinishClipboardReadNotCalledForRequests) {
+  SimulateScriptMessage(kWriteCommand, 1);
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+    return delegate_.copy_called();
+  }));
+  EXPECT_FALSE(delegate_.did_finish_clipboard_read_called());
+
+  SimulateScriptMessage(kReadCommand, 2);
+  ASSERT_TRUE(WaitUntilConditionOrTimeout(kWaitForJSCompletionTimeout, ^{
+    return delegate_.paste_called();
+  }));
+  EXPECT_FALSE(delegate_.did_finish_clipboard_read_called());
 }
 
 }  // namespace web

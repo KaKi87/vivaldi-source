@@ -33,6 +33,7 @@ ${function() {
             @disable-all-picker-buttons="${this.disableAllPickerButtons_}">
         </profile-card>
       `)}
+      <if expr="_google_chrome">
       <!-- note(ondrej@vivaldi): VB-114626
       <cr-button id="addProfile" class="profile-item"
           @click="${this.onAddProfileClick_}"
@@ -46,6 +47,7 @@ ${function() {
         <cr-icon icon="profiles:add"></cr-icon>
       </cr-button>
       -->
+      </if>
     </div>
   </div>
 <if expr="enable_glic">
@@ -56,13 +58,22 @@ ${function() {
 </if>
 </div>
 <div class="footer">
-  <cr-button id="browseAsGuestButton"
-      @click="${this.onLaunchGuestProfileClick_}"
-      ?hidden="${!this.guestModeEnabled_}"
-      ?disabled="${this.pickerButtonsDisabled_}">
-    <cr-icon icon="profiles:account-box" slot="prefix-icon"></cr-icon>
-    $i18n{browseAsGuestButton}
-  </cr-button>
+  <div class="footer-buttons-container">
+    <cr-button id="browseAsGuestButton"
+        @click="${this.onLaunchGuestProfileClick_}"
+        ?hidden="${!this.guestModeEnabled_}"
+        ?disabled="${this.pickerButtonsDisabled_}">
+      <cr-icon icon="profiles:account-box" slot="prefix-icon"></cr-icon>
+      $i18n{browseAsGuestButton}
+    </cr-button>
+    <cr-button id="openAllProfilesButton"
+        class="action-button"
+        @click="${this.onOpenAllProfilesClick_}"
+        ?hidden="${!this.shouldShowOpenAllProfilesButton_}"
+        ?disabled="${this.pickerButtonsDisabled_}">
+      $i18n{openAllProfilesButtonText}
+    </cr-button>
+  </div>
   <cr-checkbox id="askOnStartup" ?checked="${this.askOnStartup_}"
       @checked-changed="${this.onAskOnStartupChangedByUser_}"
       ?hidden="${this.hideAskOnStartup_}">

@@ -8,6 +8,7 @@
 
 #import "base/apple/foundation_util.h"
 #import "base/functional/bind.h"
+#import "base/functional/callback_helpers.h"
 #import "base/ios/block_types.h"
 #import "base/memory/raw_ptr.h"
 #import "base/metrics/histogram_macros.h"
@@ -85,11 +86,11 @@ void OnProfileLoaded(std::unique_ptr<T> adder,
 }
 
 template <typename Adder, typename... Args>
-void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
+void AddDataToProfileByGaiaID(const GaiaId& gaiaID, Args&&... args) {
   std::optional<std::string> profileName =
       GetApplicationContext()
           ->GetAccountProfileMapper()
-          ->FindProfileNameForGaiaID(GaiaId(gaiaID));
+          ->FindProfileNameForGaiaID(gaiaID);
 
   if (profileName.has_value()) {
     ProfileManagerIOS* profileManager =
@@ -107,6 +108,7 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
 @end
 
 @implementation ShareExtensionController {
+  NSMutableSet<NSString*>* _filesBeingProcessed;
   BOOL _isObservingReadingListFolder;
   BOOL _readingListFolderCreated;
   BOOL _shutdownCalled;
@@ -130,6 +132,7 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
   }
 
   if (self) {
+    _filesBeingProcessed = [[NSMutableSet alloc] init];
     _taskRunner = base::ThreadPool::CreateSequencedTaskRunner(
         {base::MayBlock(), base::TaskPriority::BEST_EFFORT});
   }
@@ -171,6 +174,11 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
 - (void)presentedSubitemDidChangeAtURL:(NSURL*)url {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
   if (_shutdownCalled) {
+    return;
+  }
+  // The files that already exists and are being processed should not be handled
+  // from NSFilePresenter observation.
+  if ([_filesBeingProcessed containsObject:[url absoluteString]]) {
     return;
   }
   [self handleFileAtURL:url];
@@ -243,6 +251,8 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
   CHECK(!_shutdownCalled);
   [self stopObservingReadingListFolder];
+  // Clear the _filesBeingProcessed set, since the observation is reset.
+  [_filesBeingProcessed removeAllObjects];
 }
 
 - (void)processExistingFiles {
@@ -279,6 +289,7 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
                              filesCount);
 
     for (NSURL* fileURL : files) {
+      [_filesBeingProcessed addObject:[fileURL absoluteString]];
       [self handleFileAtURL:fileURL];
     }
   }
@@ -342,7 +353,7 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
 
 - (void)processEntryWithType:(app_group::ShareExtensionItemType)entryType
                        title:(NSString*)entryTitle
-                      gaiaID:(NSString*)gaiaID
+                      gaiaID:(const GaiaId&)gaiaID
                          URL:(NSURL*)entryURL
                   completion:(ProceduralBlock)completion {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
@@ -393,53 +404,21 @@ void AddDataToProfileByGaiaID(NSString* gaiaID, Args&&... args) {
   }
 }
 
-- (void)addBookmarkToProfileByGaiaID:(NSString*)gaiaID
+- (void)addBookmarkToProfileByGaiaID:(const GaiaId&)gaiaID
                                  URL:(NSURL*)URL
                        bookmarkTitle:(NSString*)bookmarkTitle {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
   AddDataToProfileByGaiaID<BookmarkAdder>(
       gaiaID, net::GURLWithNSURL(URL), base::SysNSStringToUTF8(bookmarkTitle));
-  //  std::optional<std::string> profileName =
-  //      GetApplicationContext()
-  //          ->GetAccountProfileMapper()
-  //          ->FindProfileNameForGaiaID(GaiaId(gaiaID));
-  //
-  //  if (profileName.has_value()) {
-  //    std::string title = base::SysNSStringToUTF8(bookmarkTitle);
-  //    ProfileManagerIOS* profileManager =
-  //        GetApplicationContext()->GetProfileManager();
-  //    std::unique_ptr<BookmarkAdder> adder = std::make_unique<BookmarkAdder>(
-  //        net::GURLWithNSURL(URL), std::move(title));
-  //    profileManager->LoadProfileAsync(
-  //        *profileName,
-  //        base::BindOnce(&OnProfileLoaded<BookmarkAdder>, std::move(adder)));
-  //  }
 }
 
-- (void)addReadingListToProfileByGaiaID:(NSString*)gaiaID
+- (void)addReadingListToProfileByGaiaID:(const GaiaId&)gaiaID
                                     URL:(NSURL*)URL
                        readingListTitle:(NSString*)readingListTitle {
   DCHECK_CALLED_ON_VALID_SEQUENCE(_sequenceChecker);
   AddDataToProfileByGaiaID<ReadingListAdder>(
       gaiaID, net::GURLWithNSURL(URL),
       base::SysNSStringToUTF8(readingListTitle));
-  //  std::optional<std::string> profileName =
-  //      GetApplicationContext()
-  //          ->GetAccountProfileMapper()
-  //          ->FindProfileNameForGaiaID(GaiaId(gaiaID));
-  //
-  //  if (profileName.has_value()) {
-  //    std::string title = base::SysNSStringToUTF8(readingListTitle);
-  //    ProfileManagerIOS* profileManager =
-  //        GetApplicationContext()->GetProfileManager();
-  //    std::unique_ptr<ReadingListAdder> adder =
-  //        std::make_unique<ReadingListAdder>(net::GURLWithNSURL(URL), title,
-  //                                           profileManager);
-  //    profileManager->LoadProfileAsync(
-  //        *profileName,
-  //        base::BindOnce(&OnProfileLoaded<ReadingListAdder>,
-  //        std::move(adder)));
-  //  }
 }
 
 @end

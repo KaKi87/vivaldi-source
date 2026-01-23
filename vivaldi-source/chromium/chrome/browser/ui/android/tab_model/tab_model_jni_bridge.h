@@ -49,7 +49,7 @@ class TabModelJniBridge : public TabModel {
   void AssociateWithBrowserWindow(JNIEnv* env,
                                   long native_android_browser_window);
   void TabAddedToModel(JNIEnv* env, TabAndroid* tab);
-  TabAndroid* DuplicateTabForTesting(JNIEnv* env, TabAndroid* tab);
+  TabAndroid* DuplicateTab(JNIEnv* env, TabAndroid* tab);
   void MoveTabToWindowForTesting(JNIEnv* env,
                                  TabAndroid* tab,
                                  long android_browser_window_ptr,
@@ -60,6 +60,7 @@ class TabModelJniBridge : public TabModel {
                                       int new_index);
   void SetMuteSetting(JNIEnv* env, std::vector<TabAndroid*> tabs, bool mute);
   jint GetSessionIdForTesting(JNIEnv* env);
+  chrome::android::ActivityType GetActivityTypeForTesting(JNIEnv* env);
 
   // TabModel::
   void AddTabListInterfaceObserver(TabListInterfaceObserver* observer) override;
@@ -110,7 +111,7 @@ class TabModelJniBridge : public TabModel {
 
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
-  void OpenTab(const GURL& url, int index) override;
+  tabs::TabInterface* OpenTab(const GURL& url, int index) override;
   void DiscardTab(tabs::TabHandle tab) override;
   tabs::TabInterface* DuplicateTab(tabs::TabHandle tab) override;
   tabs::TabInterface* GetTab(int index) override;

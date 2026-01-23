@@ -67,6 +67,11 @@
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/keyboard_codes.h"
 #include "ui/events/keycodes/dom/keycode_converter.h"
+
+// Vivaldi
+#include "third_party/blink/renderer/core/page/page.h"
+// End Vivaldi
+
 namespace blink {
 
 DispatchEventResult EventDispatcher::DispatchEvent(Node& node, Event& event) {
@@ -289,6 +294,22 @@ inline EventDispatchContinuation EventDispatcher::DispatchEventPreProcess(
         activation_target->PreDispatchEventHandler(*event_);
   }
 
+  // Vivaldi
+  const bool is_click =
+      event_->IsMouseEvent() && event_->type() == event_type_names::kClick;
+
+  if (is_click && view_->GetPage()->GetSettings().GetHasVivaldiFollowerTab()) {
+    Node* node = node_;
+    while (node) {
+      if (node->IsLink()) {
+        return kDoneDispatching;
+      }
+
+      node = node->parentNode();
+    }
+  }
+  // End Vivaldi
+
   return (event_->GetEventPath().IsEmpty() || event_->PropagationStopped())
              ? kDoneDispatching
              : kContinueDispatching;
@@ -433,7 +454,7 @@ inline void EventDispatcher::DispatchEventPostProcess(
   }
 
   if (event_->IsMouseEvent() && event_->type() == event_type_names::kMouseup) {
-    node_->GetDocument().SetCustomizableSelectMousedownLocation(std::nullopt);
+    node_->GetDocument().SetPopoverPickerMousedownLocation(std::nullopt);
   }
 
   // Track the usage of sending a mousedown event to a select element to force

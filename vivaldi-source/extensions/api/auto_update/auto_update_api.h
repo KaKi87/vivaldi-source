@@ -15,7 +15,7 @@
 #include "extensions/api/auto_update/auto_update_status.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
-#include "update/update_model_observer.h"
+#include "update/vivaldi_update_model_observer.h"
 #include "vivaldi/extensions/schema/autoupdate.h"
 
 #if !BUILDFLAG(IS_ANDROID)
@@ -29,8 +29,8 @@ class DRMContentTabHelper;
 }  // namespace drm_helper
 
 class Profile;
-using update::UpdateModelObserver;
-using update::UpdateService;
+using update::VivaldiUpdateModelObserver;
+using update::VivaldiUpdateService;
 namespace extensions {
 
 struct FilePathResult {
@@ -41,9 +41,9 @@ struct FilePathResult {
 
 // Observes UpdateModel and then routes notifications as
 // events to the extension system.
-class UpdateEventRouter : public UpdateModelObserver {
+class UpdateEventRouter : public VivaldiUpdateModelObserver {
  public:
-  explicit UpdateEventRouter(Profile* profile, UpdateService* update_service);
+  explicit UpdateEventRouter(Profile* profile, VivaldiUpdateService* update_service);
   ~UpdateEventRouter() override;
 
  private:
@@ -52,14 +52,14 @@ class UpdateEventRouter : public UpdateModelObserver {
                      const std::string& event_name,
                      base::Value::List event_args);
 
-  // UpdateModelObserver
-  void OnUpdateProgress(UpdateService* service,
+  // VivaldiUpdateModelObserver
+  void OnUpdateProgress(VivaldiUpdateService* service,
                         const AutoUpdateStatus& status,
                         const std::string& reason,
                         const int progress) override;
 
   const raw_ptr<Profile> profile_;
-  base::ScopedObservation<update::UpdateService, UpdateModelObserver>
+  base::ScopedObservation<update::VivaldiUpdateService, VivaldiUpdateModelObserver>
       update_service_observation_{this};
 };
 

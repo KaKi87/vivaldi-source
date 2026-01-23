@@ -10,6 +10,7 @@
 #include "base/containers/contains.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
 #include "chrome/browser/ash/child_accounts/time_limits/app_activity_registry.h"
 #include "chrome/browser/ash/child_accounts/time_limits/app_service_wrapper.h"
 #include "chrome/browser/ash/child_accounts/time_limits/app_time_controller.h"
@@ -17,8 +18,9 @@
 #include "chrome/browser/ash/child_accounts/time_limits/app_types.h"
 #include "chrome/browser/ash/child_accounts/time_limits/web_time_navigation_observer.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/aura/window.h"
@@ -27,52 +29,47 @@ namespace ash::app_time {
 
 namespace {
 
-const Browser* GetBrowserForInstance(
+ash::BrowserDelegate* GetBrowserForInstance(
     const apps::InstanceRegistry& instance_registry,
     const base::UnguessableToken& instance_id) {
   aura::Window* window = nullptr;
   instance_registry.ForOneInstance(
       instance_id,
       [&](const apps::InstanceUpdate& update) { window = update.Window(); });
-
   if (!window) {
     return nullptr;
   }
 
-  BrowserList* list = BrowserList::GetInstance();
-  for (const Browser* browser : *list) {
-    if (browser->window()->GetNativeWindow() == window) {
-      return browser;
-    }
-  }
-  return nullptr;
+  ash::BrowserDelegate* found_browser = nullptr;
+  ash::BrowserController::GetInstance()->ForEachBrowser(
+      ash::BrowserController::BrowserOrder::kAscendingActivationTime,
+      [window, &found_browser](ash::BrowserDelegate& browser) {
+        if (browser.GetNativeWindow() == window) {
+          found_browser = &browser;
+          return ash::BrowserController::kBreakIteration;
+        }
+        return ash::BrowserController::kContinueIteration;
+      });
+  return found_browser;
 }
 
-const Browser* GetBrowserForTabStripModel(const TabStripModel* model) {
-  BrowserList* list = BrowserList::GetInstance();
-  for (const Browser* browser : *list) {
-    if (browser->tab_strip_model() == model) {
-      return browser;
-    }
+const BrowserWindowInterface* GetBrowserForTabStripModel(
+    const TabStripModel* model) {
+  const BrowserWindowInterface* found_browser = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [model,
+       &found_browser](BrowserWindowInterface* browser_window_interface) {
+        if (browser_window_interface->GetTabStripModel() == model) {
+          found_browser = browser_window_interface;
+          return false;
+        }
+        return true;
+      });
+
+  if (!found_browser) {
+    LOG(WARNING) << "Could not find a browser for the given TabStripModel.";
   }
-
-  LOG(WARNING) << "Could not find a browser for the given TabStripModel.";
-  return nullptr;
-}
-
-const Browser* GetBrowserForWebContents(const content::WebContents* contents) {
-  BrowserList* list = BrowserList::GetInstance();
-  for (const Browser* browser : *list) {
-    const auto* tab_strip_model = browser->tab_strip_model();
-    for (int i = 0; i < tab_strip_model->count(); i++) {
-      if (tab_strip_model->GetWebContentsAt(i) == contents) {
-        return browser;
-      }
-    }
-  }
-
-  LOG(WARNING) << "Could not find a browser for the given WebContents.";
-  return nullptr;
+  return found_browser;
 }
 
 }  // namespace
@@ -84,12 +81,12 @@ WebTimeActivityProvider::WebTimeActivityProvider(
   DCHECK(app_time_controller_);
   DCHECK(app_service_wrapper);
 
-  BrowserList::GetInstance()->AddObserver(this);
+  ash::BrowserController::GetInstance()->AddObserver(this);
   app_service_wrapper_observation_.Observe(app_service_wrapper);
 }
 
 WebTimeActivityProvider::~WebTimeActivityProvider() {
-  BrowserList::GetInstance()->RemoveObserver(this);
+  ash::BrowserController::GetInstance()->RemoveObserver(this);
   TabStripModelObserver::StopObservingAll(this);
 }
 
@@ -111,16 +108,18 @@ void WebTimeActivityProvider::OnWebActivityChanged(
     return;
   }
 
-  const Browser* browser = GetBrowserForWebContents(info.web_contents);
+  ash::BrowserDelegate* browser =
+      ash::BrowserController::GetInstance()->GetBrowserForTab(
+          info.web_contents);
 
   // The browser window is not active. This may happen when a navigation
   // finishes in the background.
-  if (!base::Contains(active_browsers_, browser)) {
+  if (!browser || !base::Contains(active_browsers_, &browser->GetBrowser())) {
     return;
   }
 
   // Navigation finished in a background tab. Return.
-  if (browser->tab_strip_model()->GetActiveWebContents() != info.web_contents) {
+  if (browser->GetActiveWebContents() != info.web_contents) {
     return;
   }
 
@@ -141,10 +140,11 @@ void WebTimeActivityProvider::OnTabStripModelChanged(
     TabsInserted(change.GetInsert());
   }
 
-  const Browser* browser = GetBrowserForTabStripModel(tab_strip_model);
+  const BrowserWindowInterface* browser_window_interface =
+      GetBrowserForTabStripModel(tab_strip_model);
 
   // If the Browser is not the active browser, simply return.
-  if (!base::Contains(active_browsers_, browser)) {
+  if (!base::Contains(active_browsers_, browser_window_interface)) {
     return;
   }
 
@@ -161,11 +161,15 @@ void WebTimeActivityProvider::OnTabStripModelChanged(
   MaybeNotifyStateChange(base::Time::Now());
 }
 
-void WebTimeActivityProvider::OnBrowserAdded(Browser* browser) {
+void WebTimeActivityProvider::OnBrowserCreated(
+    ash::BrowserDelegate* browser_delegate) {
+  Browser* browser = &browser_delegate->GetBrowser();
   browser->tab_strip_model()->AddObserver(this);
 }
 
-void WebTimeActivityProvider::OnBrowserRemoved(Browser* browser) {
+void WebTimeActivityProvider::OnBrowserClosed(
+    ash::BrowserDelegate* browser_delegate) {
+  Browser* browser = &browser_delegate->GetBrowser();
   if (!base::Contains(active_browsers_, browser)) {
     return;
   }
@@ -181,14 +185,14 @@ void WebTimeActivityProvider::OnAppActive(
     return;
   }
 
-  const Browser* browser = GetBrowserForInstance(
+  ash::BrowserDelegate* browser = GetBrowserForInstance(
       app_service_wrapper_observation_.GetSource()->GetInstanceRegistry(),
       instance_id);
   if (!browser) {
     return;
   }
 
-  active_browsers_.insert(browser);
+  active_browsers_.insert(&browser->GetBrowser());
   MaybeNotifyStateChange(timestamp);
 }
 
@@ -200,19 +204,16 @@ void WebTimeActivityProvider::OnAppInactive(
     return;
   }
 
-  const Browser* browser = GetBrowserForInstance(
+  ash::BrowserDelegate* browser = GetBrowserForInstance(
       app_service_wrapper_observation_.GetSource()->GetInstanceRegistry(),
       instance_id);
   if (!browser) {
     return;
   }
 
-  if (!base::Contains(active_browsers_, browser)) {
-    return;
+  if (active_browsers_.erase(&browser->GetBrowser())) {
+    MaybeNotifyStateChange(timestamp);
   }
-
-  active_browsers_.erase(browser);
-  MaybeNotifyStateChange(timestamp);
 }
 
 void WebTimeActivityProvider::TabsInserted(
@@ -246,9 +247,10 @@ void WebTimeActivityProvider::MaybeNotifyStateChange(base::Time timestamp) {
 
 ChromeAppActivityState
 WebTimeActivityProvider::CalculateChromeAppActivityState() const {
-  for (const Browser* browser : active_browsers_) {
+  for (const BrowserWindowInterface* browser_window_interface :
+       active_browsers_) {
     const content::WebContents* contents =
-        browser->tab_strip_model()->GetActiveWebContents();
+        browser_window_interface->GetTabStripModel()->GetActiveWebContents();
     if (!contents) {
       continue;
     }

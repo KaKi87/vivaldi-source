@@ -75,6 +75,8 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/timer.h"
 
+#include "app/vivaldi_apptools.h"
+
 namespace blink {
 
 TextFinder::FindMatch::FindMatch(Range* range, int ordinal)
@@ -399,10 +401,17 @@ void TextFinder::SetFindEndstateFocusAndSelection() {
       auto* element = DynamicTo<Element>(runner);
       if (!element)
         continue;
+      // Override temporary runtime-feature
+      // 'KeyboardFocusabilityAfterFindInPage' as this is removed in 144 and we
+      // override prefs.tabs_to_links via
+      // vivaldiPrefs::kWebpagesTabFocusesLinks. Was VB-120955.
       bool focusable =
-          RuntimeEnabledFeatures::KeyboardFocusabilityAfterFindInPageEnabled()
-              ? element->IsKeyboardFocusableSlow()
-              : element->IsFocusable();
+          vivaldi::IsVivaldiRunning()
+              ? element->IsFocusable()
+              : (RuntimeEnabledFeatures::
+                         KeyboardFocusabilityAfterFindInPageEnabled()
+                     ? element->IsKeyboardFocusableSlow()
+                     : element->IsFocusable());
       if (focusable) {
         // Found a focusable parent node. Set the active match as the
         // selection and focus to the focusable node.

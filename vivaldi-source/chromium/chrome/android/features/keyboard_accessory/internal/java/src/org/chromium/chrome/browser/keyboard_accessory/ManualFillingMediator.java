@@ -165,6 +165,13 @@ class ManualFillingMediator
                         updateExtensionStateAndKeyboard(isSoftKeyboardShowing(getContentView()));
                     }
                 }
+
+                @Override
+                public void onContentViewScrollingStateChanged(boolean scrolling) {
+                    if (scrolling && shouldHideOnScroll()) {
+                        hide();
+                    }
+                }
             };
 
     private final FullscreenManager.Observer mFullscreenObserver =
@@ -612,6 +619,15 @@ class ManualFillingMediator
                         ChromeFeatureList.AUTOFILL_ANDROID_DESKTOP_KEYBOARD_ACCESSORY_REVAMP);
     }
 
+    /**
+     * @return Whether Keyboard Accessory should hide on page scroll.
+     */
+    private boolean shouldHideOnScroll() {
+        return isLargeFormFactor()
+                && ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING);
+    }
+
     public boolean isLargeFormFactor() {
         int windowWidthDp = mActivity.getResources().getConfiguration().screenWidthDp;
         int windowHeightDp = mActivity.getResources().getConfiguration().screenHeightDp;
@@ -827,7 +843,9 @@ class ManualFillingMediator
             newControlsOffset = offset;
         }
 
-        mKeyboardAccessory.setStyle(new KeyboardAccessoryStyle(true, newControlsOffset, 0));
+        if (requiresVisibleBar(extensionState)) {
+            mKeyboardAccessory.setStyle(new KeyboardAccessoryStyle(true, newControlsOffset, 0));
+        }
 
         if (VivaldiUtils.isTopToolbarOn()) // Only required when toolbar is at the top.
         mBottomInsetSupplier.set(newControlsHeight);

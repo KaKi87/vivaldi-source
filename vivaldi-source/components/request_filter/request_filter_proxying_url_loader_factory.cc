@@ -10,10 +10,9 @@
 #include <utility>
 
 #include "base/no_destructor.h"
-#include "base/not_fatal_until.h"
 #include "base/strings/stringprintf.h"
-#include "base/types/optional_util.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
+#include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/content_browser_client.h"
@@ -22,7 +21,6 @@
 #include "content/public/browser/storage_partition.h"
 #include "content/public/common/url_utils.h"
 #include "extensions/buildflags/buildflags.h"
-#include "net/base/completion_repeating_callback.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
 #include "net/http/http_util.h"
@@ -34,7 +32,6 @@
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/public/mojom/parsed_headers.mojom-forward.h"
 #include "third_party/blink/public/common/loader/throttling_url_loader.h"
-#include "third_party/blink/public/platform/resource_request_blocked_reason.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/extension_registry.h"
@@ -148,7 +145,9 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
       current_response_(network::mojom::URLResponseHead::New()),
       has_any_extra_headers_listeners_(
           network_service_request_id_ != 0 &&
-          factory->request_handler_->WantsExtraHeadersForAnyRequest()),
+          factory->request_handler_->HasAnyExtraHeadersListener()),
+      has_any_security_info_listeners_(
+          factory->request_handler_->HasAnySecurityInfoListener()),
       navigation_response_task_runner_(navigation_response_task_runner) {
   // If there is a client error, clean up the request.
   target_client_.set_disconnect_handler(
@@ -175,7 +174,9 @@ RequestFilterProxyingURLLoaderFactory::InProgressRequest::InProgressRequest(
       proxied_loader_receiver_(this),
       for_cors_preflight_(true),
       has_any_extra_headers_listeners_(
-          factory->request_handler_->WantsExtraHeadersForAnyRequest()) {}
+          factory->request_handler_->HasAnyExtraHeadersListener()),
+      has_any_security_info_listeners_(
+          factory->request_handler_->HasAnySecurityInfoListener()) {}
 
 RequestFilterProxyingURLLoaderFactory::InProgressRequest::~InProgressRequest() {
   DCHECK_NE(state_, State::kInvalid);
@@ -226,7 +227,8 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
       (request_.url.SchemeIsHTTPOrHTTPS() ||
        request_.url.SchemeIs(url::kUuidInPackageScheme)) &&
       (for_cors_preflight_ || network_service_request_id_ != 0) &&
-      factory_->request_handler_->WantsExtraHeadersForRequest(&info_.value());
+      factory_->request_handler_->HasExtraHeadersListenerForRequest(
+          &info_.value());
 }
 
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
@@ -496,12 +498,19 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
 void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     OnHeadersReceived(const std::string& headers,
                       const net::IPEndPoint& remote_endpoint,
+                      const std::optional<net::SSLInfo>& ssl_info,
                       OnHeadersReceivedCallback callback) {
   auto parsed_headers = base::MakeRefCounted<net::HttpResponseHeaders>(headers);
+
+  if (factory_->request_handler_->HasSecurityInfoListenerForRequest(
+          &info_.value())) {
+    info_->AddSslInfo(ssl_info);
+  }
+
   if (!current_request_uses_header_client_) {
     if (forwarding_header_client_) {
-      forwarding_header_client_->OnHeadersReceived(headers, remote_endpoint,
-                                                   std::move(callback));
+      forwarding_header_client_->OnHeadersReceived(
+          headers, remote_endpoint, ssl_info, std::move(callback));
     } else {
       // Make sure the callback is run, otherwise XHRs would fail when
       // webrequest listeners was set.
@@ -523,6 +532,8 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     }
     return;
   }
+
+  ssl_info_ = &ssl_info;
 
   on_headers_received_callback_ = std::move(callback);
   current_response_ = network::mojom::URLResponseHead::New();
@@ -691,7 +702,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
     uint32_t options = options_;
     // Even if this request does not use the header client, future redirects
     // might, so we need to set the option on the loader.
-    if (has_any_extra_headers_listeners_) {
+    if (has_any_extra_headers_listeners_ || has_any_security_info_listeners_) {
       options |= network::mojom::kURLLoadOptionUseHeaderClient;
     }
     factory_->target_factory_->CreateLoaderAndStart(
@@ -821,7 +832,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
   if (forwarding_header_client_) {
     forwarding_header_client_->OnHeadersReceived(
         headers ? *headers : current_response_->headers->raw_headers(),
-        current_response_->remote_endpoint,
+        current_response_->remote_endpoint, *ssl_info_,
         base::BindOnce(&ForwardOnHeaderReceivedCallback,
                        std::move(on_headers_received_callback_), headers,
                        redirect_url_));
@@ -830,6 +841,7 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
         .Run(net::OK, headers, redirect_url_);
   }
   override_headers_ = nullptr;
+  ssl_info_ = nullptr;
 
   if (for_cors_preflight_) {
     // If this is for CORS preflight, there is no associated client.
@@ -884,9 +896,9 @@ void RequestFilterProxyingURLLoaderFactory::InProgressRequest::
   // 'extraHeaders' option. We need to repopulate the ParsedHeader to reflect
   // the modified headers.
   //
-  // TODO(crbug.com/40765899): Once problems with 'extraHeaders' are
-  // sorted out, migrate these headers over to requiring 'extraHeaders' and
-  // remove this code.
+  // TODO(crbug.com/40765899): Once problems with 'extraHeaders' are sorted out,
+  // migrate these headers over to requiring 'extraHeaders' and remove this
+  // code.
   //
   // Note: As an optimization, we reparse the ParsedHeaders only for navigation
   // and worker requests, since they are not used for subresource requests.
@@ -1124,7 +1136,7 @@ bool RequestFilterProxyingURLLoaderFactory::InProgressRequest::IsRedirectSafe(
     const extensions::Extension* extension =
         extensions::ExtensionRegistry::Get(factory_->browser_context_)
             ->enabled_extensions()
-            .GetByID(target_url.host());
+            .GetByID(target_url.GetHost());
     if (!extension) {
       return false;
     }
@@ -1241,8 +1253,8 @@ void RequestFilterProxyingURLLoaderFactory::CreateLoaderAndStart(
 
   // The|web_request_id| doesn't really matter. It just needs to be unique
   // per-BrowserContext so filters can make sense of it.  Note that
-  // |network_service_request_id_| by contrast is not necessarily unique, so we
-  // don't use it for identity here. This request ID may be the same as a
+  // |network_service_request_id_| by contrast is not necessarily unique, so
+  // we don't use it for identity here. This request ID may be the same as a
   // previous request if the previous request was redirected to a URL that
   // required a different loader.
   const uint64_t filtered_request_id =
@@ -1299,11 +1311,11 @@ void RequestFilterProxyingURLLoaderFactory::OnLoaderForCorsPreflightCreated(
     const network::ResourceRequest& request,
     mojo::PendingReceiver<network::mojom::TrustedHeaderClient> receiver) {
   // Please note that the URLLoader is now starting, without waiting for
-  // additional signals from here. The URLLoader will be blocked before
-  // sending HTTP request headers (TrustedHeaderClient.OnBeforeSendHeaders),
-  // but the connection set up will be done before that. This is acceptable from
-  // the request filter API because the filters have already allowed to set up
-  // a connection to the same URL (i.e., the actual request), and distinguishing
+  // additional signals from here. The URLLoader will be blocked before sending
+  // HTTP request headers (TrustedHeaderClient.OnBeforeSendHeaders), but the
+  // connection set up will be done before that. This is acceptable from the
+  // request filter API because the filters have already allowed to set up a
+  // connection to the same URL (i.e., the actual request), and distinguishing
   // two connections for the actual request and the preflight request before
   // sending request headers is very difficult.
   const uint64_t web_request_id =

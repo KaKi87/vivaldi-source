@@ -10,7 +10,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "chrome/common/pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/url_data_source.h"
@@ -20,10 +19,10 @@
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_version_info.h"
 #include "browser/ad_blocker/adblock_rule_service_factory.h"
+#include "browser/kagi_token/kagi_token_cookie_listener.h"
 #include "browser/removed_partners_tracker.h"
 #include "calendar/calendar_model_loaded_observer.h"
 #include "calendar/calendar_service_factory.h"
-#include "components/ad_blocker/public/content/adblock_rule_service.h"
 #include "components/content_injection/content_injection_service_factory.h"
 #include "components/datasource/vivaldi_data_source.h"
 #include "components/datasource/vivaldi_web_source.h"
@@ -33,10 +32,7 @@
 #include "components/notes/notes_model.h"
 #include "components/notes/notes_model_loaded_observer.h"
 #include "components/page_actions/page_actions_service_factory.h"
-#include "components/request_filter/request_filter_manager.h"
-#include "components/request_filter/request_filter_manager_factory.h"
 #include "components/search_engines/default_search_engine_observer.h"
-#include "components/translate/core/browser/translate_language_list.h"
 #include "components/translate/core/browser/translate_pref_names.h"
 #include "contact/contact_model_loaded_observer.h"
 #include "contact/contact_service_factory.h"
@@ -243,6 +239,8 @@ void VivaldiInitProfile(Profile* profile) {
         base::CommandLine::ForCurrentProcess(),
         switches::kDisableSmoothScrolling);
   }
+
+  vivaldi::KagiTokenCookieListener::Create(*profile);
 
   // Hook to redisplay the Welcome page. When needed, append new feature in
   // src/prefs_definitions.json and update test here.

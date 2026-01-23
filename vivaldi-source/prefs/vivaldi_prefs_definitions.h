@@ -3,7 +3,6 @@
 #ifndef PREFS_VIVALDI_PREFS_DEFINITIONS_H_
 #define PREFS_VIVALDI_PREFS_DEFINITIONS_H_
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>

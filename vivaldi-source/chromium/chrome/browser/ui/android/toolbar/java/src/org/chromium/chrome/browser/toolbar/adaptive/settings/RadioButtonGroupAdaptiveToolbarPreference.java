@@ -28,6 +28,8 @@ import org.chromium.components.browser_ui.settings.ContainedRadioButtonGroupPref
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
 
+import java.util.ArrayList;
+
 // Vivaldi
 import org.chromium.build.BuildConfig;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -100,6 +102,7 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
         if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD)
             // Share feature unavailable on automotive.
             mShareButton.setVisibility(View.GONE);
+        mTranslateButton.setIcon(R.drawable.menu_translate_24dp);
         // End Vivaldi
 
         mInitRadioButtonRunnable.run();
@@ -146,11 +149,9 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends ContainedRadioBut
 
     private UiState buildUiStateForStats() {
         // Only the last 2 fields |preferenceSelection| |autoButtonCaption| are used.
-        return new UiState(
-                /* canShowUi= */ true,
-                AdaptiveToolbarButtonVariant.UNKNOWN,
-                mSelected,
-                mAutoButtonCaption);
+        ArrayList<Integer> buttonList = new ArrayList<>();
+        buttonList.add(AdaptiveToolbarButtonVariant.UNKNOWN);
+        return new UiState(/* canShowUi= */ true, buttonList, mSelected, mAutoButtonCaption);
     }
 
     /**

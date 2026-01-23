@@ -57,7 +57,6 @@ import org.chromium.chrome.browser.tab.WebContentsState;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
 import org.chromium.chrome.browser.tabmodel.TabPersistenceFileInfo.TabStateFileInfo;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStore.TabPersistentStoreObserver;
-import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager.TabModelSelectorMetadata;
 import org.chromium.chrome.browser.tabpersistence.TabStateDirectory;
 import org.chromium.chrome.browser.tabwindow.TabModelSelectorFactory;
 import org.chromium.chrome.browser.tabwindow.WindowId;
@@ -198,16 +197,15 @@ public class TabbedModeTabPersistencePolicyTest {
                                     .initializeTabModels(normalTabModel, incognitoTabModel);
                             return tmpOrchestrator;
                         });
-        TabPersistentStore store =
+        TabPersistentStoreImpl store =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
-                            TabPersistentStore tmpStore =
+                            TabPersistentStoreImpl tmpStore =
                                     orchestrator.getTabPersistentStoreForTesting();
                             tmpStore.addObserver(
                                     new TabPersistentStoreObserver() {
                                         @Override
-                                        public void onMetadataSavedAsynchronously(
-                                                TabModelSelectorMetadata metadata) {
+                                        public void onMetadataSavedAsynchronously() {
                                             callbackSignal.notifyCalled();
                                         }
                                     });
@@ -245,7 +243,7 @@ public class TabbedModeTabPersistencePolicyTest {
         while (tabModel.getCount() > 0) tabModel.removeTab(tabModel.getTabAt(0));
     }
 
-    private void addTabToSaveQueue(TabPersistentStore store, TabModel tabModel, Tab tab) {
+    private void addTabToSaveQueue(TabPersistentStoreImpl store, TabModel tabModel, Tab tab) {
         TabState tabState = new TabState();
         tabState.contentsState = WEB_CONTENTS_STATE;
         TabStateExtractor.setTabStateForTesting(tab.getId(), tabState);
@@ -272,7 +270,7 @@ public class TabbedModeTabPersistencePolicyTest {
         //
         // We remove the tabs to simulate that they weren't cleaned up and the instance is not
         // running. A running instance would have had its tabs closed in
-        // MultiInstanceManagerApi31#closeInstance already. Failing to do so will throw an
+        // MultiInstanceManagerApi31#closeWindow already. Failing to do so will throw an
         // IllegalStateException.
         buildTestTabModelSelector(
                 new int[] {3, 5, 7}, new int[] {11, 13, 17}, /* removeTabs= */ false);

@@ -121,7 +121,8 @@ public class PageSummaryButtonController extends BaseButtonDataProvider {
                 mActiveTabSupplier.get().goBack();
             } else {
                 WebContents webContents = assertNonNull(mActiveTabSupplier.get().getWebContents());
-                DomDistillerTabUtils.distillCurrentPageAndView(webContents);
+                DomDistillerTabUtils.distillCurrentPageAndViewIfSuccessful(
+                        webContents, (success) -> {});
             }
             return;
         } // End Vivaldi

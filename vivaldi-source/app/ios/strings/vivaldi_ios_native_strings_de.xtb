@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoomstufe für <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi ist langsam, stürzt ab oder heizt das Gerät auf</translation>
 <translation id="1929299157575856072">STANDARD BLOCKSTUFE</translation>
+<translation id="1933618400514506228">Serbokroatisch (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Bild im Hintergrund-Tab öffnen</translation>
 <translation id="1986733655397734221">Keines hiervon</translation>
 <translation id="1994506778397655062">In neuem Hintergrund-Tab öffnen</translation>
@@ -108,7 +109,7 @@
 <translation id="2359808026110333948">Fortsetzen</translation>
 <translation id="2386793615875593361">1 ausgewählt</translation>
 <translation id="2387049655823108978">Offene Tabs von anderen Geräten synchronisieren</translation>
-<translation id="2388224692799337242">Sobald Sie lossurfen, wird Ihr Verlauf hier angezeigt</translation>
+<translation id="2388224692799337242">Sobald Sie Webseiten besuchen, wird Ihr Verlauf hier angezeigt</translation>
 <translation id="2391028308389203648">Türkisch (<ph name="ORIGIN" />)</translation>
 <translation id="2392369802118427583">Aktivieren</translation>
 <translation id="2414886740292270097">Dunkel</translation>
@@ -167,7 +168,6 @@ blockiert</translation>
 <translation id="309084557304084991">Ich möchte keine vorinstallierten Lesezeichen und Schnellwahlen</translation>
 <translation id="3091563570137981919">Tracker- und Werbeblocker</translation>
 <translation id="3097968995088564986">„Hinzufügen“-Schaltfläche anzeigen</translation>
-<translation id="3102790820790869053">Letzte Tabs durchsuchen</translation>
 <translation id="3134385238404760368">Keine aktuellen Tabs</translation>
 <translation id="3142562627629111859">Neue Gruppe</translation>
 <translation id="3157931365184549694">Wiederherstellen</translation>
@@ -226,6 +226,7 @@ blockiert</translation>
 <translation id="383723620494271391">Möchten Sie noch etwas hinzufügen?</translation>
 <translation id="3842727926262967527">Wählen Sie aus, wo Sie die Tableiste und das Adressfeld haben möchten.</translation>
 <translation id="3845564230651302310">Neue Blockereinstellungen anwenden...</translation>
+<translation id="385051799172605136">Zurück</translation>
 <translation id="3858860766373142691">Name</translation>
 <translation id="3861379244432690245">Direct Match aktivieren</translation>
 <translation id="3866249974567520381">Beschreibung</translation>
@@ -310,7 +311,6 @@ blockiert</translation>
 <translation id="462860218383788109">Geändert</translation>
 <translation id="4640946580087069269">Als Notiz kopieren</translation>
 <translation id="4643117005422448078">Top-Sites</translation>
-<translation id="4654428449690716275">Vor oder nach der Übersetzung kein Banner anzeigen ***</translation>
 <translation id="4654578955713250802">Werbung und Tracker blockieren</translation>
 <translation id="4655510151391078468">Dieser Code stimmt nicht mit dem überein, den wir Ihnen geschickt haben.
         Sie haben noch <ph name="ATTEMPTS" /> verbleibende Versuche.</translation>
@@ -449,7 +449,7 @@ blockiert</translation>
 <translation id="6406506848690869874">Synchronisation</translation>
 <translation id="641394169129472837">Wählen Sie aus, welche Seite geöffnet werden soll, wenn Sie auf die Schaltfläche Neuer Tab tippen.</translation>
 <translation id="6438416544409849235"><ph name="NUMBER_OF_SELECTED_NOTES" /> ausgewählt</translation>
-<translation id="6442584491342758233">Direct Match</translation>
+<translation id="6442584491342758233">Direkter Treffer</translation>
 <translation id="6464909711355014884">Benutzerdefinierte Suchmaschine hinzufügen</translation>
 <translation id="6487150267908786236"><ph name="BEGIN_LINK" />Importieren<ph name="END_LINK" /></translation>
 <translation id="6517411226162529295">Wiederherstellungsschlüssel</translation>
@@ -496,6 +496,7 @@ blockiert</translation>
 <translation id="6946395294519639514">Dank Paneelen können Sie die wichtigsten Werkzeuge in der Seitenleiste des Browsers leicht erreichen.</translation>
 <translation id="6951435330868954105">Standardeinstellungen verwalten</translation>
 <translation id="6951948201878750661">Tippen, um diese Farbe auszuwählen</translation>
+<translation id="6954630860045222581">Paneel einblenden</translation>
 <translation id="6967884871145366229">Datenschutzeinstellungen verwalten</translation>
 <translation id="6973630695168034713">Ordner</translation>
 <translation id="7000227144065890583">URL für Suchvorschläge</translation>
@@ -622,7 +623,7 @@ blockiert</translation>
 <translation id="8404556771547317369">Bitte die URL eingeben</translation>
 <translation id="8414685983518053656">Notizen</translation>
 <translation id="8423076545503792640">Die Bearbeitung ist aufgrund eines Fehlers fehlgeschlagen. Bitte versuchen Sie es später noch einmal.</translation>
-<translation id="8427509694325373907">Bildsuche POST-Parameter</translation>
+<translation id="8427509694325373907">POST-Parameter für die Bildersuche</translation>
 <translation id="8428213095426709021">Einstellungen</translation>
 <translation id="8458397775385147834">1 Element gelöscht</translation>
 <translation id="846569642435104154">Damit wird die gewählte Zoomstufe für alle Seiten festgelegt</translation>
@@ -651,7 +652,7 @@ blockiert</translation>
 <translation id="8765173886020357878">Suchvorschläge</translation>
 <translation id="8804164990146287819">Datenschutzerklärung</translation>
 <translation id="8805346136361295421">Auf Seite suchen ausblenden</translation>
-<translation id="8818152010000655963">Wallpaper</translation>
+<translation id="8818152010000655963">Hintergrundbilder</translation>
 <translation id="8819841443522803117">Ist es an der Zeit, Ihren Standardbrowser zu wechseln? Wählen Sie Vivaldi.</translation>
 <translation id="8820817407110198400">Lesezeichen</translation>
 <translation id="8828442094222036738">Private Google-Ergebnisse, made in Europa</translation>
@@ -663,6 +664,7 @@ blockiert</translation>
 <translation id="8948792607467387336">Als Hintergrundbild auswählen</translation>
 <translation id="8964449607824577665">Ohne Ihr aktuelles Verschlüsselungspasswort können wir Ihre Daten nicht entschlüsseln. Das Zurücksetzen dieses Passworts erfordert das Löschen aller bestehenden Sync-Daten auf Vivaldi-Servern.</translation>
 <translation id="8965371804397726192">Synchronisierung aller Daten starten</translation>
+<translation id="896787570003733070">Keine Banner vor oder nach dem Übersetzungsangebot anzeigen</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Lesezeichen verschoben nach "{title}"}
           other {Lesezeichen verschoben nach "{title}"}}</translation>

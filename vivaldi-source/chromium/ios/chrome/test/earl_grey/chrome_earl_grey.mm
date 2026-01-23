@@ -43,7 +43,7 @@ using chrome_test_util::ShareButton;
 namespace {
 
 // Accessibility ID of the Activity menu.
-NSString* kActivityMenuIdentifier = @"ActivityListView";
+NSString* const kActivityMenuIdentifier = @"ActivityListView";
 
 NSString* const kWaitForPageToStartLoadingError = @"Page did not start to load";
 NSString* const kWaitForPageToFinishLoadingError =
@@ -188,6 +188,10 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration) {
 
 - (BOOL)isEnhancedSafeBrowsingInfobarEnabled {
   return [ChromeEarlGreyAppInterface isEnhancedSafeBrowsingInfobarEnabled];
+}
+
+- (BOOL)isAskGeminiChipEnabled {
+  return [ChromeEarlGreyAppInterface isAskGeminiChipEnabled];
 }
 
 - (UIInterfaceOrientation)interfaceOrientation {
@@ -1255,6 +1259,10 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration) {
                           windowNumber, chrome_test_util::FakeOmnibox())];
 }
 
+- (void)openSettingsInWindowWithNumber:(int)windowNumber {
+  [ChromeEarlGreyAppInterface openSettingsInWindowWithNumber:windowNumber];
+}
+
 #pragma mark - SignIn Utilities (EG2)
 
 - (void)signOutAndClearIdentities {
@@ -1776,7 +1784,7 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration) {
 
   [[EarlGrey selectElementWithMatcher:ShareButton()] performAction:grey_tap()];
 
-  NSString* hostString = base::SysUTF8ToNSString(URL.host());
+  NSString* hostString = base::SysUTF8ToNSString(URL.GetHost());
   XCUIApplication* currentApplication = [[XCUIApplication alloc] init];
   BOOL hostStringPresent = [currentApplication.otherElements[hostString]
       waitForExistenceWithTimeout:kWaitForUIElementTimeout.InSecondsF()];

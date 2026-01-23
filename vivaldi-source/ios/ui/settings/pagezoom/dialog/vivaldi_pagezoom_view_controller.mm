@@ -4,8 +4,8 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/shared/public/commands/text_zoom_commands.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
-#import "ios/ui/settings/pagezoom/dialog/uiwindow_pagezoom.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -13,13 +13,13 @@ using l10n_util::GetNSString;
 
 namespace {
 // Layout constants
-const CGFloat kContentViewHeight = 240.0;
 const CGFloat kCornerRadius = 18.0;
 const CGFloat kShadowRadius = 1.0;
 const CGFloat kShadowOpacity = 0.2;
 const CGFloat kShadowOpacityDark = 0.4;
 const CGFloat kIconSize = 20.0;
 const CGFloat kTopPadding = 20.0;
+const CGFloat kBottomPadding = 20.0;
 const CGFloat kIconTitleSpacing = 10.0;
 const CGFloat kHorizontalPadding = 20.0;
 const CGFloat kButtonSpacing = 20.0;
@@ -46,6 +46,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 @property (nonatomic, strong) UIView *dividerView;
 @property (nonatomic, strong) UIView *dividerLine;
 @property (nonatomic, strong) UIButton *openZoomSettingsButton;
+@property (nonatomic, strong) NSLayoutConstraint *contentsTopConstraint;
 @end
 
 @implementation VivaldiPageZoomViewController
@@ -84,19 +85,16 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   self.contentView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:self.contentView];
 
-  // Pin content view to main view edges respecting safe area
+  // Pin content view to main view edges
   [NSLayoutConstraint activateConstraints:@[
     [self.contentView.topAnchor
-      constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+      constraintEqualToAnchor:self.view.topAnchor],
     [self.contentView.leadingAnchor
       constraintEqualToAnchor:self.view.leadingAnchor],
     [self.contentView.trailingAnchor
       constraintEqualToAnchor:self.view.trailingAnchor],
     [self.contentView.bottomAnchor
       constraintEqualToAnchor:self.view.bottomAnchor],
-    // Set a fixed height for the content
-    [self.contentView.heightAnchor
-      constraintEqualToConstant:kContentViewHeight]
   ]];
 
   [self setupUI];
@@ -128,6 +126,25 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
     CGRectMake(0, 0, MIN(size.width, kMaxDialogWidth), size.height);
   self.view.layer.shadowPath =
     [UIBezierPath bezierPathWithRect:shadowRect].CGPath;
+}
+
+- (void)viewDidLayoutSubviews {
+  [super viewDidLayoutSubviews];
+
+  CGFloat topInset = self.view.safeAreaInsets.top;
+  if (@available(iOS 26, *)) {
+    UIViewLayoutRegion* safeAreaRegion =
+        [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:
+                                UIViewLayoutRegionAdaptivityAxisVertical];
+    NSDirectionalEdgeInsets calculatedInsets =
+        [self.view directionalEdgeInsetsForLayoutRegion:safeAreaRegion];
+    topInset = calculatedInsets.top;
+  }
+
+  CGFloat finalTopPadding = kTopPadding + topInset;
+  if (self.contentsTopConstraint.constant != finalTopPadding) {
+    self.contentsTopConstraint.constant = finalTopPadding;
+  }
 }
 
 - (void)setupUI {
@@ -234,10 +251,11 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 
 - (void)setupConstraints {
   // Icon and Title
+  self.contentsTopConstraint = [self.iconImageView.topAnchor
+      constraintEqualToAnchor:self.contentView.topAnchor
+                     constant:kTopPadding];
   [NSLayoutConstraint activateConstraints:@[
-    [self.iconImageView.topAnchor
-      constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide.topAnchor
-                     constant:kTopPadding],
+    self.contentsTopConstraint,
     [self.iconImageView.trailingAnchor
       constraintEqualToAnchor:self.titleLabel.leadingAnchor
                      constant:-kIconTitleSpacing],
@@ -316,20 +334,18 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
         self.contentView.safeAreaLayoutGuide.trailingAnchor
       constant:-kHorizontalPadding]
   ]];
+
+  [NSLayoutConstraint activateConstraints:@[
+    [self.openZoomSettingsButton.bottomAnchor
+      constraintEqualToAnchor:self.contentView.bottomAnchor
+                     constant:-kBottomPadding]
+  ]];
 }
 
 #pragma mark - Actions
 
 - (void)doneTapped {
-  UIWindow *keyWindow = nil;
-  for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-    if (scene.activationState == UISceneActivationStateForegroundActive &&
-        [scene isKindOfClass:[UIWindowScene class]]) {
-      keyWindow = ((UIWindowScene *)scene).windows.firstObject;
-      break;
-    }
-  }
-  [keyWindow hidePageZoomViewController];
+  [self.commandHandler closeTextZoom];
 }
 
 - (void)openZoomSettingsTapped {

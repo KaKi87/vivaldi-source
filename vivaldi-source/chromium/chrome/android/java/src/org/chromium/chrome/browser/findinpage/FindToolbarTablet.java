@@ -20,6 +20,9 @@ import org.chromium.components.browser_ui.widget.animation.CancelAwareAnimatorLi
 import org.chromium.ui.interpolators.Interpolators;
 
 // Vivaldi
+import android.view.Gravity;
+import android.view.ViewGroup;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import org.vivaldi.browser.common.VivaldiUtils;
 
 /** A tablet specific version of the {@link FindToolbar}. */
@@ -180,11 +183,18 @@ public class FindToolbarTablet extends FindToolbar {
             // Note(david@vivaldi.com): When toolbar is at the bottom we need to reparent the
             // find-toolbar in order to make it visible on top of the address-bar.
             if (!VivaldiUtils.isTopToolbarOn()) {
-            VivaldiUtils.reparentView(this, (android.view.ViewGroup) anchorView.getParent());
+                ViewGroup newParent = (ViewGroup) anchorView.getParent();
+                VivaldiUtils.reparentView(this, newParent);
+                CoordinatorLayout.LayoutParams params =
+                        (CoordinatorLayout.LayoutParams) getLayoutParams();
+                params.gravity = Gravity.TOP | Gravity.END;
+                params.rightMargin =
+                        getResources().getDimensionPixelSize(R.dimen.find_toolbar_margin_right);
+                setLayoutParams(params);
             } else { // Vivaldi
             lp.topMargin = anchorView.getBottom() - mYInsetPx;
-            } // End Vivaldi
             setLayoutParams(lp);
+            } // End Vivaldi
             nextAnimator = mAnimationEnter;
         } else if (!show && getVisibility() != View.GONE && mCurrentAnimation != mAnimationLeave) {
             nextAnimator = mAnimationLeave;

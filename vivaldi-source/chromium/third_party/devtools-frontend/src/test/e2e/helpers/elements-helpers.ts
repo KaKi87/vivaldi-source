@@ -5,13 +5,13 @@ import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
 import {AsyncScope} from '../../conductor/async-scope.js';
-import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
-import type {InspectedPage} from '../../e2e_non_hosted/shared/target-helper.js';
 import {
   step,
 
 } from '../../shared/helper.js';
 import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+import type {InspectedPage} from '../shared/target-helper.js';
 
 import {openSubMenu} from './context-menu-helpers.js';
 import {
@@ -864,7 +864,7 @@ export async function editCSSProperty(
       undefined, devToolsPage);
 }
 
-// Edit a media or container query rule text for the given styles section
+/** Edit a media or container query rule text for the given styles section **/
 export async function editQueryRuleText(
     queryStylesSections: puppeteer.ElementHandle<Element>, newQueryText: string,
     devToolsPage = getBrowserAndPagesWrappers().devToolsPage) {
@@ -990,8 +990,10 @@ export const clickOnFirstLinkInStylesPanel = async (devToolsPage: DevToolsPage) 
 };
 
 export const toggleClassesPane = async (devToolsPage: DevToolsPage) => {
-  await devToolsPage.click(CLS_BUTTON_SELECTOR);
-  // animation happening here
+  const stylesPane = await devToolsPage.waitFor('div.styles-pane');
+  await devToolsPage.waitFor(CLS_BUTTON_SELECTOR, stylesPane);
+  await devToolsPage.click(CLS_BUTTON_SELECTOR, {root: stylesPane});
+  await devToolsPage.waitFor('.styles-element-classes-pane .text-prompt', stylesPane);  // wait for the animation
   await expectVeEvents(
       [
         veClick('Panel: elements > Pane: styles > ToggleSubpane: elements-classes'),

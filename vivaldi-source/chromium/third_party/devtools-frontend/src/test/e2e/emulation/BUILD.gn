@@ -1,14 +1,19 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("emulation") {
-  sources = [ "custom-devices_test.ts" ]
-
+ts_e2e_library("emulation") {
+  sources = [
+    "custom-devices.test.ts",
+    "dual-screen.test.ts",
+    "foldable-device.test.ts",
+    "media-query-inspector.test.ts",
+    "responsive.test.ts",
+  ]
   deps = [
-    "../../shared",
     "../helpers",
+    "../shared",
   ]
 }

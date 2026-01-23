@@ -16,13 +16,16 @@ import org.chromium.chrome.browser.profiles.ProfileIntentUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.document.ChromeAsyncTabLauncher;
-import org.chromium.components.embedder_support.util.UrlConstants;
+import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
+import org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.DeviceFormFactor;
 
+// Vivaldi
 import org.vivaldi.browser.panels.PanelUtils;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.components.embedder_support.util.UrlConstants;
 
 /** Utility methods for the browsing history manager. */
 @NullMarked
@@ -45,8 +48,11 @@ public class HistoryManagerUtils {
 
         Context appContext = ContextUtils.getApplicationContext();
         if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(activity)) {
+            UrlConstantResolver urlConstantResolver =
+                    UrlConstantResolverFactory.getForProfile(profile);
+
             // History shows up as a tab on tablets.
-            LoadUrlParams params = new LoadUrlParams(UrlConstants.NATIVE_HISTORY_URL);
+            LoadUrlParams params = new LoadUrlParams(urlConstantResolver.getHistoryPageUrl());
             ChromeAsyncTabLauncher delegate =
                     new ChromeAsyncTabLauncher(/* incognito= */ profile.isOffTheRecord());
             delegate.launchNewTab(params, TabLaunchType.FROM_CHROME_UI, /* parent= */ tab);

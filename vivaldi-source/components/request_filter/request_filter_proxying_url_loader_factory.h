@@ -14,15 +14,17 @@
 #include <string>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "components/request_filter/request_filter_manager.h"
 #include "ipc/constants.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver_set.h"
+#include "net/ssl/ssl_info.h"
 #include "services/network/public/mojom/early_hints.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
+#include "services/network/public/mojom/url_loader_factory.mojom.h"
 
 namespace content {
 class BrowserContext;
@@ -113,6 +115,7 @@ class RequestFilterProxyingURLLoaderFactory
                              OnBeforeSendHeadersCallback callback) override;
     void OnHeadersReceived(const std::string& headers,
                            const net::IPEndPoint& endpoint,
+                           const std::optional<net::SSLInfo>& ssl_info,
                            OnHeadersReceivedCallback callback) override;
 
    private:
@@ -203,6 +206,7 @@ class RequestFilterProxyingURLLoaderFactory
     std::set<std::string> removed_request_headers_;
     bool collapse_initiator_;
     GURL redirect_url_;
+    const std::optional<net::SSLInfo>* ssl_info_ = nullptr;
 
     const bool for_cors_preflight_ = false;
 
@@ -213,6 +217,12 @@ class RequestFilterProxyingURLLoaderFactory
     // is only set to true if there is a listener that needs to view or modify
     // headers set in the network process.
     const bool has_any_extra_headers_listeners_ = false;
+
+    // Similar to the |has_any_extra_headers_listeners_|, setting
+    // |has_any_security_info_listeners_| also will make the request to use
+    // network::mojom::kURLLoadOptionUseHeaderClient option.
+    const bool has_any_security_info_listeners_ = false;
+
     bool current_request_uses_header_client_ = false;
     OnBeforeSendHeadersCallback on_before_send_headers_callback_;
     OnHeadersReceivedCallback on_headers_received_callback_;

@@ -17,6 +17,7 @@ import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.content_public.browser.HostZoomMap;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.Arrays;
 
@@ -266,6 +267,15 @@ public class PageZoomUtils {
             return true;
         }
 
+        if (AccessibilityFeatureMap.sAndroidZoomIndicator.isEnabled()
+                && DeviceFormFactor.isNonMultiDisplayContextOnTablet(
+                        ContextUtils.getApplicationContext())) {
+            // Default to true for Lff
+            PageZoomUma.logAppMenuEnabledStateHistogram(
+                    PageZoomUma.AccessibilityPageZoomAppMenuEnabledState.FORM_FACTOR_ENABLED);
+            return true;
+        }
+
         PageZoomUma.logAppMenuEnabledStateHistogram(
                 PageZoomUma.AccessibilityPageZoomAppMenuEnabledState.NOT_ENABLED);
         return false;
@@ -396,5 +406,9 @@ public class PageZoomUtils {
     public static void setShouldShowMenuItemForTesting(@Nullable Boolean isEnabled) {
         sShouldShowMenuItemForTesting = isEnabled;
         ResettersForTesting.register(() -> sShouldShowMenuItemForTesting = null);
+    }
+
+    public static long getReadableZoomLevel(double zoomFactor) {
+        return Math.round(100 * convertZoomFactorToZoomLevel(zoomFactor));
     }
 }

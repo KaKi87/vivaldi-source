@@ -44,7 +44,7 @@ bool HandleDownload(Profile* profile, download::DownloadItem* download) {
 }
 
 bool HandleProtocol(Profile* profile, GURL url) {
-  const auto handler = GetProtocolHandlerMap().find(url.scheme());
+  const auto handler = GetProtocolHandlerMap().find(url.GetScheme());
   if (handler == GetProtocolHandlerMap().end())
     return false;
   return handler->second.Run(profile, url);

@@ -30,7 +30,7 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_page_control_constants.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -495,7 +495,7 @@ CGFloat CompactButtonHorizontalPadding() {
         [self createButtonWithTitle:nil
                               image:[UIImage imageNamed:vMenuShare]
                      targetSelector:@selector(shareSelectedTabs:)];
-  } else {
+  } else { // Vivaldi
   _shareButton =
       [self createButtonWithTitle:nil
                             image:DefaultSymbolWithPointSize(
@@ -564,10 +564,20 @@ CGFloat CompactButtonHorizontalPadding() {
   [self hideAllButtons];
 
   BOOL useCompactLayout = [self shouldUseCompactLayout];
-  BOOL hideToolbar =
-      self.mode == TabGridMode::kSearch ||
-      (!useCompactLayout && (self.page == TabGridPageRemoteTabs ||
-                             self.page == TabGridPageTabGroups));
+  BOOL hideToolbar;
+#if defined(VIVALDI_BUILD)
+  hideToolbar = (!useCompactLayout && (self.page == TabGridPageRemoteTabs ||
+        self.page == TabGridPageClosedTabs ||
+        self.page == TabGridPageTabGroups));
+#else // Vivaldi
+  if (base::FeatureList::IsEnabled(kTabRecallNewTabGroupButton)) {
+    hideToolbar = self.mode == TabGridMode::kSearch;
+  } else {
+    hideToolbar = self.mode == TabGridMode::kSearch ||
+                  (!useCompactLayout && (self.page == TabGridPageTabGroups));
+  }
+#endif // End Vivaldi
+
   if (hideToolbar) {
     self.hidden = YES;
     [self updateBackgroundVisibility];
@@ -590,9 +600,20 @@ CGFloat CompactButtonHorizontalPadding() {
   }
 
   if (useCompactLayout) {
+
+#if defined(VIVALDI_BUILD)
     if (self.page == TabGridPageRemoteTabs ||
+        self.page == TabGridPageClosedTabs ||
         self.page == TabGridPageTabGroups) {
+#else
+    if (self.page == TabGridPageTabGroups) {
+#endif // End Vivaldi
+
       _doneButton.hidden = NO;
+
+      if (base::FeatureList::IsEnabled(kTabRecallNewTabGroupButton)) {
+        _smallNewTabButton.hidden = NO;
+      }
     } else if (self.isInTabGroupView) {
       _smallNewTabButton.hidden = NO;
     } else {
@@ -617,7 +638,6 @@ CGFloat CompactButtonHorizontalPadding() {
       [self.topAnchor constraintEqualToAnchor:_largeNewTabButton.topAnchor];
   _viewTopConstraint.active = YES;
   _containerToolbar.hidden = YES;
-
   [self updateBackgroundVisibility];
 }
 

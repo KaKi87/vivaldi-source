@@ -10,6 +10,7 @@
 #include <string>
 
 #include "base/functional/callback_forward.h"
+#include "components/sync/model/conflict_resolution.h"
 #include "components/sync/model/data_type_local_change_processor.h"
 #include "components/sync/model/data_type_sync_bridge.h"
 #include "components/sync/model/model_error.h"
@@ -121,6 +122,7 @@ class FakeDataTypeSyncBridge : public DataTypeSyncBridge {
   bool SupportsGetClientTag() const override;
   bool SupportsGetStorageKey() const override;
   bool SupportsUniquePositions() const override;
+  bool SupportsIncrementalUpdates() const override;
   sync_pb::UniquePosition GetUniquePosition(
       const sync_pb::EntitySpecifics& specifics) const override;
   ConflictResolution ResolveConflict(
@@ -176,6 +178,9 @@ class FakeDataTypeSyncBridge : public DataTypeSyncBridge {
   // position from specifics.
   void EnableUniquePositionSupport(ExtractUniquePositionCallback callback);
 
+  // Sets whether the bridge supports incremental updates.
+  void SetSupportsIncrementalUpdates(bool supports_incremental_updates);
+
   // Storage keys for the entities with deleted collaboration membership.
   const absl::flat_hash_set<std::string>&
   deleted_collaboration_membership_storage_keys() const {
@@ -207,7 +212,7 @@ class FakeDataTypeSyncBridge : public DataTypeSyncBridge {
   const DataType type_;
 
   // The conflict resolution to use for calls to ResolveConflict.
-  ConflictResolution conflict_resolution_;
+  ConflictResolution conflict_resolution_ = ConflictResolution::kUseRemote;
 
   // The preference values that the bridge will ignore.
   absl::flat_hash_set<std::string> values_to_ignore_;
@@ -240,6 +245,8 @@ class FakeDataTypeSyncBridge : public DataTypeSyncBridge {
       deleted_collaboration_membership_storage_keys_;
 
   ExtractUniquePositionCallback extract_unique_positions_callback_;
+
+  bool supports_incremental_updates_ = true;
 };
 
 }  // namespace syncer

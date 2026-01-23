@@ -11,7 +11,7 @@ import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 import '../about_page/about_page.js';
-import '../ai_page/ai_page_index.js';
+//import '../ai_page/ai_page_index.js';
 import '../appearance_page/appearance_page_index.js';
 import '../autofill_page/autofill_page_index.js';
 import '../on_startup_page/on_startup_page.js';
@@ -274,6 +274,11 @@ export class SettingsMainElement extends SettingsMainElementBase {
 
   private showAiPage_(visibility?: boolean): boolean {
     return loadTimeData.getBoolean('showAiPage') && this.showPage_(visibility);
+  }
+
+  private showAutofillPage_(visibility?: boolean): boolean {
+    return !loadTimeData.getBoolean('enableYourSavedInfoSettingsPage') &&
+        this.showPage_(visibility);
   }
 
   private showYourSavedInfoPage_(visibility?: boolean): boolean {

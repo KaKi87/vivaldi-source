@@ -51,7 +51,7 @@ class DiscardableSharedMemoryManager;
 }
 #endif
 
-namespace ui {
+namespace gfx {
 class ScopedAnimationDurationScaleMode;
 }
 
@@ -298,6 +298,12 @@ class BrowserTestBase : public ::testing::Test {
   // This waits for those to complete before we can continue with the test.
   void WaitUntilJavaIsReady(base::OnceClosure quit_closure,
                             const base::TimeDelta& wait_retry_left);
+  // Android browser tests need to wait for the Activity to finish after tests
+  // run to properly shut down the browser.
+  void WaitUntilActivityTeardownIsFinished(
+      base::OnceClosure quit_closure,
+      const base::TimeDelta& wait_retry_left);
+
 #endif
   // Performs a bunch of setup, and then runs the browser test body.
   void ProxyRunTestOnMainThreadLoop();
@@ -376,7 +382,7 @@ class BrowserTestBase : public ::testing::Test {
   bool use_fake_media_stream_devices_ = true;
 
   // When verifying pixel output, animations are disabled to reduce flakiness.
-  std::unique_ptr<ui::ScopedAnimationDurationScaleMode>
+  std::unique_ptr<gfx::ScopedAnimationDurationScaleMode>
       disable_layer_animations_;
   gfx::AnimationTestApi::RenderModeResetter disable_rich_animations_;
 

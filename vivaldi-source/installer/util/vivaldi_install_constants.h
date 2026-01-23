@@ -20,6 +20,7 @@ extern const wchar_t kVivaldiInstallerRegisterBrowser[];
 extern const wchar_t kVivaldiInstallerAdvancedMode[];
 extern const wchar_t kVivaldiInstallerDisableStandaloneAutoupdate[];
 extern const wchar_t kVivaldiToastActivatorCLSID[];
+extern const wchar_t kVivaldiInstallerUpLoadCrashReports[];
 
 // Vivaldi paths and filenames
 extern const wchar_t kStandaloneMarkerFile[];
@@ -36,6 +37,7 @@ extern const char kVivaldiSilent[];
 extern const char kVivaldiStandalone[];
 extern const char kVivaldiUnpack[];
 extern const char kVivaldiUpdate[];
+extern const char kVivaldiEnableCrashlogUpload[];
 
 // Vivaldi installer switches and environment for debugging not supported in
 // official builds.

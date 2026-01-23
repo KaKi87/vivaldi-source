@@ -28,9 +28,6 @@ class GlobalNightModeStateController
                 SystemNightModeMonitor.Observer,
                 ApplicationStatus.ApplicationStateListener {
     private final ObserverList<Observer> mObservers = new ObserverList<>();
-    private final PowerSavingModeMonitor mPowerSaveModeMonitor;
-
-    private final Runnable mPowerSaveModeObserver = this::updateNightMode;
 
     /**
      * Whether night mode is enabled throughout the entire app. If null, night mode is not
@@ -46,13 +43,8 @@ class GlobalNightModeStateController
     /**
      * Should not directly instantiate unless for testing purpose. Use {@link
      * GlobalNightModeStateProviderHolder#getInstance()} instead.
-     *
-     * @param powerSaveModeMonitor The {@link PowerSavingModeMonitor} that maintains the system
-     *     power saving setting.
      */
-    GlobalNightModeStateController(PowerSavingModeMonitor powerSaveModeMonitor) {
-        mPowerSaveModeMonitor = powerSaveModeMonitor;
-
+    GlobalNightModeStateController() {
         mPreferenceListener =
                 (prefs, key) -> {
                     if (TextUtils.equals(key, UI_THEME_SETTING)) updateNightMode();
@@ -111,7 +103,6 @@ class GlobalNightModeStateController
         mIsStarted = true;
 
         SystemNightModeMonitor.getInstance().addObserver(this);
-        mPowerSaveModeMonitor.addObserver(mPowerSaveModeObserver);
         ContextUtils.getAppSharedPreferences()
                 .registerOnSharedPreferenceChangeListener(mPreferenceListener);
         updateNightMode();
@@ -126,19 +117,15 @@ class GlobalNightModeStateController
         mIsStarted = false;
 
         SystemNightModeMonitor.getInstance().removeObserver(this);
-        mPowerSaveModeMonitor.removeObserver(mPowerSaveModeObserver);
         ContextUtils.getAppSharedPreferences()
                 .unregisterOnSharedPreferenceChangeListener(mPreferenceListener);
     }
 
     private void updateNightMode() {
-        boolean powerSaveModeOn = mPowerSaveModeMonitor.powerSavingIsOn();
         final int theme = NightModeUtils.getThemeSetting();
         boolean newNightModeOn =
                 (theme == ThemeType.SYSTEM_DEFAULT
-                                && (powerSaveModeOn
-                                        || SystemNightModeMonitor.getInstance()
-                                                .isSystemNightModeOn()))
+                                && SystemNightModeMonitor.getInstance().isSystemNightModeOn())
                         || theme == ThemeType.DARK;
 
         // Vivaldi

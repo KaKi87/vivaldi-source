@@ -82,7 +82,10 @@ import org.vivaldi.browser.common.VivaldiDefaultBrowserUtils;
 import org.vivaldi.browser.common.VivaldiUtils;
 import org.vivaldi.browser.firstrun.VivaldiFirstRunFragment;
 import org.vivaldi.browser.migration.MigrationUtils;
+import org.vivaldi.browser.preferences.VivaldiPreferences;
 import org.vivaldi.browser.prompts.DefaultBrowserNotificationReceiver;
+
+import static org.vivaldi.browser.preferences.VivaldiPreferences.PREF_ENABLE_WEEKLY_REPORTS;
 
 /**
  * Handles the First Run Experience sequences shown to the user launching Chrome for the first time.
@@ -343,7 +346,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
                     (getEdgeToEdgeManager() != null)
                             ? getEdgeToEdgeManager().getEdgeToEdgeSystemBarColorHelper()
                             : null,
-                    getWindow(),
+                    this,
                     Color.BLACK);
         }
         super.onPreCreate();
@@ -357,7 +360,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
             int backgroundColor = DialogWhenLargeContentLayout.getDialogBackgroundColor(this);
 
             StatusBarColorController.setStatusBarColor(
-                    edgeToEdgeSystemBarColorHelper, getWindow(), backgroundColor);
+                    edgeToEdgeSystemBarColorHelper, this, backgroundColor);
             edgeToEdgeSystemBarColorHelper.setNavigationBarColor(backgroundColor);
         } else {
             super.initializeSystemBarColors(edgeToEdgeSystemBarColorHelper);
@@ -526,6 +529,8 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
         // Vivaldi - Schedule set as default browser notification
         if (!BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) {
             createNotificationChannel();
+            VivaldiPreferences.getSharedPreferencesManager().writeBoolean(
+                    PREF_ENABLE_WEEKLY_REPORTS, true); // VAB-12279
             long timeStampNow = System.currentTimeMillis();
             // Note(nagamani@vivaldi.com): Disabling the Day1 notification for now. Ref: VAB-9818
             for (int i =2; i<=3; i++) {
@@ -578,6 +583,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Override
     public void onStart() {
         super.onStart();
+
         // Vivaldi: Abort the activity if the OS has the wrong version or the build fingerprint
         // is in the blocklist.
         if (BuildConfig.IS_OEM_POLESTAR_BUILD) {
@@ -661,7 +667,9 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Override
     public void abortFirstRunExperience() {
         finish();
-
+        if (BuildConfig.IS_VIVALDI)
+            notifyCustomTabCallbackFirstRunIfNecessary(getOriginalLaunchIntent(), false);
+        else
         notifyCustomTabCallbackFirstRunIfNecessary(getIntent(), false);
         if (sObserver != null) sObserver.onAbortFirstRunExperience(this);
     }
@@ -757,6 +765,17 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
     /** Initialize local state from launch intent and from saved instance state. */
     private void initializeStateFromLaunchData() {
+        if (BuildConfig.IS_VIVALDI) {
+            if (getOriginalLaunchIntent() != null) {
+                mLaunchedFromChromeIcon = getOriginalLaunchIntent()
+                                .getBooleanExtra(EXTRA_COMING_FROM_CHROME_ICON, false);
+                mLaunchedFromCct = getOriginalLaunchIntent()
+                                .getBooleanExtra(EXTRA_CHROME_LAUNCH_INTENT_IS_CCT, false);
+                mIntentCreationElapsedRealtimeMs = getOriginalLaunchIntent()
+                                .getLongExtra(EXTRA_FRE_INTENT_CREATION_ELAPSED_REALTIME_MS, 0);
+            }
+            return;
+        }
         if (getIntent() != null) {
             mLaunchedFromChromeIcon =
                     getIntent().getBooleanExtra(EXTRA_COMING_FROM_CHROME_ICON, false);
@@ -886,8 +905,13 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Override
     public void recordLoadCompletedHistograms(
             @FullscreenSigninMediator.LoadPoint int slowestLoadPoint) {
+        // TODO: crbug.com/462005651 - Remove obsolete
+        // "MobileFre.FromLaunch.NativePolicyAndChildStatusLoaded" histogram.
         RecordHistogram.recordTimesHistogram(
                 "MobileFre.FromLaunch.NativePolicyAndChildStatusLoaded",
+                SystemClock.elapsedRealtime() - mIntentCreationElapsedRealtimeMs);
+        RecordHistogram.recordTimesHistogram(
+                "MobileFre.FromLaunch.InitialLoadCompleted",
                 SystemClock.elapsedRealtime() - mIntentCreationElapsedRealtimeMs);
         RecordHistogram.recordEnumeratedHistogram(
                 "MobileFre.SlowestLoadPoint",

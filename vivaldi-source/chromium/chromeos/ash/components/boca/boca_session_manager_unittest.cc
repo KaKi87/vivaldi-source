@@ -215,7 +215,10 @@ class MockStudentScreenPresenter : public StudentScreenPresenter {
 
   MOCK_METHOD(void, Stop, (base::OnceCallback<void(bool)>), (override));
 
-  MOCK_METHOD(bool, IsPresenting, (), (override));
+  MOCK_METHOD(bool,
+              IsPresenting,
+              (std::optional<std::string_view>),
+              (override));
 };
 
 class MockTeacherScreenPresenter : public TeacherScreenPresenter {
@@ -226,12 +229,16 @@ class MockTeacherScreenPresenter : public TeacherScreenPresenter {
   MOCK_METHOD(void,
               Start,
               (std::string_view,
+               std::string_view,
                ::boca::UserIdentity,
+               bool,
                base::OnceCallback<void(bool)>,
                base::OnceClosure),
               (override));
 
   MOCK_METHOD(void, Stop, (base::OnceCallback<void(bool)>), (override));
+
+  MOCK_METHOD(bool, IsPresenting, (), (override));
 };
 
 class BocaSessionManagerTestBase : public testing::Test {
@@ -263,10 +270,13 @@ class BocaSessionManagerTestBase : public testing::Test {
     user_manager_->UserLoggedIn(
         account_id1,
         user_manager::TestHelper::GetFakeUsernameHash(account_id1));
-    wifi_device_path_ =
+    wifi_device_path_1_ =
         cros_network_config_helper_.network_state_helper().ConfigureWiFi(
             shill::kStateIdle);
 
+    wifi_device_path_2_ =
+        cros_network_config_helper_.network_state_helper().ConfigureWiFi(
+            shill::kStateIdle);
     session_client_impl_ =
         std::make_unique<NiceMock<MockSessionClientImpl>>(nullptr);
 
@@ -295,33 +305,34 @@ class BocaSessionManagerTestBase : public testing::Test {
   const base::TimeDelta kDefaultStudentHeartbeatInterval = base::Seconds(30);
 
  protected:
-  void ToggleOnline() {
-    cros_network_config_helper_.network_state_helper().SetServiceProperty(
-        wifi_device_path_, shill::kStateProperty,
-        base::Value(shill::kStateOnline));
-  }
-
-  void ToggleIntoManagedNetwork() {
+  void ToggleManagedNetOnline() {
+    // Update NetworkUIData for the same network won't trigger
+    // OnActiveNetworksChanged as it's supposed to be updated runtime. So
+    // configure a different network.
     std::unique_ptr<NetworkUIData> ui_data =
         NetworkUIData::CreateFromONC(::onc::ONCSource::ONC_SOURCE_USER_POLICY);
     cros_network_config_helper_.network_state_helper().SetServiceProperty(
-        wifi_device_path_, shill::kUIDataProperty,
+        wifi_device_path_1_, shill::kUIDataProperty,
         base::Value(ui_data->GetAsJson()));
-    ToggleOnline();
+    cros_network_config_helper_.network_state_helper().SetServiceProperty(
+        wifi_device_path_1_, shill::kStateProperty,
+        base::Value(shill::kStateOnline));
   }
 
-  void ToggleIntoNonManagedNetwork() {
+  void ToggleNonManagedNetOnline() {
     std::unique_ptr<NetworkUIData> ui_data =
         NetworkUIData::CreateFromONC(::onc::ONCSource::ONC_SOURCE_NONE);
     cros_network_config_helper_.network_state_helper().SetServiceProperty(
-        wifi_device_path_, shill::kUIDataProperty,
+        wifi_device_path_2_, shill::kUIDataProperty,
         base::Value(ui_data->GetAsJson()));
-    ToggleOnline();
+    cros_network_config_helper_.network_state_helper().SetServiceProperty(
+        wifi_device_path_2_, shill::kStateProperty,
+        base::Value(shill::kStateOnline));
   }
 
-  void ToggleOffline() {
+  void ToggleManagedNetOffline() {
     cros_network_config_helper_.network_state_helper().SetServiceProperty(
-        wifi_device_path_, shill::kStateProperty,
+        wifi_device_path_1_, shill::kStateProperty,
         base::Value(shill::kStateDisconnecting));
   }
 
@@ -350,7 +361,8 @@ class BocaSessionManagerTestBase : public testing::Test {
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   base::test::ScopedFeatureList scoped_feature_list_;
-  std::string wifi_device_path_;
+  std::string wifi_device_path_1_;
+  std::string wifi_device_path_2_;
   network_config::CrosNetworkConfigTestHelper cros_network_config_helper_;
   // BocaAppClient should destruct after identity env.
   std::unique_ptr<StrictMock<MockBocaAppClient>> boca_app_client_;
@@ -402,10 +414,9 @@ class BocaSessionManagerTest : public BocaSessionManagerTestBase {
     boca_session_manager_->AddObserver(observer());
 
     EXPECT_CALL(*observer(), OnSessionStarted(_, _)).Times(1);
-    // Set initial network config.
-    ToggleOffline();
+
     // Trigger network update activity.
-    ToggleIntoManagedNetwork();
+    ToggleManagedNetOnline();
   }
 
   BocaSessionManager* boca_session_manager() {
@@ -978,7 +989,7 @@ TEST_F(BocaSessionManagerTest, DoNothingWhenSessionRosterSame) {
 }
 
 TEST_F(BocaSessionManagerTest, DISABLED_DoNotPollSessionWhenNoNetwork) {
-  ToggleOffline();
+  ToggleManagedNetOffline();
   EXPECT_CALL(*session_client_impl(),
               GetSession(_, /*can_skip_duplicate_request=*/true))
       .Times(0);
@@ -1345,15 +1356,28 @@ TEST_F(BocaSessionManagerTest, GetStudentScreenPresenter) {
   boca_session_manager()->OnInvalidationReceived("payload");
   EXPECT_TRUE(active_signal.Wait());
   EXPECT_THAT(boca_session_manager()->GetStudentScreenPresenter(), NotNull());
+
+  boca_session_manager()->CleanupPresenters();
+  EXPECT_THAT(boca_session_manager()->GetStudentScreenPresenter(), IsNull());
 }
 
 TEST_F(BocaSessionManagerTest, GetTeacherScreenPresenter) {
   auto screen_presenter_factory =
       std::make_unique<MockScreenPresenterFactory>();
-  EXPECT_CALL(*screen_presenter_factory, CreateTeacherScreenPresenter)
-      .WillOnce(Return(std::make_unique<MockTeacherScreenPresenter>()));
+  auto* const screen_presenter_factory_ptr = screen_presenter_factory.get();
   boca_session_manager()->SetScreenPresenterFactory(
       std::move(screen_presenter_factory));
+
+  EXPECT_CALL(*screen_presenter_factory_ptr, CreateTeacherScreenPresenter)
+      .WillOnce(Return(std::make_unique<MockTeacherScreenPresenter>()));
+  EXPECT_THAT(boca_session_manager()->GetTeacherScreenPresenter(), NotNull());
+  // A second call to `GetTeacherScreenPresenter()` will return the same teacher
+  // screen presenter instance.
+  EXPECT_THAT(boca_session_manager()->GetTeacherScreenPresenter(), NotNull());
+
+  boca_session_manager()->CleanupPresenters();
+  EXPECT_CALL(*screen_presenter_factory_ptr, CreateTeacherScreenPresenter)
+      .WillOnce(Return(std::make_unique<MockTeacherScreenPresenter>()));
   EXPECT_THAT(boca_session_manager()->GetTeacherScreenPresenter(), NotNull());
 }
 
@@ -2045,22 +2069,12 @@ class BocaSessionManagerManagedNetworkTest : public BocaSessionManagerTestBase {
         /*disabled_features=*/{ash::features::kBocaCustomPolling});
     auto account_id =
         AccountId::FromUserEmailGaiaId(kTestUserEmail, kTestGaiaId);
-    EXPECT_CALL(*session_client_impl(),
-                GetSession(_, /*can_skip_duplicate_request=*/true))
-        .WillOnce(testing::InvokeWithoutArgs([&]() {
-          // The first fetch at construction time will fail due to refresh token
-          // not ready.
-          boca_session_manager_->ParseSessionResponse(
-              /*from_polling=*/false,
-              base::unexpected<google_apis::ApiErrorCode>(
-                  google_apis::ApiErrorCode::NOT_READY));
-        }));
     EXPECT_CALL(*boca_app_client(), GetDeviceId())
         .WillRepeatedly(Return(kDeviceId));
     boca_session_manager_ = std::make_unique<BocaSessionManager>(
         session_client_impl(), &local_state(), account_id,
         /*is_producer=*/true);
-    ToggleOnline();
+    ToggleManagedNetOffline();
   }
 
  protected:
@@ -2070,7 +2084,7 @@ class BocaSessionManagerManagedNetworkTest : public BocaSessionManagerTestBase {
 
 TEST_F(BocaSessionManagerManagedNetworkTest,
        DoNotLoadSessionIfNonManagedNetwork) {
-  ToggleIntoNonManagedNetwork();
+  ToggleNonManagedNetOnline();
   EXPECT_CALL(*session_client_impl(),
               GetSession(_, /*can_skip_duplicate_request=*/true))
       .Times(0);
@@ -2085,7 +2099,7 @@ TEST_F(BocaSessionManagerManagedNetworkTest, LoadSessionWhenOnManagedNetwork) {
   EXPECT_CALL(*session_client_impl(),
               GetSession(_, /*can_skip_duplicate_request=*/true))
       .Times(1);
-  ToggleIntoManagedNetwork();
+  ToggleManagedNetOnline();
   testing::Mock::VerifyAndClearExpectations(session_client_impl());
   EXPECT_CALL(*session_client_impl(),
               GetSession(_, /*can_skip_duplicate_request=*/true))
@@ -2098,11 +2112,11 @@ TEST_F(BocaSessionManagerManagedNetworkTest, LoadSessionWhenOnManagedNetwork) {
 
 TEST_F(BocaSessionManagerManagedNetworkTest,
        TriggerReloadWhenSwitchbackToManagedNetwork) {
-  ToggleIntoNonManagedNetwork();
+  ToggleNonManagedNetOnline();
   EXPECT_CALL(*session_client_impl(),
               GetSession(_, /*can_skip_duplicate_request=*/true))
       .Times(1);
-  ToggleIntoManagedNetwork();
+  ToggleManagedNetOnline();
   testing::Mock::VerifyAndClearExpectations(session_client_impl());
 
   EXPECT_CALL(*session_client_impl(),

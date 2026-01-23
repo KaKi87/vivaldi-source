@@ -63,6 +63,7 @@ import androidx.test.espresso.matcher.RootMatchers;
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matcher;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -87,6 +88,7 @@ import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.keyboard_accessory.R;
+import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.ActionBarItem;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.AutofillBarItem;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.BarItem;
 import org.chromium.chrome.browser.keyboard_accessory.bar_component.KeyboardAccessoryProperties.SheetOpenerBarItem;
@@ -227,6 +229,11 @@ public class KeyboardAccessoryViewTest {
         public void addOnInitializedCallback(Callback<Boolean> callback) {
             throw new AssertionError("Implement addOnInitializedCallback if you need it.");
         }
+    }
+
+    @After
+    public void tearDown() {
+        mActivityTestRule.skipWindowAndTabStateCleanup();
     }
 
     @Before
@@ -375,6 +382,32 @@ public class KeyboardAccessoryViewTest {
 
     @Test
     @MediumTest
+    public void testGroupedSuggestionsAreClickable() {
+        AtomicReference<Boolean> clickRecorded1 = new AtomicReference<>();
+        AtomicReference<Boolean> clickRecorded2 = new AtomicReference<>();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mModel.set(VISIBLE, true);
+                    mModel.get(BAR_ITEMS)
+                            .set(
+                                    new BarItem[] {
+                                        createAutofillBarItem(
+                                                "Johnathan", result -> clickRecorded1.set(true)),
+                                        createAutofillBarItem(
+                                                "Mark", result -> clickRecorded2.set(true)),
+                                        createSheetOpener()
+                                    });
+                });
+
+        onViewWaiting(withText("Johnathan")).perform(click());
+        assertTrue(clickRecorded1.get());
+
+        onViewWaiting(withText("Mark")).perform(click());
+        assertTrue(clickRecorded2.get());
+    }
+
+    @Test
+    @MediumTest
     public void testAddsLongClickableAutofillSuggestions() {
         AtomicReference<Boolean> clickRecorded = new AtomicReference<>();
         ThreadUtils.runOnUiThreadBlocking(
@@ -410,12 +443,12 @@ public class KeyboardAccessoryViewTest {
     @MediumTest
     public void testCanAddSingleButtons() {
         BarItem generatePasswordItem =
-                new BarItem(
+                new ActionBarItem(
                         BarItem.Type.ACTION_BUTTON,
                         new Action(GENERATE_PASSWORD_AUTOMATIC, unused -> {}),
                         R.string.password_generation_accessory_button);
         BarItem credmanItem =
-                new BarItem(
+                new ActionBarItem(
                         BarItem.Type.ACTION_CHIP,
                         new Action(CREDMAN_CONDITIONAL_UI_REENTRY, unused -> {}),
                         R.string.more_passkeys);
@@ -440,12 +473,12 @@ public class KeyboardAccessoryViewTest {
     @MediumTest
     public void testCanRemoveSingleButtons() {
         BarItem generatePasswordsItem =
-                new BarItem(
+                new ActionBarItem(
                         BarItem.Type.ACTION_BUTTON,
                         new Action(GENERATE_PASSWORD_AUTOMATIC, unused -> {}),
                         R.string.password_generation_accessory_button);
         BarItem credmanItem =
-                new BarItem(
+                new ActionBarItem(
                         BarItem.Type.ACTION_CHIP,
                         new Action(CREDMAN_CONDITIONAL_UI_REENTRY, unused -> {}),
                         R.string.more_passkeys);
@@ -496,45 +529,6 @@ public class KeyboardAccessoryViewTest {
         mActivityTestRule
                 .getActivity()
                 .setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
-    }
-
-    @Test
-    @MediumTest
-    public void testDismissesPlusAddressEducationBubbleOnFilling() throws InterruptedException {
-        AutofillBarItem itemWithIph =
-                new AutofillBarItem(
-                        new AutofillSuggestion.Builder()
-                                .setLabel("Create plus address")
-                                .setSubLabel("")
-                                .setSuggestionType(SuggestionType.CREATE_NEW_PLUS_ADDRESS)
-                                .setFeatureForIph("")
-                                .setApplyDeactivatedStyle(false)
-                                .build(),
-                        new Action(AUTOFILL_SUGGESTION, unused -> {}),
-                        mMockProfile);
-        itemWithIph.setFeatureForIph(
-                FeatureConstants.KEYBOARD_ACCESSORY_PLUS_ADDRESS_CREATE_SUGGESTION);
-
-        TestTracker tracker = new TestTracker();
-        TrackerFactory.setTrackerForTests(tracker);
-
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mModel.set(VISIBLE, true);
-                    mModel.get(BAR_ITEMS).set(new BarItem[] {itemWithIph, createSheetOpener()});
-                });
-
-        onViewWaiting(withText("Create plus address"));
-        waitForHelpBubble(withText(R.string.plus_address_create_suggestion_iph_android));
-        assertThat(mKeyboardAccessoryView.take().areClicksAllowedWhenObscured(), is(true));
-        onView(withChild(withText("Create plus address"))).check(matches(isSelected()));
-        onView(withText("Create plus address")).perform(click());
-
-        assertThat(tracker.wasDismissed(), is(true));
-        assertThat(
-                tracker.getLastEmittedEvent(),
-                is(EventConstants.KEYBOARD_ACCESSORY_PLUS_ADDRESS_CREATE_SUGGESTION));
-        onView(withChild(withText("Create plus address"))).check(matches(not(isSelected())));
     }
 
     @Test

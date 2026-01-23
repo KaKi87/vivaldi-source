@@ -44,6 +44,9 @@ void TabModelObserverJniBridge::DidSelectTab(JNIEnv* env,
   for (auto& observer : model_observers_) {
     observer.DidSelectTab(tab, static_cast<TabModel::TabSelectionType>(type));
   }
+  for (auto& observer : interface_observers_) {
+    observer.OnActiveTabChanged(tab);
+  }
 }
 
 void TabModelObserverJniBridge::WillCloseTab(JNIEnv* env, TabAndroid* tab) {
@@ -168,3 +171,5 @@ void TabModelObserverJniBridge::RemoveTabListInterfaceObserver(
     TabListInterfaceObserver* observer) {
   interface_observers_.RemoveObserver(observer);
 }
+
+DEFINE_JNI(TabModelObserverJniBridge)

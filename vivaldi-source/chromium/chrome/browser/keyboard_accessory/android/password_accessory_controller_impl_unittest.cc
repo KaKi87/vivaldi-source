@@ -102,7 +102,7 @@ using password_manager::TestPasswordStore;
 using plus_addresses::FakePlusAddressService;
 using plus_addresses::PlusProfile;
 using testing::_;
-using testing::AtMost;
+using testing::AnyNumber;
 using testing::ByMove;
 using testing::Eq;
 using testing::Mock;
@@ -234,10 +234,6 @@ class MockAutofillClient : public autofill::TestContentAutofillClient {
  public:
   using autofill::TestContentAutofillClient::TestContentAutofillClient;
   MOCK_METHOD(void,
-              OfferPlusAddressCreation,
-              (const url::Origin&, bool, autofill::PlusAddressCallback),
-              (override));
-  MOCK_METHOD(void,
               TriggerPlusAddressUserPerceptionSurvey,
               (plus_addresses::hats::SurveyType),
               (override));
@@ -305,11 +301,6 @@ std::u16string cross_device_passkeys_str() {
 std::u16string select_passkey_str() {
   return l10n_util::GetStringUTF16(
       IDS_PASSWORD_MANAGER_ACCESSORY_SELECT_PASSKEY);
-}
-
-std::u16string generate_plus_address_str() {
-  return l10n_util::GetStringUTF16(
-      IDS_PLUS_ADDRESS_CREATE_NEW_PLUS_ADDRESSES_LINK_ANDROID);
 }
 
 std::u16string select_plus_address_str() {
@@ -401,12 +392,13 @@ class PasswordAccessoryControllerTest : public ChromeRenderViewHostTestHarness {
     window_android_.get()->get()->AddChild(web_contents()->GetNativeView());
 
     // Make StrictMock ignore calls to hide the trusted vault key retrieval
-    // action.
+    // action - this call happens regularly as a side product of updating other
+    // actions.
     EXPECT_CALL(mock_manual_filling_controller_,
                 OnAccessoryActionAvailabilityChanged(
                     ShouldShowAction(false),
                     autofill::AccessoryAction::RETRIEVE_TRUSTED_VAULT_KEY))
-        .Times(AtMost(1));
+        .Times(AnyNumber());
   }
 
   webauthn::WebAuthnCredManDelegate* cred_man_delegate() {
@@ -1251,71 +1243,6 @@ TEST_F(PasswordAccessoryControllerTest,
 }
 
 TEST_F(PasswordAccessoryControllerTest,
-       NoAffiliatedPlusAddresses_AppendsCreatePlusAddressAction) {
-  CreateSheetController();
-
-  MockAffiliatedPlusProfilesProvider provider;
-  EXPECT_CALL(provider, AddObserver(controller()));
-  controller()->RegisterPlusProfilesProvider(provider.GetWeakPtr());
-
-  EXPECT_CALL(provider, GetAffiliatedPlusProfiles)
-      .WillRepeatedly(Return(base::span<const PlusProfile, 0>()));
-
-  controller()->RefreshSuggestionsForField(
-      FocusedFieldType::kFillableUsernameField,
-      /*is_field_eligible_for_manual_generation=*/false);
-
-  // Plus address creation can't be supported while plus address filling is
-  // disabled.
-  plus_address_service().set_is_plus_address_filling_enabled(true);
-  plus_address_service().set_should_offer_plus_address_creation(true);
-
-  EXPECT_EQ(
-      controller()->GetSheetData(),
-      PasswordAccessorySheetDataBuilder(passwords_empty_str(kExampleDomain))
-          .AppendFooterCommand(generate_plus_address_str(),
-                               autofill::AccessoryAction::
-                                   CREATE_PLUS_ADDRESS_FROM_PASSWORD_SHEET)
-          .Build());
-}
-
-TEST_F(PasswordAccessoryControllerTest,
-       HasAffiliatedPlusAddresses_NoCreatePlusAddressAction) {
-  CreateSheetController();
-
-  MockAffiliatedPlusProfilesProvider provider;
-  EXPECT_CALL(provider, AddObserver);
-  controller()->RegisterPlusProfilesProvider(provider.GetWeakPtr());
-
-  std::vector<PlusProfile> profiles{plus_addresses::test::CreatePlusProfile()};
-  EXPECT_CALL(provider, GetAffiliatedPlusProfiles)
-      .WillRepeatedly(Return(base::span(profiles)));
-
-  controller()->RefreshSuggestionsForField(
-      FocusedFieldType::kFillableUsernameField,
-      /*is_field_eligible_for_manual_generation=*/false);
-
-  // Plus address creation can't be supported while plus address filling is
-  // disabled.
-  plus_address_service().set_is_plus_address_filling_enabled(true);
-  plus_address_service().set_should_offer_plus_address_creation(true);
-
-  // Although the plus address creation is supported, the user has an affiliated
-  // plus address for the current domain. The "Create plus address" action
-  // should not be displayed.
-  EXPECT_EQ(
-      controller()->GetSheetData(),
-      PasswordAccessorySheetDataBuilder(passwords_empty_str(kExampleDomain),
-                                        plus_address_title(kExampleDomain))
-          .AddPlusAddressInfo("https://foo.com", u"plus+foo@plus.plus")
-          .AppendFooterCommand(
-              l10n_util::GetStringUTF16(
-                  IDS_PLUS_ADDRESS_MANAGE_PLUS_ADDRESSES_LINK_ANDROID),
-              AccessoryAction::MANAGE_PLUS_ADDRESS_FROM_PASSWORD_SHEET)
-          .Build());
-}
-
-TEST_F(PasswordAccessoryControllerTest,
        RecordsAccessoryImpressionsForBlocklisted) {
   CreateSheetController();
 
@@ -1918,37 +1845,6 @@ TEST_F(PasswordAccessoryControllerTest, ShowAndSelectHybridPasskeyOption) {
       autofill::AccessoryAction::CROSS_DEVICE_PASSKEY);
 }
 
-// Verify that the plus address creation bottom sheet is opened when the
-// corresponding action is triggered.
-TEST_F(PasswordAccessoryControllerTest,
-       TriggersPlusAddressCreationBottomSheet) {
-  base::UserActionTester user_action_tester;
-  CreateSheetController();
-  controller()->RefreshSuggestionsForField(
-      FocusedFieldType::kFillableUsernameField,
-      /*is_field_eligible_for_manual_generation=*/false);
-
-  const std::string plus_address = "example@gmail.com";
-  EXPECT_CALL(autofill_client(),
-              OfferPlusAddressCreation(_, /*is_manual_fallback=*/true, _))
-      .WillOnce([&plus_address](const url::Origin&, bool,
-                                autofill::PlusAddressCallback callback) {
-        std::move(callback).Run(plus_address);
-      });
-  EXPECT_CALL(*driver(), FillIntoFocusedField(/*is_password=*/false,
-                                              base::UTF8ToUTF16(plus_address)));
-  // Manual filling sheet is expected to be hidden when the plus address
-  // creation bottom sheet is opened.
-  EXPECT_CALL(mock_manual_filling_controller_, Hide());
-
-  controller()->OnOptionSelected(
-      autofill::AccessoryAction::CREATE_PLUS_ADDRESS_FROM_PASSWORD_SHEET);
-  EXPECT_EQ(
-      user_action_tester.GetActionCount(
-          "PlusAddresses.CreateSuggestionOnPasswordManualFallbackSelected"),
-      1);
-}
-
 // Verify that when WebAuthnCredentialsDelegate::SelectPasskey can be invoked
 // with a passkey shown in the fallback sheet.
 TEST_F(PasswordAccessoryControllerTest, ShowAndSelectPasskey) {
@@ -2091,7 +1987,7 @@ TEST_F(PasswordAccessoryControllerTest, ShowTrustedVaultError) {
 
   EXPECT_CALL(*mock_error_message_helper_bridge_,
               StartTrustedVaultKeyRetrievalFlow(
-                  _, syncer::TrustedVaultUserActionTriggerForUMA::
+                  _, trusted_vault::TrustedVaultUserActionTriggerForUMA::
                          kPasswordManagerKeyboardAccessory));
 
   controller()->OnOptionSelected(

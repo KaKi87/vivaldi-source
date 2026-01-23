@@ -45,6 +45,8 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/webauthn/passkey_unlock_manager.h"
+#include "chrome/browser/webauthn/passkey_unlock_manager_factory.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/feature_engagement/public/feature_constants.h"
@@ -397,8 +399,9 @@ void AvatarToolbarButton::MaybeShowProfileSwitchIPH() {
     // Installable PasswordManager WebUI is the only web app that has an avatar
     // toolbar button.
     auto app_url = browser_->app_controller()->GetAppStartUrl();
-    CHECK(content::HasWebUIScheme(app_url) &&
-          (app_url.host() == password_manager::kChromeUIPasswordManagerHost));
+    CHECK(
+        content::HasWebUIScheme(app_url) &&
+        (app_url.GetHost() == password_manager::kChromeUIPasswordManagerHost));
     BrowserUserEducationInterface::From(browser_)->MaybeShowStartupFeaturePromo(
         feature_engagement::kIPHPasswordsWebAppProfileSwitchFeature);
   }
@@ -506,13 +509,6 @@ void AvatarToolbarButton::MaybeShowExplicitBrowserSigninPreferenceRememberedIPH(
       std::move(params));
 }
 
-void AvatarToolbarButton::MaybeShowWebSignoutIPH(const GaiaId& gaia_id) {
-  BrowserUserEducationInterface::From(browser_)->MaybeShowFeaturePromo(
-      user_education::FeaturePromoParams(
-          feature_engagement::kIPHSignoutWebInterceptFeature,
-          gaia_id.ToString()));
-}
-
 void AvatarToolbarButton::OnMouseExited(const ui::MouseEvent& event) {
   observer_list_.Notify(&Observer::OnMouseExited);
   ToolbarButton::OnMouseExited(event);
@@ -554,6 +550,18 @@ void AvatarToolbarButton::ButtonPressed(bool is_source_accelerator) {
         ->NotifyFeaturePromoFeatureUsed(
             feature_engagement::kIPHPasswordsSavePrimingPromoFeature,
             FeaturePromoFeatureUsedAction::kClosePromoIfPresent);
+  }
+
+  if (webauthn::PasskeyUnlockManager::IsPasskeyUnlockErrorUiEnabled()) {
+    webauthn::PasskeyUnlockManager* passkey_unlock_manager =
+        webauthn::PasskeyUnlockManagerFactory::GetForProfile(
+            browser_->profile());
+    if (passkey_unlock_manager &&
+        passkey_unlock_manager->ShouldDisplayErrorUi()) {
+      webauthn::PasskeyUnlockManager::RecordErrorUIEventType(
+          webauthn::PasskeyUnlockManager::ErrorUIEventType::
+              kAvatarButtonPressed);
+    }
   }
 #endif
 
@@ -619,31 +627,6 @@ void AvatarToolbarButton::OnExtendedAccountInfoUpdated(
       !info.given_name.empty()) {
     gaia_id_for_signin_choice_remembered_ = GaiaId();
     MaybeShowExplicitBrowserSigninPreferenceRememberedIPH(info);
-  }
-}
-
-void AvatarToolbarButton::OnErrorStateOfRefreshTokenUpdatedForAccount(
-    const CoreAccountInfo& account_info,
-    const GoogleServiceAuthError& error,
-    signin_metrics::SourceForRefreshTokenOperation token_operation_source) {
-  Profile* profile = browser_->profile();
-  CHECK(profile);
-  PrefService* prefs = profile->GetPrefs();
-  CHECK(prefs);
-  signin::IdentityManager* identity_manager =
-      IdentityManagerFactory::GetForProfile(profile);
-  CHECK(identity_manager);
-  if (base::FeatureList::IsEnabled(
-          syncer::kReplaceSyncPromosWithSignInPromos) &&
-      prefs->GetBoolean(prefs::kExplicitBrowserSignin) &&
-      account_info == identity_manager->GetPrimaryAccountInfo(
-                          signin::ConsentLevel::kSignin) &&
-      !identity_manager->HasPrimaryAccount(signin::ConsentLevel::kSync) &&
-      error.state() ==
-          GoogleServiceAuthError::State::INVALID_GAIA_CREDENTIALS &&
-      token_operation_source == signin_metrics::SourceForRefreshTokenOperation::
-                                    kDiceResponseHandler_Signout) {
-    MaybeShowWebSignoutIPH(account_info.gaia);
   }
 }
 

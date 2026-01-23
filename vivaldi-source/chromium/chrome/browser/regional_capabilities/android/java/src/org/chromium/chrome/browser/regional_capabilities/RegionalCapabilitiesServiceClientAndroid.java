@@ -22,9 +22,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.components.regional_capabilities.RegionalProgram;
 import org.chromium.components.search_engines.SearchEngineChoiceService;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-
 /**
  * Singleton responsible for communicating with device APIs to expose device-level properties that
  * are relevant for determining regional capabilities.
@@ -83,17 +80,10 @@ public class RegionalCapabilitiesServiceClientAndroid {
                 SearchEngineChoiceService.getInstance().getDeviceCountry();
         Runnable provideDeviceCountry =
                 () -> {
-                    final @Nullable String deviceCountry;
+                    @Nullable String deviceCountry = null;
                     if (deviceCountryPromise.isFulfilled()) {
-                        deviceCountry = deviceCountryPromise.getResult();
-                        // Vivaldi
-                        if (BuildConfig.IS_VIVALDI && TextUtils.isEmpty(deviceCountry)) {
-                            deviceCountryCallback.onResult(null);
-                            return;
-                        }
-                        assert !TextUtils.isEmpty(deviceCountry);
-                    } else {
-                        deviceCountry = null;
+                        String result = deviceCountryPromise.getResult();
+                        deviceCountry = TextUtils.isEmpty(result) ? null : result;
                     }
 
                     deviceCountryCallback.onResult(deviceCountry);

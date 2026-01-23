@@ -33,13 +33,24 @@ by a child template that "extends" this file.
 
     <uses-feature android:glEsVersion="0x00030000" />
 
+
+    <!-- Needed for
+          * servicing requests from websites to obtain location through the Web Geolocation API,
+            which, however, is further gated on the user expressly granting the geolocation
+            permission to individual web origins
+          * supporting bluetooth discovery pre-S
+          * providing a geolocation header to the default search engine; used to annotate omnibox
+            suggestions, search prefetch and search navigation requests.
+    -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <!-- Vivaldi/Automotive/Mahindra -->
     {% if is_oem_mahindra_build == 'false' %}
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     {% endif %}
+
     <uses-permission-sdk-23 android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
 
     <queries>
     <!-- Vivaldi ref. VAB-2525 [Android11] Cannot view screenshot after capture -->
@@ -121,8 +132,10 @@ by a child template that "extends" this file.
     <uses-permission-sdk-23 android:name="android.permission.READ_CONTACTS"/>
     -->
     <uses-permission-sdk-23 android:name="android.permission.REORDER_TASKS"/>
+
     <!-- Vivaldi/Automotive -->
     {% if is_oem_automotive_build == 'false' %}
+    <!--  Needed for allowing downloaded APKs to be installed. -->
     <uses-permission-sdk-23 android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <uses-permission android:name="android.permission.CAMERA" />
@@ -160,16 +173,24 @@ by a child template that "extends" this file.
     <uses-permission android:name="android.permission.NFC"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     {% endif %}
+
+    <!-- Needed to determine whether an app installed on the device should handle a web navigation.  -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
     <!-- Vivaldi/Automotive -->
     {% if is_oem_automotive_build == 'false' %}
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     {% endif %}
     <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_AUDIO"/>
+
+    <!-- Needed for handling media-viewing Intents from other apps for images and video on low end
+         or managed devices (eg. crbug.com/40546519), monitoring of screenshots if permission has
+         been previously granted (doesn't request independently) (crbug.com/40520892), and
+         Chromium's custom photo picker used on Android S and below (crbug.com/40489056) -->
     <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission-sdk-23 android:name="android.permission.READ_MEDIA_VIDEO"/>
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!--
       The REPOSITION_SELF_WINDOWS permission is needed for Window Popup Web API to allow Chrome to
@@ -177,11 +198,11 @@ by a child template that "extends" this file.
       resizeTo, moveBy}|).
     -->
     <uses-permission android:name="android.permission.REPOSITION_SELF_WINDOWS"/>
+    <uses-permission-sdk-23 android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission-sdk-23 android:name="android.permission.USE_FINGERPRINT"/>
     <!-- Vivaldi/Automotive -->
     {% if is_oem_automotive_build == 'false' %}
     <uses-permission android:name="android.permission.USE_CREDENTIALS"/>
-    <uses-permission-sdk-23 android:name="android.permission.USE_BIOMETRIC"/>
-    <uses-permission-sdk-23 android:name="android.permission.USE_FINGERPRINT"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
     {% endif %}
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -230,6 +251,7 @@ by a child template that "extends" this file.
     <uses-permission android:name="{{ manifest_package }}.permission.READ_WRITE_BOOKMARK_FOLDERS" />
     <uses-permission android:name="{{ manifest_package }}.TOS_ACKED" />
     {% endif %}
+
     <!-- Vivaldi/Automotive/Mahindra -->
     {% if is_oem_mahindra_build == 'false' %}
     <uses-permission android:name="com.chrome.permission.DEVICE_EXTRAS" />
@@ -240,9 +262,18 @@ by a child template that "extends" this file.
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT"/>
     {% endif %}
 
+    <!-- Vivaldi/Automotive -->
+    <!-- Needed to override an injected POST_NOTIFICATIONS permission from the Android SDK -->
+    <!-- Do not remove this for Mercedes as an experiment. Ref. AUTO-319 -->
+    {% if is_oem_automotive_build == 'true' %}
+    {% if is_oem_mercedes_build == 'false' %}
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    {% endif %}
+    {% endif %}
     <!-- Not used by Vivaldi
     <uses-permission android:name="com.google.android.apps.now.CURRENT_ACCOUNT_ACCESS" />
     -->
+
     {% block extra_uses_permissions %}
     {% endblock %}
 
@@ -335,12 +366,6 @@ by a child template that "extends" this file.
           android:name="com.android.automotive"
           android:resource="@xml/automotive_app_desc" />
         {% endif %}
-        <!-- Vivaldi OEM: Hyundai/Kia -->
-        {% if is_oem_gas_build == 'true' %} {# Vivaldi/Automotive GAS #}
-        <meta-data
-            android:name="displayArea_fullView"
-            android:value="true" />
-        {% endif %} {# Vivaldi/Automotive GAS #}
       {% macro application_definitions() %}
         <!-- Note: All activities directly or indirectly derived from ChromeActivity
              must specify android:hardwareAccelerated="false".
@@ -508,6 +533,17 @@ by a child template that "extends" this file.
             </intent-filter>
         </activity>
 
+        <activity android:name="org.chromium.chrome.browser.media.DocumentPictureInPictureActivity"
+            android:exported="false"
+            android:noHistory="true"
+            android:theme="@style/Theme.Chromium.Activity"
+            android:excludeFromRecents="true"
+            android:configChanges=
+                       "screenSize|smallestScreenSize|screenLayout|orientation"
+            {{ self.supports_video_persistence() }}
+        >
+        </activity>
+
         <activity android:name="org.chromium.chrome.browser.media.PictureInPictureActivity"
                   android:exported="false"
                   android:noHistory="true"
@@ -669,6 +705,7 @@ by a child template that "extends" this file.
             <meta-data
                 android:name="android.activity.launch_mode"
                 android:value="singleInstancePerTask"/>
+
             <!--
               Daydream api categorizes an activity to three categories: Cardboard only, hybrid
               or Daydream. It does so by testing if intents can be resolved by the activity
@@ -724,7 +761,7 @@ by a child template that "extends" this file.
             @android:style/Theme.NoDisplay can't be used here.
         -->
         <activity android:name="org.chromium.chrome.browser.sync.ui.SyncTrustedVaultProxyActivity"
-            android:theme="@style/Theme.Material3.DayNight"
+            android:theme="@style/Theme.Material3Expressive.DayNight"
             android:excludeFromRecents="true"
             android:exported="false">
         </activity>
@@ -995,7 +1032,7 @@ by a child template that "extends" this file.
         <receiver android:name="org.vivaldi.browser.prompts.DefaultBrowserNotificationReceiver" />
         <receiver android:name="org.vivaldi.browser.prompts.PrivacyReportNotificationReceiver"
                 android:enabled="true"
-                android:exported="true">
+                android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
@@ -1377,14 +1414,6 @@ by a child template that "extends" this file.
             </intent-filter>
       </activity>
 
-        <!-- GcmTaskService for registration for Invalidations. Not actually implemented anymore. -->
-        <service android:name="com.google.ipc.invalidation.ticl.android2.channel.GcmRegistrationTaskService"
-            android:exported="true"
-            android:permission="com.google.android.gms.permission.BIND_NETWORK_TASK_SERVICE" >
-            <intent-filter>
-                <action android:name="com.google.android.gms.gcm.ACTION_TASK_READY"/>
-            </intent-filter>
-        </service>
         <!-- GcmListenerService for messages from GCM. -->
         <service android:name="org.chromium.chrome.browser.services.gcm.ChromeGcmListenerService"
             android:exported="false" >
@@ -1431,15 +1460,6 @@ by a child template that "extends" this file.
         <service android:name="org.chromium.chrome.browser.notifications.NotificationJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE"/>
-
-        <!-- GcmTaskService implementation to wake Chrome on scheduled events -->
-        <service android:name="org.chromium.chrome.browser.ChromeBackgroundService"
-            android:permission="com.google.android.gms.permission.BIND_NETWORK_TASK_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.google.android.gms.gcm.ACTION_TASK_READY" />
-            </intent-filter>
-        </service>
 
         <service android:name="org.chromium.chrome.browser.customtabs.CustomTabsConnectionService"
             android:exported="true"
@@ -1609,9 +1629,20 @@ by a child template that "extends" this file.
             android:excludeFromRecents="true"
             android:exported="true"
             android:noHistory="true"
-            android:theme="@style/Theme.Material3.DayNight"
+            android:theme="@style/Theme.Material3Expressive.DayNight"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|mcc|mnc|screenLayout|smallestScreenSize" >
         </activity>
+
+        <!-- This activity is Android P- only which is not supported by Chrome now. -->
+        <activity
+            android:name="androidx.biometric.internal.ui.FingerprintDialogActivity"
+            tools:node="remove">
+        </activity>
+
+        <!-- Disabled via CastOptionsProvider. -->
+        <service
+            android:name="com.google.android.gms.cast.framework.ReconnectionService"
+            tools:node="remove" />
 
         <!-- Not used by Vivaldi
         <property android:name="android.adservices.AD_SERVICES_CONFIG"
@@ -1794,6 +1825,7 @@ by a child template that "extends" this file.
           android:name="androidx.startup.InitializationProvider"
           tools:node="remove">
       </provider>
+
       <!-- We call FirebaseApp.initializeApp() explicitly rather than relying on this hook for better control over when it happens. -->
       <provider
           android:name="com.google.firebase.provider.FirebaseInitProvider"

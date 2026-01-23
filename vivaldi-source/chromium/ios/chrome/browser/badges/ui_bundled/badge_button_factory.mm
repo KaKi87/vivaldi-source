@@ -15,6 +15,7 @@
 #import "ios/chrome/browser/badges/ui_bundled/badge_delegate.h"
 #import "ios/chrome/browser/badges/ui_bundled/badge_overflow_menu_util.h"
 #import "ios/chrome/browser/infobars/model/infobar_ios.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -40,6 +41,9 @@ const CGFloat kSymbolIncognitoPointSize = 28.;
 // The size of the incognito full screen symbol image.
 const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 
+// Modifier for changing the infobar symbol size.
+const CGFloat kInfobarSymbolPointSizeModifier = 4;
+
 }  // namespace
 
 @implementation BadgeButtonFactory
@@ -51,6 +55,12 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
       case kBadgeTypeTranslate:
         return [self translateBadgeButton];
       case kBadgeTypeIncognito:
+
+        if (IsVivaldiRunning()) {
+          // Do not show Private tab badge.
+          return nil;
+        } // End Vivaldi
+
         return [self incognitoBadgeButton];
       case kBadgeTypeOverflow:
         return [self overflowBadgeButton];
@@ -63,12 +73,12 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
       case kBadgeTypePasswordUpdate:
       case kBadgeTypeSaveCard:
       case kBadgeTypeSaveAddressProfile:
+        NOTREACHED() << "Badge of type " << badgeType << " should not be used.";
 
       // Vivaldi
       case kBadgeTypeReaderMode:
+        return [self readerModeBadgeButton];
       // End Vivaldi
-
-        NOTREACHED() << "Badge of type " << badgeType << " should not be used.";
     }
   } else {
     switch (badgeType) {
@@ -113,10 +123,10 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 - (BadgeButton*)passwordsSaveBadgeButton {
   UIImage* image =
 #if BUILDFLAG(IS_IOS_MACCATALYST)
-      CustomSymbolWithPointSize(kPasswordSymbol, kInfobarSymbolPointSize);
+      CustomSymbolWithPointSize(kPasswordSymbol, [self infoBarSymbolPointSize]);
 #else
       CustomSymbolWithPointSize(kMulticolorPasswordSymbol,
-                                kInfobarSymbolPointSize);
+                                [self infoBarSymbolPointSize]);
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 
   if (IsVivaldiRunning()) {
@@ -140,10 +150,10 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 - (BadgeButton*)passwordsUpdateBadgeButton {
   UIImage* image =
 #if BUILDFLAG(IS_IOS_MACCATALYST)
-      CustomSymbolWithPointSize(kPasswordSymbol, kInfobarSymbolPointSize);
+      CustomSymbolWithPointSize(kPasswordSymbol, [self infoBarSymbolPointSize]);
 #else
       CustomSymbolWithPointSize(kMulticolorPasswordSymbol,
-                                kInfobarSymbolPointSize);
+                                [self infoBarSymbolPointSize]);
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 
   if (IsVivaldiRunning()) {
@@ -165,8 +175,8 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 }
 
 - (BadgeButton*)saveCardBadgeButton {
-  UIImage* image =
-      DefaultSymbolWithPointSize(kCreditCardSymbol, kInfobarSymbolPointSize);
+  UIImage* image = DefaultSymbolWithPointSize(kCreditCardSymbol,
+                                              [self infoBarSymbolPointSize]);
 
   if (IsVivaldiRunning()) {
     image =
@@ -187,8 +197,8 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 }
 
 - (BadgeButton*)translateBadgeButton {
-  UIImage* image =
-      CustomSymbolWithPointSize(kTranslateSymbol, kInfobarSymbolPointSize);
+  UIImage* image = CustomSymbolWithPointSize(kTranslateSymbol,
+                                             [self infoBarSymbolPointSize]);
 
   if (IsVivaldiRunning()) {
     image =
@@ -243,13 +253,22 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 }
 
 - (BadgeButton*)overflowBadgeButton {
-  UIImage* image = DefaultSymbolWithPointSize(kEllipsisCircleFillSymbol,
-                                              kInfobarSymbolPointSize);
+  NSString* symbolName = IsProactiveSuggestionsFrameworkEnabled()
+                             ? kEllipsisSymbol
+                             : kEllipsisCircleFillSymbol;
+
+  UIImage* image =
+      DefaultSymbolWithPointSize(symbolName, [self infoBarSymbolPointSize]);
+
   if (IsVivaldiRunning()) {
     image =
         [CustomSymbolWithPointSize(vInfobarBadgeMore, kInfobarSymbolPointSize)
             imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
-  } // End Vivaldi
+  } else // End Vivaldi
+  if (IsProactiveSuggestionsFrameworkEnabled()) {
+    image = [image imageWithTintColor:[UIColor whiteColor]
+                        renderingMode:UIImageRenderingModeAlwaysOriginal];
+  }
 
   BadgeButton* button = [self createButtonForType:kBadgeTypeOverflow
                                             image:image];
@@ -290,7 +309,7 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 
 - (BadgeButton*)saveAddressProfileBadgeButton:(InfoBarIOS*)infoBar {
   UIImage* image =
-      CustomSymbolWithPointSize(kLocationSymbol, kInfobarSymbolPointSize);
+      CustomSymbolWithPointSize(kLocationSymbol, [self infoBarSymbolPointSize]);
 
   if (infoBar) {
     autofill::AutofillSaveUpdateAddressProfileDelegateIOS* delegate =
@@ -299,7 +318,7 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
     CHECK(delegate);
     if (delegate->IsMigrationToAccount()) {
       image = CustomSymbolWithPointSize(kCloudAndArrowUpSymbol,
-                                        kInfobarSymbolPointSize);
+                                        [self infoBarSymbolPointSize]);
     }
   }
 
@@ -315,10 +334,11 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 }
 
 - (BadgeButton*)permissionsCameraBadgeButton {
-  BadgeButton* button = [self
-      createButtonForType:kBadgeTypePermissionsCamera
-                    image:CustomSymbolTemplateWithPointSize(
-                              kCameraFillSymbol, kInfobarSymbolPointSize)];
+  BadgeButton* button =
+      [self createButtonForType:kBadgeTypePermissionsCamera
+                          image:CustomSymbolTemplateWithPointSize(
+                                    kCameraFillSymbol,
+                                    [self infoBarSymbolPointSize])];
 
   if (IsVivaldiRunning()) {
     button.image =
@@ -337,10 +357,11 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 }
 
 - (BadgeButton*)permissionsMicrophoneBadgeButton {
-  BadgeButton* button = [self
-      createButtonForType:kBadgeTypePermissionsMicrophone
-                    image:DefaultSymbolTemplateWithPointSize(
-                              kMicrophoneFillSymbol, kInfobarSymbolPointSize)];
+  BadgeButton* button =
+      [self createButtonForType:kBadgeTypePermissionsMicrophone
+                          image:DefaultSymbolTemplateWithPointSize(
+                                    kMicrophoneFillSymbol,
+                                    [self infoBarSymbolPointSize])];
 
   if (IsVivaldiRunning()) {
     button.image =
@@ -361,7 +382,7 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
 - (BadgeButton*)createButtonForType:(BadgeType)badgeType image:(UIImage*)image {
   BadgeButton* button = [BadgeButton badgeButtonWithType:badgeType];
   UIImageSymbolConfiguration* symbolConfig = [UIImageSymbolConfiguration
-      configurationWithPointSize:kInfobarSymbolPointSize
+      configurationWithPointSize:[self infoBarSymbolPointSize]
                           weight:UIImageSymbolWeightRegular
                            scale:UIImageSymbolScaleMedium];
   [button setPreferredSymbolConfiguration:symbolConfig
@@ -373,6 +394,15 @@ const CGFloat kSymbolIncognitoFullScreenPointSize = 14.;
       activateConstraints:@[ [button.widthAnchor
                               constraintEqualToAnchor:button.heightAnchor] ]];
   return button;
+}
+
+// Returns the size of the infobar symbol image.
+- (CGFloat)infoBarSymbolPointSize {
+  if (IsProactiveSuggestionsFrameworkEnabled() && !self.incognito) {
+    return kInfobarSymbolPointSize - kInfobarSymbolPointSizeModifier;
+  }
+
+  return kInfobarSymbolPointSize;
 }
 
 // Vivaldi

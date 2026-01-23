@@ -38,9 +38,9 @@ import org.chromium.chrome.browser.pdf.PdfUtils.PdfPageType;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TrustedCdn;
-import org.chromium.chrome.browser.theme.SurfaceColorUpdateUtils;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
@@ -48,12 +48,14 @@ import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.Page
 import org.chromium.components.omnibox.AutocompleteSchemeClassifier;
 import org.chromium.components.omnibox.OmniboxUrlEmphasizer;
 import org.chromium.components.omnibox.SecurityStatusIcon;
+import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -183,6 +185,25 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     private boolean mAlreadyUpdatedUrlBarForSameDocNav;
     private boolean mAlreadyChangedSecurityStateForSameDocNav;
 
+    // Whether the URL returned in getUrlOfVisibleNavigationEntry() should match the trusted CDN
+    // publisher URL, if any exists.
+    private final boolean mMatchTrustedCdnUrl;
+
+    public LocationBarModel(
+            Context context,
+            NewTabPageDelegate newTabPageDelegate,
+            UrlFormatter urlFormatter,
+            OfflineStatus offlineStatus,
+            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier) {
+        this(
+                context,
+                newTabPageDelegate,
+                urlFormatter,
+                offlineStatus,
+                toolbarPositionSupplier,
+                /* matchTrustedCdnUrl= */ false);
+    }
+
     /**
      * Default constructor for this class.
      *
@@ -191,23 +212,26 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
      * @param urlFormatter Formatter returning the formatted version of the original version of URL
      *     of a distillation.
      * @param offlineStatus Offline-related status provider.
-     * @param searchEngineUtils Utils to query the state of the search engine logos feature.
+     * @param toolbarPositionSupplier The on-screen position of the Toolbar.
+     * @param matchTrustedCdnUrl Whether the URL returned in getUrlOfVisibleNavigationEntry() should
+     *     match the trusted CDN publisher URL, if any exists.
      */
     public LocationBarModel(
             Context context,
             NewTabPageDelegate newTabPageDelegate,
             UrlFormatter urlFormatter,
             OfflineStatus offlineStatus,
-            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier) {
+            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier,
+            boolean matchTrustedCdnUrl) {
         mContext = context;
         mNtpDelegate = newTabPageDelegate;
         mUrlFormatter = urlFormatter;
         mOfflineStatus = offlineStatus;
-        mPrimaryColor =
-                SurfaceColorUpdateUtils.getDefaultThemeColor(context, /* isIncognito= */ false);
+        mPrimaryColor = ChromeColors.getDefaultThemeColor(context, /* isIncognito= */ false);
         mUrlForDisplay = "";
         mFormattedFullUrl = "";
         mToolbarPositionSupplier = toolbarPositionSupplier;
+        mMatchTrustedCdnUrl = matchTrustedCdnUrl;
     }
 
     /** Handle any initialization that must occur after native has been initialized. */
@@ -584,8 +608,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         mIsUsingBrandColor =
                 !isIncognitoBranded()
                         && mPrimaryColor
-                                != SurfaceColorUpdateUtils.getDefaultThemeColor(
-                                        mContext, isIncognitoBranded())
+                                != ChromeColors.getDefaultThemeColor(mContext, isIncognitoBranded())
                         && hasTab()
                         && !mTab.isNativePage();
     }
@@ -634,11 +657,20 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     }
 
     @Override
-    public int getPageClassification(boolean isPrefetch) {
+    public @ConnectionMaliciousContentStatus int getMaliciousContentStatus() {
+        @Nullable Tab tab = getTab();
+        if (tab == null) {
+            return ConnectionMaliciousContentStatus.NONE;
+        }
+        return getMaliciousContentStatusFromStateModel(tab.getWebContents());
+    }
+
+    @Override
+    public int getPageClassification(boolean prefetch) {
         if (mNativeLocationBarModelAndroid == 0) return PageClassification.INVALID_SPEC_VALUE;
 
         return LocationBarModelJni.get()
-                .getPageClassification(mNativeLocationBarModelAndroid, isPrefetch);
+                .getPageClassification(mNativeLocationBarModelAndroid, prefetch);
     }
 
     @Override
@@ -653,6 +685,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
 
         return getSecurityIconResource(
                 getSecurityLevel(getTab(), isOfflinePage),
+                this::getMaliciousContentStatus,
                 !isTablet,
                 isOfflinePage,
                 isPaintPreview(),
@@ -691,9 +724,16 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     }
 
     @VisibleForTesting
+    @ConnectionMaliciousContentStatus
+    int getMaliciousContentStatusFromStateModel(@Nullable WebContents webContents) {
+        return SecurityStateModel.getMaliciousContentStatusForWebContents(webContents);
+    }
+
+    @VisibleForTesting
     @DrawableRes
     int getSecurityIconResource(
             int securityLevel,
+            Supplier<@ConnectionMaliciousContentStatus Integer> maliciousContentStatus,
             boolean isSmallDevice,
             boolean isOfflinePage,
             boolean isPaintPreview,
@@ -729,6 +769,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
 
         return SecurityStatusIcon.getSecurityIconResource(
                 securityLevel,
+                maliciousContentStatus,
                 isSmallDevice,
                 skipIconForNeutralState,
                 /* useLockIconForSecureState= */ false,
@@ -836,6 +877,12 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         if (mNativeLocationBarModelAndroid == 0) return GURL.emptyGURL();
         if (mNtpDelegate.isCurrentlyVisible()) {
             return getTab().getUrl();
+        }
+        if (mMatchTrustedCdnUrl && mTab != null && !mTab.isDestroyed()) {
+            @Nullable GURL publisherUrl = TrustedCdn.getPublisherUrl(mTab);
+            if (publisherUrl != null) {
+                return publisherUrl;
+            }
         }
 
         return LocationBarModelJni.get()

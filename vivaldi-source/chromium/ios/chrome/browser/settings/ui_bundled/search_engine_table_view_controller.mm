@@ -48,6 +48,7 @@
 #import "ios/favicon/vivaldi_favicon_loader_factory.h"
 #import "ios/favicon/vivaldi_favicon_loader.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_coordinator.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_utils.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -616,7 +617,7 @@ const char kUmaSelectDefaultSearchEngine[] =
     _vivaldiFaviconLoader->GetFaviconForIconUrl(
         templateURL->favicon_url(), kDesiredMediumFaviconSizePt,
         kMinFaviconSizePt, ios::VivaldiFaviconOptions::kCacheFirstThenFresh,
-        ^(FaviconAttributes* attributes) {
+        ^(FaviconAttributes* attributes, bool cached) {
           if (attributes && attributes.faviconImage) {
             [weakSelf faviconReceivedFor:item faviconAttributes:attributes];
           } else {
@@ -632,7 +633,7 @@ const char kUmaSelectDefaultSearchEngine[] =
             strongSelf->_vivaldiFaviconLoader->GetFaviconForPageUrlOrHost(
                 itemURL, kDesiredMediumFaviconSizePt,
                 ios::VivaldiFaviconOptions::kCacheFirstThenFresh,
-                ^(FaviconAttributes* fallbackAttributes) {
+                ^(FaviconAttributes* fallbackAttributes, bool cachedFav) {
                   if (fallbackAttributes && fallbackAttributes.faviconImage) {
                     [weakSelf faviconReceivedFor:item
                                faviconAttributes:fallbackAttributes];
@@ -649,7 +650,7 @@ const char kUmaSelectDefaultSearchEngine[] =
   __weak __typeof(self) weakSelf = self;
   GetSearchEngineFavicon(
       *templateURL, *_regionalCapabilitiesService, _templateURLService,
-      _faviconLoader, ^(FaviconAttributes* attributes) {
+      _faviconLoader, ^(FaviconAttributes* attributes, bool cached) {
         [weakSelf faviconReceivedFor:item faviconAttributes:attributes];
       });
   } // End Vivaldi
@@ -982,6 +983,20 @@ const char kUmaSelectDefaultSearchEngine[] =
   NSMutableArray<UIMenuElement*>* actions =
       [NSMutableArray arrayWithObject:editAction];
 
+  if (IsVivaldiRunning() && isDefault) {
+      __weak __typeof(self) weakSelf = self;
+      UIAction* deleteAction = [UIAction
+      actionWithTitle:
+        l10n_util::GetNSString(
+            IDS_VIVALDI_SEARCH_ENGINE_SETTINGS_CONTEXT_DELETE_ENGINE_TITLE)
+                 image:nil
+             identifier:nil
+                handler:^(__kindof UIAction* _Nonnull action) {
+                  [weakSelf showDeleteDisallowedAlert];
+                }];
+    deleteAction.attributes = UIMenuElementAttributesDestructive;
+    [actions addObject:deleteAction];
+  } else // End Vivaldi
   if (!isDefault) {
     UIAction* deleteAction = [UIAction
         actionWithTitle:
@@ -1005,12 +1020,35 @@ const char kUmaSelectDefaultSearchEngine[] =
                    }];
 }
 
+// Vivaldi
+- (void)showDeleteDisallowedAlert {
+  UIAlertController* alertController = [UIAlertController
+      alertControllerWithTitle:l10n_util::GetNSString(IDS_VIVALDI_DEFAULT_SEARCH_ENGINE_REMOVE_ERROR)
+                       message:nil
+                preferredStyle:UIAlertControllerStyleAlert];
+  UIAlertAction* confirmAction =
+      [UIAlertAction actionWithTitle:l10n_util::GetNSString(IDS_OK)
+                           style:UIAlertActionStyleDestructive
+                             handler:nil];
+  [alertController addAction:confirmAction];
+  [self presentViewController:alertController animated:YES completion:nil];
+}
+// Ed Vivaldi
+
 - (void)showSearchEngineEditorFor:(const TemplateURL*)templateURL {
+  VivaldiSearchEngineEditorItem* item =
+      VivaldiCreateSearchEngineEditorItemFromTemplateURL(templateURL);
+  if (!item) {
+    return;
+  }
   _editorCoordinator = [[VivaldiSearchEngineEditorCoordinator alloc]
       initWithBaseNavigationController:self.navigationController
                                browser:_browser
-                             isEditing:YES
-                           editingItem:templateURL];
+                            entryPoint:
+                                VivaldiSearchEngineEditorEntryPointSettings
+                          entryReason:VivaldiSearchEngineEditorEntryReasonEdit
+                                 item:item
+                          allowsCancel:NO];
   _editorCoordinator.delegate = self;
   [_editorCoordinator start];
 }

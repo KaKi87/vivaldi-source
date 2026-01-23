@@ -14,13 +14,13 @@ executable("update_notifier") {
       "//base/version_info:generate_version_info",
       "//build/win:default_exe_manifest",
       "//chrome/common:constants",
-      "//chrome/installer/util:constants",
-      "//chrome/installer/util:with_no_strings",
       "//chrome/install_static:install_static_util",
       "//components/language/core/browser",
       "//vivaldi/app:resources",
       "//vivaldi/app:vivaldi_icon",
       "//vivaldi/browser:init_sparkle",
+      "//vivaldi/installer/mini_installer/util:constants",
+      "//vivaldi/installer/mini_installer/util:with_no_strings",
       "thirdparty/winsparkle/src:winsparkle"
     ]
 

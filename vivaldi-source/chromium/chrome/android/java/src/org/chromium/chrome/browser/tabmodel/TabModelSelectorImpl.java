@@ -16,7 +16,7 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Token;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.EnsuresNonNull;
-import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
@@ -70,10 +70,10 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
     private final NextTabPolicySupplier mNextTabPolicySupplier;
     private final @Nullable MultiInstanceManager mMultiInstanceManager;
 
-    private TabContentManager mTabContentManager;
-    private RecentlyClosedBridge mRecentlyClosedBridge;
+    private @MonotonicNonNull TabContentManager mTabContentManager;
+    private @MonotonicNonNull RecentlyClosedBridge mRecentlyClosedBridge;
+    private @MonotonicNonNull TabModelSelectorTabObserver mTabModelSelectorTabObserver;
     private @Nullable Tab mVisibleTab;
-    private @Nullable TabModelSelectorTabObserver mTabModelSelectorTabObserver;
 
     /**
      * Builds a {@link TabModelSelectorImpl} instance.
@@ -133,7 +133,6 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
      *
      * @param tabContentProvider A {@link TabContentManager} instance.
      */
-    @Initializer
     @Override
     public void onNativeLibraryReady(
             TabContentManager tabContentProvider, boolean wasTabCollectionsActive) {
@@ -296,6 +295,7 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
     public void openMostRecentlyClosedEntry(TabModel tabModel) {
         assert tabModel == getModel(false)
                 : "Trying to restore a tab from an off-the-record tab model.";
+        assumeNonNull(mRecentlyClosedBridge);
         mRecentlyClosedBridge.openMostRecentlyClosedEntry(tabModel);
     }
 
@@ -447,6 +447,7 @@ public class TabModelSelectorImpl extends TabModelSelectorBase implements TabMod
     private void cacheTabBitmap(Tab tabToCache) {
         // Trigger a capture of this tab.
         if (tabToCache == null) return;
+        assumeNonNull(mTabContentManager);
         mTabContentManager.cacheTabThumbnail(tabToCache);
     }
 

@@ -10,8 +10,8 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/vivaldi_overflow_menu/vivaldi_oveflow_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -92,8 +92,7 @@ UIImage* GetOmniboxSuggestionIcon(OmniboxSuggestionIconType icon_type) {
                 imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
     case OmniboxSuggestionIconType::kSearch:
     case OmniboxSuggestionIconType::kFallbackAnswer:
-      return [[UIImage imageNamed:vSearch]
-                imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+      return CustomSymbolWithPointSize(vSearch, kSymbolSize);
     default:
       break;
   }

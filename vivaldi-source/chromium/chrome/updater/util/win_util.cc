@@ -30,6 +30,7 @@
 #include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
+#include "base/containers/span.h"
 #include "base/debug/alias.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
@@ -120,8 +121,8 @@ HRESULT GetSidIntegrityLevel(PSID sid, MANDATORY_LEVEL* level) {
   }
   static constexpr SID_IDENTIFIER_AUTHORITY kMandatoryLabelAuth =
       SECURITY_MANDATORY_LABEL_AUTHORITY;
-  if (UNSAFE_TODO(std::memcmp(authority, &kMandatoryLabelAuth,
-                              sizeof(SID_IDENTIFIER_AUTHORITY)))) {
+  if (base::byte_span_from_ref(*authority) !=
+      base::byte_span_from_ref(kMandatoryLabelAuth)) {
     return E_FAIL;
   }
   PUCHAR count = ::GetSidSubAuthorityCount(sid);
@@ -253,26 +254,26 @@ std::optional<std::vector<std::wstring>> CommandLineToArgv(
 [[nodiscard]] bool IsServicePresentNonAdmin(const std::wstring& service_name) {
   ScopedScHandle scm(
       ::OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT | GENERIC_READ));
-  if (!scm.IsValid()) {
+  if (!scm.is_valid()) {
     return false;
   }
 
   ScopedScHandle service(
       ::OpenService(scm.Get(), service_name.c_str(), SERVICE_QUERY_CONFIG));
-  return service.IsValid() || (::GetLastError() == ERROR_ACCESS_DENIED);
+  return service.is_valid() || (::GetLastError() == ERROR_ACCESS_DENIED);
 }
 
 [[nodiscard]] bool IsServicePresentAdmin(const std::wstring& service_name) {
   ScopedScHandle scm(::OpenSCManager(
       nullptr, nullptr, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE));
-  if (!scm.IsValid()) {
+  if (!scm.is_valid()) {
     return false;
   }
 
   ScopedScHandle service(
       ::OpenService(scm.Get(), service_name.c_str(),
                     SERVICE_QUERY_CONFIG | SERVICE_CHANGE_CONFIG));
-  if (!service.IsValid()) {
+  if (!service.is_valid()) {
     return ::GetLastError() == ERROR_ACCESS_DENIED;
   }
 
@@ -797,7 +798,7 @@ std::wstring BuildExeCommandLine(
 
 bool IsServiceRunning(const std::wstring& service_name) {
   ScopedScHandle scm(::OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT));
-  if (!scm.IsValid()) {
+  if (!scm.is_valid()) {
     LOG(ERROR) << "::OpenSCManager failed. service_name: " << service_name
                << ", error: " << std::hex << HRESULTFromLastError();
     return false;
@@ -805,7 +806,7 @@ bool IsServiceRunning(const std::wstring& service_name) {
 
   ScopedScHandle service(
       ::OpenService(scm.Get(), service_name.c_str(), SERVICE_QUERY_STATUS));
-  if (!service.IsValid()) {
+  if (!service.is_valid()) {
     LOG(ERROR) << "::OpenService failed. service_name: " << service_name
                << ", error: " << std::hex << HRESULTFromLastError();
     return false;
@@ -910,7 +911,7 @@ base::ScopedClosureRunner SignalShutdownEvent(UpdaterScope scope) {
 
   base::win::ScopedHandle shutdown_event_handle(
       ::CreateEvent(&attr.sa, true, false, attr.name.c_str()));
-  if (!shutdown_event_handle.IsValid()) {
+  if (!shutdown_event_handle.is_valid()) {
     VLOG(1) << __func__ << "Could not create the shutdown event: " << std::hex
             << HRESULTFromLastError();
     return {};
@@ -928,7 +929,7 @@ bool IsShutdownEventSignaled(UpdaterScope scope) {
 
   base::win::ScopedHandle event_handle(
       ::OpenEvent(EVENT_ALL_ACCESS, false, attr.name.c_str()));
-  if (!event_handle.IsValid()) {
+  if (!event_handle.is_valid()) {
     return false;
   }
 
@@ -1132,13 +1133,13 @@ void ForEachServiceWithPrefix(
 [[nodiscard]] bool DeleteService(const std::wstring& service_name) {
   ScopedScHandle scm(::OpenSCManager(
       nullptr, nullptr, SC_MANAGER_CONNECT | SC_MANAGER_CREATE_SERVICE));
-  if (!scm.IsValid()) {
+  if (!scm.is_valid()) {
     return false;
   }
 
   ScopedScHandle service(
       ::OpenService(scm.Get(), service_name.c_str(), DELETE));
-  bool is_service_deleted = !service.IsValid();
+  bool is_service_deleted = !service.is_valid();
   if (!is_service_deleted) {
     is_service_deleted =
         ::DeleteService(service.Get())
@@ -1457,7 +1458,7 @@ HResultOr<ScopedKernelHANDLE> GetImpersonationToken(
   }
   base::win::ScopedHandle process(::OpenProcess(
       PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, TRUE, *process_id));
-  if (!process.IsValid()) {
+  if (!process.is_valid()) {
     return base::unexpected(HRESULTFromLastError());
   }
   ScopedKernelHANDLE process_token;
@@ -1584,13 +1585,13 @@ std::optional<base::FilePath> GetBundledEnterpriseCompanionExecutablePath(
 [[nodiscard]] bool IsServiceEnabled(const std::wstring& service_name) {
   ScopedScHandle scm(
       ::OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT | GENERIC_READ));
-  if (!scm.IsValid()) {
+  if (!scm.is_valid()) {
     return false;
   }
 
   ScopedScHandle service(
       ::OpenService(scm.Get(), service_name.c_str(), SERVICE_QUERY_CONFIG));
-  if (!service.IsValid()) {
+  if (!service.is_valid()) {
     return false;
   }
 
@@ -1610,7 +1611,7 @@ HResultOr<std::wstring> GetCommandLineForPid(DWORD process_id) {
 
   base::win::ScopedHandle process_handle(::OpenProcess(
       PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, process_id));
-  if (!process_handle.IsValid()) {
+  if (!process_handle.is_valid()) {
     return base::unexpected(HRESULTFromLastError());
   }
 

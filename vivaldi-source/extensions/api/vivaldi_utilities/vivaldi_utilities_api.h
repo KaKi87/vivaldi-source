@@ -10,22 +10,20 @@
 #include <string>
 
 #include "base/containers/queue.h"
-#include "base/lazy_instance.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/power_monitor/power_observer.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/shell_integration.h"
+#include "chrome/browser/ui/webui/certificate_manager/certificate_manager_handler.h"
 #include "components/download/public/common/download_item.h"
 #include "components/history/core/browser/top_sites_observer.h"
 #include "content/public/browser/download_manager.h"
-#include "extensions/browser/api/file_system/file_system_api.h"
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/browser/app_window/app_window_registry.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_function.h"
 #include "ui/gfx/geometry/rect.h"
-#include "ui/shell_dialogs/select_file_dialog.h"
 #include "vivaldi_status/vivaldi_status.h"
 
 #include "browser/translate/vivaldi_translate_server_request.h"
@@ -136,6 +134,20 @@ class VivaldiUtilitiesAPI : public BrowserContextKeyedAPI,
   void OnSessionRecoveryStart();
   void OnSessionRecoveryDone(Profile* profile, int tabs);
 
+  // Certificate management methods
+  void InitCertSource(content::WebContents* web_contents,
+                      Profile* profile,
+                      std::string source_str);
+
+  CertificateManagerPageHandler::CertSource* CertSource() {
+    return cert_source_ptr_.get();
+  }
+
+  mojo::Remote<certificate_manager::mojom::CertificateManagerPage>*
+  CertificateManagerPage() {
+    return &certificate_manager_page_;
+  }
+
   class DialogPosition {
    public:
     DialogPosition(int window_id,
@@ -196,6 +208,12 @@ class VivaldiUtilitiesAPI : public BrowserContextKeyedAPI,
 
   // For calling the OnSessionRecoveryDone.
   base::CallbackListSubscription on_session_recovery_done_subscription_;
+
+  // Helper objects for certificate management. These need to outlive the
+  // ExtensionFunctions that use them.
+  mojo::Remote<certificate_manager::mojom::CertificateManagerPage>
+      certificate_manager_page_;
+  std::unique_ptr<CertificateManagerPageHandler::CertSource> cert_source_ptr_;
 };
 
 class UtilitiesPrintFunction : public ExtensionFunction {
@@ -1013,8 +1031,6 @@ class UtilitiesOsCryptFunction : public ExtensionFunction {
  private:
   ~UtilitiesOsCryptFunction() override;
   ResponseAction Run() override;
-
-  void OnEncryptDone(std::unique_ptr<std::string> encrypted, bool result);
 };
 
 class UtilitiesOsDecryptFunction : public ExtensionFunction {
@@ -1025,8 +1041,6 @@ class UtilitiesOsDecryptFunction : public ExtensionFunction {
  private:
   ~UtilitiesOsDecryptFunction() override;
   ResponseAction Run() override;
-
-  void OnDecryptDone(std::unique_ptr<std::string> decrypted, bool result);
 };
 
 class UtilitiesTranslateTextFunction : public ExtensionFunction {
@@ -1045,6 +1059,46 @@ class UtilitiesTranslateTextFunction : public ExtensionFunction {
                            std::vector<std::string> translatedText);
 
   std::unique_ptr<::vivaldi::VivaldiTranslateServerRequest> request_;
+};
+
+class UtilitiesImportSSLCertificateFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.importSSLCertificate",
+                             UTILITIES_IMPORTSSLCERTIFICATE)
+  UtilitiesImportSSLCertificateFunction() = default;
+
+ private:
+  ~UtilitiesImportSSLCertificateFunction() = default;
+
+  void CertImported(certificate_manager::mojom::ActionResultPtr action_result);
+
+  ResponseAction Run() override;
+};
+
+class UtilitiesGetSSLCertificatesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.getSSLCertificates",
+                             UTILITIES_GETSSLCERTIFICATES)
+  UtilitiesGetSSLCertificatesFunction() = default;
+
+ private:
+  ~UtilitiesGetSSLCertificatesFunction() = default;
+
+  void CertsReceived(
+      std::vector<certificate_manager::mojom::SummaryCertInfoPtr> cert_infos);
+
+  ResponseAction Run() override;
+};
+
+class UtilitiesExportSSLCertificatesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.exportSSLCertificates",
+                             UTILITIES_EXPORTSSLCERTIFICATES)
+  UtilitiesExportSSLCertificatesFunction() = default;
+
+ private:
+  ~UtilitiesExportSSLCertificatesFunction() = default;
+  ResponseAction Run() override;
 };
 
 class UtilitiesShowManageSSLCertificatesFunction : public ExtensionFunction {
@@ -1246,8 +1300,7 @@ class UtilitiesShowAdditionalStartupPagesFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class UtilitiesCopyToClipboardFunction
-    : public ExtensionFunction {
+class UtilitiesCopyToClipboardFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("utilities.copyToClipboard",
                              UTILITIES_COPY_TO_CLIPBOARD)
@@ -1257,6 +1310,20 @@ class UtilitiesCopyToClipboardFunction
   ~UtilitiesCopyToClipboardFunction() override = default;
 
   ResponseAction Run() override;
+};
+
+class UtilitiesDetectNewCrashesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("utilities.detectNewCrashes",
+                             UTILITIES_DETECT_NEW_CRASHES)
+  UtilitiesDetectNewCrashesFunction() = default;
+
+ private:
+  ~UtilitiesDetectNewCrashesFunction() override = default;
+  ResponseAction Run() override;
+
+  std::string CheckForNewCrashes(const std::string& lastSeenUUID);
+  void SendResult(const std::string& lastCrashUUID);
 };
 
 }  // namespace extensions

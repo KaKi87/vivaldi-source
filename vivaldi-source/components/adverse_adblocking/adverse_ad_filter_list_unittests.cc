@@ -67,7 +67,7 @@ class VivaldiSubresourceFilterTest : public AdverseAdFilterTestHarness {
         ->set_adblock_list(adblock_);
 
     adblock_->ClearSiteList();
-    adblock_->AddBlockItem(url.host());
+    adblock_->AddBlockItem(url.GetHost());
   }
 
  private:

@@ -166,8 +166,8 @@ void ImportFirefoxTabs(FirefoxImporter* instance,
     return;
   }
 
-  std::optional<base::Value> json_value =
-      base::JSONReader::Read(decompressed_data);
+  std::optional<base::Value> json_value = base::JSONReader::Read(
+      decompressed_data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 
   if (!json_value || !json_value->is_dict()) {
     LOG(ERROR) << "FirefoxImport: Failed to parse sessionstore JSON";

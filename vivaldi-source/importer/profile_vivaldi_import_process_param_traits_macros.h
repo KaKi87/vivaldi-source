@@ -14,12 +14,15 @@
 #include "base/values.h"
 #include "components/user_data_importer/common/importer_data_types.h"
 #include "content/public/common/common_param_traits.h"
-#include "ipc/ipc_message_macros.h"
+#include "ipc/param_traits_macros.h"
 
 #include "importer/imported_notes_entry.h"
 #include "importer/imported_speeddial_entry.h"
 #include "importer/imported_tab_entry.h"
 #include "importer/viv_importer.h"
+
+#undef IPC_MESSAGE_EXPORT
+#define IPC_MESSAGE_EXPORT
 
 IPC_STRUCT_TRAITS_BEGIN(ImportedNotesEntry)
   IPC_STRUCT_TRAITS_MEMBER(is_folder)

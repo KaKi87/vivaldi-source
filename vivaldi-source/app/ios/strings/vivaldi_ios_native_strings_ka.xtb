@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">გადიდების დონე საიტისთვის <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi ნელია, შეცდომებს ყრის ან აცხელებს მოწყობილობას</translation>
 <translation id="1929299157575856072">ნაგულისხმევი დაბლოკვის დონე</translation>
+<translation id="1933618400514506228">სერბული-ხორვატიული (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">გამოსახულების გახსნა ახალ ფონურ ჩანართში</translation>
 <translation id="1986733655397734221">არცერთი</translation>
 <translation id="1994506778397655062">ახალ ფონურ ჩანართში გახსნა</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">არ მინდა წინასწარ ჩატვირთული სანიშნეები და სწრაფი ღილაკები</translation>
 <translation id="3091563570137981919">ტრეკერის და რეკლამის დაბლოკვა</translation>
 <translation id="3097968995088564986">დამატების ღილაკის ჩვენება</translation>
-<translation id="3102790820790869053">ძებნა უახლეს ჩანართებში</translation>
 <translation id="3134385238404760368">უახლესი ჩანართების გარეშე</translation>
 <translation id="3142562627629111859">ახალი ჯგუფი</translation>
 <translation id="3157931365184549694">აღდგენა</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">რამეს ხომ არ დაამატებთ?</translation>
 <translation id="3842727926262967527">აირჩიეთ, სად გნებავთ, ჩანართების პანელი და მისამართის ველი გქონდეთ.</translation>
 <translation id="3845564230651302310">ახალი მბლოკავის პარამეტრების გადატარება...</translation>
+<translation id="385051799172605136">უკან</translation>
 <translation id="3858860766373142691">სახელი</translation>
 <translation id="3861379244432690245">პირდაპირი დამთხვევის ჩართვა</translation>
 <translation id="3866249974567520381">აღწერა</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">ჩასწორების თარიღი</translation>
 <translation id="4640946580087069269">შენიშვნაში კოპირება</translation>
 <translation id="4643117005422448078">საუკეთესო საიტები</translation>
-<translation id="4654428449690716275">ბანერების არჩვენება თარგმანის შეთავაზებამდე, ან მის შემდეგ</translation>
 <translation id="4654578955713250802">დაბლოკეთ რეკლამა და ტრეკერები</translation>
 <translation id="4655510151391078468">ეს კოდი თქვენთვის გამოგზავნილს არ ემთხვევა.
         გაქვთ დარჩენილი <ph name="ATTEMPTS" /> ცდა.</translation>
@@ -663,6 +663,7 @@
 <translation id="8948792607467387336">ფონის სურათად არჩევა</translation>
 <translation id="8964449607824577665">მიმდინარე დაშიფვრის პაროლის გარეშე თქვენს მონაცემებს ვერ გავშიფრავ. ამ პაროლის ჩამოყრას Vivaldi-ის სერვერებზე არსებული სინქრონიზაციის მონაცემების წაშლა სჭირდება.</translation>
 <translation id="8965371804397726192">ყველა მონაცემის სინქრონიზაციის დაწყება</translation>
+<translation id="896787570003733070">ბანერები ნაჩვენები არ იქნება თარგმანის არც შეთავაზებამდე, არც მის შემდეგ</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {სანიშნე გადატანილია "{title}"-ში}
           other {სანიშნე გადატანილია "{title}"-ში}}</translation>

@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">プライベートタブをロックするんやったら、Touch ID、Face ID、それかパスコード設定して。</translation>
 <translation id="1189137610071296104">タブスタックで開く</translation>
 <translation id="1310184829257917508">よそのアプリからリンク開く時プライベートタブで開くか聞く</translation>
+<translation id="1624481300475123200">パスワード自動入力</translation>
 <translation id="1743244221910283364">変更ほかす</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {さらのスタックにタブ入れたで}
         other {さらのスタックにタブ入れたで}}</translation>
 <translation id="207677936531967364">さらのプライベートタブページ</translation>
 <translation id="2099591136582442348">これで、あんたのデバイスからそのスタック永久にほかされるで。</translation>
+<translation id="2104086191144208395">問題ある？</translation>
 <translation id="2181990701313127304">スタック内でさらのタブ開く</translation>
 <translation id="2351280151183279120">スタックわけわけ</translation>
 <translation id="2353953000228441783">デフォルトサイトビュー</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">${url} をプライベートタブで開く</translation>
 <translation id="398477389655464998">選択部分のリンクコピー</translation>
 <translation id="3993429087389909418">タブはこのデバイスで開いたままになるけど、スタックは <ph name="USER_EMAIL" /> でサインインしてるデバイス全部からほかされるで。</translation>
-<translation id="4026745073321351206">🙄 バグあった？</translation>
 <translation id="4216644171369573466">タブスタック、<ph name="GROUP_TITLE" />、メニュー。</translation>
 <translation id="4304713468139749426">パスワードマネージャー</translation>
 <translation id="4439281775431634915">あんたのタブスタックはここに保存されるで</translation>
@@ -61,17 +62,22 @@
 <translation id="5521301883748677039">スタックほかす？</translation>
 <translation id="5544011153887687593">タブスタックのタブ。<ph name="TAB_INDEX_IN_GROUP" /> の <ph name="NUMBER_OF_TABS_IN_GROUP" />。</translation>
 <translation id="5614553682702429503">パスワード保存する？</translation>
+<translation id="5620163320393916465">保存されたパスワードないで</translation>
 <translation id="570209299585559496">設定→コンテンツの設定で、デフォルトサイトビューをデスクトップに変えれるで</translation>
 <translation id="5719777162751096990">タブスタックに移す</translation>
+<translation id="5869522115854928033">保存されたパスワード</translation>
 <translation id="5962477178930921574">貼り付けて検索</translation>
 <translation id="6163856768888310791">スタック解除</translation>
 <translation id="6168969409902608220">スタックに名前つける</translation>
 <translation id="6192561334825788389">右にスワイプしたらプライベートタブでブラウジングできるで。</translation>
 <translation id="6233792867654386826">入力したURLがVivaldiで開くで。</translation>
 <translation id="6271462272606946663">モバイルサイトリクエスト隠す</translation>
+<translation id="6309282378909663947">Vivaldiパスワードマネージャーからのパスワード</translation>
 <translation id="6478587527114893588">スタック閉じる。</translation>
 <translation id="6527405730445064713">タブスタック。展開されてるで。</translation>
 <translation id="6532106788206463496">変更保存</translation>
+<translation id="6636411080833380839">スタックから出す</translation>
+<translation id="6644512095122093795">パスワード保存提案する</translation>
 <translation id="6666425778700353369">これで、<ph name="USER_EMAIL" /> でサインインしているデバイス全部からスタックほかされるで。</translation>
 <translation id="6680416467695217368">メニューのカスタマイズ</translation>
 <translation id="6695835495840050460">「さらのスタックにタブ入れる」をタップ</translation>
@@ -92,6 +98,7 @@
 <translation id="7585610907974664408">スタック内でさらのプライベートタブ開く</translation>
 <translation id="7661319142491611883">タブスタック展開する。</translation>
 <translation id="7706213624515206557">スタック内のタブ全部出す</translation>
+<translation id="7937179923651776879">どのアプリからでもパスワードにアクセス</translation>
 <translation id="7961015016161918242">せえへん</translation>
 <translation id="8326104954595890674">さらのプライベートタブ</translation>
 <translation id="8345989863850359861">タブ閉じてスタックほかす？</translation>

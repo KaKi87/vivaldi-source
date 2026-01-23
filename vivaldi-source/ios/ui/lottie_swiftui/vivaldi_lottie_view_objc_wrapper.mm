@@ -27,14 +27,14 @@
     CompatibleAnimation* compatibleAnimation =
         [[CompatibleAnimation alloc]
             initWithName:config.animationName
-            subdirectory:config.subdirectory
+            subdirectory:nil
                   bundle:config.bundle == nil ? base::apple::FrameworkBundle()
                             : config.bundle];
 
     _lottieAnimation = [[CompatibleAnimationView alloc]
                             initWithCompatibleAnimation:compatibleAnimation];
     _lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
-    _lottieAnimation.loopAnimationCount = config.loopAnimationCount;
+    _lottieAnimation.loopAnimationCount = config.shouldLoop ? -1 : 0;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
   }
   return self;
@@ -73,7 +73,7 @@
   CompatibleAnimation* newCompatibleAnimation =
       [[CompatibleAnimation alloc]
           initWithName:animationName
-          subdirectory:_config.subdirectory
+          subdirectory:nil
                 bundle:_config.bundle ?: base::apple::FrameworkBundle()];
 
   // Update the animation in _lottieAnimation

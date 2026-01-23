@@ -32,6 +32,7 @@ class MockActorUiTabController : public ActorUiTabControllerInterface {
               (override));
 
   MOCK_METHOD(void, OnWebContentsAttached, (), (override));
+  MOCK_METHOD(void, OnViewBoundsChanged, (), (override));
 
   MOCK_METHOD(base::WeakPtr<ActorUiTabControllerInterface>,
               GetWeakPtr,
@@ -48,20 +49,34 @@ class MockActorUiTabController : public ActorUiTabControllerInterface {
               (override));
 
   MOCK_METHOD(void, OnHandoffButtonHoverStatusChanged, (), (override));
+  MOCK_METHOD(void, OnHandoffButtonFocusStatusChanged, (), (override));
 
-  MOCK_METHOD(bool, ShouldShowActorTabIndicator, (), (override));
-  using ActorTabIndicatorStateChangedCallback =
-      base::RepeatingCallback<void(bool)>;
-  MOCK_METHOD(base::CallbackListSubscription,
-              RegisterActorTabIndicatorStateChangedCallback,
-              (ActorTabIndicatorStateChangedCallback callback),
+  MOCK_METHOD(base::ScopedClosureRunner,
+              RegisterHandoffButtonController,
+              (HandoffButtonController * controller),
               (override));
+
   MOCK_METHOD(UiTabState, GetCurrentUiTabState, (), (const, override));
-  MOCK_METHOD(base::CallbackListSubscription,
+
+  MOCK_METHOD(void, OnImmersiveModeChanged, (), (override));
+
+  using ActorOverlayStateChangeCallback =
+      base::RepeatingCallback<void(bool, ActorOverlayState, base::OnceClosure)>;
+  MOCK_METHOD(base::ScopedClosureRunner,
               RegisterActorOverlayStateChange,
               (ActorOverlayStateChangeCallback callback),
               (override));
-  MOCK_METHOD(base::CallbackListSubscription,
+
+  using ActorTabIndicatorStateChangedCallback =
+      base::RepeatingCallback<void(TabIndicatorStatus)>;
+  MOCK_METHOD(base::ScopedClosureRunner,
+              RegisterActorTabIndicatorStateChangedCallback,
+              (ActorTabIndicatorStateChangedCallback callback),
+              (override));
+
+  using ActorOverlayBackgroundChangeCallback =
+      base::RepeatingCallback<void(bool)>;
+  MOCK_METHOD(base::ScopedClosureRunner,
               RegisterActorOverlayBackgroundChange,
               (ActorOverlayBackgroundChangeCallback callback),
               (override));

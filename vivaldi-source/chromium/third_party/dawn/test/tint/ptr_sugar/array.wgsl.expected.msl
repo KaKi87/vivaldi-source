@@ -31,7 +31,7 @@ void deref_let() {
   tint_array<int, 10> a = {};
   thread tint_array<int, 10>* const p = (&a);
   int const i = 0;
-  int b = (*p)[min(uint(i), 9u)];
+  int b = (*p)[i];
   (*p)[0u] = 42;
 }
 
@@ -39,7 +39,7 @@ void no_deref_let() {
   tint_array<int, 10> a = {};
   thread tint_array<int, 10>* const p = (&a);
   int const i = 0;
-  int b = (*p)[min(uint(i), 9u)];
+  int b = (*p)[i];
   (*p)[0u] = 42;
 }
 
@@ -59,6 +59,7 @@ void no_deref_var() {
   (*p)[0u] = 42;
 }
 
+[[max_total_threads_per_threadgroup(1)]]
 kernel void v() {
   deref_const();
   no_deref_const();

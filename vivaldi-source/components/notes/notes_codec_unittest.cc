@@ -150,20 +150,7 @@ class NotesCodecTest : public testing::Test {
 
   base::Value EncodeHelper(NotesModel* model, std::string* checksum) {
     NotesCodec encoder;
-    // Computed and stored checksums should be empty.
-    EXPECT_EQ("", encoder.computed_checksum());
-    EXPECT_EQ("", encoder.stored_checksum());
-
     base::Value value(encoder.Encode(model, ""));
-    const std::string& computed_checksum = encoder.computed_checksum();
-    const std::string& stored_checksum = encoder.stored_checksum();
-
-    // Computed and stored checksums should not be empty and should be equal.
-    EXPECT_FALSE(computed_checksum.empty());
-    EXPECT_FALSE(stored_checksum.empty());
-    EXPECT_EQ(computed_checksum, stored_checksum);
-
-    *checksum = computed_checksum;
     return value;
   }
 
@@ -171,7 +158,7 @@ class NotesCodecTest : public testing::Test {
     int64_t max_id;
     bool result = codec->Decode(
         AsMutable(model->main_node()), AsMutable(model->other_node()),
-        AsMutable(model->trash_node()), &max_id, value, nullptr);
+        AsMutable(model->trash_node()), &max_id, value.GetDict(), nullptr);
     model->set_next_node_id(max_id);
 
     return result;
@@ -182,30 +169,8 @@ class NotesCodecTest : public testing::Test {
                            std::string* computed_checksum,
                            bool expected_changes) {
     NotesCodec decoder;
-    // Computed and stored checksums should be empty.
-    EXPECT_EQ("", decoder.computed_checksum());
-    EXPECT_EQ("", decoder.stored_checksum());
-
     std::unique_ptr<NotesModel> model(CreateTestNotesModel());
     EXPECT_TRUE(Decode(&decoder, model.get(), value));
-
-    *computed_checksum = decoder.computed_checksum();
-    const std::string& stored_checksum = decoder.stored_checksum();
-
-    // Computed and stored checksums should not be empty.
-    EXPECT_FALSE(computed_checksum->empty());
-    EXPECT_FALSE(stored_checksum.empty());
-
-    // Stored checksum should be as expected.
-    EXPECT_EQ(expected_stored_checksum, stored_checksum);
-
-    // The two checksums should be equal if expected_changes is true; otherwise
-    // they should be different.
-    if (expected_changes)
-      EXPECT_NE(*computed_checksum, stored_checksum);
-    else
-      EXPECT_EQ(*computed_checksum, stored_checksum);
-
     return model.release();
   }
 

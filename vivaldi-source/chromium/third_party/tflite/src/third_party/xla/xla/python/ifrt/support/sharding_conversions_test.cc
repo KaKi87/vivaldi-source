@@ -24,6 +24,7 @@ limitations under the License.
 #include <gtest/gtest.h>
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/status/status_matchers.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/types/span.h"
@@ -42,7 +43,6 @@ limitations under the License.
 #include "xla/shape.h"
 #include "xla/tsl/concurrency/ref_count.h"
 #include "xla/tsl/lib/core/status_test_util.h"
-#include "xla/tsl/platform/status_matchers.h"
 #include "xla/tsl/platform/statusor.h"
 #include "xla/xla_data.pb.h"
 
@@ -52,7 +52,6 @@ namespace support {
 namespace {
 
 using ::testing::Return;
-using ::tsl::testing::StatusIs;
 using xla::HloSharding;
 
 absl::StatusOr<HloSharding> ToHloShardingViaOpSharding(

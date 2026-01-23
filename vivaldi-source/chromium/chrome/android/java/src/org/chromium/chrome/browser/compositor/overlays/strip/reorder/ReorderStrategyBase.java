@@ -44,6 +44,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+
 /** Base class for {@link ReorderStrategy} implementations. */
 @NullMarked
 public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivaldi
@@ -311,6 +314,8 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
      * @param stripTabs The list of {@link StripLayoutTab}.
      */
     protected void setEdgeMarginsForReorder(StripLayoutTab[] stripTabs) {
+        // Note(david@vivaldi.com): We don't support reordering into/out of groups at all.
+        if (ChromeApplicationImpl.isVivaldi()) return;
         float marginWidth =
                 StripLayoutUtils.getHalfTabWidth(mTabWidthSupplier, /* isPinned= */ false)
                         * StripLayoutUtils.REORDER_OVERLAP_SWITCH_PERCENTAGE;
@@ -327,8 +332,16 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
                 mTabGroupModelFilter.isTabInTabGroup(mModel.getTabByIdChecked(lastTab.getTabId()));
         lastTab.setTrailingMargin((lastTabIsInGroup && !lastTab.isCollapsed()) ? marginWidth : 0.f);
 
-        // 3. Ensure the second-to-last tab doesn't have a trailing margin after reorder.
-        if (stripTabs.length > 1) stripTabs[stripTabs.length - 2].setTrailingMargin(0f);
+        // 3. Clear the "previous last" tab's trailing margin after reorder. For MultiTabs reorder,
+        // the "previous last" could be any tab after bulk moves, so loop backward and clear the
+        // first non-zero trailing margin.
+        for (int i = stripTabs.length - 2; i >= 0; i--) {
+            StripLayoutTab stripTab = stripTabs[i];
+            if (stripTab.getTrailingMargin() != 0) {
+                stripTab.setTrailingMargin(0f);
+                break;
+            }
+        }
     }
 
     // ============================================================================================
@@ -425,8 +438,9 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     // ============================================================================================
 
     /**
+     * Returns the threshold to swap the interacting views with an adjacent tab.
+     *
      * @param isPinned Whether the tab is pinned.
-     * @return The threshold to swap the interacting views with an adjacent tab.
      */
     protected float getTabSwapThreshold(boolean isPinned) {
         return StripLayoutUtils.getEffectiveTabWidth(mTabWidthSupplier, isPinned)
@@ -440,9 +454,10 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     }
 
     /**
+     * Returns the threshold to drag out of a group.
+     *
      * @param groupTitle The group title for the desired group. Must not be null.
      * @param towardEnd True if dragging towards the end of the strip.
-     * @return The threshold to drag out of a group.
      */
     protected float getDragOutThreshold(StripLayoutGroupTitle groupTitle, boolean towardEnd) {
         float dragOutThreshold =
@@ -452,8 +467,9 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     }
 
     /**
+     * Returns the drag distance required to swap positions with the adjacent group.
+     *
      * @param adjTitle The adjacent group title.
-     * @return The drag distance required to swap positions with the adjacent group.
      */
     protected float getGroupSwapThreshold(StripLayoutGroupTitle adjTitle) {
         if (adjTitle.isCollapsed()) {
@@ -500,11 +516,28 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     }
 
     /**
+     * Returns {@code true} if we're dragging towards the end of the strip. {@code false} otherwise.
+     *
      * @param offset The offset of the current drag.
-     * @return {@code true} if we're dragging towards the end of the strip. {@code false} otherwise.
      */
     protected boolean isOffsetTowardEnd(float offset) {
         return (offset >= 0) ^ LocalizationUtils.isLayoutRtl();
+    }
+
+    /**
+     * Returns the maximum allowed horizontal drag offset for the interactingView, effectively
+     * clamping its movement so it doesn't move past the start or end view on the tab strip.
+     *
+     * @param interactingView The view currently being dragged.
+     * @param boundaryView The view defining the boundary of the drag (e.g. first view or last view
+     *     on the tab strip).
+     * @param toRight {@code true} if the drag direction is toward the right of the strip.
+     */
+    protected float getDragOffsetLimit(
+            StripLayoutView interactingView, StripLayoutView boundaryView, boolean toRight) {
+        float boundaryX = boundaryView.getIdealX();
+        if (toRight) boundaryX += (boundaryView.getWidth() - interactingView.getWidth());
+        return boundaryX - interactingView.getIdealX();
     }
 
     // ============================================================================================
@@ -540,8 +573,9 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     }
 
     /**
+     * Returns The sliding {@link CompositorAnimator}.
+     *
      * @param view The {@link StripLayoutView} to create a sliding {@link CompositorAnimator} for.
-     * @return The sliding {@link CompositorAnimator}.
      */
     protected Animator getViewSlidingAnimator(StripLayoutView view) {
         return CompositorAnimator.ofFloatProperty(
@@ -568,5 +602,14 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
         List<Animator> animators = new ArrayList<>();
         animators.add(getViewSlidingAnimator(view));
         mAnimationHost.queueAnimations(animators, listener);
+    }
+
+    /**
+     * Returns {@code true} if the drag is toward the end of the strip; {@code false} otherwise.
+     *
+     * @param isPinned Whether the tab is pinned; currently always false for grouped tabs.
+     */
+    protected float getEffectiveTabWidth(boolean isPinned) {
+        return StripLayoutUtils.getEffectiveTabWidth(mTabWidthSupplier, isPinned);
     }
 }

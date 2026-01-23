@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Lähennystaso sivustolle <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi on hidas, kaatuu tai kuumentaa laitteen</translation>
 <translation id="1929299157575856072">OLETUSARVOINEN ESTOTASO</translation>
+<translation id="1933618400514506228">Serbokroaatti (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Avaa kuva taustavälilehteen</translation>
 <translation id="1986733655397734221">Ei mitään näistä</translation>
 <translation id="1994506778397655062">Avaa uuteen taustavälilehteen</translation>
@@ -167,7 +168,6 @@ estetty</translation>
 <translation id="309084557304084991">En halua esiasetettuja kirjanmerkkejä ja pikavalintoja</translation>
 <translation id="3091563570137981919">Seuranta- ja mainosesto</translation>
 <translation id="3097968995088564986">Näytä lisäyspainike</translation>
-<translation id="3102790820790869053">Etsi viimeaikaisista välilehdistä</translation>
 <translation id="3134385238404760368">Edellisiä välilehtiä ei ole</translation>
 <translation id="3142562627629111859">Uusi ryhmä</translation>
 <translation id="3157931365184549694">Palauta</translation>
@@ -310,7 +310,6 @@ estetty</translation>
 <translation id="462860218383788109">Muokkausaika</translation>
 <translation id="4640946580087069269">Kopioi muistiinpanoon</translation>
 <translation id="4643117005422448078">Suosituimmat sivustot</translation>
-<translation id="4654428449690716275">Älä näytä tietopalkkeja ennen tai jälkeen käännösten tarjoamisen</translation>
 <translation id="4654578955713250802">Estä mainokset ja seurannat</translation>
 <translation id="4655510151391078468">Koodi ei vastaa sinulle lähetettyä koodia.
         Jäljellä on <ph name="ATTEMPTS" /> yritystä.</translation>
@@ -663,6 +662,7 @@ Korjaa se astuksista.</translation>
 <translation id="8948792607467387336">Valitse taustaksi</translation>
 <translation id="8964449607824577665">Tietojesi salausta ei voida purkaa ilman nykyistä salaussalasanaasi. Tämän salasanan vaihto vaatii kaikkien Vivaldin palvelimille synkronoitujen tietojen poiston.</translation>
 <translation id="8965371804397726192">Aloita kaikkien tietojen synkronointi</translation>
+<translation id="896787570003733070">Älä näytä tietoikkunoita ennen tai jälkeen käännöksen tarjoamisen</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Kirjanmerkki siirretty: "{title}"}
           other {Kirjanmerkit siirretty: "{title}"}}</translation>

@@ -12,7 +12,6 @@
 #include "base/command_line.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
@@ -885,6 +884,8 @@ void ArcSessionManager::Initialize() {
     LOG(WARNING) << "Skipping auto-resume of ARCVM /data migration, because it "
                     "has reached the maximum number of retries";
   }
+
+  observer_list_.Notify(&ArcSessionManagerObserver::OnInitialized);
 
   // Chrome may be shut down before completing ARC data removal.
   // For such a case, start removing the data now, if necessary.

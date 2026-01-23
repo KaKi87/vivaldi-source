@@ -13,6 +13,7 @@ import android.view.ViewGroup;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.lifetime.DestroyChecker;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.ObservableSupplier;
@@ -41,7 +42,6 @@ import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.Sc
 import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.SwipeHandler;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.util.AccessibilityUtil;
-import org.chromium.ui.util.XrUtils;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -320,15 +320,14 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
         if (getActiveLayoutType() != LayoutType.TAB_SWITCHER
                 && showOverview
                 && getNextLayoutType() != LayoutType.TAB_SWITCHER
-                && !XrUtils.isXrDevice()) {
-            // Vivaldi
-            if (!BuildConfig.IS_VIVALDI)
+                && !DeviceInfo.isXr()) {
+            if (!BuildConfig.IS_VIVALDI) // Vivaldi
             showLayout(LayoutType.TAB_SWITCHER, animate);
         } else if (getActiveLayoutType() == LayoutType.TAB_SWITCHER
                 && assumeNonNull(getActiveLayout()).isStartingToHide()
                 && showOverview
                 && getNextLayoutType() == LayoutType.BROWSING
-                && !XrUtils.isXrDevice()) {
+                && !DeviceInfo.isXr()) {
             showLayout(LayoutType.TAB_SWITCHER, animate);
         }
         super.tabClosed(id, nextId, incognito, tabRemoved);
@@ -336,7 +335,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl implements Accessibil
 
     @Override
     public void tabsAllClosing(boolean incognito) {
-        if (getActiveLayout() == mStaticLayout && !incognito && !XrUtils.isXrDevice()) {
+        if (getActiveLayout() == mStaticLayout && !incognito && !DeviceInfo.isXr()) {
             // Note(david@vivaldi.com): We always create a new tab rather then showing the tab
             // switcher.
             if (!ChromeApplicationImpl.isVivaldi())

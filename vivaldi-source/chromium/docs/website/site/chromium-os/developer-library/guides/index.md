@@ -34,6 +34,7 @@ title: Guides
 ## Containers
 
 * [ChromeOS VM for Chromium developers](/chromium-os/developer-library/guides/containers/cros-vm)
+* [Running a Pre-built ChromiumOS VM](/chromium-os/developer-library/guides/containers/prebuilt-vm-guide)
 * [Crostini developer guide](/chromium-os/developer-library/guides/containers/crostini-developer-guide)
 * [Running custom containers under Chrome OS](/chromium-os/developer-library/guides/containers/containers-and-vms)
 
@@ -72,7 +73,7 @@ title: Guides
 * [CrOS work command cheatsheet](/chromium-os/developer-library/guides/development/cheatsheet)
 * [Development basics](/chromium-os/developer-library/guides/development/development-basics)
 * [Getting started with platform2](/chromium-os/developer-library/guides/development/platform2-primer)
-* [How to use LINT.IfChange to keep files in sync](/chromium-os/developer-library/guides/development/keep-files-in-sync)
+* [How to use Gerrit IfThisThenThat Lint to keep files in sync](/chromium-os/developer-library/guides/development/keep-files-in-sync)
 * [Introduction to Git & Gerrit for CrOS contributors](/chromium-os/developer-library/guides/development/git-and-gerrit-intro)
 * [Life of a Chrome commit on ChromeOS](/chromium-os/developer-library/guides/development/chrome-commit-pipeline)
 * [Local trybot](/chromium-os/developer-library/guides/development/local-trybot-documentation)
@@ -106,6 +107,7 @@ title: Guides
 
 * [Enterprise metrics](/chromium-os/developer-library/guides/enterprise/enterprise-metrics)
 * [Enterprise policy](/chromium-os/developer-library/guides/enterprise/enterprise-policy)
+* [Testing Enterprise Policies with a Local Server](/chromium-os/developer-library/guides/enterprise/local-policy-testing)
 
 ## Documentation
 
@@ -252,6 +254,8 @@ title: Guides
 * [Running and writing "Tast" automated end to end (E2E) tests](/chromium-os/developer-library/guides/testing/e2e-tests)
 * [Running smoke suite on a VM image](/chromium-os/developer-library/guides/testing/testing/running-smoke-suite-on-a-vm-image)
 * [Running unittests via QEMU](/chromium-os/developer-library/guides/testing/qemu-unit-tests-design)
+* [Running Puppeteer Tests on CrOS Devices](/chromium-os/developer-library/guides/testing/web-testing)
+* [Running Puppeteer Tests to interact with System apps on CrOS Devices](/chromium-os/developer-library/guides/testing/puppeteer-system-apps/)
 * [Test lab setup](/chromium-os/developer-library/guides/testing/test-lab-setup)
 * [Tips on writing C++ Browser tests](/chromium-os/developer-library/guides/testing/browser-tests-writing-tips)
 * [Tips on writing Tast tests](/chromium-os/developer-library/guides/testing/tast-tests-writing-tips)

@@ -36,6 +36,10 @@ namespace optimization_guide {
 struct AIPageContentResult;
 }  // namespace optimization_guide
 
+namespace viz {
+struct CopyOutputBitmapWithMetadata;
+}  // namespace viz
+
 using GetIsContextualSearchboxCallback =
     lens::mojom::LensSidePanelPageHandler::GetIsContextualSearchboxCallback;
 
@@ -136,6 +140,15 @@ class LensSearchContextualizationController {
   // number of pages. `pdf_page_count` is only used for PDFs.
   void RecordDocumentMetrics(std::optional<uint32_t> pdf_page_count);
 
+  // Updates the query flow with the new page content bytes and/or screenshot. A
+  // request will only be sent if the bytes are different from the previous
+  // bytes sent or the screenshot is different from the previous screenshot.
+  void UpdatePageContext(std::vector<lens::PageContent> page_contents,
+                         lens::MimeType primary_content_type,
+                         std::optional<uint32_t> pdf_page_count,
+                         const SkBitmap& bitmap,
+                         std::optional<uint32_t> most_visible_page);
+
   // Posts a task to the background thread to calculate the OCR DOM similarity
   // and then records the result. Only records the similarity once per session.
   // Only records the similarity if the OCR text and page content are available.
@@ -157,7 +170,7 @@ class LensSearchContextualizationController {
 
   // Starts the screenshot flow. This will take a screenshot,
   // fetch image bounds, and then run the callback provided with this data.
-  void StartScreenshotFlow(OnScreenshotTakenCallback callback);
+  virtual void StartScreenshotFlow(OnScreenshotTakenCallback callback);
 
   // Returns whether the page is context eligible based on the URL and frame
   // metadata provided. Calls the provided callback with the result. This
@@ -185,6 +198,10 @@ class LensSearchContextualizationController {
 
   // Returns the most recent viewport screenshot.
   const SkBitmap& viewport_screenshot() { return viewport_screenshot_; }
+
+  void set_viewport_screenshot_for_testing(const SkBitmap& bitmap) {
+    viewport_screenshot_ = bitmap;
+  }
 
  protected:
   // The page context eligibility API if it has been fetched. Can be nullptr.
@@ -232,16 +249,6 @@ class LensSearchContextualizationController {
       std::optional<uint32_t> pdf_page_count,
       const SkBitmap& bitmap);
 
-  // Updates the query flow with the new page content bytes and/or screenshot. A
-  // request will only be sent if the bytes are different from the previous
-  // bytes sent or the screenshot is different from the previous screenshot.
-  void UpdatePageContextualizationPart3(
-      std::vector<lens::PageContent> page_contents,
-      lens::MimeType primary_content_type,
-      std::optional<uint32_t> pdf_page_count,
-      const SkBitmap& bitmap,
-      std::optional<uint32_t> pdf_current_page);
-
   // Gets the inner text for contextualization if flag enabled. Otherwise skip
   // to MaybeGetAnnotatedPageContent().
   void MaybeGetInnerText(std::vector<lens::PageContent> page_contents,
@@ -268,7 +275,7 @@ class LensSearchContextualizationController {
   void OnAnnotatedPageContentReceived(
       std::vector<lens::PageContent> page_contents,
       PageContentRetrievedCallback callback,
-      std::optional<optimization_guide::AIPageContentResult> apc);
+      optimization_guide::AIPageContentResultOrError apc);
 
   // Callback for when the page context eligibility is fetched. This should only
   // be used after the APC has been received. For the initial check before the
@@ -322,6 +329,12 @@ class LensSearchContextualizationController {
       OnScreenshotTakenCallback callback,
       std::optional<uint32_t> pdf_current_page);
 
+  // Callback for when the screenshot is captured for a contextual update.
+  void OnScreenshotCapturedForUpdate(
+      int attempt_id,
+      base::OnceCallback<void(const SkBitmap&)> callback,
+      const viz::CopyOutputBitmapWithMetadata& result);
+
   // Handles the screenshot after it has been taken for the contextual flow.
   void OnScreenshotTakenForContextual(OnPageContextUpdatedCallback callback,
                                       const SkBitmap& bitmap,
@@ -329,8 +342,9 @@ class LensSearchContextualizationController {
                                       std::optional<uint32_t> pdf_current_page);
 
   // Fetches the bounding boxes of all images within the current viewport.
-  void FetchViewportImageBoundingBoxes(OnScreenshotTakenCallback callback,
-                                       const SkBitmap& bitmap);
+  void FetchViewportImageBoundingBoxes(
+      OnScreenshotTakenCallback callback,
+      const viz::CopyOutputBitmapWithMetadata& result);
 
   // Creates the mojo bounding boxes for the significant regions.
   std::vector<lens::mojom::CenterRotatedBoxPtr> ConvertSignificantRegionBoxes(

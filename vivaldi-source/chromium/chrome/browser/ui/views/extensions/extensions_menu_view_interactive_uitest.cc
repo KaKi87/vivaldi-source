@@ -13,12 +13,10 @@
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/extension_action_runner.h"
 #include "chrome/browser/extensions/extension_context_menu_model.h"
-#include "chrome/browser/extensions/install_verifier.h"
-#include "chrome/browser/extensions/permissions/scripting_permissions_modifier.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/extensions/extension_install_ui.h"
-#include "chrome/browser/ui/toolbar/toolbar_action_view_controller.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_menu_item_view.h"
@@ -38,6 +36,7 @@
 #include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/permissions/scripting_permissions_modifier.h"
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/pref_names.h"
 #include "extensions/common/extension.h"
@@ -114,14 +113,14 @@ class ExtensionsMenuViewInteractiveUITest : public ExtensionsToolbarUITest {
   void TriggerSingleExtensionButton() {
     auto menu_items = GetExtensionMenuItemViews();
     ASSERT_EQ(1u, menu_items.size());
-    TriggerExtensionButton((*menu_items.begin())->view_controller()->GetId());
+    TriggerExtensionButton((*menu_items.begin())->view_model()->GetId());
   }
 
   void TriggerExtensionButton(const std::string& id) {
     auto menu_items = GetExtensionMenuItemViews();
     auto iter =
         std::ranges::find(menu_items, id, [](ExtensionMenuItemView* view) {
-          return view->view_controller()->GetId();
+          return view->view_model()->GetId();
         });
     ASSERT_TRUE(iter != menu_items.end());
 
@@ -240,7 +239,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest, TriggerPopup) {
   auto visible_icons = GetVisibleToolbarActionViews();
   EXPECT_NE(std::nullopt, extensions_container->GetPoppedOutActionId());
   EXPECT_EQ(extensions_container->GetPoppedOutActionId(),
-            visible_icons[0]->view_controller()->GetId());
+            visible_icons[0]->view_model()->GetId());
   EXPECT_EQ(1u, visible_icons.size());
   extensions_container->HideActivePopup();
 
@@ -272,7 +271,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
   auto visible_icons = GetVisibleToolbarActionViews();
   EXPECT_NE(std::nullopt, extensions_container->GetPoppedOutActionId());
   EXPECT_EQ(extensions_container->GetPoppedOutActionId(),
-            visible_icons[0]->view_controller()->GetId());
+            visible_icons[0]->view_model()->GetId());
   EXPECT_EQ(std::nullopt,
             extensions_container->GetExtensionWithOpenContextMenuForTesting());
   ASSERT_EQ(1u, visible_icons.size());
@@ -290,7 +289,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
   EXPECT_NE(std::nullopt,
             extensions_container->GetExtensionWithOpenContextMenuForTesting());
   EXPECT_EQ(extensions_container->GetExtensionWithOpenContextMenuForTesting(),
-            visible_icons[0]->view_controller()->GetId());
+            visible_icons[0]->view_model()->GetId());
 }
 
 IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
@@ -300,7 +299,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
   VerifyUi();
   TriggerSingleExtensionButton();
 
-  ExtensionsContainer* const extensions_container =
+  ExtensionsContainerViews* const extensions_container =
       browser()->GetBrowserView().toolbar()->extensions_container();
   std::optional<extensions::ExtensionId> action_id =
       extensions_container->GetPoppedOutActionId();
@@ -324,7 +323,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
   VerifyUi();
   TriggerExtensionButton(id1);
 
-  ExtensionsContainer* const extensions_container =
+  ExtensionsContainerViews* const extensions_container =
       browser()->GetBrowserView().toolbar()->extensions_container();
   ASSERT_NE(std::nullopt, extensions_container->GetPoppedOutActionId());
 
@@ -352,7 +351,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
 
   destroyed_waiter.Wait();
 
-  ExtensionsContainer* const extensions_container =
+  ExtensionsContainerViews* const extensions_container =
       browser()->GetBrowserView().toolbar()->extensions_container();
 
   // This test should not use a popped-out action, as we want to make sure that
@@ -567,8 +566,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuViewInteractiveUITest,
   TriggerSingleExtensionButton();
   histogram_tester.ExpectTotalCount(kHistogramName, 1);
   histogram_tester.ExpectBucketCount(
-      kHistogramName, ToolbarActionViewController::InvocationSource::kMenuEntry,
-      1);
+      kHistogramName, ToolbarActionViewModel::InvocationSource::kMenuEntry, 1);
 
   // TODO(crbug.com/40684492): Add a test for command invocation once triggering
   // an action via command with extensions menu opened is fixed.

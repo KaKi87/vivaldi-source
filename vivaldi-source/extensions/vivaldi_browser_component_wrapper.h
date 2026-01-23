@@ -4,6 +4,7 @@
 #define VIVALDI_BROWSER_COMPONENT_WRAPPER_H
 
 #include <memory>
+#include <vector>
 
 #include "base/notreached.h"
 
@@ -269,6 +270,10 @@ class VivaldiBrowserComponentWrapper {
       std::string content_type_string,
       std::string content_setting_string) = 0;
   virtual Browser* GetWorkspaceBrowser(const double workspace_id) = 0;
+  virtual content::WebContents* GetFollowerTab(
+      Browser* browser,
+      const std::string follower_ext_id) = 0;
+
   virtual int CountTabsInWorkspace(TabStripModel* tab_strip,
                                    const double workspace_id) = 0;
   virtual VivaldiBrowserWindow* FindWindowForEmbedderWebContents(

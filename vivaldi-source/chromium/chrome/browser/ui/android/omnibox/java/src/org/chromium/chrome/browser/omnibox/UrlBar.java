@@ -59,6 +59,7 @@ import org.chromium.components.browser_ui.share.ShareHelper;
 import org.chromium.components.browser_ui.util.FirstDrawDetector;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.ui.KeyboardVisibilityDelegate;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.KeyNavigationUtil;
 import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
@@ -91,7 +92,7 @@ public class UrlBar extends AutocompleteEditText {
     // check for text equality, instead of worrying about partial equality with truncated text.
     static final int MIN_LENGTH_FOR_TRUNCATION = 100;
 
-    private static final int MULTILINE_EDIT_MAX_LINES = 5;
+    static final int MULTILINE_EDIT_MAX_LINES = 5;
 
     /**
      * The text direction of the URL or query: LAYOUT_DIRECTION_LOCALE, LAYOUT_DIRECTION_LTR, or
@@ -105,6 +106,7 @@ public class UrlBar extends AutocompleteEditText {
     private @Nullable OnKeyListener mKeyDownListener;
     private @Nullable UrlBarTextContextMenuDelegate mTextContextMenuDelegate;
     private @Nullable Callback<Integer> mUrlDirectionListener;
+    private @Nullable Callback<Boolean> mUrlTextWrappingChangeListener;
 
     private final Rect mClipBounds = new Rect();
     @VisibleForTesting final Runnable mEnforceMaxTextHeight = this::enforceMaxTextHeight;
@@ -143,6 +145,7 @@ public class UrlBar extends AutocompleteEditText {
     private int mOriginEndIndex;
 
     private boolean mUseSmallTextHeight;
+    private boolean mTextIsWrapped;
 
     /** What scrolling action should be taken after the URL bar text changes. */
     @IntDef({ScrollType.NO_SCROLL, ScrollType.SCROLL_TO_TLD, ScrollType.SCROLL_TO_BEGINNING})
@@ -219,6 +222,15 @@ public class UrlBar extends AutocompleteEditText {
         setHorizontalFadingEdgeEnabled(true);
         setVerticalScrollBarEnabled(false);
         setElegantTextHeight(true);
+        if (OmniboxFeatures.sUrlBarWithoutLigatures.isEnabled()) {
+            // Explanation of Settings applied below:
+            // - liga=0 - disable conventional, standard ligatures (fi -> ﬀ ,fi -> ﬁ, ...)
+            // - clig=0 - disable contextual ligatures (st->ﬆ, ft-> ﬅ, ...)
+            // - calt=0 - disable contextual alternates (th, oo, tt, ...) - glyphs that may
+            //            look differently at the beginning / middle / end of a word
+            // - dlig=0 - disable decorative ligatures (sp, Th, ...)
+            setFontFeatureSettings("liga=0, clig=0, calt=0, dlig=0");
+        }
         // Use a global draw instead of View#onDraw in case this View is not visible.
         FirstDrawDetector.waitForFirstDraw(
                 this,
@@ -233,7 +245,8 @@ public class UrlBar extends AutocompleteEditText {
         setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         int verticalPadding =
                 getResources().getDimensionPixelSize(R.dimen.url_bar_vertical_padding);
-        setPaddingRelative(0, verticalPadding, 0, verticalPadding);
+        int endPadding = getResources().getDimensionPixelSize(R.dimen.url_bar_end_padding);
+        setPaddingRelative(0, verticalPadding, endPadding, verticalPadding);
 
         setTextClassifier(TextClassifier.NO_OP);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -332,11 +345,22 @@ public class UrlBar extends AutocompleteEditText {
         }
 
         mFocused = focused;
+
         if (!mFocused) mFocusEventEmitted = false;
         super.onFocusChanged(focused, direction, previouslyFocusedRect);
 
-        setSingleLine(true);
-        setMaxLines(1);
+        if (!mIsInCct
+                && !DeviceFormFactor.isNonMultiDisplayContextOnTablet(getContext())
+                && OmniboxFeatures.sMultilineEditField.isEnabled()) {
+            setInputIsMultilineEligible(false);
+            if (focused) {
+                setSingleLine(false);
+                setMaxLines(MULTILINE_EDIT_MAX_LINES);
+            } else {
+                setSingleLine(true);
+                setMaxLines(1);
+            }
+        }
         setHorizontalFadingEdgeEnabled(!focused);
 
         if (focused) {
@@ -389,19 +413,24 @@ public class UrlBar extends AutocompleteEditText {
      * <p>Should be called whenever focus or text contents change.
      */
     private void fixupTextDirection() {
-        // When unfocused, force left-to-right rendering at the paragraph level (which is desired
-        // for URLs). Right-to-left runs are still rendered RTL, but will not flip the whole URL
-        // around. This is consistent with OmniboxViewViews on desktop. When focused, render text
-        // normally (to allow users to make non-URL searches and to avoid showing Android's split
-        // insertion point when an RTL user enters RTL text). Also render text normally when the
-        // text field is empty (because then it displays an instruction that is not a URL).
-        if (mFocused || length() == 0) {
+        // 4 states to cover, depending on focus state and text presence:
+        // - focus with text      -> follow the natural text direction
+        // - no focus with text   -> always LTR (this is 100% the URL)
+        // - focus with no text   -> follow the locale (Focused state hint text)
+        // - no focus and no text -> follow the locale (NTP hint text)
+        if (length() == 0) {
+            // Always language specific text direction to show hint text.
             setTextDirection(TEXT_DIRECTION_INHERIT);
+            setTextAlignment(TEXT_ALIGNMENT_VIEW_START);
+        } else if (mFocused) {
+            // Always input-specific text direction
+            setTextDirection(TEXT_DIRECTION_INHERIT);
+            setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
         } else {
+            // Always LTR (URL)
             setTextDirection(TEXT_DIRECTION_LTR);
+            setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
         }
-        // Always align to the same as the paragraph direction (LTR = left, RTL = right).
-        setTextAlignment(TEXT_ALIGNMENT_TEXT_START);
     }
 
     @Override
@@ -466,20 +495,25 @@ public class UrlBar extends AutocompleteEditText {
 
         limitDisplayableLength();
 
+        post(this::detectAndNotifyOnTextWrappingChanges);
+    }
+
+    private void detectAndNotifyOnTextWrappingChanges() {
+        var layout = getLayout();
+        boolean textIsWrapped = layout != null && layout.getLineCount() > 1;
+
+        if (mTextIsWrapped == textIsWrapped) return;
+        mTextIsWrapped = textIsWrapped;
+
+        if (mUrlTextWrappingChangeListener == null) return;
+        mUrlTextWrappingChangeListener.onResult(mTextIsWrapped);
+    }
+
+    @Override
+    public void setInputIsMultilineEligible(boolean isMultilineEligible) {
+        isMultilineEligible &= mFocused;
         if (OmniboxFeatures.allowMultilineEditField() && !mIsInCct) {
-            // Observe the user input alone, to prevent autocompletion from taking over the input.
-            boolean isMultilineEligible = TextUtils.indexOf(getTextWithoutAutocomplete(), ' ') >= 0;
-            boolean wasMultilineEligible = !isSingleLine();
-            if (isMultilineEligible != wasMultilineEligible) {
-                // Toggling between single- and multi-line edit fields appears to make the EditText
-                // restart and reposition the cursor.
-                // TODO(crbug.com/432311666): verify if selection restart is caused by our own
-                // logic. If it is, see if this can be fixed and remove selection management below.
-                int cursor = getSelectionStart();
-                setSingleLine(!isMultilineEligible);
-                setMaxLines(isMultilineEligible ? MULTILINE_EDIT_MAX_LINES : 1);
-                setSelection(cursor);
-            }
+            setHorizontallyScrolling(!isMultilineEligible);
         }
     }
 
@@ -620,6 +654,15 @@ public class UrlBar extends AutocompleteEditText {
         if (mUrlDirectionListener != null) {
             mUrlDirectionListener.onResult(mUrlDirection);
         }
+    }
+
+    /**
+     * Set the listener to be notified when the URL text wraps.
+     *
+     * @param listener The listener to be notified.
+     */
+    /* package */ void setUrlTextWrappingChangeListener(Callback<Boolean> listener) {
+        mUrlTextWrappingChangeListener = listener;
     }
 
     /**
@@ -907,6 +950,7 @@ public class UrlBar extends AutocompleteEditText {
         Layout layout = assumeNonNull(getLayout());
         if (TextUtils.isEmpty(text)) {
             if (getLayoutDirection() == LAYOUT_DIRECTION_RTL
+                    && getHint() != null
                     && BidiFormatter.getInstance().isRtl(getHint())) {
                 // Compared to below that uses getPrimaryHorizontal(1) due to 0 returning an
                 // invalid value, if the text is empty, getPrimaryHorizontal(0) returns the actual
@@ -992,7 +1036,9 @@ public class UrlBar extends AutocompleteEditText {
         int urlTextLength = url.length();
 
         Layout textLayout = assumeNonNull(getLayout());
-        assert getLayout().getLineCount() == 1;
+
+        if (mFocused) return;
+
         final int originEndIndex = Math.min(mOriginEndIndex, urlTextLength);
         if (mOriginEndIndex > urlTextLength) {
             // If discovered locally, please update crbug.com/859219 with the steps to reproduce.
@@ -1150,6 +1196,7 @@ public class UrlBar extends AutocompleteEditText {
         // of some urls (e.g. "flipkart.com" -> "flip cart. com" or "flipkart. com") despite
         // TYPE_TEXT_FLAG_NO_SUGGESTIONS and lack of TYPE_TEXT_FLAG_AUTO_CORRECT.
         outAttrs.inputType |= EditorInfo.TYPE_TEXT_VARIATION_URI;
+        outAttrs.inputType &= ~EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE;
         outAttrs.imeOptions &= ~EditorInfo.IME_FLAG_NO_ENTER_ACTION;
         return connection;
     }

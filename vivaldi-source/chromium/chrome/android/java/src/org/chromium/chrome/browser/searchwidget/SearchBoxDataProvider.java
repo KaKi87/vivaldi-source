@@ -20,6 +20,7 @@ import org.chromium.chrome.browser.omnibox.UrlBarData;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityPreferencesManager;
 import org.chromium.components.browser_ui.styles.ChromeColors;
+import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.url.GURL;
 
@@ -126,7 +127,12 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
     }
 
     @Override
-    public int getPageClassification(boolean isPrefetch) {
+    public @ConnectionMaliciousContentStatus int getMaliciousContentStatus() {
+        return ConnectionMaliciousContentStatus.NONE;
+    }
+
+    @Override
+    public int getPageClassification(boolean prefetch) {
         return mPageClassification;
     }
 

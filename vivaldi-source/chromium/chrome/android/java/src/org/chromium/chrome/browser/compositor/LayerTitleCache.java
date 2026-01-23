@@ -24,7 +24,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.compositor.layouts.content.TitleBitmapFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabFavicon;
@@ -104,8 +103,11 @@ public class LayerTitleCache {
         mTabModelSelector = tabModelSelector;
         Resources res = context.getResources();
         final int fadeWidthPx = res.getDimensionPixelOffset(R.dimen.border_texture_title_fade);
-        final int faviconStartPaddingPx =
-                res.getDimensionPixelSize(R.dimen.tab_title_favicon_start_padding);
+        // Note(david@vivaldi.com): I do not understand why the tab_title_favicon_start_padding is
+        // sometimes resolved from the Chromium dimensions instead of the Vivaldi ones. Due to this
+        // we hard code the padding here.
+        final int faviconStartPaddingPx = 0;
+                 // res.getDimensionPixelSize(R.dimen.tab_title_favicon_start_padding); Vivaldi
         final int faviconEndPaddingPx =
                 res.getDimensionPixelSize(R.dimen.tab_title_favicon_end_padding);
         mSharedGroupAvatarPaddingPx =
@@ -185,8 +187,6 @@ public class LayerTitleCache {
         // If content view core is null, tab does not have direct access to the favicon, and we
         // will initially show default favicon. But favicons are stored in the history database, so
         // we will fetch favicons asynchronously from database.
-        boolean fetchFaviconFromHistory = tab.isNativePage() || tab.getWebContents() == null;
-
         String titleString = getTitleForTab(tab, defaultTitle);
 
         // Note(david@vivaldi.com): Retrieve group title if applicable.
@@ -198,13 +198,14 @@ public class LayerTitleCache {
             if (rootString != null && !mIsStackStrip) titleString = rootString;
         }
 
-        getUpdatedTitleInternal(tab, titleString, fetchFaviconFromHistory);
-        if (fetchFaviconFromHistory) fetchFaviconForTab(tab);
+        Bitmap tabFavicon = TabFavicon.getBitmap(tab);
+        getUpdatedTitleInternal(tab, titleString, tabFavicon);
+        if (tabFavicon == null) fetchFaviconForTab(tab);
         return titleString;
     }
 
     private String getUpdatedTitleInternal(
-            Tab tab, String titleString, boolean fetchFaviconFromHistory) {
+            Tab tab, String titleString, @Nullable Bitmap tabFavicon) {
         final int tabId = tab.getId();
         boolean isDarkTheme = tab.isIncognito();
 
@@ -214,16 +215,23 @@ public class LayerTitleCache {
         Tab currentTab = mTabModelSelector.getCurrentTab();
         if (currentTab != null && currentTab.getId() == tab.getId() && !tab.isIncognito())
             isDarkTheme = false;
+        // End Vivaldi
 
-        Bitmap originalFavicon = getOriginalFavicon(tab);
+        boolean fetchFaviconFromHistory = tabFavicon == null;
+
+        if (fetchFaviconFromHistory) {
+            tabFavicon = getDefaultFavicon(tab);
+        }
+        assert tabFavicon != null;
 
         // Note(david@vivaldi.com): Fetching the favicon with taking the current theme into account.
         if (ChromeApplicationImpl.isVivaldi())
-            originalFavicon = TabFavicon.getBitmap(tab);
-        if (originalFavicon == null) {
-            originalFavicon = mDefaultFaviconHelper.getDefaultFaviconBitmap(
+            tabFavicon = TabFavicon.getBitmap(tab);
+        if (tabFavicon == null) {
+            tabFavicon = mDefaultFaviconHelper.getDefaultFaviconBitmap(
                     mContext, tab.getUrl(), !isDarkTheme, false);
         }
+        // End Vivaldi
 
         TitleBitmapFactory titleBitmapFactory =
                 isDarkTheme ? mDarkTitleBitmapFactory : mStandardTitleBitmapFactory;
@@ -236,11 +244,11 @@ public class LayerTitleCache {
         }
 
         // Note(david@vivaldi.com): Apply current density to the image.
-        originalFavicon.setDensity(mContext.getResources().getDisplayMetrics().densityDpi);
+        tabFavicon.setDensity(mContext.getResources().getDisplayMetrics().densityDpi);
 
         title.set(
                 titleBitmapFactory.getTabTitleBitmap(titleString),
-                titleBitmapFactory.getFaviconBitmap(originalFavicon),
+                titleBitmapFactory.getFaviconBitmap(tabFavicon),
                 fetchFaviconFromHistory);
 
         boolean showBubble = mTabBubbles.contains(tab.getId());
@@ -265,8 +273,6 @@ public class LayerTitleCache {
 
     @CalledByNative
     private void buildUpdatedGroupTitle(Token groupId, boolean incognito) {
-        // TODO(crbug.com/331642736): Investigate if this can be called with a different width than
-        //  what is stored for the corresponding group title.
         TabGroupModelFilter filter =
                 mTabModelSelector
                         .getTabGroupModelFilterProvider()
@@ -356,9 +362,7 @@ public class LayerTitleCache {
     public void fetchFaviconWithCallback(final Tab tab, FaviconImageCallback callback) {
         if (mFaviconHelper == null) mFaviconHelper = new FaviconHelper();
 
-        if (tab.getTabGroupId() != null
-                && !tab.isOffTheRecord()
-                && ChromeFeatureList.sTabSwitcherForeignFaviconSupport.isEnabled()) {
+        if (tab.getTabGroupId() != null && !tab.isOffTheRecord()) {
             // This mirrors the async tab favicon request implementation for tab list.
             // See TabListFaviconProvider#getFaviconForTabAsync for more detailed notes.
             // TODO(crbug.com/394165786): Unify with the aforementioned TabListFaviconProvider code.
@@ -370,38 +374,17 @@ public class LayerTitleCache {
         }
     }
 
-    /**
-     * Requests a default favicon for the given tab.
-     *
-     * @param tab The {@link Tab} to request the favicon for.
-     * @return The tab's favicon based on its web contents. Otherwise, a default favicon.
-     */
-    public Bitmap getOriginalFavicon(Tab tab) {
-        boolean isDarkTheme = tab.isIncognito();
-        Bitmap originalFavicon = TabFavicon.getBitmap(tab);
-        if (originalFavicon == null) {
-            originalFavicon =
-                    IncognitoUtils.shouldOpenIncognitoAsWindow() && isDarkTheme
-                            ? mDefaultFaviconHelper.getDefaultFaviconBitmap(
-                                    mContext,
-                                    tab.getUrl(),
-                                    /* useDarkIcon= */ false,
-                                    /* useIncognitoNtpIcon= */ true)
-                            : mDefaultFaviconHelper.getDefaultFaviconBitmap(
-                                    mContext,
-                                    tab.getUrl(),
-                                    !isDarkTheme,
-                                    /* useIncognitoNtpIcon= */ false);
-        }
-
-        return originalFavicon;
-    }
-
     /** Returns a chrome favicon if the tab is a native page. else returns a default favicon. */
     public Bitmap getDefaultFavicon(Tab tab) {
         boolean isDarkTheme = tab.isIncognito();
-        return mDefaultFaviconHelper.getDefaultFaviconBitmap(
-                mContext, tab.getUrl(), !isDarkTheme, /* useIncognitoNtpIcon= */ false);
+        return IncognitoUtils.shouldOpenIncognitoAsWindow() && isDarkTheme
+                ? mDefaultFaviconHelper.getDefaultFaviconBitmap(
+                        mContext,
+                        tab.getUrl(),
+                        /* useDarkIcon= */ false,
+                        /* useIncognitoNtpIcon= */ true)
+                : mDefaultFaviconHelper.getDefaultFaviconBitmap(
+                        mContext, tab.getUrl(), !isDarkTheme, /* useIncognitoNtpIcon= */ false);
     }
 
     private @Nullable ViewResourceAdapter getResourceAdapterFromLoader(int resId) {

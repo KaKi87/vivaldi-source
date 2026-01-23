@@ -25,13 +25,21 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
   explicit AccessorAssembler(compiler::CodeAssemblerState* state)
       : CodeStubAssembler(state) {}
 
+  enum class FieldLocation { kInObject, kOutOfObject, kNotSpecified };
+  enum class FieldKind { kDouble, kNonDouble };
+  static constexpr int kNotSpecifiedFieldIndex = -1;
+
   void GenerateLoadIC();
   void GenerateLoadIC_Megamorphic();
   void GenerateLoadIC_Noninlined();
   void GenerateLoadIC_NoFeedback();
   void GenerateLoadGlobalIC_NoFeedback();
   void GenerateLoadICTrampoline();
-  void GenerateLoadICBaseline();
+  void GenerateLoadICUninitializedBaseline();
+  void GenerateLoadICFieldBaseline(FieldLocation field_location,
+                                   FieldKind field_kind, int field_index);
+  void GenerateLoadICConstantFromPrototypeBaseline();
+  void GenerateLoadICGenericBaseline();
   void GenerateLoadICTrampoline_Megamorphic();
   void GenerateLoadSuperIC();
   void GenerateLoadSuperICBaseline();
@@ -138,9 +146,7 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
     TNode<Object> name() const { return name_; }
     TNode<TaggedIndex> slot() const { return slot_; }
     TNode<HeapObject> vector() const { return vector_; }
-    TNode<JSAny> lookup_start_object() const {
-      return lookup_start_object_.value();
-    }
+    TNode<JSAny> lookup_start_object() const { return lookup_start_object_; }
     TNode<Smi> enum_index() const { return *enum_index_; }
     TNode<Object> cache_type() const { return *cache_type_; }
 
@@ -152,6 +158,11 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
       return receiver_;
     }
 
+    // This is useful for figuring out whether we know anything about receiver
+    // type. If |receiver| and |lookup_start_object| are different TNodes
+    // then this ICParameters object belongs to LoadSuperIC.
+    bool IsLoadSuperIC() const { return lookup_start_object_ != receiver_; }
+
     bool IsEnumeratedKeyedLoad() const { return enum_index_ != std::nullopt; }
 
    private:
@@ -160,7 +171,7 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
     TNode<Object> name_;
     TNode<TaggedIndex> slot_;
     TNode<HeapObject> vector_;
-    std::optional<TNode<JSAny>> lookup_start_object_;
+    TNode<JSAny> lookup_start_object_;
     std::optional<TNode<Smi>> enum_index_;
     std::optional<TNode<Object>> cache_type_;
   };
@@ -201,6 +212,11 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
       DCHECK_EQ(receiver_, lookup_start_object_);
       return receiver_;
     }
+
+    // This is useful for figuring out whether we know anything about receiver
+    // type. If |receiver| and |lookup_start_object| are different TNodes
+    // then this ICParameters object belongs to LoadSuperIC.
+    bool IsLoadSuperIC() const { return lookup_start_object_ != receiver_; }
 
    private:
     LazyNode<Context> context_;
@@ -351,6 +367,9 @@ class V8_EXPORT_PRIVATE AccessorAssembler : public CodeStubAssembler {
                          Label* miss, ExitPoint* exit_point);
 
   void LoadSuperIC(const LoadICParameters* p);
+
+  void LoadIC_Field(const LazyLoadICParameters* p, FieldLocation field_location,
+                    FieldKind field_kind, int field_index);
 
   TNode<Object> LoadDescriptorValue(TNode<Map> map,
                                     TNode<IntPtrT> descriptor_entry);

@@ -175,14 +175,6 @@
         "type": "object",
         "description": "Identifies broadcast type. Only one property should be used.",
         "properties": {
-          "startDragging": {
-            "type": "boolean",
-            "optional": true
-          },
-          "endDragging": {
-            "type": "boolean",
-            "optional": true
-          },
           "translate": {
             "type": "object",
             "optional": true,
@@ -336,10 +328,10 @@
             "type": "string",
             "optional": true
           },
-          "urlForSecurityDisplay":  {
+          "urlForSecurityDisplay": {
             "type": "string",
             "optional": true,
-            "description":  "URL formatted for security display, meaning formatted in unicode in a way to avoid IDN homograph attack."
+            "description": "URL formatted for security display, meaning formatted in unicode in a way to avoid IDN homograph attack."
           },
           "tldForSecurityDisplay": {
             "type": "string",
@@ -625,7 +617,9 @@
         "id": "VivaldiService",
         "type": "string",
         "description": "Name of service",
-        "enum": [ "sync" ]
+        "enum": [
+          "sync"
+        ]
       },
       {
         "id": "VivaldiStatus",
@@ -668,11 +662,11 @@
         "type": "object",
         "description": "An object holding result of extension installation request.",
         "properties": {
-          "success" : {
+          "success": {
             "name": "success",
             "type": "boolean"
           },
-          "error" : {
+          "error": {
             "name": "error",
             "type": "string",
             "description": "Installation error description, in case installation failed."
@@ -690,6 +684,15 @@
             "description": "Mark copy as confidential."
           }
         }
+      },
+      {
+        "id": "CrashType",
+        "type": "string",
+        "enum": [
+          "browser",
+          "other"
+        ],
+        "description": "Type of a crash. Either browser crash or not."
       }
     ],
     "functions": [
@@ -717,8 +720,7 @@
         ],
         "returns_async": {
           "name": "callback",
-          "parameters": [
-          ]
+          "parameters": []
         }
       },
       {
@@ -902,7 +904,7 @@
           {
             "name": "path",
             "type": "string",
-            "description":  "Folder path to open."
+            "description": "Folder path to open."
           }
         ]
       },
@@ -1872,8 +1874,7 @@
         "name": "getOSGeolocationState",
         "type": "function",
         "description": "Gets the state of OS geolocation.",
-        "parameters": [
-        ],
+        "parameters": [],
         "returns_async": {
           "name": "callback",
           "parameters": [
@@ -1889,8 +1890,7 @@
         "name": "openOSGeolocationSettings",
         "type": "function",
         "description": "Makes the OS geolocation settings visible to the user.",
-        "parameters": [
-        ],
+        "parameters": [],
         "returns_async": {
           "name": "callback",
           "parameters": []
@@ -2009,6 +2009,79 @@
             {
               "name": "result",
               "$ref": "TranslateTextResponse"
+            }
+          ]
+        }
+      },
+      {
+        "name": "importSSLCertificate",
+        "type": "function",
+        "description": "Import an SSL certificate from a specified certificate store. Opens a file import dialog.",
+        "parameters": [
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "The window to use as the parent of the import dialog."
+          },
+          {
+            "name": "cert_store",
+            "type": "string",
+            "description": "Name of the certificate store."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "result",
+              "type": "string",
+              "description": "Error message if the import failed. Empty string on success."
+            }
+          ]
+        }
+      },
+      {
+        "name": "exportSSLCertificates",
+        "type": "function",
+        "description": "Export SSL certificates from a specified certificate store.",
+        "parameters": [
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "The window to use as the parent of the export dialog."
+          },
+          {
+            "name": "cert_store",
+            "type": "string",
+            "description": "Name of the certificate store."
+          }
+        ]
+      },
+      {
+        "name": "getSSLCertificates",
+        "type": "function",
+        "description": "Get a list of SSL certificates from the specified certificate store.",
+        "parameters": [
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "The window to use as the parent of the import dialog."
+          },
+          {
+            "name": "cert_store",
+            "type": "string",
+            "description": "Name of the certificate store."
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "cert_list",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           ]
         }
@@ -2215,8 +2288,7 @@
         "name": "allowVPNIncognito",
         "type": "function",
         "description": "A single-purpose call that grants incognito access to ProtonVPN extension.",
-        "parameters": [
-        ],
+        "parameters": [],
         "returns_async": {
           "name": "callback",
           "parameters": []
@@ -2295,6 +2367,23 @@
           "name": "callback",
           "parameters": []
         }
+      },
+      {
+        "name": "detectNewCrashes",
+        "type": "function",
+        "description": "Checks to see if there are any new crash reports since the last function call.",
+        "parameters": [],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "name": "crashType",
+              "$ref": "CrashType",
+              "optional": true,
+              "description": "Returns crash type if the crash happened since the last function call."
+            }
+          ]
+        }
       }
     ],
     "events": [
@@ -2315,8 +2404,7 @@
         "name": "onDialogCanceled",
         "type": "function",
         "description": "Called when the javascript dialog was canceled.",
-        "parameters": [
-        ]
+        "parameters": []
       },
       {
         "name": "onSharedDataUpdated",

@@ -2,23 +2,17 @@
 
 #include "prefs/vivaldi_prefs_definitions.h"
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "apps/switches.h"
 #include "base/command_line.h"
-#include "base/containers/fixed_flat_map.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
-#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_paths.h"
@@ -26,7 +20,6 @@
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
-#include "components/search_engines/search_engines_pref_names.h"
 #include "components/search_engines/vivaldi_pref_names.h"
 #include "components/sync_preferences/syncable_prefs_database.h"
 #include "prefs/vivaldi_pref_names.h"
@@ -34,7 +27,7 @@
 
 #if !BUILDFLAG(IS_IOS)
 #include "chrome/common/pref_names.h"
-#endif // !IS_IOS
+#endif  // !IS_IOS
 
 // Preference override is available on Linux or in internal desktop builds on
 // any platform for testing convenience.
@@ -623,11 +616,11 @@ void VivaldiPrefsDefinitions::RegisterProfilePrefs(
   registry->RegisterDictionaryPref(
       vivaldiprefs::kVivaldiAccountPendingRegistration);
   registry->RegisterInt64Pref(vivaldiprefs::kVivaldiLastTopSitesVacuumDate, 0);
-  registry->RegisterDictionaryPref(vivaldiprefs::kVivaldiPIPPlacement);
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiSearchEnginesKagiToken,
+                               "");
 
 #if BUILDFLAG(IS_ANDROID)
-  registry->RegisterBooleanPref(vivaldiprefs::kPWADisabled,
-                                true);
+  registry->RegisterBooleanPref(vivaldiprefs::kPWADisabled, true);
   registry->RegisterBooleanPref(vivaldiprefs::kAddressBarDeleteDirectMatch,
                                 false);
 #if defined(OEM_MERCEDES_BUILD) || defined(OEM_LYNKCO_BUILD)
@@ -689,27 +682,31 @@ void VivaldiPrefsDefinitions::RegisterProfilePrefs(
 }
 
 void VivaldiPrefsDefinitions::MigrateObsoleteProfilePrefs(
-      PrefService* profile_prefs) {
+    PrefService* profile_prefs) {
 #if !BUILDFLAG(IS_IOS)
   // Added 11/2024
-  if (profile_prefs->HasPrefPath(vivaldiprefs::kAddressBarInlineSearchSuggestEnabled)) {
+  if (profile_prefs->HasPrefPath(
+          vivaldiprefs::kAddressBarInlineSearchSuggestEnabled)) {
     profile_prefs->SetBoolean(
         prefs::kSearchSuggestEnabled,
-        profile_prefs->GetBoolean(vivaldiprefs::kAddressBarInlineSearchSuggestEnabled));
-    profile_prefs->ClearPref(vivaldiprefs::kAddressBarInlineSearchSuggestEnabled);
+        profile_prefs->GetBoolean(
+            vivaldiprefs::kAddressBarInlineSearchSuggestEnabled));
+    profile_prefs->ClearPref(
+        vivaldiprefs::kAddressBarInlineSearchSuggestEnabled);
   }
-#endif // !IS_IOS
+#endif  // !IS_IOS
 
   // Added 02/2025
-if (profile_prefs->HasPrefPath(vivaldiprefs::kAddressBarOmniboxShowBookmarks)) {
+  if (profile_prefs->HasPrefPath(
+          vivaldiprefs::kAddressBarOmniboxShowBookmarks)) {
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-  auto pref = vivaldiprefs::kAddressBarOmniboxBookmarksBoosted;
+    auto pref = vivaldiprefs::kAddressBarOmniboxBookmarksBoosted;
 #else
-  auto pref = vivaldiprefs::kAddressBarOmniboxBookmarks;
+    auto pref = vivaldiprefs::kAddressBarOmniboxBookmarks;
 #endif
     profile_prefs->SetBoolean(
-        pref,
-        profile_prefs->GetBoolean(vivaldiprefs::kAddressBarOmniboxShowBookmarks));
+        pref, profile_prefs->GetBoolean(
+                  vivaldiprefs::kAddressBarOmniboxShowBookmarks));
     profile_prefs->ClearPref(vivaldiprefs::kAddressBarOmniboxShowBookmarks);
   }
 
@@ -776,8 +773,8 @@ if (profile_prefs->HasPrefPath(vivaldiprefs::kAddressBarOmniboxShowBookmarks)) {
   }
   // Added 08/2025. Added for cr140.
 #if CHROME_VERSION_MAJOR > 144
-  #error "We do not need to migrate kHasSeenWelcomePage forever, remove this now."
-#endif // CHROME_VERSION_MAJOR > 144
+#error "We do not need to migrate kHasSeenWelcomePage forever, remove this now."
+#endif  // CHROME_VERSION_MAJOR > 144
   if (profile_prefs->HasPrefPath(kHasSeenWelcomePage)) {
     profile_prefs->SetBoolean(vivaldiprefs::kStartupHasSeenWelcomePage,
                               profile_prefs->GetBoolean(kHasSeenWelcomePage));

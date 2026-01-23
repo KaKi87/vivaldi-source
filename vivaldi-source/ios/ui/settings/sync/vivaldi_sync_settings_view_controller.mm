@@ -3,12 +3,12 @@
 #import "ios/ui/settings/sync/vivaldi_sync_settings_view_controller.h"
 
 #import "base/apple/foundation_util.h"
+#import "base/strings/sys_string_conversions.h"
 #import "components/sync/base/user_selectable_type.h"
 #import "ios/chrome/browser/net/model/crurl.h"
-#import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
@@ -107,17 +107,6 @@
       [self.tableViewModel itemTypeForIndexPath:indexPath]);
 
   switch (itemType) {
-    case ItemTypeLogOutButton:
-    case ItemTypeDeleteDataButton:
-    case ItemTypeStartSyncingButton:
-    case ItemTypeHeaderItem:
-    case ItemTypeSyncUserInfo:
-    case ItemTypeSyncStatus:
-    case ItemTypeSyncStatusFooter:
-    case ItemTypeSyncAllInfoTextbox: {
-      cell.selectionStyle = UITableViewCellSelectionStyleNone;
-      break;
-    }
     case ItemTypeSyncWhatSegmentedControl: {
       VivaldiTableViewSegmentedControlCell* segmentedControlCell =
           base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(cell);
@@ -129,119 +118,38 @@
           UIEdgeInsetsMake(0,0,0,tableView.frame.size.width);
       break;
     }
-    case ItemTypeSyncBookmarksSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(bookmarksSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncSettingsSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(settingsSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncPasswordsSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(passwordsSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncAutofillSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(autofillSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncTabsSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(tabsSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncHistorySwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(historySwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncReadingListSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(readingListSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
-    case ItemTypeSyncNotesSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                              action:@selector(notesSwitchToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-      switchCell.switchView.on =
-          [self.serviceDelegate getSyncStatusFor:itemType];
-      break;
-    }
     case ItemTypeEncryptionPasswordButton: {
       cell.selectionStyle = UITableViewCellSelectionStyleNone;
-      TableViewDetailTextCell* tableViewDetailTextCell =
-          base::apple::ObjCCastStrict<TableViewDetailTextCell>(cell);
       UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
           initWithTarget:self
           action:@selector(encryptionInfoButtonPressed)];
-      [tableViewDetailTextCell.accessoryView addGestureRecognizer:tap];
-      [tableViewDetailTextCell.accessoryView setUserInteractionEnabled:YES];
-      tableViewDetailTextCell.accessoryView.tintColor =
+      [cell.accessoryView addGestureRecognizer:tap];
+      [cell.accessoryView setUserInteractionEnabled:YES];
+      cell.accessoryView.tintColor =
           [UIColor colorNamed:kBlueColor];
       break;
     }
     case ItemTypeBackupRecoveryKeyButton: {
       cell.selectionStyle = UITableViewCellSelectionStyleNone;
-      TableViewDetailTextCell* tableViewDetailTextCell =
-          base::apple::ObjCCastStrict<TableViewDetailTextCell>(cell);
       UILabel* label = [[UILabel alloc] initWithFrame:CGRectZero];
       label.text = l10n_util::GetNSString(IDS_VIVALDI_SAVE);
       label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
       label.numberOfLines = 1;
       [label sizeToFit];
       label.textColor = [UIColor colorNamed:kBlueColor];
-      tableViewDetailTextCell.accessoryView = label;
-      tableViewDetailTextCell.accessoryView.tintColor =
+      cell.accessoryView = label;
+      cell.accessoryView.tintColor =
           [UIColor colorNamed:kBlueColor];
       UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
           initWithTarget:self
           action:@selector(backupEncryptionKeyButtonPressed)];
-      [tableViewDetailTextCell.accessoryView addGestureRecognizer:tap];
-      [tableViewDetailTextCell.accessoryView setUserInteractionEnabled:YES];
+      [cell.accessoryView addGestureRecognizer:tap];
+      [cell.accessoryView setUserInteractionEnabled:YES];
       break;
     }
+    default:
+      cell.selectionStyle = UITableViewCellSelectionStyleNone;
+      break;
   }
 
   return cell;
@@ -353,6 +261,13 @@
   [self presentViewController:dialog animated:YES completion:nil];
 }
 
+- (void)didTapProfilePhoto {
+  OpenNewTabCommand* command =
+      [OpenNewTabCommand commandWithURLFromChrome:
+          GURL(base::SysNSStringToUTF8(vVivaldiProfileUrl))];
+  [self.applicationCommandsHandler closePresentedViewsAndOpenURL:command];
+}
+
 #pragma mark - Private Methods
 
 - (void)backupEncryptionKeyButtonPressed {
@@ -439,48 +354,6 @@
   bool syncAllData = sender.selectedSegmentIndex == SyncAll ? YES : NO;
   [self.serviceDelegate syncAllOptionChanged:syncAllData];
 }
-
-- (void)bookmarksSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kBookmarks isOn:sender.isOn];
-}
-
-- (void)settingsSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kPreferences isOn:sender.isOn];
-}
-
-- (void)passwordsSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kPasswords isOn:sender.isOn];
-}
-
-- (void)autofillSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kAutofill isOn:sender.isOn];
-}
-
-- (void)tabsSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kTabs isOn:sender.isOn];
-}
-
-- (void)historySwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kHistory isOn:sender.isOn];
-}
-
-- (void)readingListSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kReadingList isOn:sender.isOn];
-}
-
-- (void)notesSwitchToggled:(UISwitch*)sender {
-  [self.serviceDelegate updateChosenTypes:
-      syncer::UserSelectableType::kNotes isOn:sender.isOn];
-}
-
-#pragma mark - PRIVATE
 
 - (void)clearExistingTarget:(UIButton*)button {
   [button removeTarget:nil

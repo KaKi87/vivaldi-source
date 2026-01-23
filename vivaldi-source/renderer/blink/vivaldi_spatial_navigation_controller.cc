@@ -589,7 +589,11 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
 
   blink::DOMRect* cr = container->GetBoundingClientRect();
   blink::Node* container_node = container;
+  if (!indicator_) {
+    CreateIndicator();
+  }
   blink::Node* indicator_node = indicator_;
+
 
   const blink::ComputedStyle* indicator_style =
       indicator_node->IsElementNode()

@@ -2,62 +2,44 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef QUICHE_QUIC_MOQT_TEST_TOOLS_MOCK_MOQT_SESSION_H_
-#define QUICHE_QUIC_MOQT_TEST_TOOLS_MOCK_MOQT_SESSION_H_
+#ifndef QUICHE_QUIC_MOQT_TOOLS_MOCK_MOQT_SESSION_H_
+#define QUICHE_QUIC_MOQT_TOOLS_MOCK_MOQT_SESSION_H_
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 
-#include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "quiche/quic/moqt/moqt_messages.h"
 #include "quiche/quic/moqt/moqt_priority.h"
-#include "quiche/quic/moqt/moqt_publisher.h"
 #include "quiche/quic/moqt/moqt_session_callbacks.h"
 #include "quiche/quic/moqt/moqt_session_interface.h"
-#include "quiche/quic/moqt/moqt_subscribe_windows.h"
-#include "quiche/quic/moqt/moqt_track.h"
-#include "quiche/common/platform/api/quiche_logging.h"
 #include "quiche/common/platform/api/quiche_test.h"
+#include "quiche/common/quiche_weak_ptr.h"
 
-namespace moqt::test {
+namespace moqt {
+namespace test {
 
-// Mock version of MoqtSession.  If `publisher` is provided via constructor, all
-// of the SUBSCRIBE and FETCH requests are routed towards it.
 class MockMoqtSession : public MoqtSessionInterface {
  public:
-  explicit MockMoqtSession(MoqtPublisher* publisher);
-  ~MockMoqtSession() override;
-
-  MockMoqtSession(const MockMoqtSession&) = delete;
-  MockMoqtSession(MockMoqtSession&&) = delete;
-  MockMoqtSession& operator=(const MockMoqtSession&) = delete;
-  MockMoqtSession& operator=(MockMoqtSession&&) = delete;
-
-  MoqtSessionCallbacks& callbacks() override { return callbacks_; }
-
+  MOCK_METHOD(MoqtSessionCallbacks&, callbacks, (), (override));
   MOCK_METHOD(void, Error, (MoqtError code, absl::string_view error),
               (override));
   MOCK_METHOD(bool, SubscribeAbsolute,
               (const FullTrackName& name, uint64_t start_group,
-               uint64_t start_object, SubscribeRemoteTrack::Visitor* visitor,
+               uint64_t start_object, SubscribeVisitor* visitor,
                VersionSpecificParameters parameters),
               (override));
   MOCK_METHOD(bool, SubscribeAbsolute,
               (const FullTrackName& name, uint64_t start_group,
                uint64_t start_object, uint64_t end_group,
-               SubscribeRemoteTrack::Visitor* visitor,
-               VersionSpecificParameters parameters),
+               SubscribeVisitor* visitor, VersionSpecificParameters parameters),
               (override));
   MOCK_METHOD(bool, SubscribeCurrentObject,
-              (const FullTrackName& name,
-               SubscribeRemoteTrack::Visitor* visitor,
+              (const FullTrackName& name, SubscribeVisitor* visitor,
                VersionSpecificParameters parameters),
               (override));
   MOCK_METHOD(bool, SubscribeNextGroup,
-              (const FullTrackName& name,
-               SubscribeRemoteTrack::Visitor* visitor,
+              (const FullTrackName& name, SubscribeVisitor* visitor,
                VersionSpecificParameters parameters),
               (override));
   MOCK_METHOD(bool, SubscribeUpdate,
@@ -75,34 +57,33 @@ class MockMoqtSession : public MoqtSessionInterface {
                std::optional<MoqtDeliveryOrder> delivery_order,
                VersionSpecificParameters parameters),
               (override));
-  MOCK_METHOD(bool, JoiningFetch,
-              (const FullTrackName& name,
-               SubscribeRemoteTrack::Visitor* visitor,
+  MOCK_METHOD(bool, RelativeJoiningFetch,
+              (const FullTrackName& name, SubscribeVisitor* visitor,
                uint64_t num_previous_groups,
                VersionSpecificParameters parameters),
               (override));
-  MOCK_METHOD(bool, JoiningFetch,
-              (const FullTrackName& name,
-               SubscribeRemoteTrack::Visitor* visitor,
+  MOCK_METHOD(bool, RelativeJoiningFetch,
+              (const FullTrackName& name, SubscribeVisitor* visitor,
                FetchResponseCallback callback, uint64_t num_previous_groups,
                MoqtPriority priority,
                std::optional<MoqtDeliveryOrder> delivery_order,
                VersionSpecificParameters parameters),
               (override));
+  MOCK_METHOD(void, PublishNamespace,
+              (TrackNamespace track_namespace,
+               MoqtOutgoingPublishNamespaceCallback callback,
+               VersionSpecificParameters parameters),
+              (override));
+  MOCK_METHOD(bool, PublishNamespaceDone, (TrackNamespace track_namespace),
+              (override));
 
- private:
-  class LoopbackObjectListener;
-
-  bool Subscribe(const FullTrackName& name,
-                 SubscribeRemoteTrack::Visitor* visitor,
-                 SubscribeWindow window);
-
-  MoqtPublisher* const publisher_ = nullptr;
-  MoqtSessionCallbacks callbacks_;
-  absl::flat_hash_map<FullTrackName, std::unique_ptr<LoopbackObjectListener>>
-      receiving_subscriptions_;
+  quiche::QuicheWeakPtr<MoqtSessionInterface> GetWeakPtr() override {
+    return weak_factory_.Create();
+  }
+  quiche::QuicheWeakPtrFactory<MoqtSessionInterface> weak_factory_{this};
 };
 
-}  // namespace moqt::test
+}  // namespace test
+}  // namespace moqt
 
-#endif  // QUICHE_QUIC_MOQT_TEST_TOOLS_MOCK_MOQT_SESSION_H_
+#endif  // QUICHE_QUIC_MOQT_TOOLS_MOCK_MOQT_SESSION_H_

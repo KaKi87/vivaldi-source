@@ -7,12 +7,9 @@ package org.chromium.chrome.browser.tab;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
-import android.graphics.Rect;
-import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Callback;
@@ -20,12 +17,10 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ObserverList.RewindableIterator;
-import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.TerminationStatus;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
-import org.chromium.blink.mojom.FocusType;
 import org.chromium.blink.mojom.ViewportFit;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -37,13 +32,11 @@ import org.chromium.chrome.browser.app.usb.UsbNotificationService;
 import org.chromium.chrome.browser.bluetooth.BluetoothNotificationManager;
 import org.chromium.chrome.browser.display_cutout.DisplayCutoutTabHelper;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.media.MediaCaptureNotificationServiceImpl;
 import org.chromium.chrome.browser.pdf.PdfUtils;
 import org.chromium.chrome.browser.policy.PolicyAuditor;
 import org.chromium.chrome.browser.policy.PolicyAuditor.AuditEvent;
 import org.chromium.chrome.browser.serial.SerialNotificationManager;
-import org.chromium.chrome.browser.tab.Tab.MediaState;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.usb.UsbNotificationManager;
 import org.chromium.content_public.browser.GlobalRenderFrameHostId;
@@ -176,6 +169,10 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
 
         @Override
         public void primaryMainFrameRenderProcessGone(@TerminationStatus int terminationStatus) {
+            // If the renderer process was destroyed due to the tab being destroyed, don't try to
+            // handle this or treat it as a tab crash.
+            if (mTab.isDestroyed()) return;
+
             Log.i(
                     TAG,
                     "primaryMainFrameRenderProcessGone() for tab id: "
@@ -429,57 +426,6 @@ public class TabWebContentsObserver extends TabWebContentsUserData {
                     null,
                     mLastUrl,
                     mTab.isIncognito());
-        }
-
-        @Override
-        public void onFocusChangedInPage(
-                boolean isEditableNode,
-                int leftInView,
-                int topInView,
-                int rightInView,
-                int bottomInView,
-                @FocusType.EnumType int focusType) {
-            // Request that the Android platform show the newly-focused element.
-            View view = mTab.getView();
-            if (view == null) return;
-
-            Rect boundsInView = new Rect(leftInView, topInView, rightInView, bottomInView);
-            if (boundsInView.isEmpty()) return;
-
-            // TODO(aaronmoss): when Baklava 36.1 support lands in Clank, remove delegate
-            // indirection and inline `requestInputFocusOnScreen()` call.
-            AconfigFlaggedApiDelegate delegate =
-                    ServiceLoaderUtil.maybeCreate(AconfigFlaggedApiDelegate.class);
-            boolean called =
-                    delegate != null && delegate.requestInputFocusOnScreen(view, boundsInView);
-            if (!called
-                    && ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.ACCESSIBILITY_MAGNIFICATION_FOLLOWS_INPUT_FOCUS)) {
-                view.requestRectangleOnScreen(boundsInView);
-            }
-        }
-
-        @Override
-        public void mediaStartedPlaying() {
-            WebContents contents = mTab.getWebContents();
-            if (contents == null) {
-                mTab.setMediaState(MediaState.NONE);
-            } else {
-                mTab.setMediaState(contents.isAudioMuted() ? MediaState.MUTED : MediaState.AUDIBLE);
-            }
-        }
-
-        @Override
-        public void mediaStoppedPlaying() {
-            mTab.setMediaState(MediaState.NONE);
-        }
-
-        @Override
-        public void didUpdateAudioMutingState(boolean muted) {
-            @MediaState int state = mTab.getMediaState();
-            if (state == MediaState.AUDIBLE || state == MediaState.MUTED) {
-                mTab.setMediaState(muted ? MediaState.MUTED : MediaState.AUDIBLE);
-            }
         }
     }
 }

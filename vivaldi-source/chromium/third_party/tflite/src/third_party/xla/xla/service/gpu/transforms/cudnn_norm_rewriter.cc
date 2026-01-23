@@ -18,7 +18,6 @@ limitations under the License.
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-#include <functional>
 #include <iterator>
 #include <limits>
 #include <optional>
@@ -29,6 +28,7 @@ limitations under the License.
 #include "absl/algorithm/container.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/log/log.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -42,13 +42,12 @@ limitations under the License.
 #include "xla/service/pattern_matcher.h"
 #include "xla/shape.h"
 #include "xla/shape_util.h"
-#include "xla/stream_executor/device_description.h"
+#include "xla/stream_executor/cuda/cuda_compute_capability.h"
+#include "xla/tsl/platform/errors.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/tsl/protobuf/dnn.pb.h"
 #include "xla/types.h"
 #include "xla/util.h"
-#include "tsl/platform/errors.h"
-#include "tsl/platform/logging.h"
-#include "tsl/platform/statusor.h"
 
 #if GOOGLE_CUDA
 #include "third_party/gpus/cuda/include/cuda.h"  // IWYU pragma: keep
@@ -968,8 +967,7 @@ class CudnnNormRewriterVisitor : public DfsHloRewriteVisitor {
       std::vector<int64_t> non_norm_dims;
       for (int64_t x_dim = 0; x_dim < x.instr()->shape().dimensions().size();
            ++x_dim) {
-        if (std::find(norm_dims.begin(), norm_dims.end(), x_dim) ==
-            norm_dims.end()) {
+        if (absl::c_find(norm_dims, x_dim) == norm_dims.end()) {
           non_norm_dims.push_back(x_dim);
         }
       }
@@ -1510,10 +1508,10 @@ absl::StatusOr<bool> RunOnComputation(
 }  // anonymous namespace
 
 CudnnNormRewriter::CudnnNormRewriter(
-    se::CudaComputeCapability cuda_compute_capability)
+    const se::CudaComputeCapability& cuda_compute_capability)
     : cuda_compute_capability_(cuda_compute_capability) {}
 
-absl::StatusOr<bool> CudnnNormRewriter::Run(
+absl::StatusOr<bool> CudnnNormRewriter::RunImpl(
     HloModule* module,
     const absl::flat_hash_set<absl::string_view>& execution_threads) {
   bool changed = false;

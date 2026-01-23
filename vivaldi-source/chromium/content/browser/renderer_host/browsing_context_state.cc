@@ -161,6 +161,12 @@ RenderFrameProxyHost* BrowsingContextState::CreateOuterDelegateProxy(
     FrameTreeNode* frame_tree_node,
     const blink::RemoteFrameToken& frame_token) {
   // We only get here when Delegate for this manager is an inner delegate.
+  // NOTE(ondrej@vivaldi.com): VB-122368
+  if (RenderFrameProxyHost* proxy = GetRenderFrameProxyHost(
+          outer_contents_site_instance_group,
+          ProxyAccessMode::kAllowOuterDelegate)) {
+    return proxy;
+  }
   return CreateRenderFrameProxyHost(outer_contents_site_instance_group,
                                     /*rvh=*/nullptr, frame_tree_node,
                                     ProxyAccessMode::kAllowOuterDelegate,
@@ -365,6 +371,10 @@ void BrowsingContextState::SetIsAdFrame(bool is_ad_frame) {
         },
         /*group_to_skip=*/nullptr, /*outer_delegate_proxy=*/nullptr);
   }
+}
+
+bool BrowsingContextState::IsAdFrame() const {
+  return replication_state_->is_ad_frame;
 }
 
 void BrowsingContextState::ActiveFrameCountIsZero(

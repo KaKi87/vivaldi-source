@@ -11,9 +11,13 @@ const char kVivaldiAccountPendingRegistration[] =
     "vivaldi.vivaldi_account.pending_registration";
 const char kVivaldiLastTopSitesVacuumDate[] =
     "vivaldi.last_topsites_vacuum_date";
+const char kVivaldiSearchEnginesKagiToken[] =
+    "vivaldi.search_engines.kagi_token";
+
+// Deprecated profile prefs go here.
+// DEPRECATED 12/2025
 const char kVivaldiPIPPlacement[] = "vivaldi.pip_placement";
 
-// Depracated profile prefs go here.
 // DEPRECATED 06/2025
 const char kVivaldiExperiments[] = "vivaldi.experiments";
 
@@ -30,7 +34,6 @@ const char kSyncedDefaultSpeedDialsPrivateSearchProviderGUID[] =
     "default_search_provider.synced_guid_speeddials_private";
 const char kSyncedDefaultImageSearchProviderGUID[] =
     "default_search_provider.synced_guid_image";
-
 
 // Local state prefs go here
 const char kVivaldiAutoUpdateStandalone[] = "vivaldi.autoupdate.standalone";
@@ -56,7 +59,7 @@ const char kVivaldiAccountServerUrlIdentity[] =
 const char kVivaldiSyncServerUrl[] = "vivaldi.sync.server_url";
 const char kVivaldiSyncNotificationsServerUrl[] =
     "vivaldi.sync.notifications.server_url";
-//sync error
+// sync error
 const char kVivaldiLastSyncErrorDialogShownDate[] =
     "vivaldi.sync.error_dialog.prompt_date";
 const char kVivaldiShouldAskSyncErrorAgain[] =
@@ -72,9 +75,12 @@ const char kVivaldiClientHintsBrandCustomBrandVersion[] =
 
 const char kVivaldiCrashReportingConsentGranted[] =
     "vivaldi.CrashReportingConsentGranted";
+const char kVivaldiCrashReportLastUuidSeen[] =
+    "vivaldi.CrashReportLastUuidSeen";
+const char kVivaldiCrashReportingConsentDialogLastSeenTime[] =
+    "vivaldi.CrashReportingConsentDialogLastSeenTime";
 
-const char kVivaldiPreferredColorScheme[] =
-    "vivaldi.PreferredColorScheme";
+const char kVivaldiPreferredColorScheme[] = "vivaldi.PreferredColorScheme";
 #if BUILDFLAG(IS_IOS)
 // Dict preference which tracks the current elements and order of the overflow
 // menu's vivaldi actions.
@@ -113,6 +119,9 @@ const char kVivaldiShowFullAddressEnabled[] =
     "vivaldi.addressbar.show_full_address";
 const char kVivaldiShowXForSuggestionEnabled[] =
     "vivaldi.addressbar.show_x_suggestion";
+// Enable swipe gesture to open tab switcher from address bar
+const char kVivaldiAddressBarSwipeGestureEnabled[] =
+    "vivaldi.addressbar.swipe_gesture_enabled";
 
 // Tabs
 // Desktop style tabs enabled status
@@ -137,7 +146,8 @@ const char kVivaldiNewTabSetting[] = "vivaldi.tabs.newtab.setting";
 // General Settings
 const char kVivaldiHomepageURL[] = "vivaldi.general.homepage.url";
 const char kVivaldiHomepageEnabled[] = "vivaldi.general.homepage.enabled";
-const char kVivaldiBackgroundAudioEnabled[] = "vivaldi.general.backgroundaudio.enabled";
+const char kVivaldiBackgroundAudioEnabled[] =
+    "vivaldi.general.backgroundaudio.enabled";
 
 const char kVivaldiTranslateInfobarBannerDisabled[] =
     "vivaldi.translate.infobar_banner.disabled";
@@ -181,12 +191,10 @@ const char kVivaldiStartPageLastVisitedGroup[] =
 const char kVivaldiPreferTranslatePanel[] = "vivaldi.translate.prefer_panel";
 
 // Content Settings
-const char kVivaldiPageZoomLevel[] =
-    "vivaldi.content_setting.pagezoom.level";
+const char kVivaldiPageZoomLevel[] = "vivaldi.content_setting.pagezoom.level";
 
 // Privacy & Security Settings
-const char kVivaldiBlockExternalApps[] =
-    "vivaldi.privacy.block_external_apps";
+const char kVivaldiBlockExternalApps[] = "vivaldi.privacy.block_external_apps";
 
 // Reader Mode [iOS]
 const char kVivaldiReaderModeEnabled[] =
@@ -195,15 +203,13 @@ const char kReaderModeFontSize[] =
     "vivaldi.content_setting.reader_mode.font_size";
 const char kReaderModeFontFamily[] =
     "vivaldi.content_setting.reader_mode.font_family";
-const char kReaderModeTheme[] =
-    "vivaldi.content_setting.reader_mode.theme";
+const char kReaderModeTheme[] = "vivaldi.content_setting.reader_mode.theme";
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
 const char kBackgroundMediaPlaybackAllowed[] =
     "vivaldi.background.media_playback.allowed";
-const char kPWADisabled[] =
-    "vivaldi.site.PWADisabled.disabled";
+const char kPWADisabled[] = "vivaldi.site.PWADisabled.disabled";
 const char kAddressBarDeleteDirectMatch[] =
     "vivaldi.address.field.direct.match.deletion.enabled";
 #endif

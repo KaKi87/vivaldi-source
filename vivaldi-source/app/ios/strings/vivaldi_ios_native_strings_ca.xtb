@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Nivell de zoom per <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi va lent, es tanca o escalfa el dispositiu</translation>
 <translation id="1929299157575856072">NIVELL DE BLOQUEIG PREDETERMINAT</translation>
+<translation id="1933618400514506228">Serbo-Croata (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Obre la imatge a una pestanya en segon pla</translation>
 <translation id="1986733655397734221">Cap d'aquests</translation>
 <translation id="1994506778397655062">Obre en una nova pestanya en segon pla</translation>
@@ -167,7 +168,6 @@ bloquejat</translation>
 <translation id="309084557304084991">No vull marcadors precarregats als accessos ràpids</translation>
 <translation id="3091563570137981919">Bloqueig de rastrejadors i anuncis</translation>
 <translation id="3097968995088564986">Mostra el botó d'afegir</translation>
-<translation id="3102790820790869053">Cerca les pestanyes recents</translation>
 <translation id="3134385238404760368">Cap pestanya recent</translation>
 <translation id="3142562627629111859">Nou grup</translation>
 <translation id="3157931365184549694">Restableix</translation>
@@ -226,6 +226,7 @@ bloquejat</translation>
 <translation id="383723620494271391">Alguna cosa més que vulguis afegir?</translation>
 <translation id="3842727926262967527">Tria on prefereixes tenir la barra de pestanyes i el camp d'adreça.</translation>
 <translation id="3845564230651302310">Aplicant nous ajustos del bloquejador...</translation>
+<translation id="385051799172605136">Enrere</translation>
 <translation id="3858860766373142691">Nom</translation>
 <translation id="3861379244432690245">Habilita la coincidència directa</translation>
 <translation id="3866249974567520381">Descripció</translation>
@@ -310,7 +311,6 @@ bloquejats</translation>
 <translation id="462860218383788109">Data d'edició</translation>
 <translation id="4640946580087069269">Copia a una nota</translation>
 <translation id="4643117005422448078">Llocs preferits</translation>
-<translation id="4654428449690716275">No mostris baners abans o després d'oferir traduccions</translation>
 <translation id="4654578955713250802">Bloqueja anuncis i rastrejadors</translation>
 <translation id="4655510151391078468">Aquest codi no coincideix amb el que t'hem enviat.
         Et queden <ph name="ATTEMPTS" /> intents.</translation>
@@ -496,6 +496,7 @@ bloquejat</translation>
 <translation id="6946395294519639514">Amb els taulers pots tenir les eines a l'abast fàcilment a la barra lateral del navegador.</translation>
 <translation id="6951435330868954105">Gestiona els ajustos predeterminats</translation>
 <translation id="6951948201878750661">Toca per triar aquest color</translation>
+<translation id="6954630860045222581">Mostra el tauler</translation>
 <translation id="6967884871145366229">Gestiona els ajustos de privacitat</translation>
 <translation id="6973630695168034713">Carpetes</translation>
 <translation id="7000227144065890583">Suggereix URL</translation>
@@ -663,6 +664,7 @@ bloquejat</translation>
 <translation id="8948792607467387336">Tria com a imatge de fons</translation>
 <translation id="8964449607824577665">Sense la teva contrasenya de xifrat no podem desxifrar les teves dades. Restablir aquesta contrasenya requereix suprimir totes les dades existents de Sync als servidors de Vivaldi.</translation>
 <translation id="8965371804397726192">Sincronitza totes les dades</translation>
+<translation id="896787570003733070">No mostris bàners abans o després d'oferir la traducció</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Marcador mogut a "{title}"}
           other {Marcadors moguts a "{title}"}}</translation>

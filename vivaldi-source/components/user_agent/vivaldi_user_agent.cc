@@ -109,7 +109,7 @@ bool IsGooglePartnerUrl(const GURL& url) {
   return g_google_is_vivaldi_partner &&
          IsGoogleDomainUrl(url, SubdomainPermission::DISALLOW_SUBDOMAIN,
                            PortPermission::DISALLOW_NON_STANDARD_PORTS) &&
-         !is_google_disallowed_path(url.path_piece());
+         !is_google_disallowed_path(url.path());
 }
 
 }  // namespace
@@ -127,7 +127,7 @@ bool IsUrlAllowed(const GURL& url) {
     return true;
   }
 
-  return MatchHost(url.host_piece(), kVivaldiAllowedDomains);
+  return MatchHost(url.host(), kVivaldiAllowedDomains);
 }
 
 bool IsBingHost(std::string_view host) {
@@ -149,7 +149,7 @@ void UpdateAgentString(bool reduced, std::string& user_agent) {
   if (!g_ui_thread_gurl)
     return;
 
-  if (IsBingHost(g_ui_thread_gurl->host_piece())) {
+  if (IsBingHost(g_ui_thread_gurl->host())) {
     user_agent += (reduced? kEdgeSuffixReduced : kEdgeSuffix);
   }
 

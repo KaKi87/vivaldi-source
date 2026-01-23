@@ -8,7 +8,6 @@
 
 #include "base/command_line.h"
 #include "base/feature_list.h"
-#include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
@@ -102,7 +101,7 @@ void SSLErrorControllerClient::Proceed() {
     // Notifies the browser process when a certificate exception is allowed.
     web_contents->SetAlwaysSendSubresourceNotifications();
 
-    state->AllowCert(request_url_.host(), *ssl_info_.cert.get(), cert_error_,
+    state->AllowCert(request_url_.GetHost(), *ssl_info_.cert.get(), cert_error_,
                      InterstitialRenderFrameHost()->GetStoragePartition());
     Reload();
   }

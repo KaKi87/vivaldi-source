@@ -549,7 +549,12 @@ void AdblockManager::OnRuleSourceUpdated(
     return;
   Java_AdblockManager_onRuleSourceUpdated(
       env, obj, rule_source.core.id(), static_cast<int>(group),
-      static_cast<int>(rule_source.last_fetch_result));
+      rule_source.last_download_result
+          ? static_cast<int>(*rule_source.last_download_result) + 1
+          : 0,
+      rule_source.last_read_result
+          ? static_cast<int>(*rule_source.last_read_result) + 1
+          : 0);
 }
 
 void AdblockManager::OnRuleSourceDeleted(uint32_t source_id,

@@ -107,7 +107,7 @@ void FileDownloader::Connect(const GURL& url, Error& error) {
   }
 
   connection_handle_ =
-      InternetConnectA(inet_handle_, url.host().c_str(), url.EffectiveIntPort(),
+      InternetConnectA(inet_handle_, url.GetHost().c_str(), url.EffectiveIntPort(),
                        nullptr, nullptr, INTERNET_SERVICE_HTTP, 0, 0);
 
   if (!connection_handle_) {
@@ -180,10 +180,10 @@ again:
     std::string message;
     switch (error_code) {
       case ERROR_INTERNET_NAME_NOT_RESOLVED:
-        message = "Cannot resolve DNS name " + url.host();
+        message = "Cannot resolve DNS name " + url.GetHost();
         break;
       case ERROR_INTERNET_CANNOT_CONNECT:
-        message = "Cannot connect to " + url.host() + ":" +
+        message = "Cannot connect to " + url.GetHost() + ":" +
                   std::to_string(url.EffectiveIntPort());
         break;
       default:

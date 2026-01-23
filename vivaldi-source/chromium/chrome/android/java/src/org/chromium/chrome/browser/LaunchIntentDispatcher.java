@@ -4,6 +4,9 @@
 
 package org.chromium.chrome.browser;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager.RecentTaskInfo;
@@ -30,6 +33,8 @@ import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.PackageManagerUtils;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browserservices.SessionDataHolder;
 import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
@@ -40,9 +45,7 @@ import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.intents.BrowserIntentUtils;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.notifications.NotificationPlatformBridge;
 import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomizations;
@@ -70,6 +73,7 @@ import org.chromium.build.BuildConfig;
  * Dispatches incoming intents to the appropriate activity based on the current configuration and
  * Intent fired.
  */
+@NullMarked
 public class LaunchIntentDispatcher {
     /** Extra indicating launch mode used. */
     public static final String EXTRA_LAUNCH_MODE =
@@ -147,13 +151,7 @@ public class LaunchIntentDispatcher {
 
     private LaunchIntentDispatcher(Activity activity, Intent intent) {
         mActivity = activity;
-        mIntent = IntentUtils.sanitizeIntent(intent);
-
-        // Needs to be called as early as possible, to accurately capture the
-        // time at which the intent was received.
-        if (mIntent != null && BrowserIntentUtils.getStartupRealtimeMillis(mIntent) == -1) {
-            BrowserIntentUtils.addStartupTimestampsToIntent(mIntent);
-        }
+        mIntent = assertNonNull(IntentUtils.sanitizeIntent(intent));
     }
 
     /**
@@ -263,7 +261,7 @@ public class LaunchIntentDispatcher {
 
     /** When started with an intent, maybe pre-resolve the domain. */
     private void maybePrefetchDnsInBackground() {
-        if (mIntent != null && Intent.ACTION_VIEW.equals(mIntent.getAction())) {
+        if (Intent.ACTION_VIEW.equals(mIntent.getAction())) {
             String maybeUrl = IntentHandler.getUrlFromIntent(mIntent);
             if (maybeUrl != null) {
                 WarmupManager.getInstance().maybePrefetchDnsForUrlInBackground(mActivity, maybeUrl);
@@ -443,7 +441,6 @@ public class LaunchIntentDispatcher {
 
     private boolean maybeStartNavigation() {
         if (!ProfileManager.isInitialized()) return false;
-        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.CCT_EARLY_NAV)) return false;
         if (IntentHandler.willLaunchIncognitoCustomTab(mIntent)) return false;
         if (clearTopIntentsForCustomTabsEnabled(mIntent)
                 && SessionDataHolder.getInstance()
@@ -487,7 +484,7 @@ public class LaunchIntentDispatcher {
      * Returns client package name obtained from {@link Activity#getLaunchedFromPackage()}. {@code
      * null} if the underlying OS doesn't support the feature.
      */
-    private String getCallingPackageIdentitySharing() {
+    private @Nullable String getCallingPackageIdentitySharing() {
         return BuildCompat.isAtLeastU() ? mActivity.getLaunchedFromPackage() : null;
     }
 
@@ -550,7 +547,9 @@ public class LaunchIntentDispatcher {
             newIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         }
 
-        if (newIntent.getComponent().getClassName().equals(mActivity.getClass().getName())) {
+        String className = assumeNonNull(newIntent.getComponent()).getClassName();
+        assumeNonNull(className);
+        if (className.equals(mActivity.getClass().getName())) {
             // We're trying to start activity that is already running - just continue.
             return Action.CONTINUE;
         }

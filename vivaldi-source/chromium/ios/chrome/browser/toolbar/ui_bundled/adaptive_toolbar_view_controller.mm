@@ -67,16 +67,14 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 // The last progress of fullscreen registered. The progress range is between 0
 // and 1.
 @property(nonatomic, assign) CGFloat previousFullscreenProgress;
-// The page's theme color.
-@property(nonatomic, strong) UIColor* pageThemeColor;
-// The under page background color.
-@property(nonatomic, strong) UIColor* underPageBackgroundColor;
 
 // Vivaldi
 @property(nonatomic, assign) BOOL isOmniboxFocused;
 @property(nonatomic, assign) BOOL isTabBarEnabled;
 @property(nonatomic, assign) BOOL isBottomOmniboxEnabled;
 @property(nonatomic, assign) BOOL isDynamicAccentColorEnabled;
+// The page's theme color.
+@property(nonatomic, strong) UIColor* pageThemeColor;
 @property(nonatomic, strong) UIColor* customAccentColor;
 // End Vivaldi
 
@@ -273,8 +271,8 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
   _locationBarViewController = locationBarViewController;
   if (locationBarViewController) {
     [self addChildViewController:locationBarViewController];
-    [locationBarViewController didMoveToParentViewController:self];
     [self.view setLocationBarView:locationBarViewController.view];
+    [locationBarViewController didMoveToParentViewController:self];
     self.view.locationBarContainer.hidden = NO;
     // Update the constraint of the location bar view to make sure the text is
     // centered.
@@ -284,6 +282,10 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
     self.view.locationBarContainer.hidden = YES;
   }
   [self updateProgressBarVisibility];
+}
+
+- (void)setLocationBarHeight:(CGFloat)height {
+  [self.view setLocationBarHeight:height];
 }
 
 #pragma mark - ToolbarConsumer
@@ -332,8 +334,10 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 }
 
 - (void)setLoadingProgressFraction:(double)progress {
-  [self.view.progressBar setProgress:progress
-                            animated:!self.view.progressBar.hidden];
+  BOOL isGoingBackward = self.view.progressBar.progress > progress;
+  [self.view.progressBar
+      setProgress:progress
+         animated:!self.view.progressBar.hidden && !isGoingBackward];
 }
 
 - (void)setTabCount:(int)tabCount addedInBackground:(BOOL)inBackground {
@@ -394,22 +398,6 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 
 - (void)setIsNTP:(BOOL)isNTP {
   _isNTP = isNTP;
-}
-
-- (void)setPageThemeColor:(UIColor*)pageThemeColor {
-  if ([_pageThemeColor isEqual:pageThemeColor]) {
-    return;
-  }
-  _pageThemeColor = pageThemeColor;
-  [self updateBackgroundColor];
-}
-
-- (void)setUnderPageBackgroundColor:(UIColor*)underPageBackgroundColor {
-  if ([_underPageBackgroundColor isEqual:underPageBackgroundColor]) {
-    return;
-  }
-  _underPageBackgroundColor = underPageBackgroundColor;
-  [self updateBackgroundColor];
 }
 
 - (void)updateTabGroupState:(ToolbarTabGroupState)tabGroupState {
@@ -513,6 +501,13 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
 // Updates `locationBarContainer` height and adjusts its corner radius for the
 // fullscreen `progress`
 - (void)updateLocationBarHeightForFullscreenProgress:(CGFloat)progress {
+  /// When multiline omnibox is enabled and focused, refrain from updating the
+  /// location bar container height, this is already handled by the toolbar
+  /// height delegate.
+  if (IsMultilineBrowserOmniboxEnabled() && _locationBarFocused) {
+    return;
+  }
+
   if (IsDiamondPrototypeEnabled()) {
     const CGFloat height = kDiamondLocationBarHeight * progress +
                            kDiamondCollapsedToolbarHeight * (1 - progress);
@@ -702,6 +697,11 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
   }
 }
 
+- (UIView*)locationBarContainer {
+  return self.view.locationBarContainer;
+}
+
+
 #pragma mark - VIVALDI
 // Returns the appropriate background color for toolbar. Important piece or code
 // for non tab bar state.
@@ -798,6 +798,14 @@ const base::TimeDelta kProgressBarEndAnimationDuration =
     return;
   }
   _isDynamicAccentColorEnabled = enabled;
+  [self updateBackgroundColor];
+}
+
+- (void)setPageThemeColor:(UIColor*)pageThemeColor {
+  if ([_pageThemeColor isEqual:pageThemeColor]) {
+    return;
+  }
+  _pageThemeColor = pageThemeColor;
   [self updateBackgroundColor];
 }
 

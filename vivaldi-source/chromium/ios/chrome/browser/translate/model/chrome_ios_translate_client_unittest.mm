@@ -4,7 +4,6 @@
 
 #import "ios/chrome/browser/translate/model/chrome_ios_translate_client.h"
 
-#import "base/files/file_util.h"
 #import "base/metrics/metrics_hashes.h"
 #import "base/path_service.h"
 #import "base/test/metrics/histogram_tester.h"
@@ -56,8 +55,9 @@ class ChromeIOSTranslateClientTest : public PlatformTest {
             ->GetSupportedContentWorld();
     web_state_.SetWebFramesManager(content_world,
                                    std::move(web_frames_manager));
-    ChromeIOSTranslateClient::CreateForWebState(&web_state_);
     InfoBarManagerImpl::CreateForWebState(&web_state_);
+    ChromeIOSTranslateClient::CreateForWebState(
+        &web_state_, InfoBarManagerImpl::FromWebState(&web_state_));
   }
 
  protected:

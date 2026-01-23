@@ -20,7 +20,7 @@ bool MarkerFileWorkItem::DoImpl() {
   base::win::ScopedHandle file(
       ::CreateFile(dest_path_.value().c_str(), GENERIC_WRITE, 0, nullptr,
                    CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr));
-  if (!file.IsValid()) {
+  if (!file.is_valid()) {
     if (::GetLastError() == ERROR_FILE_EXISTS) {
       // Marker already exists. We are done.
       VLOG(1) << "Marker file " << dest_path_ << " already exists.";

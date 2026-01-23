@@ -152,9 +152,6 @@ const base::FeatureParam<bool> kPriceInsightsUseCache{
 // Discount Autofill at Checkout
 BASE_FEATURE(kDiscountAutofill, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
-// Promotion in Magic Stack for Price Tracking users from other platforms.
-BASE_FEATURE(kPriceTrackingPromo, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi disabled
-
 // Shopping variations to Tab resumption.
 BASE_FEATURE(kTabResumptionShopCard, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
@@ -239,14 +236,6 @@ BASE_FEATURE(kShoppingPDPMetrics, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi
 
 BASE_FEATURE(kSubscriptionsApi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
-#if BUILDFLAG(IS_IOS)
-BASE_FEATURE(kPriceInsightsIos, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi Disabled
-
-BASE_FEATURE(kPriceInsightsHighPriceIos,
-             "PriceInsightsHighPrice",
-             base::FEATURE_DISABLED_BY_DEFAULT);  // Vivaldi keep disabled
-#endif
-
 BASE_FEATURE(kShoppingPageTypes, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
 
 BASE_FEATURE(kRetailCoupons, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi Disabled
@@ -255,11 +244,7 @@ BASE_FEATURE(kCommerceDeveloper, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi 
 
 const char kRetailCouponsWithCodeParam[] = "RetailCouponsWithCodeParam";
 
-// Params use for Discount Consent v2.
-BASE_FEATURE(kDiscountConsentV2, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi disabled
-
 extern const char kShopCardArm1[] = "arm_1";
-extern const char kShopCardArm2[] = "arm_2";
 extern const char kShopCardArm3[] = "arm_3";
 extern const char kShopCardArm4[] = "arm_4";
 // Regular Tab Resumption with same impression limits as ShopCard
@@ -411,7 +396,7 @@ bool IsNoDiscountMerchant(const GURL& url) {
   if (!pattern_from_component) {
     return true;
   }
-  return RE2::PartialMatch(url.host_piece(), *pattern_from_component);
+  return RE2::PartialMatch(url.host(), *pattern_from_component);
 }
 #endif
 }  // namespace commerce

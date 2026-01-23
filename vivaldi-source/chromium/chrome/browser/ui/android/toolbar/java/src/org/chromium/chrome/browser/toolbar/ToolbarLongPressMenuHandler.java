@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.toolbar;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.toolbar.settings.AddressBarPreference.setToolbarPositionAndSource;
 
 import android.content.Context;
 import android.content.res.Configuration;
@@ -21,15 +22,12 @@ import android.widget.PopupWindow;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ConfigurationChangedObserver;
-import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.toolbar.ToolbarPositionController.ToolbarPositionAndSource;
 import org.chromium.chrome.browser.toolbar.settings.AddressBarPreference;
@@ -53,10 +51,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 // Vivaldi
-import static androidx.core.app.ActivityCompat.recreate;
-
-import android.app.Activity;
-
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 import org.chromium.build.BuildConfig;
 
@@ -78,12 +72,11 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
     private final int mMenuOmniboxOverlap;
     private int mScreenWidthDp;
     private final Context mContext;
-    private final ObservableSupplier<Profile> mProfileSupplier;
+    private final ObservableSupplier<@Nullable Profile> mProfileSupplier;
     private final BooleanSupplier mSuppressLongPressSupplier;
     private final Supplier<@Nullable GURL> mUrlSupplier;
     private final Supplier<ViewRectProvider> mUrlBarViewRectProviderSupplier;
     private final @Nullable OnLongClickListener mOnLongClickListener;
-    private final SharedPreferencesManager mSharedPreferencesManager;
     private final WindowAndroid mWindowAndroid;
     private final ActivityLifecycleDispatcher mLifecycleDispatcher;
 
@@ -101,7 +94,7 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
      */
     public ToolbarLongPressMenuHandler(
             Context context,
-            ObservableSupplier<Profile> profileSupplier,
+            ObservableSupplier<@Nullable Profile> profileSupplier,
             boolean isCustomTab,
             BooleanSupplier suppressLongPressSupplier,
             ActivityLifecycleDispatcher lifecycleDispatcher,
@@ -134,7 +127,6 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
             mOnLongClickListener = null;
         }
 
-        mSharedPreferencesManager = ChromeSharedPreferences.getInstance();
         mAppMenuShadowLength =
                 context.getResources().getDimensionPixelSize(R.dimen.app_menu_shadow_length);
         mAdditonalHorizontalPadding =
@@ -183,14 +175,15 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
     private void displayMenu(View view) {
         boolean onTop = AddressBarPreference.isToolbarConfiguredToShowOnTop();
         if (BuildConfig.IS_VIVALDI) { // Vivaldi VB-119404
-            onTop = !mSharedPreferencesManager.readBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, true);
+            onTop = !VivaldiPreferences.getSharedPreferencesManager()
+                    .readBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, false);
         } // Vivaldi end
 
         BasicListMenu listMenu =
                 BrowserUiListMenuUtils.getBasicListMenu(
                         view.getContext(),
                         buildMenuItems(onTop),
-                        (model) -> {
+                        (model, unusedView) -> {
                             handleMenuClick(model.get(ListMenuItemProperties.MENU_ITEM_ID));
                             assumeNonNull(mPopupMenu);
                             mPopupMenu.dismiss();
@@ -263,19 +256,21 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
 
     private void handleMoveAddressBarTo() {
         if (BuildConfig.IS_VIVALDI) { // Vivaldi VB-119404
-            boolean onTop = mSharedPreferencesManager.readBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, true);
-            mSharedPreferencesManager.writeBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, !onTop);
-            recreate((Activity) mContext);
-        } // Vivaldi end
-        boolean onTop = AddressBarPreference.isToolbarConfiguredToShowOnTop();
-        if (onTop) {
-            mSharedPreferencesManager.writeInt(
-                    ChromePreferenceKeys.TOOLBAR_TOP_ANCHORED,
-                    ToolbarPositionAndSource.BOTTOM_LONG_PRESS);
+            // NOTE(jarle@vivaldi.com): The prefs listener in ChromeTabbedActivity will detect
+            // the change and trigger an activity recreation. (TO BE OPTIMIZED).
+            boolean onTop = VivaldiPreferences.getSharedPreferencesManager()
+                    .readBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, false);
+            VivaldiPreferences.getSharedPreferencesManager()
+                    .writeBoolean(VivaldiPreferences.ADDRESS_BAR_TO_BOTTOM, !onTop);
+            return;
+        } // End Vivaldi
+
+        boolean currentlyOnTop = AddressBarPreference.isToolbarConfiguredToShowOnTop();
+        // The new position is the inverse of the current position.
+        if (currentlyOnTop) {
+            setToolbarPositionAndSource(ToolbarPositionAndSource.BOTTOM_LONG_PRESS);
         } else {
-            mSharedPreferencesManager.writeInt(
-                    ChromePreferenceKeys.TOOLBAR_TOP_ANCHORED,
-                    ToolbarPositionAndSource.TOP_LONG_PRESS);
+            setToolbarPositionAndSource(ToolbarPositionAndSource.TOP_LONG_PRESS);
         }
     }
 

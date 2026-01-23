@@ -12,7 +12,8 @@ void uses_a(tint_module_vars_struct tint_module_vars) {
   int const foo = (*tint_module_vars.a);
 }
 
-kernel void main1(const constant int* a [[buffer(0)]]) {
+[[max_total_threads_per_threadgroup(1)]]
+kernel void main1(const constant int* a [[buffer(30)]]) {
   tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.a=a};
   uses_a(tint_module_vars);
 }
@@ -34,7 +35,8 @@ void uses_uses_a(tint_module_vars_struct tint_module_vars) {
   uses_a(tint_module_vars);
 }
 
-kernel void main2(const constant int* a [[buffer(0)]]) {
+[[max_total_threads_per_threadgroup(1)]]
+kernel void main2(const constant int* a [[buffer(30)]]) {
   tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.a=a};
   uses_uses_a(tint_module_vars);
 }
@@ -52,7 +54,8 @@ void uses_b(tint_module_vars_struct tint_module_vars) {
   int const foo = (*tint_module_vars.b);
 }
 
-kernel void main3(const constant int* b [[buffer(0)]]) {
+[[max_total_threads_per_threadgroup(1)]]
+kernel void main3(const constant int* b [[buffer(30)]]) {
   tint_module_vars_struct const tint_module_vars = tint_module_vars_struct{.b=b};
   uses_b(tint_module_vars);
 }
@@ -62,5 +65,6 @@ kernel void main3(const constant int* b [[buffer(0)]]) {
 #include <metal_stdlib>
 using namespace metal;
 
+[[max_total_threads_per_threadgroup(1)]]
 kernel void main4() {
 }

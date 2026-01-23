@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoemvlak vir <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi is stadig, bom uit of maak toestel warm</translation>
 <translation id="1929299157575856072">VERSTEKVERSPERVLAK</translation>
+<translation id="1933618400514506228">Serwo-Kroaties (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Open beeld in agtergrondoortjie</translation>
 <translation id="1986733655397734221">Geen hiervan</translation>
 <translation id="1994506778397655062">Open in nuwe agtergrondoortjie</translation>
@@ -167,7 +168,6 @@ versper</translation>
 <translation id="309084557304084991">Ek soek nie voorafgelaaide boekmerke en snelkiesers nie</translation>
 <translation id="3091563570137981919">Naspoorder- en advertensieversperring</translation>
 <translation id="3097968995088564986">Toon toevoeg-knop</translation>
-<translation id="3102790820790869053">Deursoek onlangse oortjies</translation>
 <translation id="3134385238404760368">Geen onlangse oortjies</translation>
 <translation id="3142562627629111859">Nuwe groep</translation>
 <translation id="3157931365184549694">Herstel</translation>
@@ -310,7 +310,6 @@ versper</translation>
 <translation id="462860218383788109">Datum gewysig</translation>
 <translation id="4640946580087069269">Kopieer na nota</translation>
 <translation id="4643117005422448078">Topwerwe</translation>
-<translation id="4654428449690716275">Moenie baniere toon voor of na vertalings aangebied is nie</translation>
 <translation id="4654578955713250802">Versper advertensies en naspoorders</translation>
 <translation id="4655510151391078468">Hierdie kode stem nie ooreen met wat aan u gestuur is nie.
         U het <ph name="ATTEMPTS" /> pogings oor.</translation>
@@ -663,6 +662,7 @@ versper</translation>
 <translation id="8948792607467387336">Kies as muurpapier</translation>
 <translation id="8964449607824577665">Sonder u huidige enkripsiewagwoord kan ons nie u data dekodeer nie. Om die wagwoord terug te stel, moet alle bestaande sinchroniseerdata van Vivaldi-bedieners geskrap word.</translation>
 <translation id="8965371804397726192">Begin alle data sinchroniseer</translation>
+<translation id="896787570003733070">Moenie baniere toon voor of na vertaling aangebied is nie</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Boekmerk geskuif na “{title}”}
           other {Boekmerke geskuif na “{title}”}}</translation>

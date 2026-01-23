@@ -18,14 +18,11 @@
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "components/web_modal/modal_dialog_host.h"
 #include "extensions/common/mojom/frame.mojom.h"
+#include "extensions/schema/window_private.h"
 #include "ui/gfx/image/image_family.h"
 #include "ui/infobar_container_web_proxy.h"
 #include "ui/views/controls/webview/unhandled_keyboard_event_handler.h"
 #include "ui/views/widget/widget.h"
-
-#if defined(USE_AURA)
-#include "ui/aura/window_occlusion_tracker.h"
-#endif // USE_AURA
 
 #include "ui/vivaldi_ui_web_contents_delegate.h"
 
@@ -95,10 +92,12 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
   views::AccessiblePaneView* GetAsAccessiblePaneView() override;
   views::View* GetAnchorView(
       std::optional<actions::ActionId> type) override;  // the one
+  views::BubbleAnchor GetBubbleAnchor(
+      std::optional<actions::ActionId> action_id) override;
   void ZoomChangedForActiveTab(bool can_show_bubble) override;
   AvatarToolbarButton* GetAvatarToolbarButton() override;
   ToolbarButton* GetBackButton() override;
-  ReloadButton* GetReloadButton() override;
+  ReloadControl* GetReloadButton() override;
   IntentChipButton* GetIntentChipButton() override;
   ToolbarButton* GetDownloadButton() override;
   //SidePanelToolbarButton* GetSidePanelButton() override;
@@ -155,7 +154,7 @@ struct VivaldiBrowserWindowParams {
 //  +- views::Widget (widget_ field for OS window)-----+ |
 //  | +- views::RootView ------------------------------+ |
 //  | | +- views::NonClientView----------------------+ | |
-//  | | | +- views::NonClientFrameView subclass ---+ | | |
+//  | | | +- views::FrameView subclass ------------+ | | |
 //  | | | |                                        | | | |
 //  | | | | << all painting and event receiving >> | | | |
 //  | | | | << of the non-client areas of a     >> | | | |
@@ -425,8 +424,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
                              const std::string& target_language,
                              const std::u16string& text_selection) override {}
   void ShowAvatarBubbleFromAvatarButton(bool is_source_accelerator) override {}
-  views::View* GetTopContainer() override;
-  views::View* GetLensOverlayView() override;
   DownloadBubbleUIController* GetDownloadBubbleUIController() override;
   void ConfirmBrowserCloseWithPendingDownloads(
       int download_count,
@@ -506,7 +503,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   void OnWebApiWindowResizableChanged() override;
   bool GetCanResize() override;
   ui::mojom::WindowShowState GetWindowShowState() const override;
-  views::WebView* GetContentsWebView() override;
   BrowserView* AsBrowserView() override;
 
 
@@ -541,6 +537,21 @@ class VivaldiBrowserWindow final : public BrowserWindow {
                  std::vector<std::u16string> body_string_replacement_params);
 
   void UninstallExtensionViaDialog(const extensions::Extension* extension);
+
+  // Called for mouse position updates, also in non-client areas, like titlebar
+  // and window borders. We avoid events from the outer corner areas to not
+  // conflict with window buttons.
+  void ReportNCMousePosition(const gfx::Point& local_point);
+
+  struct HotSpot {
+    extensions::vivaldi::window_private::HotSpotLocation location =
+        extensions::vivaldi::window_private::HotSpotLocation::kNone;
+    int width = 0;
+    int height = 0;
+  };
+
+  // Activate an area to respond to when mouse into and out of.
+  void SetHotSpot(HotSpot hotspot);
 
  private:
   enum QuitAction { ShowDialogOnQuit = 0, SaveSessionOnQuit,  DoNothingOnQuit };
@@ -688,10 +699,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 
   std::unique_ptr<autofill::AutofillBubbleHandler> autofill_bubble_handler_;
 
-#if defined(USE_AURA)
-  std::unique_ptr<aura::WindowOcclusionTracker::ScopedPause> scoped_pause_;
-#endif
-
 #if !BUILDFLAG(IS_MAC)
   // Last key code received in HandleKeyboardEvent(). For auto repeat detection.
   int last_key_code_ = -1;
@@ -709,6 +716,10 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   gfx::Rect maximize_button_bounds_;
 
   bool is_moving_persistent_tabs_ = false;
+
+  // When set we will track the rect and fire
+  // vivaldi.windowPrivate.onMouseInHotRect events when entering and leaving.
+  HotSpot hot_spot_;
 
   // The icon family for the task bar and elsewhere.
   gfx::ImageFamily icon_family_;

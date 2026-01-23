@@ -339,5 +339,5 @@ public interface TabGroupModelFilter extends SupportsTabModelObserver {
     void deleteTabGroupCollapsed(Token tabGroupId);
 
     /** Vivaldi */
-    public void maybeDissolveTabStacks();
+    void maybeDissolveTabStacks();
 }

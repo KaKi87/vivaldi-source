@@ -81,8 +81,4 @@ interface VivaldiFrameService {
     => (gfx.mojom.Size image_size,
         mojo_base.mojom.ReadOnlySharedMemoryRegion? image_region);
 
-  // Indicates that the frame should collect draggable regions set using the
-  // app-region CSS property.
-  SetSupportsDraggableRegions(bool supports_draggable_regions);
-
 };

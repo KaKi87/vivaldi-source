@@ -8,23 +8,21 @@
 #include "browser/features/vivaldi_features.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/common/url_constants.h"
+#include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/platform_locale_settings.h"
 #include "components/prefs/pref_service.h"
 #include "components/request_filter/request_filter_manager.h"
-#include "components/request_filter/request_filter_manager_factory.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/buildflags/buildflags.h"
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
-#include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
+#include "components/navigation_throttle/vivaldi_exdata_util.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "browser/vivaldi_webcontents_util.h"
-#include "extensions/api/runtime/runtime_api.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
 #include "extensions/helper/vivaldi_app_helper.h"
 #include "ui/content/vivaldi_tab_check.h"
@@ -120,6 +118,10 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
           blink::mojom::AutoplayPolicy::kNoUserGestureRequired;
     }
 
+    if (vivaldi::GetFollowerTabExtId(web_contents)) {
+      web_prefs->has_vivaldi_follower_tab = true;
+    }
+
 #if BUILDFLAG(ENABLE_EXTENSIONS)
     extensions::VivaldiAppHelper* vivaldi_app_helper =
         extensions::VivaldiAppHelper::FromWebContents(web_contents);
@@ -141,7 +143,9 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
     // are overridden for platform-apps like Vivaldi.
     extensions::WebViewGuest* guest =
         extensions::WebViewGuest::FromWebContents(web_contents);
-    if (guest) {
+    // Check for owner_rfh() to avoid crashes in GetOwnerSiteURL when the guest
+    // is detached.
+    if (guest && guest->owner_rfh()) {
       if (guest->IsNavigatingAwayFromVivaldiUI()) {
         web_prefs->local_storage_enabled = true;
         web_prefs->sync_xhr_in_documents_enabled = true;

@@ -13,6 +13,7 @@
 #import "ios/chrome/browser/browser_container/ui_bundled/browser_container_view_controller_delegate.h"
 #import "ios/chrome/browser/browser_container/ui_bundled/browser_edit_menu_handler.h"
 #import "ios/chrome/browser/browser_container/ui_bundled/edit_menu_alert_delegate.h"
+#import "ios/chrome/browser/enterprise/data_controls/model/data_controls_edit_menu_builder.h"
 #import "ios/chrome/browser/explain_with_gemini/coordinator/explain_with_gemini_mediator.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -47,6 +48,7 @@
 #if defined(VIVALDI_BUILD)
 #import "app/vivaldi_apptools.h"
 #import "ios/ui/copy_to_note/copy_to_note_mediator.h"
+#import "ios/ui/search_engine/add_search_engine/vivaldi_add_search_engine_mediator.h"
 
 using vivaldi::IsVivaldiRunning;
 #endif // End Vivaldi
@@ -58,12 +60,6 @@ using vivaldi::IsVivaldiRunning;
 // Redefine property as readwrite.
 @property(nonatomic, strong, readwrite)
     BrowserContainerViewController* viewController;
-
-#if defined(VIVALDI_BUILD)
-// The mediator used for the Copy To Note feature.
-@property(nonatomic, strong) CopyToNoteMediator* vivaldiCopyToNoteMediator;
-#endif // End Vivaldi
-
 @end
 
 @implementation BrowserContainerCoordinator {
@@ -85,8 +81,18 @@ using vivaldi::IsVivaldiRunning;
   LinkToTextMediator* _linkToTextMediator;
   // The mediator used for the Explain With Gemini feature.
   ExplainWithGeminiMediator* _explainWithGeminiMediator;
+  // The builder for updating the edit menu according to enterprise Data
+  // Controls.
+  DataControlsEditMenuBuilder* _dataControlsEditMenuBuilder;
   // The handler for the edit menu.
   BrowserEditMenuHandler* _browserEditMenuHandler;
+
+  // Vivaldi
+  // The mediator used for the Copy To Note feature.
+  CopyToNoteMediator* _vivaldiCopyToNoteMediator;
+  // Mediator used to surface the Add as Search Engine context menu action.
+  VivaldiAddSearchEngineMediator* _vivaldiAddAsSearchEngineMediator;
+  // End Vivaldi
 }
 
 #pragma mark - ChromeCoordinator
@@ -151,6 +157,9 @@ using vivaldi::IsVivaldiRunning;
   _searchWithMediator.applicationCommandHandler = applicationCommandsHandler;
   _browserEditMenuHandler.searchWithDelegate = _searchWithMediator;
 
+  _dataControlsEditMenuBuilder = [[DataControlsEditMenuBuilder alloc] init];
+  _browserEditMenuHandler.dataControlsDelegate = _dataControlsEditMenuBuilder;
+
   if (ExplainGeminiEditMenuPosition() !=
           PositionForExplainGeminiEditMenu::kDisabled &&
       !incognito) {
@@ -180,16 +189,24 @@ using vivaldi::IsVivaldiRunning;
   [self setUpScreenTimeIfEnabled];
 
   if (IsVivaldiRunning()) {
-    self.vivaldiCopyToNoteMediator =
+    _vivaldiCopyToNoteMediator =
         [[CopyToNoteMediator alloc] initWithBrowser:browser];
-    self.vivaldiCopyToNoteMediator.alertDelegate = self;
-    self.vivaldiCopyToNoteMediator.activityServiceHandler = HandlerForProtocol(
+    _vivaldiCopyToNoteMediator.alertDelegate = self;
+    _vivaldiCopyToNoteMediator.activityServiceHandler = HandlerForProtocol(
         browser->GetCommandDispatcher(), ActivityServiceCommands);
 
     _browserEditMenuHandler.vivaldiCopyToNoteDelegate =
-        self.vivaldiCopyToNoteMediator;
+        _vivaldiCopyToNoteMediator;
     self.viewController.vivaldiCopyToNoteDelegate =
-        self.vivaldiCopyToNoteMediator;
+        _vivaldiCopyToNoteMediator;
+
+    _vivaldiAddAsSearchEngineMediator =
+        [[VivaldiAddSearchEngineMediator alloc]
+            initWithBaseViewController:self.viewController
+                               browser:browser
+                         alertDelegate:self];
+    _browserEditMenuHandler.vivaldiAddSearchDelegate =
+        _vivaldiAddAsSearchEngineMediator;
   } // End Vivaldi
 
   [super start];
@@ -212,7 +229,8 @@ using vivaldi::IsVivaldiRunning;
   _searchWithMediator = nil;
 
   if (IsVivaldiRunning()) {
-    self.vivaldiCopyToNoteMediator = nil;
+    _vivaldiCopyToNoteMediator = nil;
+    _vivaldiAddAsSearchEngineMediator = nil;
   } // End Vivaldi
 
   [super stop];

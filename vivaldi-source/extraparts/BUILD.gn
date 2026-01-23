@@ -73,6 +73,7 @@ source_set("extraparts") {
   }
   if (!is_android) {
     deps += [
+      "//vivaldi/components:navigation_throttle",
       "//vivaldi/browser:default_bookmarks",
       "//vivaldi/extensions",
       "//vivaldi/extensions/api:apis",

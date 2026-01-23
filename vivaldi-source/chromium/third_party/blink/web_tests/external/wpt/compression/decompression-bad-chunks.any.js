@@ -1,4 +1,5 @@
-// META: global=worker
+// META: global=window,worker,shadowrealm
+// META: script=resources/formats.js
 
 'use strict';
 
@@ -28,13 +29,15 @@ const badChunks = [
     // Use a getter to postpone construction so that all tests don't fail where
     // SharedArrayBuffer is not yet implemented.
     get value() {
-      return new SharedArrayBuffer();
+      // See https://github.com/whatwg/html/issues/5380 for why not `new SharedArrayBuffer()`
+      return new WebAssembly.Memory({ shared:true, initial:1, maximum:1 }).buffer;
     }
   },
   {
     name: 'shared Uint8Array',
     get value() {
-      return new Uint8Array(new SharedArrayBuffer())
+      // See https://github.com/whatwg/html/issues/5380 for why not `new SharedArrayBuffer()`
+      return new Uint8Array(new WebAssembly.Memory({ shared:true, initial:1, maximum:1 }).buffer)
     }
   },
   {
@@ -47,24 +50,31 @@ const badChunks = [
   },
 ];
 
-for (const chunk of badChunks) {
-  promise_test(async t => {
-    const ds = new DecompressionStream('gzip');
-    const reader = ds.readable.getReader();
-    const writer = ds.writable.getWriter();
-    const writePromise = writer.write(chunk.value);
-    const readPromise = reader.read();
-    await promise_rejects(t, new TypeError(), writePromise, 'write should reject');
-    await promise_rejects(t, new TypeError(), readPromise, 'read should reject');
-  }, `chunk of type ${chunk.name} should error the stream for gzip`);
+// Test Case Design
+// We need to wait until after we close the writable stream to check if the decoded stream is valid.
+// We can end up in a state where all reads/writes are valid, but upon closing the writable stream an error is detected.
+// (Example: A zlib encoded chunk w/o the checksum).
 
-  promise_test(async t => {
-    const ds = new DecompressionStream('deflate');
+async function decompress(chunk, format, t)
+{
+    const ds = new DecompressionStream(format);
     const reader = ds.readable.getReader();
     const writer = ds.writable.getWriter();
-    const writePromise = writer.write(chunk.value);
-    const readPromise = reader.read();
-    await promise_rejects(t, new TypeError(), writePromise, 'write should reject');
-    await promise_rejects(t, new TypeError(), readPromise, 'read should reject');
-  }, `chunk of type ${chunk.name} should error the stream for deflate`);
+
+    writer.write(chunk.value).then(() => {}, () => {});
+    reader.read().then(() => {}, () => {});
+
+    await promise_rejects_js(t, TypeError, writer.close(), 'writer.close() should reject');
+    await promise_rejects_js(t, TypeError, writer.closed, 'write.closed should reject');
+
+    await promise_rejects_js(t, TypeError, reader.read(), 'reader.read() should reject');
+    await promise_rejects_js(t, TypeError, reader.closed, 'read.closed should reject');
+}
+
+for (const format of formats) {
+  for (const chunk of badChunks) {
+    promise_test(async t => {
+      await decompress(chunk, format, t);
+    }, `chunk of type ${chunk.name} should error the stream for ${format}`);
+  }
 }

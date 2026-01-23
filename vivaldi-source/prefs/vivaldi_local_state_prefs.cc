@@ -69,12 +69,13 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(
       vivaldiprefs::kVivaldiClientHintsBrandCustomBrandVersion, "");
   registry->RegisterBooleanPref(
-      vivaldiprefs::kVivaldiCrashReportingConsentGranted,
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
-      GoogleUpdateSettings::GetCollectStatsConsent());
-#else
-      false);
-#endif
+      vivaldiprefs::kVivaldiCrashReportingConsentGranted, false);
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiCrashReportLastUuidSeen,
+                               "");
+  registry->RegisterDoublePref(
+      vivaldiprefs::kVivaldiCrashReportingConsentDialogLastSeenTime, 0.0);
+
   registry->RegisterIntegerPref(vivaldiprefs::kVivaldiPreferredColorScheme, 0);
 }
+
 }  // namespace vivaldi

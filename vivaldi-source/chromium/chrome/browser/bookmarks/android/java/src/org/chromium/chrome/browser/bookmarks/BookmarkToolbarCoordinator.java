@@ -22,9 +22,6 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 
 import java.util.function.BooleanSupplier;
 
-// Vivaldi
-//import org.vivaldi.browser.bookmarks.VivaldiBookmarkPanelDelegate;
-
 /** Responsible for the business logic for the BookmarkManagerToolbar. */
 @NullMarked
 public class BookmarkToolbarCoordinator {
@@ -89,10 +86,5 @@ public class BookmarkToolbarCoordinator {
 
     public BookmarkToolbar getToolbarForTesting() {
         return mToolbar;
-    }
-
-    /** Vivaldi **/
-    public BookmarkToolbar getToolbarForVivaldi() {
-             return mToolbar;
     }
 }

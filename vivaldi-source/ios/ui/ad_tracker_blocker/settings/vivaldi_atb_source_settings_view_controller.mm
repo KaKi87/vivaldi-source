@@ -5,7 +5,6 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
@@ -21,10 +20,6 @@
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
-
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
 
 // Namespace
 namespace {
@@ -170,6 +165,7 @@ CGFloat buttonCornerRadius() {
   [model
       addSectionWithIdentifier:SectionIdentifierSources];
 
+  NSUInteger index = 0;
   for (id item in sources) {
     VivaldiATBSourceItem* source = static_cast<VivaldiATBSourceItem*>(item);
     VivaldiATBSourceSettingItem* tableViewItem =
@@ -179,6 +175,10 @@ CGFloat buttonCornerRadius() {
     tableViewItem.detailText = [source subtitle];
     tableViewItem.on = source.is_enabled;
     tableViewItem.useCustomSeparator = YES;
+    tableViewItem.target = self;
+    tableViewItem.selector = @selector(sourceStateToggled:);
+    tableViewItem.tag = index;
+    index++;
 
     [model addItem:tableViewItem
          toSectionWithIdentifier:SectionIdentifierSources];
@@ -255,14 +255,6 @@ CGFloat buttonCornerRadius() {
 
   UITableViewCell* cell = [super tableView:tableView
                      cellForRowAtIndexPath:indexPath];
-  if ([cell isKindOfClass:[TableViewSwitchCell class]]) {
-    TableViewSwitchCell* switchCell =
-        base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-    [switchCell.switchView addTarget:self
-                              action:@selector(sourceStateToggled:)
-                    forControlEvents:UIControlEventValueChanged];
-    switchCell.switchView.tag = indexPath.row;
-  }
 
   return cell;
 }

@@ -11,9 +11,13 @@ namespace vivaldiprefs {
 extern const char kAutoUpdateEnabled[];
 extern const char kVivaldiAccountPendingRegistration[];
 extern const char kVivaldiLastTopSitesVacuumDate[];
+extern const char kVivaldiSearchEnginesKagiToken[];
+
+// Deprecated profile prefs go here.
+
+// DEPRECATED 12/2025
 extern const char kVivaldiPIPPlacement[];
 
-// Depracated profile prefs go here.
 // DEPRECATED 06/2025
 extern const char kVivaldiExperiments[];
 
@@ -44,7 +48,7 @@ extern const char kVivaldiAccountServerUrlIdentity[];
 extern const char kVivaldiSyncServerUrl[];
 extern const char kVivaldiSyncNotificationsServerUrl[];
 
-//sync error
+// sync error
 extern const char kVivaldiLastSyncErrorDialogShownDate[];
 extern const char kVivaldiShouldAskSyncErrorAgain[];
 
@@ -54,6 +58,8 @@ extern const char kVivaldiClientHintsBrandCustomBrand[];
 extern const char kVivaldiClientHintsBrandCustomBrandVersion[];
 
 extern const char kVivaldiCrashReportingConsentGranted[];
+extern const char kVivaldiCrashReportLastUuidSeen[];
+extern const char kVivaldiCrashReportingConsentDialogLastSeenTime[];
 
 extern const char kVivaldiPreferredColorScheme[];
 #if BUILDFLAG(IS_IOS)
@@ -81,6 +87,8 @@ extern const char kVivaldiEnableSearchEngineNickname[];
 // Address bar
 extern const char kVivaldiShowFullAddressEnabled[];
 extern const char kVivaldiShowXForSuggestionEnabled[];
+// Enable swipe gesture to open tab switcher from address bar
+extern const char kVivaldiAddressBarSwipeGestureEnabled[];
 
 // Tabs
 // Desktop style tabs enabled status

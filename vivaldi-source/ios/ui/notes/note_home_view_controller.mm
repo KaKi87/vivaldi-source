@@ -29,6 +29,7 @@
 #import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/elements/home_waiting_view.h"
+#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_url_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
@@ -48,7 +49,6 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/notes/notes_factory.h"
 #import "ios/panel/panel_constants.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/custom_views/vivaldi_search_bar_view.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
@@ -62,8 +62,8 @@
 #import "ios/ui/notes/note_home_consumer.h"
 #import "ios/ui/notes/note_home_mediator.h"
 #import "ios/ui/notes/note_home_shared_state.h"
-#import "ios/ui/notes/note_interaction_controller.h"
 #import "ios/ui/notes/note_interaction_controller_delegate.h"
+#import "ios/ui/notes/note_interaction_controller.h"
 #import "ios/ui/notes/note_model_bridge_observer.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/notes/note_path_cache.h"
@@ -71,10 +71,11 @@
 #import "ios/ui/notes/note_ui_constants.h"
 #import "ios/ui/notes/note_utils_ios.h"
 #import "ios/ui/notes/vivaldi_notes_pref.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/navigation/referrer.h"
-#import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
+#import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -2223,6 +2224,11 @@ const int kRowsHiddenByNavigationBar = 3;
 
 - (CGFloat)tableView:(UITableView*)tableView
     heightForHeaderInSection:(NSInteger)section {
+  if (self.sharedState.currentlyShowingSearchResults) {
+    return [self.tableViewModel numberOfItemsInSection:section] == 0
+               ? 0
+               : UITableViewAutomaticDimension;
+  }
   return ChromeTableViewHeightForHeaderInSection(section);
 }
 
@@ -2381,7 +2387,7 @@ const int kRowsHiddenByNavigationBar = 3;
       [menuElements addObject:editAction];
 
       // Rename title action block
-      UIImage* renameImage = [UIImage imageNamed:vMenuEdit];
+      UIImage* renameImage = CustomSymbolWithConfiguration(vMenuEdit, nil);
       NSString* renameLabel =
           l10n_util::GetNSString(IDS_VIVALDI_NOTE_CONTEXT_MENU_RENAME);
       UIAction* renameTitleAction = [UIAction

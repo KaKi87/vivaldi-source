@@ -43,13 +43,12 @@ int MenuConfig::CornerRadiusForMenu(const MenuController* controller) const {
       (MenuController::VivaldiGetCompactLayout() ||
       !MenuController::VivaldiGetContextMenu())) {
     return 0;
-  }
+  } // End Vivaldi
 
   if (controller && (controller->IsCombobox() ||
                      (!use_bubble_border && controller->IsContextMenu()))) {
     return auxiliary_corner_radius;
   }
-
   return corner_radius;
 }
 
@@ -94,7 +93,7 @@ void MenuConfig::InitCommon() {
   if (vivaldi::IsVivaldiRunning() &&
       MenuController::VivaldiGetCompactLayout()) {
     return;
-  }
+  } // End Vivaldi
 
   context_menu_font_list = font_list = TypographyProvider::Get().GetFont(
       style::CONTEXT_MENU, style::STYLE_BODY_3);

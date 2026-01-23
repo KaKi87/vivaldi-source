@@ -859,10 +859,14 @@ void BookmarkModelMerger::MergeSubtree(
   const bool is_reupload_needed =
       !local_subtree_root->is_permanent_node() &&
       IsBookmarkEntityReuploadNeeded(remote_update_entity);
+
+  // Vivaldi
   const bool is_reupload_for_thumbnail_needed =
       ShouldReuploadBookmarkForThumbnail(
           remote_node.entity().specifics.bookmark(), local_subtree_root);
-  if (is_reupload_needed || is_reupload_for_thumbnail_needed) {
+  // End Vivaldi
+
+  if (is_reupload_needed || is_reupload_for_thumbnail_needed) { // Vivaldi
     bookmark_tracker_->IncrementSequenceNumber(entity);
   }
   LogBookmarkReuploadNeeded(is_reupload_needed);
@@ -1018,10 +1022,14 @@ void BookmarkModelMerger::ProcessRemoteCreation(
       remote_update_entity.creation_time, specifics);
   const bool is_reupload_needed =
       IsBookmarkEntityReuploadNeeded(remote_node.entity());
+
+  // Vivaldi
   const bool is_reupload_for_thumbnail_needed =
       ShouldReuploadBookmarkForThumbnail(
           remote_node.entity().specifics.bookmark(), bookmark_node);
-  if (is_reupload_needed || is_reupload_for_thumbnail_needed) {
+  // End Vivaldi
+
+  if (is_reupload_needed || is_reupload_for_thumbnail_needed) { // Vivaldi
     bookmark_tracker_->IncrementSequenceNumber(entity);
   }
   LogBookmarkReuploadNeeded(is_reupload_needed);

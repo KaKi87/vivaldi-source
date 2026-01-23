@@ -8,6 +8,7 @@
 #include <memory>
 #include <vector>
 
+#include "base/functional/callback_forward.h"
 #include "base/memory/safe_ref.h"
 #include "base/types/expected.h"
 #include "chrome/browser/actor/aggregated_journal.h"
@@ -16,12 +17,15 @@
 #include "chrome/common/actor/action_result.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/tabs/public/tab_interface.h"
-#include "content/public/browser/browser_context.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 // Conversion function for turning optimization_guide::proto::* types into
 // ToolRequests usable by the actor framework.
 // TODO(bokan): Rename to actor_proto_conversion.h|cc
+
+namespace content {
+class BrowserContext;
+}
 
 namespace optimization_guide::proto {
 class Action;
@@ -35,9 +39,6 @@ struct FetchPageContextResult;
 namespace actor {
 class ActorTask;
 class ToolRequest;
-
-// The mime type used for screenshots.
-inline constexpr std::string kMimeTypeJpeg = "image/jpeg";
 
 // Input type used for ActorKeyedService acting APIs, created from
 // BuildToolRequest functions below. Aliased for convenience.
@@ -58,6 +59,7 @@ BuildToolRequestResult BuildToolRequest(
 // Builds the ActionsResult proto from the output of a call to the
 // ActorKeyedService::PerformActions API and fetches new observations for
 // tabs relevant to the actions.
+// TODO(bokan): Wrap the params in a struct
 void BuildActionsResultWithObservations(
     content::BrowserContext& browser_context,
     base::TimeTicks start_time,
@@ -65,9 +67,23 @@ void BuildActionsResultWithObservations(
     std::optional<size_t> index_of_failed_action,
     std::vector<actor::ActionResultWithLatencyInfo> action_results,
     const ActorTask& task,
+    bool skip_async_observation_information,
     base::OnceCallback<
-        void(std::unique_ptr<optimization_guide::proto::ActionsResult>,
+        void(base::TimeTicks start_time,
+             mojom::ActionResultCode result_code,
+             std::optional<size_t> index_of_failed_action,
+             std::vector<actor::ActionResultWithLatencyInfo> action_results,
+             actor::TaskId task_id,
+             bool skip_async_observation_information,
+             std::unique_ptr<optimization_guide::proto::ActionsResult>,
              std::unique_ptr<actor::AggregatedJournal::PendingAsyncEntry>)>
+        callback);
+
+// For testing: when set, every TabObservation will receive this given
+// mock_result. This allows tests to verify error handling.
+void SetTabObservationResultOverrideForTesting(
+    base::RepeatingCallback<
+        optimization_guide::proto::TabObservation::TabObservationResult()>
         callback);
 
 optimization_guide::proto::ActionsResult BuildErrorActionsResult(

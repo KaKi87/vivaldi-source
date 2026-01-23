@@ -186,7 +186,8 @@ void ChromeBookmarkReader::DecodeNode(const base::Value::Dict& dict) {
 
 ImportResult ChromiumImporter::ImportBookMarks() {
   if (bookmarkfilename_.empty()) {
-    bridge_->NotifyEnded();
+    // Vivaldi: Don't call NotifyEnded() here - it ends the entire import process!
+    // The caller (chromium_importer.cpp) already handles item-level notifications.
     return import_result::Success();  // nothing to import, but okay.
   }
 

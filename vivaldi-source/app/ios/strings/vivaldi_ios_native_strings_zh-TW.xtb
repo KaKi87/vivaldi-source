@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> 的縮放比例為</translation>
 <translation id="1921508034244765766">Vivaldi 速度緩慢、當機或讓裝置發熱</translation>
 <translation id="1929299157575856072">預設的封鎖等級</translation>
+<translation id="1933618400514506228">塞爾維亞-克羅埃西亞語（<ph name="ORIGIN" />）</translation>
 <translation id="1968240832686794952">在背景分頁中開啟圖片</translation>
 <translation id="1986733655397734221">這些都不是</translation>
 <translation id="1994506778397655062">在新的背景分頁中開啟</translation>
@@ -133,7 +134,7 @@
 <translation id="2678542925523700624">愛沙尼亞語（<ph name="ORIGIN" />）</translation>
 <translation id="2701366016894985129">搜尋結果中的廣告</translation>
 <translation id="2702801445560668637">閱讀清單</translation>
-<translation id="2709516037105925701">自動填寫</translation>
+<translation id="2709516037105925701">自動填入</translation>
 <translation id="271033894570825754">新增</translation>
 <translation id="2712076950889800659">若繼續使用，即表示您同意 Vivaldi 的 <ph name="BEGIN_LINK" />最終使用者許可協議<ph name="END_LINK" /> 和 <ph name="BEGIN_LINK" />隱私權政策<ph name="END_LINK" /></translation>
 <translation id="2720646732332242062">啟用暱稱</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">我不想要預載的書籤和快速撥號</translation>
 <translation id="3091563570137981919">封鎖追蹤器和廣告</translation>
 <translation id="3097968995088564986">顯示新增按鈕</translation>
-<translation id="3102790820790869053">搜尋最近的分頁</translation>
 <translation id="3134385238404760368">沒有最近的分頁</translation>
 <translation id="3142562627629111859">新增群組</translation>
 <translation id="3157931365184549694">還原</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">您還有什麼想要補充的嗎？</translation>
 <translation id="3842727926262967527">選擇您偏好的分頁列和網址欄位的位置。</translation>
 <translation id="3845564230651302310">正在套用新的攔截器設定…</translation>
+<translation id="385051799172605136">返回</translation>
 <translation id="3858860766373142691">名稱</translation>
 <translation id="3861379244432690245">啟用直接比對</translation>
 <translation id="3866249974567520381">描述</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">編輯日期</translation>
 <translation id="4640946580087069269">複製至筆記</translation>
 <translation id="4643117005422448078">常用網站</translation>
-<translation id="4654428449690716275">不要在提供翻譯前或翻譯後顯示橫幅</translation>
 <translation id="4654578955713250802">封鎖廣告和追蹤器</translation>
 <translation id="4655510151391078468">此啟用碼與我們傳送給您的啟用碼不一樣。
         您還有 <ph name="ATTEMPTS" /> 次嘗試的機會。</translation>
@@ -496,6 +496,7 @@
 <translation id="6946395294519639514">使用面板，您就可以在瀏覽器側邊欄中輕鬆找到常用工具。</translation>
 <translation id="6951435330868954105">管理預設設定</translation>
 <translation id="6951948201878750661">點擊以選取此顏色</translation>
+<translation id="6954630860045222581">顯示面板</translation>
 <translation id="6967884871145366229">管理隱私設定</translation>
 <translation id="6973630695168034713">資料夾</translation>
 <translation id="7000227144065890583">搜尋建議網址</translation>
@@ -633,7 +634,7 @@
 <translation id="8515808232153642813">解密</translation>
 <translation id="8517852590337319813">啟用您的帳號</translation>
 <translation id="8529159259480052204">隱藏確認橫幅</translation>
-<translation id="8546963963006468833">使用 Vivaldi，您可以在其它應用程式中無縫開啟連結、透過小工具進行搜尋和自動填充密碼。</translation>
+<translation id="8546963963006468833">使用 Vivaldi，您可以在其它應用程式中無縫開啟連結、透過小工具進行搜尋和自動填入密碼。</translation>
 <translation id="8562452229998620586">已儲存的密碼將顯示在此處。</translation>
 <translation id="856439694359429369">點擊以獲取更多選項，或雙擊以開啟。</translation>
 <translation id="8591818185775466306">刪除<ph name="ITEM_TYPE" /></translation>
@@ -663,6 +664,7 @@
 <translation id="8948792607467387336">選取為桌布</translation>
 <translation id="8964449607824577665">少了您目前的加密密碼我們無法解密您的資料。重設密碼必須刪除所有儲存在 Vivaldi 伺服器上的同步資料。</translation>
 <translation id="8965371804397726192">開始同步所有資料</translation>
+<translation id="896787570003733070">在提供翻譯前後不要顯示橫幅</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {個書籤已移至「{title}」}
           other {個書籤已移至「{title}」}}</translation>
@@ -673,7 +675,7 @@
 <translation id="9077265667054763280">網頁載入速度太慢</translation>
 <translation id="9079251484401922158">芬蘭語（<ph name="ORIGIN" />）</translation>
 <translation id="9083392325882095631">1 個項目</translation>
-<translation id="9091665118798175641">同步自動填寫表單資訊</translation>
+<translation id="9091665118798175641">同步自動填入表單資訊</translation>
 <translation id="9097127519290088802">請輸入加密密碼</translation>
 <translation id="9139318394846604261">購物</translation>
 <translation id="9148058034647219655">結束</translation>

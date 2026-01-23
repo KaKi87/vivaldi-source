@@ -23,10 +23,6 @@
 #include "chrome/installer/util/installation_state.h"
 #include "chrome/installer/util/util_constants.h"
 
-#include "base/command_line.h"
-
-#include "installer/util/vivaldi_install_util.h"
-
 namespace {
 
 // Returns the path denoted by `key`. If `base::PathService` fails to return the
@@ -172,9 +168,6 @@ base::span<const int> GetInstallationPathKeys(bool system_install) {
 namespace installer {
 
 base::FilePath GetInstalledDirectory(bool system_install) {
-  if (kVivaldi)
-    return vivaldi::GetInstallBinaryDir();
-
   return GetCurrentInstallPathFromRegistry(system_install);
 }
 
@@ -184,9 +177,6 @@ base::FilePath GetDefaultChromeInstallPath(bool system_install) {
 
 base::FilePath GetChromeInstallPathWithPrefs(bool system_install,
                                              const InitialPreferences& prefs) {
-  if (kVivaldi)
-    return vivaldi::GetInstallBinaryDir();
-
   base::FilePath install_path =
       GetCurrentInstallPathFromRegistry(system_install);
   if (!install_path.empty())

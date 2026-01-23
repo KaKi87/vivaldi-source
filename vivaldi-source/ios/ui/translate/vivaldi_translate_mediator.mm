@@ -6,6 +6,8 @@
 #import "base/uuid.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/language/core/browser/language_model_manager.h"
+#import "components/prefs/ios/pref_observer_bridge.h"
+#import "components/prefs/pref_change_registrar.h"
 #import "components/prefs/pref_service.h"
 #import "components/translate/core/browser/translate_download_manager.h"
 #import "ios/chrome/browser/language/model/language_model_manager_factory.h"
@@ -44,12 +46,16 @@ std::string getCanonicalCode(const std::string& code) {
   return code;
 }  // namespace
 
-@interface VivaldiTranslateMediator () <VivaldiIOSTHServiceBridgeObserver> {
+@interface VivaldiTranslateMediator () <VivaldiIOSTHServiceBridgeObserver,
+                                        PrefObserverDelegate> {
   // Profile for getting the prefs
   ProfileIOS* _profile;
 
   // Preference service from the browser context
   PrefService* _prefs;
+
+  // Preference service from the local state (language list).
+  PrefService* _localPrefs;
 
   // Translate wrapper for the PrefService.
   std::unique_ptr<translate::TranslatePrefs> _translatePrefs;
@@ -66,6 +72,11 @@ std::string getCanonicalCode(const std::string& code) {
 
   // Model responsible for handling translate history.
   translate_history::TH_Model* _translateHistoryModel;
+
+  // Pref observer to track language list changes.
+  std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
+  PrefChangeRegistrar _prefChangeRegistrar;
+  BOOL _pendingHistoryLoad;
 }
 
 // Initial text if any when mediator started. Non nil for cases when
@@ -102,6 +113,15 @@ std::string getCanonicalCode(const std::string& code) {
     _selectedText = selectedText;
     _profile = profile;
     _prefs = profile->GetPrefs();
+    _localPrefs = GetApplicationContext()->GetLocalState();
+    _pendingHistoryLoad = NO;
+
+    if (_localPrefs) {
+      _prefChangeRegistrar.Init(_localPrefs);
+      _prefObserverBridge.reset(new PrefObserverBridge(self));
+      _prefObserverBridge->ObserveChangesForPreference(
+          vivaldiprefs::kVivaldiTranslateLanguageList, &_prefChangeRegistrar);
+    }
 
     _translatePrefs = VivaldiIOSTranslateClient::CreateTranslatePrefs(_prefs);
     _languageModelManager = LanguageModelManagerFactory::GetForProfile(profile);
@@ -148,6 +168,11 @@ std::string getCanonicalCode(const std::string& code) {
   self.supportedLanguages = nil;
   self.translateHistoryItems = nil;
   self.languageCodeToItemMap = nil;
+
+  _prefChangeRegistrar.RemoveAll();
+  _prefObserverBridge.reset();
+  _localPrefs = nullptr;
+  _pendingHistoryLoad = NO;
 }
 
 #pragma mark - Properties
@@ -222,6 +247,10 @@ std::string getCanonicalCode(const std::string& code) {
 
   self.supportedLanguages = [supportedLanguages copy];
   self.languageCodeToItemMap = [languageMap copy];
+
+  if (_pendingHistoryLoad && self.languageCodeToItemMap.count > 0) {
+    [self getTranslationHistory];
+  }
 }
 
 - (void)handleTranslationResultWithError:(vivaldi::TranslateError)error
@@ -282,27 +311,45 @@ std::string getCanonicalCode(const std::string& code) {
   if (!_translateHistoryModel || !_translateHistoryModel->loaded())
     return;
 
+  if (self.languageCodeToItemMap.count == 0) {
+    _pendingHistoryLoad = YES;
+    return;
+  }
+  _pendingHistoryLoad = NO;
+
   NodeList* nodeList = _translateHistoryModel->list();
   if (!nodeList)
     return;
 
   __weak __typeof(self) weakSelf = self;
 
-  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-                 ^{
-                   NSMutableArray<VivaldiTranslateHistoryItem*>* historyItems =
-                       [NSMutableArray array];
-                   for (const auto& node : *nodeList) {
-                     VivaldiTranslateHistoryItem* item =
-                         [weakSelf historyItemForNode:node];
-                     [historyItems addObject:item];
-                   }
+  dispatch_async(
+      dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        __typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) {
+          return;
+        }
 
-                   dispatch_async(dispatch_get_main_queue(), ^{
-                     weakSelf.translateHistoryItems = [historyItems copy];
-                     [weakSelf.consumer translateHistoryDidLoad:historyItems];
-                   });
-                 });
+        NSMutableArray<VivaldiTranslateHistoryItem*>* historyItems =
+            [NSMutableArray array];
+        for (const auto& node : *nodeList) {
+          VivaldiTranslateHistoryItem* item =
+              [strongSelf historyItemForNode:node];
+          if (item) {
+            [historyItems addObject:item];
+          }
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+          __typeof(self) innerStrongSelf = weakSelf;
+          if (!innerStrongSelf) {
+            return;
+          }
+
+          innerStrongSelf.translateHistoryItems = [historyItems copy];
+          [innerStrongSelf.consumer translateHistoryDidLoad:historyItems];
+        });
+      });
 }
 
 - (VivaldiTranslateHistoryItem*)historyItemForNode:(TH_Node*)node {
@@ -312,12 +359,20 @@ std::string getCanonicalCode(const std::string& code) {
   std::string canonicalSourceCode = getCanonicalCode(node->src().code);
   std::string canonicalDestCode = getCanonicalCode(node->translated().code);
 
+  VivaldiTranslateLanguageItem* sourceLanguage =
+      [self languageForCode:canonicalSourceCode];
+  VivaldiTranslateLanguageItem* destinationLanguage =
+      [self languageForCode:canonicalDestCode];
+  if (!sourceLanguage || !destinationLanguage) {
+    return nil;
+  }
+
   VivaldiTranslateHistoryItem* historyItem =
       [[VivaldiTranslateHistoryItem alloc]
            initWithItemId:itemId
-                   source:[self languageForCode:canonicalSourceCode]
+                   source:sourceLanguage
                sourceText:base::SysUTF8ToNSString(node->src().text)
-              destination:[self languageForCode:canonicalDestCode]
+              destination:destinationLanguage
           destinationText:base::SysUTF8ToNSString(node->translated().text)
                 createdAt:node->date_added().ToNSDate()];
   return historyItem;
@@ -536,6 +591,19 @@ std::string getCanonicalCode(const std::string& code) {
 
 - (void)modelDidRemoveElementsWithIds:(NSArray<NSString*>*)ids {
   [self.consumer translateHistoryDidRemove:ids];
+}
+
+#pragma mark - PrefObserverDelegate
+
+- (void)onPreferenceChanged:(const std::string&)preferenceName {
+  if (preferenceName == vivaldiprefs::kVivaldiTranslateLanguageList) {
+    BOOL wasPending = _pendingHistoryLoad;
+    [self initializeSupportedLanguages];
+    if (!wasPending && _translateHistoryModel &&
+        _translateHistoryModel->loaded()) {
+      [self getTranslationHistory];
+    }
+  }
 }
 
 @end

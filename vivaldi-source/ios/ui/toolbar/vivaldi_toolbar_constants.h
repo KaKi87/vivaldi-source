@@ -43,14 +43,12 @@ extern const CGFloat vStickyToolbarCollapsedAlpha;
 #pragma mark - ICONS
 
 extern NSString* vToolbarPanelButtonIcon;
-extern NSString* vToolbarSearchButtonIcon;
 extern NSString* vToolbarHomeButtonIcon;
 extern NSString* vToolbarForwardButtonIcon;
 extern NSString* vToolbarBackButtonIcon;
 extern NSString* vToolbarTabSwitcherButtonIcon;
 extern NSString* vToolbarTabSwitcherStackButtonIcon;
 extern NSString* vToolbarMoreButtonIcon;
-extern NSString* vToolbarNTPButtonIcon;
 extern NSString* vToolbarTabSwitcherOveflowButtonIcon;
 
 extern NSString* vToolbarButtonColor;

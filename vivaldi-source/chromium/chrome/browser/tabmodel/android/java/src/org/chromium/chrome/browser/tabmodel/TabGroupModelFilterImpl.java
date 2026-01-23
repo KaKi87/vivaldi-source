@@ -35,6 +35,7 @@ import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.chrome.browser.tab.TabStateAttributes;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncFeatures;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterObserver.DidRemoveTabGroupReason;
+import org.chromium.chrome.browser.tabmodel.TabModelObserver;
 import org.chromium.components.tab_groups.TabGroupColorId;
 
 import java.util.ArrayList;
@@ -48,10 +49,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
-// Vivaldi
-import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-import org.chromium.chrome.browser.tabmodel.TabModelObserver;
-
 /**
  * An implementation of {@link TabGroupModelFilterInternal} that puts {@link Tab}s into a group
  * structure.
@@ -59,13 +56,12 @@ import org.chromium.chrome.browser.tabmodel.TabModelObserver;
  * <p>A group is a collection of {@link Tab}s that share a common ancestor {@link Tab}. This filter
  * is also a {@link TabList} that contains the last shown {@link Tab} from every group.
  *
- * <p>Note this class is in the process of migrating from root ID to TabGroupId. All references to
- * root ID refer to the old ID system. References to tab group ID will refer to the new system. See
- * https://crbug.com/1523745. Update July 2024: the flag for the new TabGroupId system has been
- * removed and it is now launched. This class (and any clients) still need to be migrated off of
- * root ID.
+ * @deprecated This class is replaced by {@link TabCollectionTabModelImpl}. This class will be
+ *     deleted in the coming weeks. If you make a change to this class it MUST be mirrored to {@link
+ *     TabCollectionTabModelImpl}.
  */
 @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+@Deprecated
 @NullMarked
 public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, TabModelObserver {
     private static final List<Tab> sEmptyRelatedTabList =
@@ -155,7 +151,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
     private boolean mTabStateInitialized;
     private boolean mIsResetting;
     private boolean mIsUndoing;
-    private boolean mDidCloseAlone;
 
     /**
      * @param tabModel The tab model to filter.
@@ -724,14 +719,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
         } else {
             tabModel.moveTab(sourceTab.getId(), targetIndex);
         }
-
-        // Note(david@vivaldi.com): When we release the second last tab from the group we will also
-        // remove the remaining tab from the group. See ref. VAB-10259.
-        if (sourceTabGroup.size() == 2) {
-            for (int id : sourceTabGroup.getTabIdList()) {
-                if (id != sourceTabId) moveTabOutOfGroupInDirection(id,true);
-            }
-        }
     }
 
     private int getLastTabIndexInGroup(Tab destinationTab) {
@@ -903,7 +890,7 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
         int rootId = tab.getRootId();
         TabGroup group = mRootIdToGroupMap.get(rootId);
         boolean isInGroup = group != null && group.contains(tab.getId());
-        if (org.chromium.build.BuildConfig.IS_VIVALDI && group != null)
+        if (group != null)
             return isInGroup && group.size() > 1;
         return isInGroup && tab.getTabGroupId() != null;
     }
@@ -934,14 +921,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
                 && !mIsResetting
                 && (tabLaunchType == TabLaunchType.FROM_TAB_GROUP_UI
                         || tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND_IN_GROUP
-                        // Vivaldi
-                        || (tabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND
-                                // Ref. VAB-8839 Checks if a new tab has been triggered and sets
-                                // parentId accordingly if new_tab_position is set to
-                                // AS_TAB_STACK_WITH_RELATED_TAB
-                                && ChromeSharedPreferences.getInstance().readInt(
-                                           "new_tab_position", 1) == 3)
-                        // End Vivaldi
                         || tabLaunchType == TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP
                         || tabLaunchType == TabLaunchType.FROM_COLLABORATION_BACKGROUND_IN_GROUP
                         || shouldGroupWithParentForTabListInterface);
@@ -1027,10 +1006,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
                 // resulting in the index map needing to be regenerated.
                 resetRootIdToGroupIndexMap();
             }
-
-            // Note(david@vivaldi.com): We need to reorder the tab filter when a new tab was
-            // created.
-            if (!mIsResetting) reorder();
         }
     }
 
@@ -1099,16 +1074,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
             for (TabGroupModelFilterObserver observer : mGroupFilterObserver) {
                 observer.didRemoveTabGroup(
                         rootId, tab.getTabGroupId(), DidRemoveTabGroupReason.CLOSE);
-            }
-        }
-
-        // Note(david@vivaldi.com): When the user is closing the second last tab we will
-        // automatically move the remaining tab out of the group.
-        if (group.size() == 1 && mDidCloseAlone) {
-            if (tab.getTabGroupId() != null) {
-                for (int id : group.getTabIdList()) {
-                    if (id != tab.getId()) moveTabOutOfGroupInDirection(id, true);
-                }
             }
         }
     }
@@ -1481,18 +1446,6 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
 
         for (TabModelObserver observer : mFilteredObservers) {
             observer.didMoveTab(tab, newIndex, curIndex);
-        }
-    }
-
-    @Override
-    public void willChangePinState(Tab tab) {
-        assert !(tab.getIsPinned() && isTabInTabGroup(tab))
-                : "A pinned tab should not be in a group";
-
-        // If tab is about to get pinned state and it is in a tab group
-        if (!tab.getIsPinned() && isTabInTabGroup(tab)) {
-            mTabUngrouper.ungroupTabs(
-                    Collections.singletonList(tab), /* trailing= */ false, /* allowDialog= */ true);
         }
     }
 
@@ -2110,35 +2063,7 @@ public class TabGroupModelFilterImpl implements TabGroupModelFilterInternal, Tab
         }
     }
 
-    /**
-     * Vivaldi: Get the last shown tab id within a group.
-     */
-    public int getLastShownTabId(Tab tab) {
-        if (tab != null) {
-
-            TabGroup actualGroup = mRootIdToGroupMap.get(tab.getRootId());// TODO(@david)
-            if (actualGroup != null) return actualGroup.getLastShownTabId();
-        }
-        // By default we consider the first tab in the group as the last one being selected,
-        return 0;
-    }
-
-    /**
-     * Vivaldi: This method dissolves the all tab stacks if any are applicable.
-     */
+    /** Vivaldi */
     @Override
-    public void maybeDissolveTabStacks() {
-        String identifier = "enable_tab_stack";
-        boolean value = ChromeSharedPreferences.getInstance().readBoolean(identifier, true);
-        if (!value && getTabGroupCount() > 0) {
-            List<Tab> tabs = new ArrayList<>();
-            // We create a copy of the tab list here as the tab model gets changed while moving tabs
-            // out of a group. The reverse order is necessary otherwise the dissolved tabs don't
-            // persist after restarting the browser.
-            for (int i = getTabModel().getCount() - 1; i >= 0; i--)
-                tabs.add(getTabModel().getTabAt(i));
-            for (Tab tab : tabs)
-                if (isTabInTabGroup(tab)) moveTabOutOfGroupInDirection(tab.getId(), true);
-        }
-    }
+    public void maybeDissolveTabStacks() {}
 }

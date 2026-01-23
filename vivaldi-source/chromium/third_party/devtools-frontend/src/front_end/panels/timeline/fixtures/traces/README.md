@@ -91,10 +91,12 @@ A bunch of bundles with the exact same content: https://dupe-modules-lh-2.surge.
 
 Like above, but the source maps are inline data urls. https://dupe-modules-lh-inline-data.surge.sh/smaller.html
 
-### enhanced-traces.json.gz
+### enhanced-traces.json
 
 a) Contains traces with metadata needed to power a rehydrated session for enhanced tracing.
 b) (faked) script contents and source map urls, from the new "enhanced traces" feature. See http://crbug.com/337909145
+
+Not compressed because this is small and often modified.
 
 ### forced-layouts-and-no-gpu.json.gz
 
@@ -359,3 +361,11 @@ A trace with lots of interactions generated from https://chromedevtools.github.i
 ### layout-shift-with-animation-culprit
 
 A trace that has a layout shift with a root cause that is a non-composited animation. Generated from https://github.com/ChromeDevTools/performance-stories/tree/main/layout-shift-animations.
+
+### cls-with-iframes
+
+A trace of https://astro-news-1026410574114.us-central1.run.app/ used to test CLS + iframes and what our AI output looks like.
+
+### render-blocking-preload
+
+A trace of https://andydavies.github.io/agent-tests/render-blocking/css-preload.html that highlighted a bug where we do not update render blocking status based on PreloadRenderBlockingStatus events (crbug.com/457323832).

@@ -42,6 +42,12 @@ public class SettingsNavigationImpl implements SettingsNavigation {
 
     @Override
     public void startSettings(Context context, @SettingsFragment int settingsFragment) {
+        startSettings(context, settingsFragment, /* addToBackStack= */ false);
+    }
+
+    @Override
+    public void startSettings(
+            Context context, @SettingsFragment int settingsFragment, boolean addToBackStack) {
         Bundle fragmentArgs = null;
         switch (settingsFragment) {
             case SettingsFragment.CLEAR_BROWSING_DATA:
@@ -60,7 +66,8 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             case SettingsFragment.PASSWORDS:
                 break;
         }
-        startSettings(context, getFragmentClassFromEnum(settingsFragment), fragmentArgs);
+        startSettings(
+                context, getFragmentClassFromEnum(settingsFragment), fragmentArgs, addToBackStack);
     }
 
     @Override
@@ -73,7 +80,16 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             Context context,
             @Nullable Class<? extends Fragment> fragment,
             @Nullable Bundle fragmentArgs) {
-        Intent intent = createSettingsIntent(context, fragment, fragmentArgs);
+        startSettings(context, fragment, fragmentArgs, /* addToBackStack= */ false);
+    }
+
+    @Override
+    public void startSettings(
+            Context context,
+            @Nullable Class<? extends Fragment> fragment,
+            @Nullable Bundle fragmentArgs,
+            boolean addToBackStack) {
+        Intent intent = createSettingsIntent(context, fragment, fragmentArgs, addToBackStack);
         IntentUtils.safeStartActivity(context, intent);
     }
 
@@ -88,8 +104,17 @@ public class SettingsNavigationImpl implements SettingsNavigation {
             Context context,
             @Nullable Class<? extends Fragment> fragment,
             @Nullable Bundle fragmentArgs) {
+        return createSettingsIntent(context, fragment, fragmentArgs, /* addToBackStack= */ false);
+    }
+
+    @Override
+    public Intent createSettingsIntent(
+            Context context,
+            @Nullable Class<? extends Fragment> fragment,
+            @Nullable Bundle fragmentArgs,
+            boolean addToBackStack) {
         String fragmentName = fragment == null ? null : fragment.getName();
-        return SettingsIntentUtil.createIntent(context, fragmentName, fragmentArgs);
+        return SettingsIntentUtil.createIntent(context, fragmentName, fragmentArgs, addToBackStack);
     }
 
     @Override

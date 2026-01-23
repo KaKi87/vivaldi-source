@@ -209,7 +209,17 @@ public interface TabModelObserver {
     default void onTabCloseCommitted(List<Tab> tabs, boolean isAllTabs) {}
 
     /**
-     * Called just before {@code tabs} closed have been successfully restored by an undo action.
+     * Called before the {@code tabs} have been reinserted into the model by an undo action.
+     *
+     * @param tabs The list of {@link Tab}s that has been reopened.
+     * @param isAllTabs Whether tabs are all the tabs.
+     */
+    default void willUndoTabClosure(List<Tab> tabs, boolean isAllTabs) {}
+
+    /**
+     * Called after the {@code tabs} have been reinserted into the model by an undo action, but
+     * before the restoration is fully complete. Some updates, such as setting the index, if
+     * applicable, may still be in-flight.
      *
      * @param tabs The list of {@link Tab}s that has been reopened.
      * @param isAllTabs Whether tabs are all the tabs.
@@ -217,5 +227,13 @@ public interface TabModelObserver {
     default void onTabCloseUndone(List<Tab> tabs, boolean isAllTabs) {}
 
     /** Called when the set of multi-selected tabs has changed. */
-    default void onTabSelectionChanged() {}
+    default void onTabsSelectionChanged() {}
+
+    /**
+     * Called when the TabModel is destroyed. Note that for the incognito tab model this may be
+     * called multiple times as the observer is registered to the outer tab model, but the inner
+     * delegate model will be destroyed whenever the tab count becomes zero, and recreated if the
+     * tab count becomes non-zero.
+     */
+    default void onDestroy() {}
 }

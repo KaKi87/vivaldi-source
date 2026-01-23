@@ -4,7 +4,7 @@
 <translation id="1003363546227723021">ਜਦੋਂ ਤੁਹਾਡੀ ਸਕ੍ਰੀਨ ਅਕਿਰਿਆਸ਼ੀਲ ਹੁੰਦੀ ਹੈ, ਤਾਂ ਫ਼ੋਟੋਆਂ, ਸਮਾਂ, ਮੌਸਮ ਅਤੇ ਮੀਡੀਆ ਜਾਣਕਾਰੀ ਦਿਖਾਓ</translation>
 <translation id="1014750484722996375">ਡੈਸਕ</translation>
 <translation id="1018219910092211213">DNS ਸੰਬੰਧੀ ਸਮੱਸਿਆ ਨੂੰ ਹੱਲ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਦਾ</translation>
-<translation id="1018656279737460067">ਰੱਦ ਕੀਤਾ</translation>
+<translation id="1018656279737460067">ਰੱਦ ਕੀਤਾ ਗਿਆ</translation>
 <translation id="1019971142067430077">ਇਸ ਸਮੱਗਰੀ ਲਈ ਰਿਕਾਰਡਿੰਗ ਦੇ ਸਿਰਲੇਖਾਂ ਨੂੰ ਨਹੀਂ ਬਣਾਇਆ ਜਾ ਸਕਦਾ</translation>
 <translation id="1020274983236703756">ਵਿਸ਼ੇਸ਼ <ph name="PRODUCT_NAME" /> ਸੰਪਤੀਆਂ ਹੁਣ ਉਪਲਬਧ ਹਨ</translation>
 <translation id="1022628058306505708">ਧਰਤੀ ਪ੍ਰਵਾਹ</translation>
@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">ਸੰਤਰੇ</translation>
 <translation id="1275718070701477396">ਚੁਣਿਆ ਗਿਆ</translation>
 <translation id="1290331692326790741">ਕਮਜ਼ੋਰ ਸਿਗਨਲ</translation>
+<translation id="1292474106138697109">ਕਲਾਸ ਟੂਲ ਡਿਸਪਲੇ</translation>
 <translation id="1300115153046603471">APN ਦੀ ਕਿਸਮ ਪੂਰਵ-ਨਿਰਧਾਰਿਤ ਅਤੇ <ph name="ATTACH" /> 'ਤੇ ਸੈੱਟ ਹੈ।</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">ਬਦਲੋ</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> ਚਿੱਤਰ</translation>
 <translation id="4300272766492248925">ਐਪ ਖੋਲ੍ਹੋ</translation>
 <translation id="430786093962686457">ਸ਼ਿਫ਼ੌਨ</translation>
+<translation id="4309762678330556039">ਆਪਣੇ ਆਪ ਪ੍ਰਤੀਲਿਪੀਕਰਨ ਬਣਾਓ ਅਤੇ ਆਡੀਓ ਖੋਜੋ। ਤੁਸੀਂ ਇੰਟਰਨੈੱਟ ਨਾਲ ਕਨੈਕਟ ਨਾ ਹੋਣ 'ਤੇ ਵੀ ਰਿਕਾਰਡਿੰਗਾਂ ਬਣਾ ਸਕਦੇ ਹੋ।</translation>
 <translation id="4310735698903592804">ਹਾਲੀਆ ਵਾਲਪੇਪਰ Google AI ਵੱਲੋਂ ਸੰਚਾਲਿਤ ਹਨ</translation>
 <translation id="4320904097188876154">ਨਿਓਨ ਗੁਲਾਬੀ</translation>
 <translation id="432961742358282111">ਪਰਿਭਾਸ਼ਾਵਾਂ, ਅਨੁਵਾਦ ਜਾਂ ਇਕਾਈ ਰੂਪਾਂਤਰਨ ਪ੍ਰਾਪਤ ਕਰਨ ਲਈ ਸੱਜਾ-ਕਲਿੱਕ ਕਰੋ ਜਾਂ ਦਬਾਈ ਰੱਖੋ। ਇਸ ਵਿਸ਼ੇਸ਼ਤਾ ਦਾ ਪ੍ਰਬੰਧਨ ਕਰਨ ਲਈ ਖੱਬੀ ਜਾਂ ਸੱਜੀ ਤੀਰ ਕੁੰਜੀ ਵਰਤੋ।</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">ਹੋਰ ਵਿਕਲਪ</translation>
 <translation id="5600027863942488546"><ph name="KEY_NAME" /> ਕੁੰਜੀ ਦੀ ਜਾਂਚ ਕੀਤੀ ਗਈ</translation>
 <translation id="5606865426897221650">ਟੈਬ</translation>
+<translation id="5612205513582918357">ਕਲਾਸ ਟੂਲ <ph name="RECEIVER_NAME" /> ਨਾਲ ਤੁਹਾਡੀ ਸਕ੍ਰੀਨ ਸਾਂਝੀ ਕਰ ਰਿਹਾ ਹੈ</translation>
 <translation id="5613201299517339763">ਤੁਹਾਨੂੰ ਸਾਈਨ ਆਊਟ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ</translation>
 <translation id="5620281292257375798">ਸਿਰਫ਼ ਅੰਦਰੂਨੀ</translation>
 <translation id="5628106863521633649">ਉਪਲਬਧ ਭਾਸ਼ਾਵਾਂ</translation>

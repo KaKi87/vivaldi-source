@@ -20,7 +20,12 @@ BookmarkThumbnailThemeTabHelper::BookmarkThumbnailThemeTabHelper(
   bookmark_model_->AddObserver(this);
 }
 
-BookmarkThumbnailThemeTabHelper::~BookmarkThumbnailThemeTabHelper() = default;
+BookmarkThumbnailThemeTabHelper::~BookmarkThumbnailThemeTabHelper() {
+  if (bookmark_model_) {
+    bookmark_model_->RemoveObserver(this);
+  }
+  bookmark_model_ = nullptr;
+}
 
 void BookmarkThumbnailThemeTabHelper::BookmarkModelLoaded(
     bool ids_reassigned) {
@@ -28,6 +33,9 @@ void BookmarkThumbnailThemeTabHelper::BookmarkModelLoaded(
 }
 
 void BookmarkThumbnailThemeTabHelper::BookmarkModelBeingDeleted() {
+  if (bookmark_model_) {
+    bookmark_model_->RemoveObserver(this);
+  }
   bookmark_model_ = nullptr;
 }
 
@@ -46,7 +54,9 @@ void BookmarkThumbnailThemeTabHelper::DidFinishNavigation(
 }
 
 void BookmarkThumbnailThemeTabHelper::WebContentsDestroyed() {
-  bookmark_model_->RemoveObserver(this);
+  if (bookmark_model_) {
+    bookmark_model_->RemoveObserver(this);
+  }
   bookmark_model_ = nullptr;
 }
 

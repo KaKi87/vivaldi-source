@@ -214,7 +214,7 @@ void NoteRemoteUpdatesHandler::Process(
 
     bool should_ignore_update = false;
     const SyncedNoteTrackerEntity* tracked_entity =
-        DetermineLocalTrackedEntityToUpdate(update_entity,
+        DetermineLocalTrackedEntityToUpdate(note_tracker_, update_entity,
                                             &should_ignore_update);
 
     if (should_ignore_update) {
@@ -429,10 +429,12 @@ NoteRemoteUpdatesHandler::ReorderValidUpdates(
   return ordered_updates;
 }
 
+// static
 const SyncedNoteTrackerEntity*
 NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
+    const SyncedNoteTracker* note_tracker,
     const syncer::EntityData& update_entity,
-    bool* should_ignore_update) const {
+    bool* should_ignore_update) {
   *should_ignore_update = false;
 
   // If there's nothing other than a server ID to issue a lookup, just do that
@@ -440,7 +442,7 @@ NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
   // tombstones (at least the LoopbackServer only sets the server ID).
   if (update_entity.originator_client_item_id.empty() &&
       update_entity.client_tag_hash.value().empty()) {
-    return note_tracker_->GetEntityForSyncId(update_entity.id);
+    return note_tracker->GetEntityForSyncId(update_entity.id);
   }
 
   // Parse the client tag hash in the update or infer it from the originator
@@ -454,9 +456,9 @@ NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
                     update_entity.originator_client_item_id));
 
   const SyncedNoteTrackerEntity* const tracked_entity_by_client_tag =
-      note_tracker_->GetEntityForClientTagHash(client_tag_hash_in_update);
+      note_tracker->GetEntityForClientTagHash(client_tag_hash_in_update);
   const SyncedNoteTrackerEntity* const tracked_entity_by_sync_id =
-      note_tracker_->GetEntityForSyncId(update_entity.id);
+      note_tracker->GetEntityForSyncId(update_entity.id);
 
   // The most common scenario is that both lookups, client-tag-based and
   // server-ID-based, refer to the same tracked entity or both lookups fail. In

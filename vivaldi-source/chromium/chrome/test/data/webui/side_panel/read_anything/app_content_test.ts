@@ -162,6 +162,34 @@ suite('AppContent', () => {
       assertStringContains(emptyState.darkImagePath, empty);
       assertStringContains(emptyState.imagePath, empty);
     });
+
+    test('sends distilled word count', async () => {
+      const text = 'Honey we can see right through ya';
+      readingMode.getTextContent = () => text;
+      const expectedWordCount = 7;
+      let sentWordCount = 0;
+      readingMode.onDistilled = (wordCount) => {
+        sentWordCount = wordCount;
+      };
+
+      app.updateContent();
+      await microtasksFinished();
+
+      assertEquals(expectedWordCount, sentWordCount);
+    });
+
+    test('sends 0 if no new content', async () => {
+      readingMode.getTextContent = () => '';
+      let sentWordCount = -1;
+      readingMode.onDistilled = (wordCount) => {
+        sentWordCount = wordCount;
+      };
+
+      app.updateContent();
+      await microtasksFinished();
+
+      assertEquals(0, sentWordCount);
+    });
   });
 
   suite('on links toggle', () => {
@@ -489,6 +517,51 @@ suite('AppContent', () => {
     app.onPlayingFromSelection();
 
     assertEquals('', selection.toString());
+  });
+
+  test('on selection resets plays from new selection', async () => {
+    const text1 = 'Not like you- ';
+    const text2 = ' you lost your nerve, you lost the game.';
+
+    const p1 = document.createElement('p');
+    p1.innerText = text1;
+    app.$.container.appendChild(p1);
+    const node1 = p1.firstChild!;
+    const id1 = 2;
+    nodeStore.setDomNode(node1, id1);
+
+    const p2 = document.createElement('p');
+    p2.innerText = text2;
+    app.$.container.appendChild(p2);
+    const node2 = p2.firstChild!;
+    const id2 = 3;
+    nodeStore.setDomNode(node2, id2);
+
+    const segments =
+        [{node: ReadAloudNode.create(node1)!, start: 0, length: text1.length}];
+    readAloudModel.setCurrentTextSegments(segments);
+    readAloudModel.setCurrentTextContent(text1);
+    readAloudModel.init(ReadAloudNode.create(document.body)!);
+
+    // Start speech to initialize read aloud state.
+    emitEvent(app, ToolbarEvent.PLAY_PAUSE);
+    assertTrue(speechController.isSpeechTreeInitialized());
+    await microtasksFinished();
+
+    // Create a selection.
+    const selection = app.getSelection();
+    assertTrue(!!selection);
+    const range = document.createRange();
+    range.setStart(node1, 1);
+    range.setEnd(node2, 3);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange'));
+    await microtasksFinished();
+
+    // After a selection, the read aloud state should still be set to true.
+    // This differs from the V8 selection approach.
+    assertTrue(speechController.isSpeechTreeInitialized());
   });
 
   suite('language toast', () => {

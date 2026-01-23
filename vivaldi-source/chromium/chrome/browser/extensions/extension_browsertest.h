@@ -13,7 +13,6 @@
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/extension_browser_test_util.h"
 #include "chrome/browser/extensions/extension_browsertest_platform_delegate.h"
-#include "chrome/browser/extensions/install_verifier.h"
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/test/base/platform_browser_test.h"
@@ -23,11 +22,14 @@
 #include "extensions/browser/extension_protocols.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/browser/install_verifier.h"
 #include "extensions/browser/sandboxed_unpacker.h"
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/feature_switch.h"
 #include "extensions/common/features/feature_channel.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 class BrowserWindowInterface;
 class OwningTestTabModel;
@@ -385,7 +387,9 @@ class ExtensionBrowserTest : public PlatformBrowserTest,
   // HTTP embedded_test_server defined in BrowserTestBase. The new test server
   // can then be retrieved using the same embedded_test_server() method used
   // to get the BrowserTestBase HTTP server.
-  void UseHttpsTestServer();
+  void UseHttpsTestServer(
+      net::EmbeddedTestServer::ServerCertificate server_certificate =
+          net::EmbeddedTestServer::ServerCertificate::CERT_TEST_NAMES);
 
   // This will return either the https test server or the
   // default one specified in BrowserTestBase, depending on if an https test

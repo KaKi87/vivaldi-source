@@ -157,12 +157,6 @@ class RealtimeEngagementSignalObserver extends CustomTabTabObserver {
     }
 
     @Override
-    public void webContentsWillSwap(Tab tab) {
-        collectUserInteraction(tab);
-        removeWebContentsDependencies(tab.getWebContents());
-    }
-
-    @Override
     public void onHidden(Tab tab, @TabHidingType int reason) {
         if (reason == TabHidingType.CHANGED_TABS) {
             ScrollState.from(tab).resetMaxScrollPercentage();
@@ -328,6 +322,7 @@ class RealtimeEngagementSignalObserver extends CustomTabTabObserver {
 
     private boolean shouldSendEngagementSignal(Tab tab) {
         return tab != null
+                && !tab.isDestroyed()
                 && tab.getWebContents() != null
                 && !tab.isIncognito()
                 // Do not report engagement signals if user does not consent to report usage.

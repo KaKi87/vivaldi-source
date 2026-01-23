@@ -24,7 +24,6 @@
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_data_source.h"
-#include "ui/webui/color_change_listener/color_change_handler.h"
 #include "ui/webui/untrusted_web_ui_controller.h"
 #include "ui/webui/webui_allowlist.h"
 
@@ -114,12 +113,6 @@ void BocaUI::BindInterface(
   receiver_.Bind(std::move(factory));
 }
 
-void BocaUI::BindInterface(
-    mojo::PendingReceiver<color_change_listener::mojom::PageHandler> receiver) {
-  color_provider_handler_ = std::make_unique<ui::ColorChangeHandler>(
-      web_ui()->GetWebContents(), std::move(receiver));
-}
-
 void BocaUI::Create(
     mojo::PendingReceiver<boca::mojom::PageHandler> page_handler,
     mojo::PendingRemote<boca::mojom::Page> page) {
@@ -127,7 +120,7 @@ void BocaUI::Create(
       web_ui()->GetWebContents()->GetBrowserContext();
   CHECK(context);
   const std::string host_name =
-      web_ui()->GetWebContents()->GetVisibleURL().host();
+      web_ui()->GetWebContents()->GetVisibleURL().GetHost();
   auto auth_handler = std::make_unique<WebviewAuthHandler>(
       std::make_unique<WebviewAuthDelegate>(), context, host_name);
   auto* const profile = Profile::FromWebUI(web_ui());

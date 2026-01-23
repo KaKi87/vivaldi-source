@@ -27,6 +27,7 @@
 @protocol ContextualPanelEntrypointVisibilityDelegate;
 @protocol FakeboxButtonsSnapshotProvider;
 @protocol HelpCommands;
+@class LocationBarViewController;
 @protocol LensCommands;
 @protocol LensOverlayCommands;
 @protocol LocationBarOffsetProvider;
@@ -84,6 +85,10 @@ class Tracker;
 
 // Decides if AI Hub new badge should show.
 - (BOOL)shouldShowAIHubNewFeatureBadge;
+
+// Edit state required `height` changed.
+- (void)locationBarViewController:(LocationBarViewController*)controller
+         didChangeEditStateHeight:(CGFloat)height;
 
 // Vivaldi
 - (void)locationBarContentsTintColorDidChange:(UIColor*)tintColor;
@@ -228,6 +233,9 @@ class Tracker;
 
 // Moves the focus of VoiceOver to the steady view.
 - (void)focusSteadyViewForVoiceOver;
+
+// Creates a visual copy of the location bar steady view.
+- (UIView*)locationBarSteadyViewVisualCopy;
 
 // Vivaldi
 @property(nonatomic, strong) UIColor* locationBarContainerColor;

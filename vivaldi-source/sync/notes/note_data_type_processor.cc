@@ -7,19 +7,21 @@
 #include <utility>
 #include <vector>
 
-#include "app/vivaldi_apptools.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "base/rand_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/notes/note_node.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/base/data_type_histogram.h"
+#include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/commit_queue.h"
 #include "components/sync/engine/data_type_activation_response.h"
@@ -39,14 +41,24 @@
 #include "sync/notes/notes_model_observer_impl.h"
 #include "sync/notes/parent_guid_preprocessing.h"
 #include "sync/notes/synced_note_tracker_entity.h"
-#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "ui/base/models/tree_node_iterator.h"
 
 namespace sync_notes {
 
 namespace {
 
-constexpr size_t kDefaultMaxNotesTillSyncEnabled = 100000;
+// Expiration period for the error state when the initial download of remote
+// notes exceeds the limit. After this period, a new attempt to download all
+// notes is made.
+constexpr base::TimeDelta kInitialMergeRemoteUpdatesExceededLimitErrorTtl =
+    base::Days(30);
+
+// Jitter to be subtracted from
+// `kInitialMergeRemoteUpdatesExceededLimitErrorTtl` to add randomness and avoid
+// that all clients attempt to redownload notes at the same time.
+constexpr base::TimeDelta
+    kInitialMergeRemoteUpdatesExceededLimitErrorTtlJitter = base::Days(7);
 
 class ScopedRemoteUpdateNotes {
  public:
@@ -107,6 +119,13 @@ size_t CountSyncableNotesFromModel(NoteModelView* model) {
   return count;
 }
 
+// Returns whether `gc_directive` has a version_watermark based GC directive,
+// which indicates to clear all sync data that's stored locally.
+bool HasClearAllDirective(
+    const std::optional<sync_pb::GarbageCollectionDirective>& gc_directive) {
+  return gc_directive.has_value() && gc_directive->has_version_watermark();
+}
+
 }  // namespace
 
 NoteDataTypeProcessor::NoteDataTypeProcessor(
@@ -115,8 +134,7 @@ NoteDataTypeProcessor::NoteDataTypeProcessor(
         wipe_model_upon_sync_disabled_behavior)
     : synced_file_store_(synced_file_store),
       wipe_model_upon_sync_disabled_behavior_(
-          wipe_model_upon_sync_disabled_behavior),
-      max_notes_till_sync_enabled_(kDefaultMaxNotesTillSyncEnabled) {}
+          wipe_model_upon_sync_disabled_behavior) {}
 
 NoteDataTypeProcessor::~NoteDataTypeProcessor() {
   if (notes_model_ && notes_model_observer_) {
@@ -154,8 +172,8 @@ void NoteDataTypeProcessor::GetLocalChanges(size_t max_entries,
                                             GetLocalChangesCallback callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   // Processor should never connect if
-  // `last_initial_merge_remote_updates_exceeded_limit_` is set.
-  DCHECK(!last_initial_merge_remote_updates_exceeded_limit_);
+  // `initial_merge_remote_updates_exceeded_limit_timestamp_` is set.
+  DCHECK(!initial_merge_remote_updates_exceeded_limit_timestamp_);
   NoteLocalChangesBuilder builder(note_tracker_.get(), notes_model_);
   std::move(callback).Run(builder.BuildCommitRequests(max_entries));
 }
@@ -195,46 +213,18 @@ void NoteDataTypeProcessor::OnUpdateReceived(
   DCHECK(syncer::IsInitialSyncDone(data_type_state.initial_sync_state()));
   DCHECK(start_callback_.is_null());
   // Processor should never connect if
-  // `last_initial_merge_remote_updates_exceeded_limit_` is set.
-  DCHECK(!last_initial_merge_remote_updates_exceeded_limit_);
-
-  // TODO(crbug.com/40860698): validate incoming updates, e.g. `gc_directive`
-  // must be empty for Notes.
+  // `initial_merge_remote_updates_exceeded_limit_timestamp_` is set.
+  DCHECK(!initial_merge_remote_updates_exceeded_limit_timestamp_);
 
   // Clients before M94 did not populate the parent UUID in specifics.
   PopulateParentGuidInSpecifics(note_tracker_.get(), &updates);
 
   if (!note_tracker_) {
     OnInitialUpdateReceived(data_type_state, std::move(updates));
-    return;
-  }
-
-  // Incremental updates.
-  {
-    ScopedRemoteUpdateNotes update_notess(notes_model_,
-                                          notes_model_observer_.get());
-    NoteRemoteUpdatesHandler updates_handler(notes_model_, note_tracker_.get());
-    const bool got_new_encryption_requirements =
-        note_tracker_->data_type_state().encryption_key_name() !=
-        data_type_state.encryption_key_name();
-    note_tracker_->set_data_type_state(data_type_state);
-    updates_handler.Process(updates, got_new_encryption_requirements);
-  }
-
-  if (MaybeReportNoteCountLimitExceededError(
-          syncer::ModelError::Type::kGenericTestError)) {
-    return;
-  }
-
-  if (note_tracker_->ReuploadNotesOnLoadIfNeeded()) {
-    NudgeForCommitIfNeeded();
-  }
-  // There are cases when we receive non-empty updates that don't result in
-  // model changes (e.g. reflections). In that case, issue a write to persit the
-  // progress marker in order to avoid downloading those updates again.
-  if (!updates.empty()) {
-    // Schedule save just in case one is needed.
-    schedule_save_closure_.Run();
+  } else if (HasClearAllDirective(gc_directive)) {
+    ApplyFullUpdateAsIncrementalUpdate(data_type_state, std::move(updates));
+  } else {
+    OnIncrementalUpdateReceived(data_type_state, std::move(updates));
   }
 }
 
@@ -268,24 +258,148 @@ bool NoteDataTypeProcessor::IsConnectedForTest() const {
 std::string NoteDataTypeProcessor::EncodeSyncMetadata() const {
   std::string metadata_str;
   if (note_tracker_) {
-    // `last_initial_merge_remote_updates_exceeded_limit_` is only set in error
-    // cases where the tracker would not be initialized.
-    DCHECK(!last_initial_merge_remote_updates_exceeded_limit_);
+    // `initial_merge_remote_updates_exceeded_limit_timestamp_` is only set
+    // in error cases where the tracker would not be initialized.
+    DCHECK(!initial_merge_remote_updates_exceeded_limit_timestamp_);
 
     sync_pb::NotesModelMetadata model_metadata =
         note_tracker_->BuildNoteModelMetadata();
     // Ensure that BuildNoteModelMetadata() never populates this field.
     DCHECK(
-        !model_metadata.has_last_initial_merge_remote_updates_exceeded_limit());
+        !model_metadata
+             .has_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros());
     model_metadata.SerializeToString(&metadata_str);
-  } else if (last_initial_merge_remote_updates_exceeded_limit_) {
+  } else if (initial_merge_remote_updates_exceeded_limit_timestamp_) {
     sync_pb::NotesModelMetadata model_metadata;
-    // Setting the field only when true guarantees that the empty-string case
-    // is interpreted as no-metadata-to-clear.
-    model_metadata.set_last_initial_merge_remote_updates_exceeded_limit(true);
+    model_metadata
+        .set_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros(
+            initial_merge_remote_updates_exceeded_limit_timestamp_
+                ->ToDeltaSinceWindowsEpoch()
+                .InMicroseconds());
     model_metadata.SerializeToString(&metadata_str);
   }
   return metadata_str;
+}
+
+void NoteDataTypeProcessor::MigrateLegacyExceededLimitError(
+    sync_pb::NotesModelMetadata* model_metadata) {
+  if (!model_metadata->last_initial_merge_remote_updates_exceeded_limit() ||
+      model_metadata
+          ->has_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()) {
+    model_metadata->clear_last_initial_merge_remote_updates_exceeded_limit();
+    return;
+  }
+
+  // For legacy clients, set a random timestamp from 23-30 days ago to
+  // represent the error state. This is to preserve the error across restarts.
+  // This will also be used to decide whether to reset the error.
+  const base::Time limit_set_time =
+      base::Time::Now() - kInitialMergeRemoteUpdatesExceededLimitErrorTtl +
+      base::RandTimeDeltaUpTo(
+          kInitialMergeRemoteUpdatesExceededLimitErrorTtlJitter);
+  model_metadata
+      ->set_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros(
+          limit_set_time.ToDeltaSinceWindowsEpoch().InMicroseconds());
+  // Clear the legacy field as it is no longer needed.
+  model_metadata->clear_last_initial_merge_remote_updates_exceeded_limit();
+  schedule_save_closure_.Run();
+}
+
+void NoteDataTypeProcessor::MaybeResetExceededLimitError(
+    sync_pb::NotesModelMetadata* model_metadata) {
+  if (!base::FeatureList::IsEnabled(
+          syncer::kSyncResetBookmarksInitialMergeLimitExceededError)) {
+    return;
+  }
+  if (!model_metadata
+           ->has_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()) {
+    return;
+  }
+
+  const base::Time limit_set_time =
+      base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(
+          model_metadata
+              ->initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()));
+
+  // For users who have a timestamp, reset the error
+  // after 30 days to give users a chance to recover.
+  if (base::Time::Now() - limit_set_time >
+      kInitialMergeRemoteUpdatesExceededLimitErrorTtl) {
+    model_metadata->clear_last_initial_merge_remote_updates_exceeded_limit();
+    model_metadata
+        ->clear_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros();
+    schedule_save_closure_.Run();
+  }
+}
+
+bool NoteDataTypeProcessor::HandlePreviousErrorState(
+    const sync_pb::NotesModelMetadata& model_metadata) {
+  if (!model_metadata
+           .has_initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()) {
+    return false;
+  }
+  // Report error if remote updates fetched last time during initial merge
+  // exceeded limit. Note that here we are only setting
+  // `last_initial_merge_remote_updates_exceeded_limit_timestamp_`, the
+  // actual error would be reported in ConnectIfReady().
+  initial_merge_remote_updates_exceeded_limit_timestamp_ =
+      base::Time::FromDeltaSinceWindowsEpoch(base::Microseconds(
+          model_metadata
+              .initial_merge_remote_updates_exceeded_limit_timestamp_windows_epoch_micros()));
+  return true;
+}
+
+std::optional<sync_pb::NotesModelMetadata>
+NoteDataTypeProcessor::ParseAndValidateMetadata(
+    const std::string& metadata_str) {
+  if (HandlePendingClearMetadata(metadata_str)) {
+    return std::nullopt;
+  }
+
+  sync_pb::NotesModelMetadata model_metadata;
+  model_metadata.ParseFromString(metadata_str);
+
+  MigrateLegacyExceededLimitError(&model_metadata);
+  // Ensure that the legacy field is not set, as it should have been migrated.
+  CHECK(!model_metadata.last_initial_merge_remote_updates_exceeded_limit());
+  MaybeResetExceededLimitError(&model_metadata);
+
+  if (HandlePreviousErrorState(model_metadata)) {
+    return std::nullopt;
+  }
+  return model_metadata;
+}
+
+void NoteDataTypeProcessor::InitTracker(
+    sync_pb::NotesModelMetadata model_metadata,
+    const std::string& metadata_str) {
+  note_tracker_ = SyncedNoteTracker::CreateFromNotesModelAndMetadata(
+      notes_model_, std::move(model_metadata), synced_file_store_);
+
+  if (note_tracker_) {
+    StartTrackingMetadata();
+  } else if (!metadata_str.empty()) {
+    DLOG(WARNING) << "Persisted note sync metadata invalidated when loading.";
+    // Schedule a save to make sure the corrupt metadata is deleted from
+    // disk as soon as possible, to avoid reporting again after restart if
+    // nothing else schedules a save meanwhile (which is common if sync is
+    // not running properly, e.g. auth error).
+    schedule_save_closure_.Run();
+  }
+}
+
+bool NoteDataTypeProcessor::HandlePendingClearMetadata(
+    const std::string& metadata_str) {
+  if (!pending_clear_metadata_) {
+    return false;
+  }
+
+  pending_clear_metadata_ = false;
+  // Schedule save empty metadata, if not already empty.
+  if (!metadata_str.empty()) {
+    schedule_save_closure_.Run();
+  }
+  return true;
 }
 
 void NoteDataTypeProcessor::ModelReadyToSync(
@@ -303,36 +417,11 @@ void NoteDataTypeProcessor::ModelReadyToSync(
   notes_model_ = model;
   schedule_save_closure_ = schedule_save_closure;
 
-  sync_pb::NotesModelMetadata model_metadata;
-  model_metadata.ParseFromString(metadata_str);
+  std::optional<sync_pb::NotesModelMetadata> model_metadata =
+      ParseAndValidateMetadata(metadata_str);
 
-  if (pending_clear_metadata_) {
-    pending_clear_metadata_ = false;
-    // Schedule save empty metadata, if not already empty.
-    if (!metadata_str.empty()) {
-      schedule_save_closure_.Run();
-    }
-  } else if (model_metadata
-                 .last_initial_merge_remote_updates_exceeded_limit()) {
-    // Report error if remote updates fetched last time during initial merge
-    // exceeded limit. Note that here we are only setting
-    // `last_initial_merge_remote_updates_exceeded_limit_`, the actual error
-    // would be reported in ConnectIfReady().
-    last_initial_merge_remote_updates_exceeded_limit_ = true;
-  } else {
-    note_tracker_ = SyncedNoteTracker::CreateFromNotesModelAndMetadata(
-        model, std::move(model_metadata), synced_file_store_);
-
-    if (note_tracker_) {
-      StartTrackingMetadata();
-    } else if (!metadata_str.empty()) {
-      DLOG(WARNING) << "Persisted note sync metadata invalidated when loading.";
-      // Schedule a save to make sure the corrupt metadata is deleted from disk
-      // as soon as possible, to avoid reporting again after restart if nothing
-      // else schedules a save meanwhile (which is common if sync is not running
-      // properly, e.g. auth error).
-      schedule_save_closure_.Run();
-    }
+  if (model_metadata) {
+    InitTracker(std::move(*model_metadata), metadata_str);
   }
 
   // Post a task instead of invoking ConnectIfReady() immediately to avoid
@@ -391,9 +480,9 @@ void NoteDataTypeProcessor::ConnectIfReady() {
 
   // Report error if remote updates fetched last time during initial merge
   // exceeded limit.
-  if (last_initial_merge_remote_updates_exceeded_limit_) {
-    // `last_initial_merge_remote_updates_exceeded_limit_` is only set in error
-    // case and thus tracker should be empty.
+  if (initial_merge_remote_updates_exceeded_limit_timestamp_) {
+    // `initial_merge_remote_updates_exceeded_limit_timestamp_` is only set
+    // in error case and thus tracker should be empty.
     DCHECK(!note_tracker_);
     start_callback_.Reset();
     activation_request_.error_handler.Run(syncer::ModelError(
@@ -433,6 +522,19 @@ void NoteDataTypeProcessor::ConnectIfReady() {
   std::move(start_callback_).Run(std::move(activation_context));
 }
 
+bool NoteDataTypeProcessor::DoesCountExceedNotesSyncLimit(size_t count,
+                                                          size_t offset) const {
+  if (sync_notes_limit_for_tests_.has_value()) {
+    return count > sync_notes_limit_for_tests_.value() + offset;
+  }
+  // Count is less than the default limit so should not bother checking against
+  // `kSyncBookmarksLimitValue` which is bound to be >= the default limit.
+  if (count <= syncer::kDefaultSyncBookmarksLimit + offset) {
+    return false;
+  }
+  return count > syncer::kSyncBookmarksLimitValue.Get() + offset;
+}
+
 bool NoteDataTypeProcessor::MaybeReportNoteCountLimitExceededError(
     syncer::ModelError::Type error_type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -445,7 +547,7 @@ bool NoteDataTypeProcessor::MaybeReportNoteCountLimitExceededError(
   const size_t count = note_tracker_
                            ? note_tracker_->TrackedNotesCount()
                            : CountSyncableNotesFromModel(notes_model_);
-  if (count > max_notes_till_sync_enabled_) {
+  if (DoesCountExceedNotesSyncLimit(count)) {
     // For the case where a tracker already
     // exists, local changes will continue
     // to be tracked in order order to allow users to delete s and
@@ -486,7 +588,7 @@ void NoteDataTypeProcessor::OnSyncStopping(
       if (note_tracker_) {
         StopTrackingMetadataAndResetTracker();
       }
-      last_initial_merge_remote_updates_exceeded_limit_ = false;
+      initial_merge_remote_updates_exceeded_limit_timestamp_.reset();
       schedule_save_closure_.Run();
       synced_file_store_->RemoveAllSyncRefsForType(syncer::NOTES);
       break;
@@ -539,14 +641,11 @@ void NoteDataTypeProcessor::OnInitialUpdateReceived(
   // `updates` can contain an additional root folder. The server may or may not
   // deliver a root node - it is not guaranteed, but this works as an
   // approximated safeguard.
-  const size_t max_initial_updates_count = max_notes_till_sync_enabled_ + 1;
-
-  // Report error if count of remote updates is more than the limit.
   // Note that we are not having this check for incremental updates as it is
   // very unlikely that there will be many updates downloaded.
-  if (updates.size() > max_initial_updates_count) {
+  if (DoesCountExceedNotesSyncLimit(updates.size(), /*offset=*/1)) {
     DisconnectSync();
-    last_initial_merge_remote_updates_exceeded_limit_ = true;
+    initial_merge_remote_updates_exceeded_limit_timestamp_ = base::Time::Now();
     activation_request_.error_handler.Run(syncer::ModelError(
         FROM_HERE, syncer::ModelError::Type::kGenericTestError));
     schedule_save_closure_.Run();
@@ -582,6 +681,108 @@ void NoteDataTypeProcessor::OnInitialUpdateReceived(
 
   schedule_save_closure_.Run();
   NudgeForCommitIfNeeded();
+}
+
+void NoteDataTypeProcessor::OnIncrementalUpdateReceived(
+    const sync_pb::DataTypeState& type_state,
+    syncer::UpdateResponseDataList updates) {
+  {
+    ScopedRemoteUpdateNotes update_notess(notes_model_,
+                                          notes_model_observer_.get());
+    NoteRemoteUpdatesHandler updates_handler(notes_model_, note_tracker_.get());
+    const bool got_new_encryption_requirements =
+        note_tracker_->data_type_state().encryption_key_name() !=
+        type_state.encryption_key_name();
+    note_tracker_->set_data_type_state(type_state);
+    updates_handler.Process(updates, got_new_encryption_requirements);
+  }
+
+  if (MaybeReportNoteCountLimitExceededError(
+          syncer::ModelError::Type::kGenericTestError)) {
+    return;
+  }
+
+  if (note_tracker_->ReuploadNotesOnLoadIfNeeded()) {
+    NudgeForCommitIfNeeded();
+  }
+  // There are cases when we receive non-empty updates that don't result in
+  // model changes (e.g. reflections). In that case, issue a write to persit the
+  // progress marker in order to avoid downloading those updates again.
+  if (!updates.empty()) {
+    // Schedule save just in case one is needed.
+    schedule_save_closure_.Run();
+  }
+}
+
+void NoteDataTypeProcessor::ApplyFullUpdateAsIncrementalUpdate(
+    const sync_pb::DataTypeState& type_state,
+    syncer::UpdateResponseDataList updates) {
+  absl::flat_hash_set<const SyncedNoteTrackerEntity*> updated_entities;
+  for (const syncer::UpdateResponseData& update : updates) {
+    bool should_ignore_update = false;
+    const SyncedNoteTrackerEntity* tracked_entity =
+        NoteRemoteUpdatesHandler::DetermineLocalTrackedEntityToUpdate(
+            note_tracker_.get(), update.entity, &should_ignore_update);
+    if (tracked_entity) {
+      // If the update is invalid and should be ignored, there should be no
+      // `tracked_entity`.
+      CHECK(!should_ignore_update);
+      updated_entities.insert(tracked_entity);
+    }
+  }
+
+  // Simulate the deletion of all entities that are not in the update (and
+  // synced).
+  for (const SyncedNoteTrackerEntity* entity :
+       note_tracker_->GetAllEntities()) {
+    // Don't create deletions for permanent nodes.
+    if (entity->note_node()->is_permanent_node()) {
+      continue;
+    }
+    if (entity->IsUnsyncedLocalCreation()) {
+      // Special case a local creation to avoid generating a deletion.
+      // Otherwise, it would result in a conflict with a remote deletion
+      // which is not real, polluting UMA metrics. This would still result
+      // in keeping the local creation but it'd be fragile and non-obvious.
+      continue;
+    }
+
+    // Do not handle local updates and deletions explicitly. Consider the
+    // following scenarios:
+    // 1. Local update, remote entity still exists. A deletion won't be
+    //    generated in this case, so it's a normal conflict.
+    // 2. Local update, remote entity deleted. A deletion will be generated
+    //    but the local update will be preferred during conflict resolution.
+    // 3. Local deletion, remote entity deleted. A deletion will be
+    //    generated in this case, so it's a normal conflict resulting in a
+    //    no-op for the bridge.
+    // 4. Local deletion, remote entity still exists. This case will result
+    //    in restoring the entity during conflict resolution. It's not ideal
+    //    but safer than data loss.
+    // TODO(crbug.com/40668179): Improve handling of local deletions during
+    // full updates.
+    if (updated_entities.contains(entity)) {
+      // Consider this as a normal incremental update. Note that this update
+      // might be dropped due to the version having been seen before.
+      continue;
+    }
+
+    syncer::UpdateResponseData deletion;
+    deletion.entity.id = entity->metadata().server_id();
+    deletion.entity.client_tag_hash = entity->GetClientTagHash();
+    deletion.entity.creation_time =
+        syncer::ProtoTimeToTime(entity->metadata().creation_time());
+    deletion.entity.modification_time =
+        syncer::ProtoTimeToTime(entity->metadata().modification_time());
+    deletion.entity.name = "tombstone";
+
+    // Increment the version to ensure that the deletion is not immediately
+    // ignored.
+    deletion.response_version = entity->metadata().server_version() + 1;
+    updates.push_back(std::move(deletion));
+  }
+
+  OnIncrementalUpdateReceived(type_state, std::move(updates));
 }
 
 void NoteDataTypeProcessor::StartTrackingMetadata() {
@@ -721,7 +922,7 @@ void NoteDataTypeProcessor::RecordMemoryUsageAndCountsHistograms() {
 }
 
 void NoteDataTypeProcessor::SetMaxNotesTillSyncEnabledForTest(size_t limit) {
-  max_notes_till_sync_enabled_ = limit;
+  sync_notes_limit_for_tests_ = limit;
 }
 
 void NoteDataTypeProcessor::ClearMetadataIfStopped() {
@@ -741,8 +942,8 @@ void NoteDataTypeProcessor::ClearMetadataIfStopped() {
     StopTrackingMetadataAndResetTracker();
     // Schedule save empty metadata.
     schedule_save_closure_.Run();
-  } else if (last_initial_merge_remote_updates_exceeded_limit_) {
-    last_initial_merge_remote_updates_exceeded_limit_ = false;
+  } else if (initial_merge_remote_updates_exceeded_limit_timestamp_) {
+    initial_merge_remote_updates_exceeded_limit_timestamp_.reset();
     // Schedule save empty metadata.
     schedule_save_closure_.Run();
   }

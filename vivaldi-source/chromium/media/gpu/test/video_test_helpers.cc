@@ -706,9 +706,9 @@ scoped_refptr<VideoFrame> AlignedDataHelper::CreateVideoFrameFromVideoFrameData(
       return nullptr;
     }
 
-    std::optional<gfx::BufferFormat> buffer_format =
-        VideoPixelFormatToGfxBufferFormat(layout_->format());
-    if (!buffer_format) {
+    std::optional<viz::SharedImageFormat> si_format =
+        media::VideoPixelFormatToSharedImageFormat(layout_->format());
+    if (!si_format) {
       LOG(ERROR) << "Unexpected format: " << layout_->format();
       return nullptr;
     }
@@ -716,9 +716,8 @@ scoped_refptr<VideoFrame> AlignedDataHelper::CreateVideoFrameFromVideoFrameData(
     const auto si_usage = gpu::SHARED_IMAGE_USAGE_CPU_WRITE_ONLY |
                           gpu::SHARED_IMAGE_USAGE_DISPLAY_READ;
     auto shared_image = test_sii_->CreateSharedImage(
-        {viz::GetSharedImageFormat(*buffer_format), layout_->coded_size(),
-         gfx::ColorSpace(), gpu::SharedImageUsageSet(si_usage),
-         "AlignedDataHelper"},
+        {*si_format, layout_->coded_size(), gfx::ColorSpace(),
+         gpu::SharedImageUsageSet(si_usage), "AlignedDataHelper"},
         gpu::kNullSurfaceHandle,
         gfx::BufferUsage::VEA_READ_CAMERA_AND_CPU_READ_WRITE,
         std::move(dup_handle));
@@ -738,10 +737,12 @@ scoped_refptr<VideoFrame> AlignedDataHelper::CreateVideoFrameFromVideoFrameData(
     }
     base::ReadOnlySharedMemoryMapping mapping = shmem_region.Map();
     uint8_t* buf = const_cast<uint8_t*>(mapping.GetMemoryAs<uint8_t>());
-    std::array<uint8_t*, 3> data = {};
-    for (size_t i = 0; i < layout_->planes().size(); i++)
-      data[i] = buf + layout_->planes()[i].offset;
-
+    std::array<base::span<uint8_t>, VideoFrame::kMaxPlanes> data = {};
+    for (size_t i = 0; i < layout_->planes().size(); i++) {
+      // TODO(crbug.com/40285824): spanify this usage.
+      data[i] = UNSAFE_TODO(base::span(buf + layout_->planes()[i].offset,
+                                       layout_->planes()[i].size));
+    }
     auto frame = media::VideoFrame::WrapExternalYuvDataWithLayout(
         *layout_, visible_rect_, natural_size_, data[0], data[1], data[2],
         frame_timestamp);
@@ -824,13 +825,16 @@ RawDataHelper::~RawDataHelper() = default;
 scoped_refptr<const VideoFrame> RawDataHelper::GetFrame(size_t index) const {
   uint32_t read_frame_index =
       GetReadFrameIndex(index, reverse_, video_->NumFrames());
-  std::array<uint8_t*, VideoFrame::kMaxPlanes> frame_data = {};
+  std::array<base::span<uint8_t>, VideoFrame::kMaxPlanes> frame_data = {};
   const size_t num_planes = VideoFrame::NumPlanes(video_->PixelFormat());
   RawVideo::FrameData src_frame = video_->GetFrame(read_frame_index);
   for (size_t i = 0; i < num_planes; ++i) {
     // The data is never modified but WrapExternalYuvDataWithLayout() only
-    // accepts non-const pointer.
-    frame_data[i] = const_cast<uint8_t*>(src_frame.plane_addrs[i]);
+    // accepts non-const span.
+    // TODO(crbug.com/40285824): spanify this usage.
+    frame_data[i] =
+        UNSAFE_TODO(base::span(const_cast<uint8_t*>(src_frame.plane_addrs[i]),
+                               video_->FrameLayout().planes()[i].size));
   }
 
   scoped_refptr<VideoFrame> video_frame =

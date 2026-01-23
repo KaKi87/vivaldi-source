@@ -16,10 +16,9 @@ is_android = os.access(os.path.join(sourcedir, ".enable_android"), os.F_OK)
 is_ios = os.access(os.path.join(sourcedir, ".enable_ios"), os.F_OK)
 use_gn_ide_all = os.access(os.path.join(sourcedir, ".enable_gn_all_ide"), os.F_OK)
 use_gn_unique_name = os.access(os.path.join(sourcedir, ".enable_gn_unique_name"), os.F_OK)
-use_gn_reclient = os.access(os.path.join(sourcedir, ".enable_gn_reclient"), os.F_OK)
 use_gn_siso = os.access(os.path.join(sourcedir, ".enable_gn_siso"), os.F_OK)
 
-assert not (use_gn_reclient and use_gn_siso), "Use either Reclient mode, or Siso mode, not both"
+assert not os.access(os.path.join(sourcedir, ".enable_gn_reclient"), os.F_OK), "Reclient is now disabled. Use Siso instead"
 
 # Check python version
 #try:
@@ -221,9 +220,6 @@ if args.static or is_ios: # IOS requires static linking
 
 if args.no_hermetic:
   gn_defines += " use_hermetic_toolchain=false"
-
-if use_gn_reclient:
-  gn_defines += ' vivaldi_enable_reclient=true'
 
 if use_gn_siso:
   gn_defines += ' vivaldi_enable_siso=true'

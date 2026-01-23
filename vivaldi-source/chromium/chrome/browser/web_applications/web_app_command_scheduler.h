@@ -44,6 +44,10 @@ namespace url {
 class Origin;
 }  // namespace url
 
+namespace base {
+class Time;
+}  // namespace base
+
 class ScopedKeepAlive;
 class ScopedProfileKeepAlive;
 
@@ -79,6 +83,8 @@ struct IsolatedWebAppUpdatePrepareAndStoreCommandSuccess;
 struct SynchronizeOsOptions;
 struct WebAppIconDiagnosticResult;
 struct WebAppInstallInfo;
+struct ManifestSilentUpdateCompletionInfo;
+enum class FetchManifestAndUpdateResult;
 
 #if BUILDFLAG(IS_CHROMEOS)
 class CleanupBundleCacheSuccess;
@@ -224,14 +230,15 @@ class WebAppCommandScheduler {
       ManifestUpdateCheckCompletedCallback callback,
       const base::Location& location = FROM_HERE);
 
-  using ManifestSilentUpdateCompletedCallback =
-      base::OnceCallback<void(ManifestSilentUpdateCheckResult check_result)>;
+  using ManifestSilentUpdateCompletedCallback = base::OnceCallback<void(
+      ManifestSilentUpdateCompletionInfo completion_info)>;
   // A newer version of `ScheduleManifestUpdateCheck` that uses a more
   // predictable app updating algorithm. This will eventually replace the
   // original.
   // For more details, go/predictable-app-updating-design-doc.
   void ScheduleManifestSilentUpdate(
       content::WebContents& contents,
+      std::optional<base::Time> previous_time_for_silent_icon_update,
       ManifestSilentUpdateCompletedCallback callback,
       const base::Location& location = FROM_HERE);
 
@@ -242,6 +249,8 @@ class WebAppCommandScheduler {
   // algorithm as defined in go/predictable-app-updating-design-doc.
   void ScheduleApplyPendingManifestUpdate(
       const webapps::AppId& app_id,
+      std::unique_ptr<ScopedKeepAlive> keep_alive,
+      std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive,
       ApplyPendingManifestUpdateCallback callback,
       const base::Location& location = FROM_HERE);
 
@@ -572,7 +581,6 @@ class WebAppCommandScheduler {
   void LaunchApp(const webapps::AppId& app_id,
                  const base::CommandLine& command_line,
                  const base::FilePath& current_directory,
-                 const std::optional<GURL>& url_handler_launch_url,
                  const std::optional<GURL>& protocol_handler_launch_url,
                  const std::optional<GURL>& file_launch_url,
                  const std::vector<base::FilePath>& launch_files,
@@ -661,9 +669,24 @@ class WebAppCommandScheduler {
   void InstallAppFromUrl(const GURL& install_url,
                          const std::optional<GURL>& manifest_id,
                          base::WeakPtr<content::WebContents> web_contents,
+                         const GURL& last_committed_url,
                          WebAppInstallDialogCallback dialog_callback,
                          WebInstallFromUrlCommandCallback installed_callback,
                          const base::Location& location = FROM_HERE);
+
+  // Feches the install_url, validates that an installable manifest with a
+  // manifest id exists and matches the given one. Then, locks the app lock for
+  // the app and and updates the app if it is installed. This assumes it is a
+  // trusted update, so trusted icons are copied from all manifest icons.
+  //
+  // Note: Callers may want to check if the app is installed first before
+  // calling this to not waste resources loading the install url in the
+  // background.
+  void FetchManifestAndUpdate(
+      const GURL& install_url,
+      const webapps::ManifestId& manifest_id,
+      base::OnceCallback<void(FetchManifestAndUpdateResult)> callback,
+      const base::Location& location = FROM_HERE);
 
   base::WeakPtr<WebAppCommandScheduler> GetWeakPtr();
 
@@ -682,6 +705,13 @@ class WebAppCommandScheduler {
   void ReadAppUpdateDataFromDisk(
       const webapps::AppId& app_id,
       base::OnceCallback<void(std::optional<WebAppIdentityUpdate>)> callback,
+      const base::Location& location = FROM_HERE);
+
+  // Marks whether the pending update available for the app is ignored by the
+  // user, and notifies changes to the WebAppRegistrar.
+  void MarkAppPendingUpdateAsIgnored(
+      const webapps::AppId& app_id,
+      base::OnceClosure done,
       const base::Location& location = FROM_HERE);
 
   // TODO(crbug.com/40215411): expose all commands for web app

@@ -49,7 +49,7 @@
 <translation id="1521731267649138856">vaša adresa e-pošte za oporavak.</translation>
 <translation id="1534183273237573805">Izborom jednog od ovih pretraživača, podržavate razvoj Vivaldi pregledača.</translation>
 <translation id="1535446875484049224">Tamni režim ne radi ili ne izgleda kako treba</translation>
-<translation id="1558430487788094817">Morate obezbediti važeći protokol.</translation>
+<translation id="1558430487788094817">Morate obezbediti važeći protokol.</translation>
 <translation id="1567659716528258242">Vivaldi mi zagreva uređaj</translation>
 <translation id="156793582229023040">Zabrinut sam zbog praćenja ili prikupljanja podataka</translation>
 <translation id="1573784689611551537">Upravljanje izvorima blokiranja reklama</translation>
@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Nivo zumiranja za <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi je spor, ruši se ili zagreva uređaj</translation>
 <translation id="1929299157575856072">PODRAZUMEVANI NIVO BLOKIRANjA</translation>
+<translation id="1933618400514506228">Srpsko-hrvatski (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Otvori sliku u kartici u pozadini</translation>
 <translation id="1986733655397734221">Ništa od ovoga</translation>
 <translation id="1994506778397655062">Otvori u novoj kartici u pozadini</translation>
@@ -90,7 +91,7 @@
 <translation id="2034405583989639424">Uredi brzo biranje</translation>
 <translation id="2048247880942380698">Arapski (<ph name="ORIGIN" />)</translation>
 <translation id="2079545284768500474">Opozovi</translation>
-<translation id="2138901399878617625">Sadite drveće dok pretražujete</translation>
+<translation id="2138901399878617625">Sadite drveće dok pretražujete</translation>
 <translation id="2148384276939959392">Sinhronizuj izabrano</translation>
 <translation id="2179052183774520942">Dodaj pretraživač</translation>
 <translation id="2195713384412091023">Ovo će ukloniti sve sinhronizovane podatke uskladištene na našem serveru, poništiti vašu lozinku za šifrovanje i odjaviti vas.</translation>
@@ -136,7 +137,7 @@ reklama</translation>
 <translation id="2709516037105925701">Automatsko popunjavanje</translation>
 <translation id="271033894570825754">Novo</translation>
 <translation id="2712076950889800659">Ako nastavite, prihvatate <ph name="BEGIN_LINK" />Ugovor o licenciranju sa krajnjim korisnikom<ph name="END_LINK" /> i <ph name="BEGIN_LINK" />Politiku privatnosti<ph name="END_LINK" /> Vivaldi pregledača</translation>
-<translation id="2720646732332242062">Omogući nadimke</translation>
+<translation id="2720646732332242062">Omogući nadimke</translation>
 <translation id="2725892265692641195">Nov <ph name="ITEM_TYPE" /></translation>
 <translation id="2745324713975967671">Lozinka za šifrovanje</translation>
 <translation id="276436995507680929">Sinhronizacija liste za čitanje</translation>
@@ -144,7 +145,7 @@ reklama</translation>
 <translation id="2767124759205735526">Sinhronizacija istorije i unetih URL adresa</translation>
 <translation id="2770868136620962117">Vau, tako smo srećni što to čujemo!</translation>
 <translation id="2818665331928314854">Omogući obeleživače</translation>
-<translation id="2820889731327284977">Nadimak već koristi <ph name="ENGINE_NAME" />.</translation>
+<translation id="2820889731327284977">Nadimak već koristi <ph name="ENGINE_NAME" />.</translation>
 <translation id="2825232297853754349">Morate se složiti sa uslovima i odredbama.</translation>
 <translation id="2842985007712546952">Nadređena fascikla</translation>
 <translation id="2843343418360315034">Mađarski (<ph name="ORIGIN" />)</translation>
@@ -167,7 +168,6 @@ reklama</translation>
 <translation id="309084557304084991">Ne želim unapred učitane obeleživače i brza biranja</translation>
 <translation id="3091563570137981919">Blokiranje praćenja i reklama</translation>
 <translation id="3097968995088564986">Prikaži dugme ’Dodaj’</translation>
-<translation id="3102790820790869053">Pretraži nedavne kartice</translation>
 <translation id="3134385238404760368">Nema nedavnih kartica</translation>
 <translation id="3142562627629111859">Nova grupa</translation>
 <translation id="3157931365184549694">Vrati</translation>
@@ -189,7 +189,7 @@ reklama</translation>
 <translation id="3368960138304620657">Litvanski (<ph name="ORIGIN" />)</translation>
 <translation id="3377025655491224618">Privatna kartica</translation>
 <translation id="3394474617110693560">Kategorije</translation>
-<translation id="3405080914346191957">Ovde ćete pronaći svoje grupe kartica</translation>
+<translation id="3405080914346191957">Ovde ćete pronaći svoje grupe kartica</translation>
 <translation id="3435896845095436175">Omogući</translation>
 <translation id="3438160227308459316">Rumunski (<ph name="ORIGIN" />)</translation>
 <translation id="3451109402849920193">Obezbedio Lingvanex, hostuje Vivaldi.</translation>
@@ -226,6 +226,7 @@ reklama</translation>
 <translation id="383723620494271391">Želite li još nešto da dodate?</translation>
 <translation id="3842727926262967527">Izaberite gde želite da imate traku kartica i adresno polje.</translation>
 <translation id="3845564230651302310">Primena novih podešavanja blokatora...</translation>
+<translation id="385051799172605136">Nazad</translation>
 <translation id="3858860766373142691">Ime</translation>
 <translation id="3861379244432690245">Omogući direktno podudaranje</translation>
 <translation id="3866249974567520381">Opis</translation>
@@ -262,7 +263,7 @@ reklama</translation>
 <translation id="4152011295694446843">Ovde ćete pronaći svoje obeleživače</translation>
 <translation id="4152623049003960417">Detalji o praćenjima</translation>
 <translation id="4176463684765177261">Onemogućeno</translation>
-<translation id="4181792832006033883">Vivaldi pokreću naši korisnici, a ne IT giganti ili investitori. Svaka donacija direktno podržava našu misiju za otvoreni, privatni internet. Budite deo promena.</translation>
+<translation id="4181792832006033883">Vivaldi pokreću naši korisnici, a ne IT giganti ili investitori. Svaka donacija direktno podržava našu misiju za otvoreni, privatni internet. Budite deo promena.</translation>
 <translation id="4184746246941929945">Vivaldi se udružio sa <ph name="PARTNER_NAME" />-om da ne blokira reklame na ovoj stranici. Ove reklame pomažu u finansiranju razvoja Vivaldi pregledača.</translation>
 <translation id="4193549853510262477">Automatski otkriveno</translation>
 <translation id="4209092469652827314">Veliko</translation>
@@ -310,7 +311,6 @@ praćenja</translation>
 <translation id="462860218383788109">Datum uređivanja</translation>
 <translation id="4640946580087069269">Kopiraj u belešku</translation>
 <translation id="4643117005422448078">Najposećeniji sajtovi</translation>
-<translation id="4654428449690716275">Ne prikazuj banere pre ili nakon što se ponudi prevod</translation>
 <translation id="4654578955713250802">Blokiranje reklama i praćenja</translation>
 <translation id="4655510151391078468">Ovaj kod se ne podudara sa onim koji smo vam poslali.
         Imate još <ph name="ATTEMPTS" /> pokušaja.</translation>
@@ -357,7 +357,7 @@ praćenje</translation>
 <translation id="5094376253685335202">Omogući sinhronizaciju</translation>
 <translation id="5116316489033177455">Sinhronizacija obeleživača i brzih biranja</translation>
 <translation id="5122095890854520072">Letonski (<ph name="ORIGIN" />)</translation>
-<translation id="5128025282874907098">100% vaših donacija će biti iskorišćeno za finansiranje dugoročnog razvoja Vivaldi pregledača i naše borbe za bolji veb.</translation>
+<translation id="5128025282874907098">100% vaših donacija će biti iskorišćeno za finansiranje dugoročnog razvoja Vivaldi pregledača i naše borbe za bolji veb.</translation>
 <translation id="5153806174841856652">Prijavljivanje nije uspelo</translation>
 <translation id="5160018607418677056"><ph name="BEGIN_LINK" />Ponovo pošalji kod<ph name="END_LINK" /></translation>
 <translation id="5166345991950198590">Prikaži najposećenije sajtove</translation>
@@ -377,7 +377,7 @@ praćenje</translation>
 <translation id="5398772614898833570">Blokirane reklame</translation>
 <translation id="5415265829033764921">Dozvoli pravilima blokiranja da blokiraju određene veb stranice.</translation>
 <translation id="5421638721143596928">Nije uspelo dešifrovanje vaših podataka za prijavljivanje. Prijavite se ponovo.</translation>
-<translation id="5439599923922718668">Često posećeni</translation>
+<translation id="5439599923922718668">Često posećeni sajtovi</translation>
 <translation id="5439835075346716808">Registracija je privremeno blokirana za ovu IP adresu. Pokušajte ponovo kasnije.</translation>
 <translation id="5475116651001049780">Sakrij mobilnu verziju sajta</translation>
 <translation id="5486261815000869482">Potvrdite lozinku</translation>
@@ -496,6 +496,7 @@ praćenje</translation>
 <translation id="6946395294519639514">Pomoću panela možete držati korisne alate na dohvat ruke na bočnoj traci pregledača.</translation>
 <translation id="6951435330868954105">Upravljaj podešavanjima</translation>
 <translation id="6951948201878750661">Dodirnite da biste izabrali ovu boju</translation>
+<translation id="6954630860045222581">Prikaži panel</translation>
 <translation id="6967884871145366229">Upravljaj podešavanjima privatnosti</translation>
 <translation id="6973630695168034713">Fascikle</translation>
 <translation id="7000227144065890583">Adresa predloga</translation>
@@ -663,6 +664,7 @@ praćenje</translation>
 <translation id="8948792607467387336">Izaberi kao tapet</translation>
 <translation id="8964449607824577665">Bez vaše trenutne lozinke za šifrovanje ne možemo da dešifrujemo vaše podatke. Poništavanje ove lozinke zahteva brisanje svih postojećih sinhronizovanih podataka na Vivaldi serverima.</translation>
 <translation id="8965371804397726192">Pokreni sinhronizaciju svih podataka</translation>
+<translation id="896787570003733070">Ne prikazuj banere pre ili posle ponude prevoda</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Obeleživač je premešten u "{title}"}
           other {Obeleživači su premešteni u "{title}"}}</translation>

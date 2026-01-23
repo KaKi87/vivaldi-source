@@ -10,16 +10,18 @@ import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoor
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.MVT;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.NTP_CARDS;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME_COLLECTIONS;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LAYOUT_TO_DISPLAY;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LIST_CONTAINER_KEYS;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.VIEW_FLIPPER_KEYS;
 
 import android.content.Context;
-import android.support.annotation.IntDef;
-import android.support.annotation.VisibleForTesting;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ViewFlipper;
+
+import androidx.annotation.IntDef;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -50,7 +52,7 @@ public class NtpCustomizationCoordinator {
 
     private final Context mContext;
     private final BottomSheetController mBottomSheetController;
-    private final Supplier<Profile> mProfileSupplier;
+    private final Supplier<@Nullable Profile> mProfileSupplier;
     private final int mBottomSheetType;
     private NtpCustomizationMediator mMediator;
     private @Nullable MvtSettingsCoordinator mMvtSettingCoordinator;
@@ -73,7 +75,9 @@ public class NtpCustomizationCoordinator {
         BottomSheetType.MVT,
         BottomSheetType.CHROME_COLORS,
         BottomSheetType.THEME_COLLECTIONS,
-        BottomSheetType.SINGLE_THEME_COLLECTION
+        BottomSheetType.SINGLE_THEME_COLLECTION,
+        BottomSheetType.UPLOAD_IMAGE,
+        BottomSheetType.CHROME_DEFAULT
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface BottomSheetType {
@@ -85,7 +89,9 @@ public class NtpCustomizationCoordinator {
         int THEME_COLLECTIONS = 5;
         int SINGLE_THEME_COLLECTION = 6;
         int CHROME_COLORS = 7;
-        int NUM_ENTRIES = 8;
+        int UPLOAD_IMAGE = 8; // No dedicated bottom sheet for upload image.
+        int CHROME_DEFAULT = 9; // No bottom sheet is shown.
+        int NUM_ENTRIES = 10;
     }
 
     /**
@@ -113,10 +119,10 @@ public class NtpCustomizationCoordinator {
      *     main bottom sheet will be shown instead, enabling its full navigation flow, otherwise the
      *     bottom sheet of the bottomSheetType will show by itself.
      */
-    public NtpCustomizationCoordinator(
+    NtpCustomizationCoordinator(
             Context context,
             BottomSheetController bottomSheetController,
-            Supplier<Profile> profileSupplier,
+            Supplier<@Nullable Profile> profileSupplier,
             @BottomSheetType int bottomSheetType) {
         mContext = context;
         mBottomSheetController = bottomSheetController;
@@ -213,7 +219,7 @@ public class NtpCustomizationCoordinator {
 
     private void showNtpCardsBottomSheet() {
         if (mNtpCardsCoordinator == null) {
-            mNtpCardsCoordinator = new NtpCardsCoordinator(mContext, mDelegate);
+            mNtpCardsCoordinator = new NtpCardsCoordinator(mContext, mDelegate, mProfileSupplier);
         }
         mMediator.showBottomSheet(NTP_CARDS);
     }
@@ -245,6 +251,10 @@ public class NtpCustomizationCoordinator {
                             () -> mMediator.dismissBottomSheet(/* animate= */ false));
         }
         mMediator.showBottomSheet(THEME);
+    }
+
+    void dismissBottomSheet() {
+        mMediator.dismissBottomSheet(/* animate= */ true);
     }
 
     /**
@@ -298,6 +308,14 @@ public class NtpCustomizationCoordinator {
             @Override
             public void showBottomSheet(@BottomSheetType int type) {
                 mMediator.showBottomSheet(type);
+
+                // When redirecting to the single theme collection bottom sheet and theme
+                // collections bottom sheet, the bottom sheet needs to be updated to reflect the
+                // latest selections.
+                if ((type == THEME_COLLECTIONS || type == BottomSheetType.SINGLE_THEME_COLLECTION)
+                        && mNtpThemeCoordinator != null) {
+                    mNtpThemeCoordinator.initializeBottomSheetContent(type);
+                }
             }
 
             @Override
@@ -330,6 +348,9 @@ public class NtpCustomizationCoordinator {
     public void destroy() {
         mViewFlipperView.removeAllViews();
         mMediator.destroy();
+        NtpCustomizationCoordinatorFactory.getInstance()
+                .onNtpCustomizationCoordinatorDestroyed(this);
+
         if (mMvtSettingCoordinator != null) {
             mMvtSettingCoordinator.destroy();
         }
@@ -362,5 +383,9 @@ public class NtpCustomizationCoordinator {
 
     void setMediatorForTesting(NtpCustomizationMediator mediator) {
         mMediator = mediator;
+    }
+
+    void setNtpThemeCoordinatorForTesting(NtpThemeCoordinator coordinator) {
+        mNtpThemeCoordinator = coordinator;
     }
 }

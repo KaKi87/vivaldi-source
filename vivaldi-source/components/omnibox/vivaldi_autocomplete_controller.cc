@@ -86,7 +86,7 @@ bool AutocompleteController::VivaldiShouldRunProvider(
       // VAB-11216
       return omnibox::IsAndroidHub(input_.current_page_classification());
 #else
-      return is_cros_launcher_;
+      return config_.unscoped_open_tab_suggestions;
 #endif
     case AutocompleteProvider::TYPE_HISTORY_EMBEDDINGS:
 #if !BUILDFLAG(IS_IOS)

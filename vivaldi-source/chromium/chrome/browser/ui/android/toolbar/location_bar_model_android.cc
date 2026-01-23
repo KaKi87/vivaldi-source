@@ -73,7 +73,7 @@ bool LocationBarModelAndroid::IsNewTabPage() const {
 
   // Android Chrome has its own Instant NTP page implementation.
   if (url.SchemeIs(chrome::kChromeNativeScheme) &&
-      url.host_piece() == chrome::kChromeUINewTabHost) {
+      url.host() == chrome::kChromeUINewTabHost) {
     return true;
   }
 
@@ -81,6 +81,9 @@ bool LocationBarModelAndroid::IsNewTabPage() const {
 }
 
 // static
-jlong JNI_LocationBarModel_Init(JNIEnv* env, const JavaParamRef<jobject>& obj) {
+static jlong JNI_LocationBarModel_Init(JNIEnv* env,
+                                       const JavaParamRef<jobject>& obj) {
   return reinterpret_cast<intptr_t>(new LocationBarModelAndroid(env, obj));
 }
+
+DEFINE_JNI(LocationBarModel)

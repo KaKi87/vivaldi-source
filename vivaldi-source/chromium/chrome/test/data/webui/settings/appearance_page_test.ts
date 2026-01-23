@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {CustomizeColorSchemeModeClientRemote, SettingsAppearancePageElement, SettingsDropdownMenuElement, SettingsToggleButtonElement} from 'chrome://settings/settings.js';
-import {AppearanceBrowserProxyImpl, ColorSchemeMode, CustomizeColorSchemeModeBrowserProxy, CustomizeColorSchemeModeClientCallbackRouter, CustomizeColorSchemeModeHandlerRemote, SystemTheme} from 'chrome://settings/settings.js';
+import {AppearanceBrowserProxyImpl, ColorSchemeMode, CustomizeColorSchemeModeBrowserProxy, CustomizeColorSchemeModeClientCallbackRouter, CustomizeColorSchemeModeHandlerRemote, loadTimeData, SystemTheme} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
 import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
@@ -65,6 +64,12 @@ function createAppearancePage() {
     },
     tab_search: {
       is_right_aligned: {
+        type: chrome.settingsPrivate.PrefType.BOOLEAN,
+        value: false,
+      },
+    },
+    vertical_tabs: {
+      enabled: {
         type: chrome.settingsPrivate.PrefType.BOOLEAN,
         value: false,
       },
@@ -292,7 +297,7 @@ suite('AppearanceHandler', function() {
   test('default zoom handling', async function() {
     function getDefaultZoomText() {
       const zoomLevel = appearancePage.$.zoomLevel;
-      return zoomLevel.options[zoomLevel.selectedIndex]!.textContent!.trim();
+      return zoomLevel.options[zoomLevel.selectedIndex]!.textContent.trim();
     }
 
     await appearanceBrowserProxy.whenCalled('getDefaultZoom');
@@ -530,5 +535,52 @@ suite('TabSearchPositionSettings', () => {
 
     await userClicksDropdownForOption(/*userChoice=*/ false);
     assertFalse(!!getTabSearchRestartButton());
+  });
+});
+
+suite('TabStripPositionSettings', () => {
+  setup(async () => {
+    loadTimeData.overrideValues({
+      showVerticalTabsEnabled: true,
+    });
+
+    appearanceBrowserProxy = new TestAppearanceBrowserProxy();
+    AppearanceBrowserProxyImpl.setInstance(appearanceBrowserProxy);
+
+    createAppearancePage();
+
+    await microtasksFinished();
+  });
+
+  teardown(function() {
+    appearancePage.remove();
+  });
+
+  test('Dropdown menu updates vertical_tabs.enabled.value', async function() {
+    assertFalse(appearancePage.get('prefs.vertical_tabs.enabled.value'));
+
+    const dropdown =
+        appearancePage.shadowRoot!.querySelector<SettingsDropdownMenuElement>(
+            '#tabStripPosition');
+    assertTrue(!!dropdown);
+
+    const selectElement = dropdown.$.dropdownMenu;
+    assertTrue(!!selectElement);
+
+    assertEquals('false', selectElement.value);
+
+    selectElement.value = 'true';
+    selectElement.dispatchEvent(new Event('change'));
+    await microtasksFinished();
+
+    assertTrue(appearancePage.get('prefs.vertical_tabs.enabled.value'));
+    assertEquals('true', selectElement.value);
+
+    selectElement.value = 'false';
+    selectElement.dispatchEvent(new Event('change'));
+    await microtasksFinished();
+
+    assertFalse(appearancePage.get('prefs.vertical_tabs.enabled.value'));
+    assertEquals('false', selectElement.value);
   });
 });

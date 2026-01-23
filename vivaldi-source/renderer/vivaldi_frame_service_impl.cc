@@ -308,11 +308,6 @@ void VivaldiFrameServiceImpl::ResumeParser() {
   loader->ResumeParser();
 }
 
-void VivaldiFrameServiceImpl::SetSupportsDraggableRegions(
-    bool supports_draggable_regions) {
-  render_frame_->GetWebView()->SetSupportsDraggableRegions(supports_draggable_regions);
-}
-
 namespace {
 bool CopyBitmapToSharedRegionAsN32(
     const SkBitmap& bitmap,

@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <sync/sync.h>
+#include <android/sync.h>
 #include <sw_sync.h>
 #include <fcntl.h>
 #include <vector>
@@ -14,6 +14,35 @@
 #include <tuple>
 #include <random>
 #include <unordered_map>
+
+/* These deprecated declarations were in the legacy android/sync.h. They've been removed to
+ * encourage code to move to the modern equivalents. But they are still implemented in libsync.so
+ * to avoid breaking existing binaries; as long as that's true we should keep testing them here.
+ * That means making local copies of the declarations.
+ */
+extern "C" {
+
+struct sync_fence_info_data {
+    uint32_t len;
+    char name[32];
+    int32_t status;
+    uint8_t pt_info[0];
+};
+
+struct sync_pt_info {
+    uint32_t len;
+    char obj_name[32];
+    char driver_name[32];
+    int32_t status;
+    uint64_t timestamp_ns;
+    uint8_t driver_data[0];
+};
+
+struct sync_fence_info_data* sync_fence_info(int fd);
+struct sync_pt_info* sync_pt_info(struct sync_fence_info_data* info, struct sync_pt_info* itr);
+void sync_fence_info_free(struct sync_fence_info_data* info);
+
+}  // extern "C"
 
 // TODO: better stress tests?
 // Handle more than 64 fd's simultaneously, i.e. fix sync_fence_info's 4k limit.
@@ -172,20 +201,20 @@ public:
         return sync_wait(m_fd, timeout);
     }
     vector<SyncPointInfo> getInfo() const {
-        struct sync_pt_info *pointInfo = nullptr;
         vector<SyncPointInfo> fenceInfo;
-        sync_fence_info_data *info = sync_fence_info(getFd());
+        struct sync_file_info *info = sync_file_info(getFd());
         if (!info) {
             return fenceInfo;
         }
-        while ((pointInfo = sync_pt_info(info, pointInfo))) {
+        const auto fences = sync_get_fence_info(info);
+        for (uint32_t i = 0; i < info->num_fences; i++) {
             fenceInfo.push_back(SyncPointInfo{
-                pointInfo->driver_name,
-                pointInfo->obj_name,
-                pointInfo->timestamp_ns,
-                pointInfo->status});
+                fences[i].driver_name,
+                fences[i].obj_name,
+                fences[i].timestamp_ns,
+                fences[i].status});
         }
-        sync_fence_info_free(info);
+        sync_file_info_free(info);
         return fenceInfo;
     }
     int getSize() const {
@@ -212,6 +241,32 @@ private:
     }
 };
 
+static void CheckModernLegacyInfoMatch(const SyncFence& f) {
+    struct sync_file_info* modern = sync_file_info(f.getFd());
+    struct sync_fence_info_data* legacy = sync_fence_info(f.getFd());
+
+    ASSERT_TRUE(modern != NULL);
+    ASSERT_TRUE(legacy != NULL);
+
+    EXPECT_STREQ(modern->name, legacy->name);
+    EXPECT_EQ(modern->status, legacy->status);
+
+    uint32_t fenceIdx = 0;
+    struct sync_pt_info* pt = sync_pt_info(legacy, NULL);
+    const struct sync_fence_info* fences = sync_get_fence_info(modern);
+    while (fenceIdx < modern->num_fences && pt != NULL) {
+        EXPECT_STREQ(fences[fenceIdx].obj_name, pt->obj_name);
+        EXPECT_STREQ(fences[fenceIdx].driver_name, pt->driver_name);
+        EXPECT_EQ(fences[fenceIdx].status, pt->status);
+        EXPECT_EQ(fences[fenceIdx].timestamp_ns, pt->timestamp_ns);
+
+        fenceIdx++;
+        pt = sync_pt_info(legacy, pt);
+    }
+    EXPECT_EQ(fenceIdx, modern->num_fences);
+    EXPECT_EQ(NULL, pt);
+}
+
 int SyncFence::s_fenceCount = 0;
 
 TEST(AllocTest, Timeline) {
@@ -225,6 +280,7 @@ TEST(AllocTest, Fence) {
 
     SyncFence fence(timeline, 1);
     ASSERT_TRUE(fence.isValid());
+    CheckModernLegacyInfoMatch(fence);
 }
 
 TEST(AllocTest, FenceNegative) {
@@ -321,15 +377,21 @@ TEST(FenceTest, OneTimelineMerge) {
     timeline.inc(1);
     ASSERT_EQ(a.getSignaledCount(), 1);
     ASSERT_EQ(d.getActiveCount(), 1);
+    CheckModernLegacyInfoMatch(a);
+    CheckModernLegacyInfoMatch(d);
 
     timeline.inc(1);
     ASSERT_EQ(b.getSignaledCount(), 1);
     ASSERT_EQ(d.getActiveCount(), 1);
+    CheckModernLegacyInfoMatch(b);
+    CheckModernLegacyInfoMatch(d);
 
     timeline.inc(1);
     ASSERT_EQ(c.getSignaledCount(), 1);
     ASSERT_EQ(d.getActiveCount(), 0);
     ASSERT_EQ(d.getSignaledCount(), 1);
+    CheckModernLegacyInfoMatch(c);
+    CheckModernLegacyInfoMatch(d);
 }
 
 TEST(FenceTest, MergeSameFence) {
@@ -343,9 +405,11 @@ TEST(FenceTest, MergeSameFence) {
     ASSERT_TRUE(selfMergeFence.isValid());
 
     ASSERT_EQ(selfMergeFence.getSignaledCount(), 0);
+    CheckModernLegacyInfoMatch(selfMergeFence);
 
     timeline.inc(5);
     ASSERT_EQ(selfMergeFence.getSignaledCount(), 1);
+    CheckModernLegacyInfoMatch(selfMergeFence);
 }
 
 TEST(FenceTest, PollOnDestroyedTimeline) {
@@ -397,17 +461,55 @@ TEST(FenceTest, MultiTimelineWait) {
     timelineA.inc(5);
     ASSERT_EQ(mergedFence.getActiveCount(), 2);
     ASSERT_EQ(mergedFence.getSignaledCount(), 1);
+    CheckModernLegacyInfoMatch(mergedFence);
 
     timelineB.inc(5);
     ASSERT_EQ(mergedFence.getActiveCount(), 1);
     ASSERT_EQ(mergedFence.getSignaledCount(), 2);
+    CheckModernLegacyInfoMatch(mergedFence);
 
     timelineC.inc(5);
     ASSERT_EQ(mergedFence.getActiveCount(), 0);
     ASSERT_EQ(mergedFence.getSignaledCount(), 3);
+    CheckModernLegacyInfoMatch(mergedFence);
 
     // confirm you can successfully wait.
     ASSERT_EQ(mergedFence.wait(100), 0);
+}
+
+TEST(FenceTest, GetInfoActive) {
+    SyncTimeline timeline;
+    ASSERT_TRUE(timeline.isValid());
+
+    SyncFence fence(timeline, 1);
+    ASSERT_TRUE(fence.isValid());
+
+    vector<SyncPointInfo> info = fence.getInfo();
+    ASSERT_EQ(info.size(), 1);
+
+    ASSERT_FALSE(info[0].driverName.empty());
+    ASSERT_FALSE(info[0].objectName.empty());
+    ASSERT_EQ(info[0].timeStampNs, 0);
+    ASSERT_EQ(info[0].status, 0);
+}
+
+TEST(FenceTest, GetInfoSignaled) {
+    SyncTimeline timeline;
+    ASSERT_TRUE(timeline.isValid());
+
+    SyncFence fence(timeline, 1);
+    ASSERT_TRUE(fence.isValid());
+
+    ASSERT_EQ(timeline.inc(1), 0);
+    ASSERT_EQ(fence.wait(), 0);
+
+    vector<SyncPointInfo> info = fence.getInfo();
+    ASSERT_EQ(info.size(), 1);
+
+    ASSERT_FALSE(info[0].driverName.empty());
+    ASSERT_FALSE(info[0].objectName.empty());
+    ASSERT_GT(info[0].timeStampNs, 0);
+    ASSERT_EQ(info[0].status, 1);
 }
 
 TEST(StressTest, TwoThreadsSharedTimeline) {
@@ -560,6 +662,7 @@ TEST_P(MergeStressTest, RandomMerge) {
         // Merge.
         fence = SyncFence(fence, SyncFence(timeline, syncPoint));
         ASSERT_TRUE(fence.isValid());
+        CheckModernLegacyInfoMatch(fence);
     }
 
     // Confirm our map matches the fence.

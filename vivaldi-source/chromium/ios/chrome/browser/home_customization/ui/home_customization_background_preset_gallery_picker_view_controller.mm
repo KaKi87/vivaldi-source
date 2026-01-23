@@ -6,13 +6,15 @@
 
 #import <Foundation/Foundation.h>
 
+#import "base/apple/foundation_util.h"
 #import "base/check.h"
 #import "base/metrics/histogram_functions.h"
 #import "ios/chrome/browser/home_customization/ui/background_collection_configuration.h"
 #import "ios/chrome/browser/home_customization/ui/background_customization_configuration.h"
+#import "ios/chrome/browser/home_customization/ui/home_customization_accessibility_identifiers.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_background_cell.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_background_configuration_mutator.h"
-#import "ios/chrome/browser/home_customization/ui/home_customization_background_picker_action_sheet_consumer.h"
+#import "ios/chrome/browser/home_customization/ui/home_customization_background_picker_presentation_delegate.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_background_preset_header_view.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_background_skeleton_cell.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_collection_configurator.h"
@@ -21,8 +23,10 @@
 #import "ios/chrome/browser/home_customization/ui/home_customization_view_controller_protocol.h"
 #import "ios/chrome/browser/home_customization/utils/home_customization_constants.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/custom_ui_trait_accessor.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
@@ -44,7 +48,8 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 }  // namespace
 
 @interface HomeCustomizationBackgroundPresetGalleryPickerViewController () <
-    HomeCustomizationViewControllerProtocol> {
+    HomeCustomizationViewControllerProtocol,
+    UICollectionViewDataSourcePrefetching> {
   // The configurator for the collection view.
   HomeCustomizationCollectionConfigurator* _collectionConfigurator;
 
@@ -67,9 +72,6 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
   NSArray<BackgroundCollectionConfiguration*>*
       _backgroundCollectionConfigurations;
 
-  // The id of the selected background cell.
-  NSString* _selectedBackgroundId;
-
   // Timer used to periodically trigger the loading animation update.
   NSTimer* _loadingTimer;
 
@@ -82,7 +84,14 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 
   // The number of times an item from the gallery is selected.
   int _galleryClickCount;
+
+  // Cache for prepared thumbnail images. The key is the configuration ID.
+  NSCache<NSString*, UIImage*>* _preparedImageCache;
+
+  // Set of in progress image fetches, keyed by configuration ID.
+  NSMutableSet<NSString*>* _inProgressImageFetches;
 }
+
 @end
 
 @implementation HomeCustomizationBackgroundPresetGalleryPickerViewController
@@ -94,10 +103,11 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 @synthesize additionalViewWillTransitionToSizeHandler =
     _additionalViewWillTransitionToSizeHandler;
 
-@dynamic navigationItem;
-
 - (void)viewDidLoad {
   [super viewDidLoad];
+
+  _preparedImageCache = [[NSCache alloc] init];
+  _inProgressImageFetches = [[NSMutableSet alloc] init];
 
   __weak __typeof(self) weakSelf = self;
 
@@ -107,7 +117,12 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
   self.title = l10n_util::GetNSStringWithFixup(
       IDS_IOS_HOME_CUSTOMIZATION_BACKGROUND_PICKER_PRESET_GALLERY_TITLE);
 
-  self.view.backgroundColor = [UIColor systemBackgroundColor];
+  if (@available(iOS 26, *)) {
+    self.view.backgroundColor = UIColor.clearColor;
+  } else {
+    self.view.backgroundColor =
+        [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+  }
 
   UICollectionViewCompositionalLayout* layout =
       [[UICollectionViewCompositionalLayout alloc]
@@ -123,6 +138,10 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
   _collectionView = [[UICollectionView alloc] initWithFrame:CGRectZero
                                        collectionViewLayout:layout];
   _collectionView.delegate = self;
+  _collectionView.accessibilityIdentifier =
+      kHomeCustomizationGalleryPickerViewAccessibilityIdentifier;
+  _collectionView.prefetchDataSource = self;
+  _collectionView.backgroundColor = UIColor.clearColor;
 
   _diffableDataSource = [[UICollectionViewDiffableDataSource alloc]
       initWithCollectionView:_collectionView
@@ -139,8 +158,11 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
         return [weakSelf configuredHeaderForIndexPath:indexPath];
       };
 
-  [_diffableDataSource applySnapshot:[self skeletonSnapshot]
-                animatingDifferences:NO];
+  NSDiffableDataSourceSnapshot<CustomizationSection*, NSString*>*
+      initialSnapshot =
+          (_backgroundCollectionConfigurations) ? [self dataSnapshot]
+                                                : [self skeletonSnapshot];
+  [_diffableDataSource applySnapshot:initialSnapshot animatingDifferences:NO];
 
   _loadingTimer =
       [NSTimer scheduledTimerWithTimeInterval:(kAnimationIntervalSeconds)
@@ -166,7 +188,22 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
   }
 }
 
-- (NSInteger)selectedIndex {
+- (void)viewWillDisappear:(BOOL)animated {
+  // Log final maximums before disappearing, for example.
+  base::UmaHistogramSparse(
+      "IOS.HomeCustomization.Background.Gallery.MaxVisibleSectionIndex",
+      _maxVisibleSectionIndex);
+  base::UmaHistogramSparse(
+      "IOS.HomeCustomization.Background.Gallery.MaxVisibleItemIndex",
+      _maxVisibleItemIndex);
+  // Log the total number of selection changes while the gallery was open.
+  base::UmaHistogramCounts10000(
+      "IOS.HomeCustomization.Background.Gallery.ClickCount",
+      _galleryClickCount);
+  [self stopLoadingAnimation];
+}
+
+- (NSInteger)selectedSectionIndex {
   return _collectionView.indexPathsForSelectedItems.firstObject.section;
 }
 
@@ -195,27 +232,54 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
     }
   }
 
-  _selectedBackgroundId = selectedBackgroundId;
   _backgroundCustomizationConfigurationMap =
       backgroundCustomizationConfigurationMap;
   _backgroundCollectionConfigurations = backgroundCollectionConfigurations;
-  [_diffableDataSource applySnapshot:[self dataSnapshot]
-                animatingDifferences:NO];
+  __weak __typeof(self) weakSelf = self;
+  [_diffableDataSource
+             applySnapshot:[self dataSnapshot]
+      animatingDifferences:NO
+                completion:^() {
+                  [weakSelf selectItemWithIdentifier:selectedBackgroundId];
+                }];
 }
 
-- (void)viewWillDisappear:(BOOL)animated {
-  // Log final maximums before disappearing, for example.
-  base::UmaHistogramSparse(
-      "IOS.HomeCustomization.Background.Gallery.MaxVisibleSectionIndex",
-      _maxVisibleSectionIndex);
-  base::UmaHistogramSparse(
-      "IOS.HomeCustomization.Background.Gallery.MaxVisibleItemIndex",
-      _maxVisibleItemIndex);
-  // Log the total number of selection changes while the gallery was open.
-  base::UmaHistogramCounts10000(
-      "IOS.HomeCustomization.Background.Gallery.ClickCount",
-      _galleryClickCount);
-  [self stopLoadingAnimation];
+- (void)selectItemWithIdentifier:(NSString*)itemIdentifier {
+  NSIndexPath* indexPath =
+      [_diffableDataSource indexPathForItemIdentifier:itemIdentifier];
+  [self.collectionView
+      selectItemAtIndexPath:indexPath
+                   animated:NO
+             scrollPosition:UICollectionViewScrollPositionNone];
+}
+
+- (void)currentBackgroundConfigurationChanged:
+    (id<BackgroundCustomizationConfiguration>)currentConfiguration {
+  NSString* currentItemID = currentConfiguration.configurationID;
+  NSIndexPath* currentItemIndexPath =
+      [_diffableDataSource indexPathForItemIdentifier:currentItemID];
+
+  [self.collectionView
+      selectItemAtIndexPath:currentItemIndexPath
+                   animated:NO
+             scrollPosition:UICollectionViewScrollPositionNone];
+
+  UIBarButtonItem* cancelButton = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                           target:self
+                           action:@selector(cancelButtonPressed)];
+  cancelButton.accessibilityIdentifier =
+      kPickerViewCancelButtonAccessibilityIdentifier;
+
+  UIBarButtonItem* doneButton = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(donebuttonPressed)];
+  doneButton.accessibilityIdentifier =
+      kPickerViewDoneButtonAccessibilityIdentifier;
+
+  self.navigationItem.leftBarButtonItem = cancelButton;
+  self.navigationItem.rightBarButtonItem = doneButton;
 }
 
 #pragma mark - UICollectionViewDelegate
@@ -247,20 +311,21 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 
 - (BOOL)collectionView:(UICollectionView*)collectionView
     shouldSelectItemAtIndexPath:(NSIndexPath*)indexPath {
-  return _backgroundCollectionConfigurations;
+  // Before the data has loaded (i.e. when there are skeleton loaders), prevent
+  // selection.
+  if (!_backgroundCollectionConfigurations) {
+    return false;
+  }
+
+  // The currently selected item cannot be selected again. This prevents the
+  // background when the current background is set again.
+  return _collectionView.indexPathsForSelectedItems.firstObject != indexPath;
 }
 
 - (void)collectionView:(UICollectionView*)collectionView
     didSelectItemAtIndexPath:(NSIndexPath*)indexPath {
   NSString* itemIdentifier =
       [_diffableDataSource itemIdentifierForIndexPath:indexPath];
-
-  // Prevent background updates when a user clicks on an already selected cell.
-  if (_selectedBackgroundId == itemIdentifier) {
-    return;
-  }
-
-  _selectedBackgroundId = itemIdentifier;
 
   [self.mutator applyBackgroundForConfiguration:
                     _backgroundCustomizationConfigurationMap[itemIdentifier]];
@@ -279,33 +344,43 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 
   NSString* itemIdentifier =
       [_diffableDataSource itemIdentifierForIndexPath:indexPath];
-  id<BackgroundCustomizationConfiguration> backgroundConfiguration =
-      _backgroundCustomizationConfigurationMap[itemIdentifier];
-  __weak __typeof(self) weakSelf = self;
 
-  if (backgroundConfiguration &&
-      !backgroundConfiguration.thumbnailURL.is_empty()) {
-    [self.mutator
-        fetchBackgroundCustomizationThumbnailURLImage:backgroundConfiguration
-                                                          .thumbnailURL
-                                           completion:^(UIImage* image,
-                                                        NSError* error) {
-                                             if (error) {
-                                               // Delete the cell if the
-                                               // thumbnail image failed to
-                                               // load.
-                                               [weakSelf
-                                                   deleteBackgroundCell:
-                                                       backgroundConfiguration
-                                                           .configurationID
-                                                     forItemAtIndexPath:
-                                                         indexPath];
-                                             } else {
-                                               [cell updateBackgroundImage:image
-                                                        framingCoordinates:nil];
-                                             }
-                                           }];
+  // If image is already cached, use that.
+  UIImage* cachedImage = [_preparedImageCache objectForKey:itemIdentifier];
+  if (cachedImage) {
+    [cell updateBackgroundImage:cachedImage framingCoordinates:nil];
+    return;
   }
+
+  // If image fetch is in progress, just wait for that to complete.
+  if ([_inProgressImageFetches containsObject:itemIdentifier]) {
+    return;
+  }
+
+  // Otherwise, start a new fetch.
+  [self fetchThumbnailForItemIdentifier:itemIdentifier];
+}
+
+#pragma mark - UICollectionViewDataSourcePrefetching
+
+- (void)collectionView:(UICollectionView*)collectionView
+    prefetchItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths {
+  for (NSIndexPath* indexPath : indexPaths) {
+    NSString* itemIdentifier =
+        [_diffableDataSource itemIdentifierForIndexPath:indexPath];
+    // No need to prefetch if this item has already been fetched or is in
+    // progress.
+    if ([_inProgressImageFetches containsObject:itemIdentifier] ||
+        [_preparedImageCache objectForKey:itemIdentifier]) {
+      continue;
+    }
+    [self fetchThumbnailForItemIdentifier:itemIdentifier];
+  }
+}
+
+- (void)collectionView:(UICollectionView*)collectionView
+    cancelPrefetchingForItemsAtIndexPaths:(NSArray<NSIndexPath*>*)indexPaths {
+  // Do nothing. Image fetcher requests currently can't be cancelled.
 }
 
 #pragma mark - HomeCustomizationViewControllerProtocol
@@ -320,6 +395,83 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 }
 
 #pragma mark - Private
+
+// Starts an image fetch for the item with the given identifier.
+- (void)fetchThumbnailForItemIdentifier:(NSString*)itemIdentifier {
+  id<BackgroundCustomizationConfiguration> backgroundConfiguration =
+      _backgroundCustomizationConfigurationMap[itemIdentifier];
+
+  __weak __typeof(self) weakSelf = self;
+
+  if (!backgroundConfiguration ||
+      backgroundConfiguration.thumbnailURL.is_empty()) {
+    return;
+  }
+
+  auto completion = ^(UIImage* image, NSError* error) {
+    [weakSelf handleThumbnailFetchForItemIdentifier:itemIdentifier
+                                              image:image
+                                              error:error];
+  };
+  [_inProgressImageFetches addObject:itemIdentifier];
+  [self.mutator
+      fetchBackgroundCustomizationThumbnailURLImage:backgroundConfiguration
+                                                        .thumbnailURL
+                                         completion:completion];
+}
+
+// Handles a finished image fetch for the given image identifier.
+- (void)handleThumbnailFetchForItemIdentifier:(NSString*)itemIdentifier
+                                        image:(UIImage*)image
+                                        error:(NSError*)error {
+  NSIndexPath* indexPath =
+      [_diffableDataSource indexPathForItemIdentifier:itemIdentifier];
+  if (error) {
+    // Delete the cell if the thumbnail image failed to load.
+    [self deleteBackgroundCell:itemIdentifier forItemAtIndexPath:indexPath];
+    [_inProgressImageFetches removeObject:itemIdentifier];
+    return;
+  }
+
+  __weak __typeof(self) weakSelf = self;
+  [image prepareForDisplayWithCompletionHandler:^(UIImage*) {
+    [weakSelf imagePreparedForDisplay:image itemIdentifier:itemIdentifier];
+  }];
+}
+
+// Handles an image with the given item identifier being prepared for display.
+- (void)imagePreparedForDisplay:(UIImage*)image
+                 itemIdentifier:(NSString*)itemIdentifier {
+  [_inProgressImageFetches removeObject:itemIdentifier];
+  if (!image) {
+    return;
+  }
+
+  [_preparedImageCache setObject:image forKey:itemIdentifier];
+
+  __weak __typeof(self) weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [weakSelf setImage:image forCellWithItemIdentifier:itemIdentifier];
+  });
+}
+
+// Updates the cell for the given identifier to the provided image.
+- (void)setImage:(UIImage*)image
+    forCellWithItemIdentifier:(NSString*)itemIdentifier {
+  // If cell is visible, set its image.
+  NSIndexPath* indexPath =
+      [_diffableDataSource indexPathForItemIdentifier:itemIdentifier];
+  UICollectionViewCell* cell =
+      [_collectionView cellForItemAtIndexPath:indexPath];
+  HomeCustomizationBackgroundCell* backgroundCell =
+      base::apple::ObjCCast<HomeCustomizationBackgroundCell>(cell);
+  // Cell may have moved off screen/been reused.
+  if (!backgroundCell) {
+    return;
+  }
+
+  [backgroundCell updateBackgroundImage:image framingCoordinates:nil];
+}
 
 // Removes a background cell for the given configurationID.
 - (void)deleteBackgroundCell:(NSString*)configurationID
@@ -499,12 +651,6 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
 
   [cell configureWithBackgroundOption:backgroundConfiguration
              searchEngineLogoMediator:searchEngineLogoMediator];
-
-  if ([itemIdentifier isEqualToString:_selectedBackgroundId]) {
-    [_collectionView selectItemAtIndexPath:indexPath
-                                  animated:NO
-                            scrollPosition:UICollectionViewScrollPositionNone];
-  }
 }
 
 // Dismisses the current customization menu page.
@@ -557,6 +703,17 @@ const NSTimeInterval kAnimationIntervalSeconds = 0.5;
         [self.collectionView cellForItemAtIndexPath:indexPath];
     cell.alpha = 1.0;
   }
+}
+
+// Cancels any unsaved changes and dismisses the menu.
+- (void)cancelButtonPressed {
+  [self.mutator discardBackground];
+  [self.presentationDelegate cancelBackgroundPicker];
+}
+
+// Dismiss the menu. The current background will be saved on menu dismiss.
+- (void)donebuttonPressed {
+  [self.presentationDelegate dismissBackgroundPicker];
 }
 
 @end

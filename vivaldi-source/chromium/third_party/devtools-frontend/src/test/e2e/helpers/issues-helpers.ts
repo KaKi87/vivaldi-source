@@ -5,11 +5,11 @@
 import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
-import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
 import {
   matchStringTable,
 } from '../../shared/helper.js';
 import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
 
 import {openPanelViaMoreTools} from './settings-helpers.js';
 
@@ -99,7 +99,7 @@ async function getIssueByTitleElement(issueMessageElement: puppeteer.ElementHand
   return undefined;
 }
 
-// Only works if there is just a single issue.
+/** Only works if there is just a single issue. **/
 export async function getIssueByTitle(
     issueMessage: string, devToolsPage: DevToolsPage = getBrowserAndPagesWrappers().devToolsPage):
     Promise<puppeteer.ElementHandle<HTMLElement>|undefined> {
@@ -109,7 +109,7 @@ export async function getIssueByTitle(
   return await getIssueByTitleElement(issueMessageElement);
 }
 
-// Works also if there are multiple issues.
+/** Works also if there are multiple issues. **/
 export async function getAndExpandSpecificIssueByTitle(
     issueMessage: string, devToolsPage: DevToolsPage = getBrowserAndPagesWrappers().devToolsPage):
     Promise<puppeteer.ElementHandle<HTMLElement>|undefined> {

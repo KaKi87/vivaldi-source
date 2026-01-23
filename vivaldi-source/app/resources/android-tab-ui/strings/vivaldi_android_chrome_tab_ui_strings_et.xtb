@@ -2,36 +2,36 @@
 <!DOCTYPE translationbundle>
 <translationbundle lang="et">
 <translation id="1049697408958544531">{NUM_WEEKS, plural,
-          =1 {Loodud <ph name="NUM_WEEKS_ONE" /> nädal aega tagasi}
-          other {Loodud <ph name="NUM_WEEKS_MANY" /> nädalat tagasi}
+          =1 {Loodud <ph name="NUM_WEEKS_ONE" /> nädala eest}
+          other {Loodud <ph name="NUM_WEEKS_MANY" /> nädala eest}
         }</translation>
 <translation id="1062777154504442433">Uus kaardivirn</translation>
 <translation id="1092908249939127748">{NUM_MONTHS, plural,
-          =1 {Loodud <ph name="NUM_YEARS_ONE" /> aasta aega tagasi}
-          other {Loodud <ph name="NUM_YEARS_MANY" /> aastat tagasi}
+          =1 {Loodud <ph name="NUM_YEARS_ONE" /> aasta eest}
+          other {Loodud <ph name="NUM_YEARS_MANY" /> aasta eest}
         }</translation>
 <translation id="1329584516321524826">Uuendatud hetk tagasi</translation>
 <translation id="149054111719651807">{NUM_MINS, plural,
-          =1 {Loodud <ph name="NUM_MINS_ONE" /> minut aega tagasi}
-          other {Loodud <ph name="NUM_MINS_MANY" /> minutit tagasi}
+          =1 {Loodud <ph name="NUM_MINS_ONE" /> minuti eest}
+          other {Loodud <ph name="NUM_MINS_MANY" /> minuti eest}
         }</translation>
 <translation id="1625440863545383011">Eemalda kaart ja välju virnast</translation>
 <translation id="2330212241471632770">{TABS_COUNT, plural,
           =1 {Lisa kaart järjehoidjatesse}
           other {Lisa kaardid järjehoidjatesse}
         }</translation>
-<translation id="2498435670446402865">Kaardirühma nime muutmine</translation>
+<translation id="2498435670446402865">Kaardivirna nime muutmine</translation>
 <translation id="2734252994837336591">{NUM_WEEKS, plural,
-          =1 {Uuendatud <ph name="NUM_WEEKS_ONE" /> nädal aega tagasi}
-          other {Uuendatud <ph name="NUM_WEEKS_MANY" /> nädalat tagasi}
+          =1 {Uuendatud <ph name="NUM_WEEKS_ONE" /> nädala eest}
+          other {Uuendatud <ph name="NUM_WEEKS_MANY" /> nädala eest}
         }</translation>
 <translation id="2753877351161418426">{NUM_HOURS, plural,
-          =1 {Uuendatud <ph name="NUM_HOURS_ONE" /> tund aega tagasi}
-          other {Uuendatud <ph name="NUM_HOURS_MANY" /> tundi tagasi}
+          =1 {Uuendatud <ph name="NUM_HOURS_ONE" /> tunni eest}
+          other {Uuendatud <ph name="NUM_HOURS_MANY" /> tunni eest}
         }</translation>
 <translation id="2776817246640326047">{NUM_HOURS, plural,
-          =1 {Loodud <ph name="NUM_HOURS_ONE" /> tund aega tagasi}
-          other {Loodud <ph name="NUM_HOURS_MANY" /> tundi tagasi}
+          =1 {Loodud <ph name="NUM_HOURS_ONE" /> tunni eest}
+          other {Loodud <ph name="NUM_HOURS_MANY" /> tunni eest}
         }</translation>
 <translation id="2947471979790858922">Sellest seadmest eemaldatakse nende privaatsete kaartidega seotud toimingud</translation>
 <translation id="3298614730029636660">Välju kaardivirnast</translation>
@@ -40,12 +40,12 @@
         =1 {Suletud kaartide leidmiseks vali Vivaldi põhimenüüst „Viimatised kaardid”. Sinu privaatset kaarti seal ei näidata.}
         other {Suletud kaartide leidmiseks vali Vivaldi põhimenüüst „Viimatised kaardid”. Sinu # privaatset kaarti seal ei näidata.}}</translation>
 <translation id="4009732926939031387">{NUM_DAYS, plural,
-          =1 {Loodud <ph name="NUM_DAYS_ONE" /> eile}
-          other {Loodud <ph name="NUM_DAYS_MANY" /> päeva tagasi}
+          =1 {Loodud <ph name="NUM_DAYS_ONE" /> päeva eest}
+          other {Loodud <ph name="NUM_DAYS_MANY" /> päeva eest}
         }</translation>
 <translation id="4453940245650019914">{NUM_DAYS, plural,
-          =1 {Uuendatud <ph name="NUM_DAYS_ONE" /> eile}
-          other {Uuendatud <ph name="NUM_DAYS_MANY" /> päev tagasi}
+          =1 {Uuendatud <ph name="NUM_DAYS_ONE" /> päeva eest}
+          other {Uuendatud <ph name="NUM_DAYS_MANY" /> päeva eest}
         }</translation>
 <translation id="4686942373615810936">Loodud hetk tagasi</translation>
 <translation id="4870911314065352661">Kas sulgeda kõik kaardid?</translation>
@@ -56,23 +56,24 @@
 <translation id="7640137753339219124">Kustuta kaardivirn</translation>
 <translation id="7653857400289671414">Kaardivirnad salvestatakse automaatselt.</translation>
 <translation id="775668479044571025">{NUM_MONTHS, plural,
-          =1 {Uuendatud <ph name="NUM_YEARS_ONE" /> aasta aega tagasi}
-          other {Uuendatud <ph name="NUM_YEARS_MANY" /> aastat tagasi}
+          =1 {Uuendatud <ph name="NUM_YEARS_ONE" /> aasta eest}
+          other {Uuendatud <ph name="NUM_YEARS_MANY" /> aasta eest}
         }</translation>
-<translation id="7825973332242257878">Kaardirühmad</translation>
+<translation id="7825973332242257878">Kaardivirnad</translation>
 <translation id="8207688828622594111">{NUM_MINS, plural,
-          =1 {Uuendatud <ph name="NUM_MINS_ONE" /> minut aega tagasi}
-          other {Uuendatud <ph name="NUM_MINS_MANY" /> minutit tagasi}
+          =1 {Uuendatud <ph name="NUM_MINS_ONE" /> minuti eest}
+          other {Uuendatud <ph name="NUM_MINS_MANY" /> minuti eest}
         }</translation>
 <translation id="8374451057714760401">{NUM_MONTHS, plural,
-                =1 {Uuendatud <ph name="NUM_MONTHS_ONE" /> kuu aega tagasi}
-                other {Uuendatud <ph name="NUM_MONTHS_MANY" /> kuud tagasi}
+                =1 {Uuendatud <ph name="NUM_MONTHS_ONE" /> kuu eest}
+                other {Uuendatud <ph name="NUM_MONTHS_MANY" /> kuu eest}
               }</translation>
 <translation id="8440938071054361204">Muuda kaardivirna nime</translation>
 <translation id="8602902357364871325">Sulge kaardivirn</translation>
 <translation id="875848103419578654">{NUM_MONTHS, plural,
-                =1 {Loodud <ph name="NUM_MONTHS_ONE" /> kuu aega tagasi}
-                other {Loodud <ph name="NUM_MONTHS_MANY" /> kuud tagasi}
+                =1 {Loodud <ph name="NUM_MONTHS_ONE" /> kuu eest}
+                other {Loodud <ph name="NUM_MONTHS_MANY" /> kuu eest}
               }</translation>
 <translation id="8851621822786801079">Eemalda kaardivirnast</translation>
+<translation id="8887921976452567404">Hiljuti suletud kaarte ja kaardivirnu saab uuesti avada viimatiste kaartide ja kaardivirnade jaotistest.</translation>
 </translationbundle>

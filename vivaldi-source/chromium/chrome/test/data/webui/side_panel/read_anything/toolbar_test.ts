@@ -89,6 +89,16 @@ suite('Toolbar', () => {
       const audioControls = shadowRoot.querySelector('#audio-controls');
       assertTrue(!!audioControls);
     });
+
+    test('font is dropdown menu from button', () => {
+      stubAnimationFrame();
+      const fontButton = getButton('font');
+
+      assertTrue(!!fontButton);
+      fontButton.click();
+
+      assertTrue(toolbar.$.fontMenu.$.menu.$.lazyMenu.get().open);
+    });
   });
 
   suite('without read aloud', () => {
@@ -132,6 +142,11 @@ suite('Toolbar', () => {
       const audioControls = shadowRoot.querySelector('#audio-controls');
       assertFalse(!!audioControls);
     });
+
+    test('font is select element', () => {
+      const fontSelect = shadowRoot.querySelector('#font-select');
+      assertTrue(!!fontSelect);
+    });
   });
 
   suite('rate button', () => {
@@ -166,17 +181,17 @@ suite('Toolbar', () => {
 
     test('defaults to 1x', () => {
       assertStringContains(rateButton.ariaLabel!, '1x');
-      assertStringContains(rateButton.textContent!, '1x');
+      assertStringContains(rateButton.textContent, '1x');
     });
 
     test('rate change updates rate button', async () => {
       await changeRate(2);
       assertStringContains(rateButton.ariaLabel!, '2x');
-      assertStringContains(rateButton.textContent!, '2x');
+      assertStringContains(rateButton.textContent, '2x');
 
       await changeRate(0.5);
       assertStringContains(rateButton.ariaLabel!, '0.5');
-      assertStringContains(rateButton.textContent!, '0.5');
+      assertStringContains(rateButton.textContent, '0.5');
     });
   });
 

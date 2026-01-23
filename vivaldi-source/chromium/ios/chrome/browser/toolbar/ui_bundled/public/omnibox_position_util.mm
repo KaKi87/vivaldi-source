@@ -9,6 +9,7 @@
 #import "components/segmentation_platform/embedder/default_model/device_switcher_model.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ui/base/device_form_factor.h"
 
 namespace {
 /// The time delta for a user to be considered as a new user.
@@ -59,9 +60,29 @@ bool ShouldFocusedOmniboxFollowSteadyStatePosition() {
   // Using Chromium approach to pin omnibox above keyboard.
   // This helps reducing our patch and looks to be working as expected.
   return true;
-#else
-  return base::FeatureList::IsEnabled(kBottomOmniboxEvolution);
+#else // Vivaldi
+  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_PHONE ||
+      IsComposeboxIOSEnabled()) {
+    return NO;
+  }
+
+  std::string feature_param = base::GetFieldTrialParamValueByFeature(
+      kBottomOmniboxEvolution, kBottomOmniboxEvolutionParam);
+  return feature_param ==
+         kBottomOmniboxEvolutionParamEditStateFollowSteadyState;
 #endif // End Vivaldi
+}
+
+bool ForceBottomOmniboxInEditState() {
+  if (ui::GetDeviceFormFactor() != ui::DEVICE_FORM_FACTOR_PHONE ||
+      IsComposeboxIOSEnabled()) {
+    return NO;
+  }
+
+  std::string feature_param = base::GetFieldTrialParamValueByFeature(
+      kBottomOmniboxEvolution, kBottomOmniboxEvolutionParam);
+  return feature_param ==
+         kBottomOmniboxEvolutionParamForceBottomOmniboxEditState;
 }
 
 }  // namespace omnibox

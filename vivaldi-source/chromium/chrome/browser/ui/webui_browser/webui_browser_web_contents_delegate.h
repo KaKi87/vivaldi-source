@@ -33,6 +33,8 @@ class WebUIBrowserWebContentsDelegate : public content::WebContentsDelegate,
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);
 
+  WebUIBrowserWindow* window() { return window_; }
+
  private:
   // WebContentsDelegate implementation.
   void DraggableRegionsChanged(
@@ -49,11 +51,6 @@ class WebUIBrowserWebContentsDelegate : public content::WebContentsDelegate,
       const input::NativeWebKeyboardEvent& event) override;
   bool HandleKeyboardEvent(content::WebContents* source,
                            const input::NativeWebKeyboardEvent& event) override;
-
-  // WebContentsObserver implementation.
-  void RenderFrameCreated(content::RenderFrameHost* render_frame_host) override;
-
-  void EnableDraggableRegions();
 
   raw_ptr<WebUIBrowserWindow> window_;
   base::ObserverList<Observer> observers_;

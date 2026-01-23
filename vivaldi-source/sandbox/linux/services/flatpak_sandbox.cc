@@ -265,7 +265,7 @@ dbus::Bus* FlatpakSandbox::AcquireBusFromBusThread() {
     options.connection_type = dbus::Bus::PRIVATE;
     options.dbus_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
 
-    return base::MakeRefCounted<dbus::Bus>(options);
+    return base::MakeRefCounted<dbus::Bus>(std::move(options));
   }());
 
   return bus->get();

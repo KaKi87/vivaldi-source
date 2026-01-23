@@ -106,6 +106,11 @@ void SyncASIdentityStore(NSArray<id<Credential>>* credentials) {
         [NSMutableArray arrayWithCapacity:credentials.count];
     for (id<Credential> credential in credentials) {
       if (credential.isPasskey) {
+        // Hidden passkeys shouldn't be surfaced in the sign-in suggestions.
+        if (base::FeatureList::IsEnabled(kCredentialProviderSignalAPI) &&
+            credential.hidden) {
+          continue;
+        }
         [storeIdentities addObject:[[ASPasskeyCredentialIdentity alloc]
                                        cr_initWithCredential:credential]];
       } else {
@@ -320,7 +325,8 @@ void CredentialProviderService::SyncAllCredentials(
   AddCredentials(memoryCredentialStore, std::move(forms));
   // We only sync passkeys into the account store.
   if (passkey_model_ && (store == account_password_store_)) {
-    AddCredentials(memoryCredentialStore, passkey_model_->GetAllPasskeys());
+    AddCredentials(memoryCredentialStore,
+                   passkey_model_->GetUnShadowedPasskeys());
   }
   SyncStore();
 }
@@ -472,8 +478,12 @@ void CredentialProviderService::AddCredentials(
   const bool fallback_to_google_server = CanSendHistoryData(sync_service_);
   NSString* gaia = PrimaryAccountId();
 
-  for (const auto& passkey : passkeys) {
-    if (passkey.hidden()) {
+  for (const sync_pb::WebauthnCredentialSpecifics& passkey : passkeys) {
+    // With the feature enabled, hidden passkeys are only filtered out before
+    // being added to ASCredentialIdentityStore, they should still be added to
+    // `store`.
+    if (!base::FeatureList::IsEnabled(kCredentialProviderSignalAPI) &&
+        passkey.hidden()) {
       continue;
     }
 
@@ -689,7 +699,7 @@ void CredentialProviderService::OnPasskeysChanged(
         passkeys_to_remove.push_back(passkey);
         break;
       case webauthn::PasskeyModelChange::ChangeType::UPDATE:
-        // TODO(crbug.com/330355124): do something more optimal than this.
+        // TODO(crbug.com/458784354): do something more optimal than this.
         passkeys_to_add.push_back(passkey);
         passkeys_to_remove.push_back(passkey);
         break;

@@ -1,0 +1,19 @@
+source_set("vivaldi_add_search_engine") {
+  sources = [
+    "vivaldi_add_search_engine_mediator.h",
+    "vivaldi_add_search_engine_mediator.mm",
+  ]
+  deps = [
+    "//base",
+    "//components/search_engines",
+    "//ios/chrome/app/strings",
+    "//ios/chrome/browser/browser_container/ui_bundled:edit_menu_alert_delegate",
+    "//ios/chrome/browser/browser_container/ui_bundled:edit_menu_utils",
+    "//ios/chrome/browser/search_engines/model:model",
+    "//ios/chrome/browser/shared/model/browser",
+    "//ios/web/public",
+    "//ui/base",
+    "//vivaldi/ios/search:vivaldi_add_search_engine_feature",
+    "//vivaldi/ios/ui/settings/search_engine/editor:vivaldi_search_engine_editor",
+  ]
+}

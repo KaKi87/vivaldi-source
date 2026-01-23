@@ -19,7 +19,6 @@
 #include "components/request_filter/request_filter_registry.h"
 #include "content/public/browser/content_browser_client.h"
 #include "net/base/completion_once_callback.h"
-#include "services/network/public/mojom/url_loader_factory.mojom.h"
 #include "services/network/public/mojom/web_transport.mojom.h"
 #include "services/network/public/mojom/websocket.mojom-forward.h"
 
@@ -125,8 +124,10 @@ class RequestFilterManager : public KeyedService, public RequestFilterRegistry {
 
     ~RequestHandler();
 
-    bool WantsExtraHeadersForAnyRequest();
-    bool WantsExtraHeadersForRequest(FilteredRequestInfo* request);
+    bool HasAnyExtraHeadersListener();
+    bool HasExtraHeadersListenerForRequest(FilteredRequestInfo* request);
+    bool HasAnySecurityInfoListener();
+    bool HasSecurityInfoListenerForRequest(FilteredRequestInfo* request);
 
     // Dispatches the OnBeforeRequest event to all filters. Returns
     // net::ERR_IO_PENDING if a filter can't handle the request synchronously

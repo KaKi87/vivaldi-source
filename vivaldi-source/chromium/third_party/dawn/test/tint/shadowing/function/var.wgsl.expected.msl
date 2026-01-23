@@ -5,7 +5,8 @@ struct a {
   int a;
 };
 
-void f() {
+[[max_total_threads_per_threadgroup(1)]]
+kernel void f() {
   a a_1 = a{};
   a b = a_1;
   a a_2 = a{};

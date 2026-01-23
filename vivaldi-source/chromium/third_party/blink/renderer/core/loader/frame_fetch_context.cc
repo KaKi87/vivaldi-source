@@ -466,6 +466,8 @@ void FrameFetchContext::PrepareRequest(
 
   request.SetAllowsDeviceBoundSessionRegistration(
       RuntimeEnabledFeatures::DeviceBoundSessionCredentialsEnabled(
+          GetExecutionContext()) ||
+      RuntimeEnabledFeatures::DeviceBoundSessionCredentials2Enabled(
           GetExecutionContext()));
 }
 

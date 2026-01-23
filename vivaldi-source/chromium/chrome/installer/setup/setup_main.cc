@@ -68,7 +68,6 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/install_static/install_details.h"
 #include "chrome/install_static/install_util.h"
-#include "chrome/installer/setup/archive_patch_helper.h"
 #include "chrome/installer/setup/brand_behaviors.h"
 #include "chrome/installer/setup/configure_app_container_sandbox.h"
 #include "chrome/installer/setup/downgrade_cleanup.h"
@@ -119,10 +118,6 @@
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 #include "chrome/installer/util/google_update_util.h"
 #endif
-
-#include "base/vivaldi_switches.h"
-#include "installer/util/vivaldi_install_constants.h"
-#include "installer/util/vivaldi_setup_util.h"
 
 using installer::InitialPreferences;
 using installer::InstallationState;
@@ -209,14 +204,14 @@ void DelayedOverwriteDisplayVersions(const base::FilePath& setup_exe,
   base::win::ScopedHandle start_event(::CreateEventW(
       &attributes, /*bManualReset=*/TRUE, /*bInitialState=*/FALSE,
       /*lpName=*/nullptr));
-  PLOG_IF(ERROR, !start_event.IsValid()) << "Failed to create child event";
+  PLOG_IF(ERROR, !start_event.is_valid()) << "Failed to create child event";
 
   base::CommandLine command_line(setup_exe);
   command_line.AppendSwitchASCII(installer::switches::kSetDisplayVersionProduct,
                                  id);
   command_line.AppendSwitchASCII(installer::switches::kSetDisplayVersionValue,
                                  version.GetString());
-  if (start_event.IsValid()) {
+  if (start_event.is_valid()) {
     command_line.AppendSwitchNative(
         installer::switches::kStartupEventHandle,
         base::NumberToWString(base::win::HandleToUint32(start_event.Get())));
@@ -228,7 +223,7 @@ void DelayedOverwriteDisplayVersions(const base::FilePath& setup_exe,
   }
 
   base::LaunchOptions launch_options;
-  if (start_event.IsValid()) {
+  if (start_event.is_valid()) {
     launch_options.handles_to_inherit.push_back(start_event.Get());
   }
   launch_options.force_breakaway_from_job_ = true;
@@ -240,7 +235,7 @@ void DelayedOverwriteDisplayVersions(const base::FilePath& setup_exe,
     return;
   }
 
-  if (!start_event.IsValid()) {
+  if (!start_event.is_valid()) {
     return;
   }
 
@@ -268,7 +263,7 @@ void DelayedOverwriteDisplayVersions(const base::FilePath& setup_exe,
 
 // Signals `event` if it is valid and then closes it.
 void SignalAndCloseEvent(base::win::ScopedHandle event) {
-  if (event.IsValid() && !::SetEvent(event.Get())) {
+  if (event.is_valid() && !::SetEvent(event.Get())) {
     // Failure to signal the event likely means that the handle is invalid.
     // Clear the ScopedHandle to prevent a crash upon close and proceed with the
     // operation. The parent process will wait for 30s in this case (see
@@ -293,7 +288,7 @@ LONG OverwriteDisplayVersionsAfterMsiexec(base::win::ScopedHandle startup_event,
   bool acquired_mutex = false;
   base::win::ScopedHandle msi_handle(::OpenMutexW(
       SYNCHRONIZE, /*bInheritHandle=*/FALSE, L"Global\\_MSIExecute"));
-  if (msi_handle.IsValid()) {
+  if (msi_handle.is_valid()) {
     VLOG(1) << "Blocking to acquire MSI mutex.";
 
     // Raise the priority class for the process so that it can do its work as
@@ -529,10 +524,6 @@ installer::InstallStatus RenameChromeExecutables(
 bool CheckPreInstallConditions(const InstallationState& original_state,
                                const InstallerState& installer_state,
                                installer::InstallStatus* status) {
-  if (installer::kVivaldi) {
-    return true;
-  }
-
   if (!installer_state.system_install()) {
     // This is a user-level installation. Make sure that we are not installing
     // on top of an existing system-level installation.
@@ -675,10 +666,9 @@ installer::InstallStatus InstallProducts(InstallationState& original_state,
                                          InstallerState* installer_state) {
   DCHECK(installer_state);
   installer::InstallStatus install_status = installer::UNKNOWN_STATUS;
-  installer::ArchiveType archive_type = installer::UNKNOWN_ARCHIVE_TYPE;
   installer_state->SetStage(installer::PRECONDITIONS);
-  // Remove any legacy "-stage:*" values from the product's "ap" value.
-  installer::UpdateInstallStatus(archive_type, install_status);
+  // Remove any legacy "-full" values from the product's "ap" value.
+  installer::UpdateInstallStatus();
 
   // Drop to background processing mode if the process was started below the
   // normal process priority class. This is done here because InstallProducts-
@@ -690,9 +680,8 @@ installer::InstallStatus InstallProducts(InstallationState& original_state,
   if (CheckPreInstallConditions(original_state, *installer_state,
                                 &install_status)) {
     VLOG(1) << "Installing to " << installer_state->target_path().value();
-    install_status =
-        InstallProductsHelper(original_state, setup_exe, cmd_line, prefs,
-                              *installer_state, &archive_type);
+    install_status = InstallProductsHelper(original_state, setup_exe, cmd_line,
+                                           prefs, *installer_state);
   } else {
     // CheckPreInstallConditions must set the status on failure.
     DCHECK_NE(install_status, installer::UNKNOWN_STATUS);
@@ -711,8 +700,6 @@ installer::InstallStatus InstallProducts(InstallationState& original_state,
       ScheduleFileSystemEntityForDeletion(prefs_path);
     }
   }
-
-  UpdateInstallStatus(archive_type, install_status);
 
   return install_status;
 }
@@ -790,20 +777,15 @@ installer::InstallStatus RegisterDevChrome(
 
   installer::InstallStatus status = installer::FIRST_INSTALL_SUCCESS;
   if (base::PathExists(chrome_exe)) {
-    // Create the Start menu shortcut and pin it to the Win7+ taskbar.
+    // Create the Start menu shortcut and pin it to the taskbar.
     ShellUtil::ShortcutProperties shortcut_properties(ShellUtil::CURRENT_USER);
     ShellUtil::AddDefaultShortcutProperties(chrome_exe, &shortcut_properties);
     shortcut_properties.set_pin_to_taskbar(true);
     ShellUtil::CreateOrUpdateShortcut(
         ShellUtil::SHORTCUT_LOCATION_START_MENU_ROOT, shortcut_properties,
         ShellUtil::SHELL_SHORTCUT_CREATE_ALWAYS);
-
-    // Register Chrome at user-level and make it default.
-    if (ShellUtil::CanMakeChromeDefaultUnattended()) {
-      ShellUtil::MakeChromeDefault(ShellUtil::CURRENT_USER, chrome_exe, true);
-    } else {
-      ShellUtil::ShowMakeChromeDefaultSystemUI(chrome_exe);
-    }
+    // Register Chrome at user-level.
+    ShellUtil::ShowMakeChromeDefaultSystemUI(chrome_exe);
   } else {
     LOG(ERROR) << "Path not found: " << chrome_exe.value();
     status = installer::INSTALL_FAILED;
@@ -936,43 +918,7 @@ bool HandleNonInstallCmdLineOptions(installer::ModifyParams& modify_params,
   bool handled = true;
   // TODO(tommi): Split these checks up into functions and use a data driven
   // map of switch->function.
-  if (cmd_line.HasSwitch(installer::switches::kUpdateSetupExe)) {
-    installer_state->SetStage(installer::UPDATING_SETUP);
-    installer::InstallStatus status = installer::SETUP_PATCH_FAILED;
-    // If --update-setup-exe command line option is given, we apply the given
-    // patch to current exe, and store the resulting binary in the path
-    // specified by --new-setup-exe. But we need to first unpack the file
-    // given in --update-setup-exe.
-
-    const base::FilePath compressed_archive(
-        cmd_line.GetSwitchValuePath(installer::switches::kUpdateSetupExe));
-    VLOG(1) << "Opening archive " << compressed_archive.value();
-    // The top unpack failure result with 28 days aggregation (>=0.01%)
-    // Setup.Install.LzmaUnPackResult_SetupExePatch
-    // 0.02% PATH_NOT_FOUND
-    //
-    // More information can also be found with metric:
-    // Setup.Install.LzmaUnPackNTSTATUS_SetupExePatch
-
-    // We use the `new_setup_exe` directory as the working directory for
-    // `ArchivePatchHelper::UncompressAndPatch`. For System installs, this
-    // directory would be under %ProgramFiles% (a directory that only admins can
-    // write to by default) and hence a secure location.
-    const base::FilePath new_setup_exe(
-        cmd_line.GetSwitchValuePath(installer::switches::kNewSetupExe));
-    if (installer::ArchivePatchHelper::UncompressAndPatch(
-            new_setup_exe.DirName(), compressed_archive, setup_exe,
-            new_setup_exe, installer::UnPackConsumer::SETUP_EXE_PATCH)) {
-      status = installer::NEW_VERSION_UPDATED;
-    }
-
-    *exit_code = InstallUtil::GetInstallReturnCode(status);
-    if (*exit_code) {
-      LOG(WARNING) << "setup.exe patching failed.";
-      installer_state->WriteInstallerResult(status, IDS_SETUP_PATCH_FAILED_BASE,
-                                            nullptr);
-    }
-  } else if (cmd_line.HasSwitch(installer::switches::kShowEula)) {
+  if (cmd_line.HasSwitch(installer::switches::kShowEula)) {
     // Check if we need to show the EULA. If it is passed as a command line
     // then the dialog is shown and regardless of the outcome setup exits here.
     std::wstring inner_frame =
@@ -1239,9 +1185,7 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
                                     const base::FilePath& setup_exe,
                                     const base::CommandLine& cmd_line,
                                     const InitialPreferences& prefs,
-                                    InstallerState& installer_state,
-                                    ArchiveType* archive_type) {
-  DCHECK(archive_type);
+                                    InstallerState& installer_state) {
   const bool system_install = installer_state.system_install();
 
   // Create a temp folder where we will unpack Chrome archive. If it fails,
@@ -1255,10 +1199,8 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
     return TEMP_DIR_FAILED;
   }
 
-  base::FilePath uncompressed_archive;
-  RETURN_IF_ERROR(UnpackAndMaybePatchChromeArchive(
-      unpack_path, original_state, setup_exe, cmd_line, installer_state,
-      archive_type, uncompressed_archive));
+  RETURN_IF_ERROR(UnpackChromeArchive(unpack_path, original_state, setup_exe,
+                                      cmd_line, installer_state));
 
   VLOG(1) << "unpacked to " << unpack_path.value();
 
@@ -1280,18 +1222,12 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
           original_state.GetProductState(system_install);
       if (product_state != nullptr &&
           (product_state->version().CompareTo(*installer_version) > 0)) {
-        LOG(ERROR) << "Higher version of Vivaldi " << product_state->version()
-                   << " is already installed.";
-        // NOTE(jarle@vivaldi): If standalone we allow downgrading.
-        if (!vivaldi::IsInstallStandalone()) {
-          // clang-format off
+        LOG(ERROR) << "Higher version of Chrome is already installed.";
         int message_id = IDS_INSTALL_HIGHER_VERSION_BASE;
         proceed_with_installation = false;
         install_status = HIGHER_VERSION_EXISTS;
         installer_state.WriteInstallerResult(install_status, message_id,
                                              nullptr);
-          // clang-format on
-        }
       }
     }
 
@@ -1302,9 +1238,9 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
       const base::Version current_version(
           installer_state.GetCurrentVersion(original_state));
       InstallParams install_params = {
-          installer_state,  original_state,       setup_exe,
-          current_version,  uncompressed_archive, src_path,
-          temp_path.path(), *installer_version,
+          installer_state,    original_state, setup_exe,
+          current_version,    src_path,       temp_path.path(),
+          *installer_version,
       };
 
       install_status =
@@ -1343,8 +1279,6 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
           install_status, install_msg_base,
           write_chrome_launch_string ? &quoted_chrome_exe : nullptr);
 
-      if (!kVivaldi) {
-        // clang-format off
       if (install_status == FIRST_INSTALL_SUCCESS) {
         VLOG(1) << "First install successful.";
         // We never want to launch Chrome in system level install mode.
@@ -1359,17 +1293,11 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
         DCHECK_NE(chrome_exe.value(), std::wstring());
         RemoveChromeLegacyRegistryKeys(chrome_exe);
       }
-        // clang-format on
-      }
     }
   }
 
   // If the installation completed successfully...
   if (InstallUtil::GetInstallReturnCode(install_status) == 0) {
-    if (installer::kVivaldi) {
-      vivaldi::FinalizeSuccessfullInstall(installer_state, install_status);
-    }
-
     // Update the DisplayVersion created by an MSI-based install.
     std::string install_id;
     if (prefs.GetString(installer::initial_preferences::kMsiProductId,
@@ -1422,9 +1350,7 @@ class ScopedIgnoreResourceExhaustion {
   static void DoNothing() {}
 };
 
-int SetupMain(HINSTANCE instance) {
-  vivaldi::g_inside_installer_application = true;
-
+int SetupMain() {
   // Check to see if the CPU is supported before doing anything else. There's
   // very little than can safely be accomplished if the CPU isn't supported
   // since dependent libraries (e.g., base) may use invalid instructions.
@@ -1460,11 +1386,6 @@ int SetupMain(HINSTANCE instance) {
   // install_util uses chrome paths.
   chrome::RegisterPathProvider();
 
-  // Parse vivaldi-specific switches before Chromium preference initialization
-  // as we update switch values.
-  if (installer::kVivaldi && !vivaldi::PrepareSetupConfig(instance))
-    return installer::INSTALL_FAILED;
-
   const InitialPreferences& prefs = InitialPreferences::ForCurrentProcess();
   installer::InitInstallerLogging(prefs);
 
@@ -1486,13 +1407,9 @@ int SetupMain(HINSTANCE instance) {
   persistent_histogram_storage.set_storage_base_dir(
       installer_state.target_path());
 
-  if (!installer::kVivaldi) {
-    // clang-format off
   installer::ConfigureCrashReporting(prefs, installer_state);
   installer::SetInitialCrashKeys(installer_state);
   installer::SetCrashKeysFromCommandLine(cmd_line);
-    // clang-format on
-  }
 
   // Make sure the process exits cleanly on unexpected errors.
   base::EnableTerminationOnHeapCorruption();
@@ -1560,8 +1477,7 @@ int SetupMain(HINSTANCE instance) {
   // Some switches only apply for modes that can be made the user's default
   // browser.
   if (!install_static::SupportsSetAsDefaultBrowser() &&
-      (cmd_line.HasSwitch(installer::switches::kMakeChromeDefault) ||
-       cmd_line.HasSwitch(installer::switches::kRegisterChromeBrowser))) {
+      cmd_line.HasSwitch(installer::switches::kRegisterChromeBrowser)) {
     return installer::SXS_OPTION_NOT_SUPPORTED;
   }
   // Some command line options are no longer supported and must error out.
@@ -1579,14 +1495,6 @@ int SetupMain(HINSTANCE instance) {
   // true path to the program at position 0.
   base::FilePath setup_exe;
   base::PathService::Get(base::FILE_EXE, &setup_exe);
-#if !defined(OFFICIAL_BUILD)
-  if (cmd_line.HasSwitch(vivaldi::constants::kVivaldiDebugTargetExe)) {
-    // setup_exe must point to the exe that will be used to copy to the
-    // installation directory, not the debug exe that substituted it.
-    setup_exe =
-        cmd_line.GetSwitchValuePath(vivaldi::constants::kVivaldiDebugTargetExe);
-  }
-#endif
 
   const base::Version current_version(
       installer_state.GetCurrentVersion(original_state));
@@ -1608,20 +1516,9 @@ int SetupMain(HINSTANCE instance) {
   }
 
   int exit_code = 0;
-  // NOTE(igor@vivaldi.com): To allow to test experimental silent updates for
-  // system installs handle kRenameChromeExe that finalizes the installation
-  // after showing UAC prompt. For Chrome Google avoids that using a special
-  // GoogleUpdate component functionality that is not included into Chromium.
-  bool vivaldi_non_install_action_requires_admin =
-      installer::kVivaldi && system_install &&
-      cmd_line.HasSwitch(installer::switches::kRenameChromeExe);
-  if (!vivaldi_non_install_action_requires_admin) {
-    // clang-format off
   if (HandleNonInstallCmdLineOptions(modify_params, cmd_line, prefs,
                                      &exit_code)) {
     return exit_code;
-  }
-    // clang-format on
   }
 
   if (system_install && !IsUserAnAdmin()) {
@@ -1650,13 +1547,6 @@ int SetupMain(HINSTANCE instance) {
     }
   }
 
-  if (vivaldi_non_install_action_requires_admin) {
-    if (HandleNonInstallCmdLineOptions(modify_params, cmd_line, prefs,
-                                       &exit_code)) {
-      return exit_code;
-    }
-  }
-
   std::unique_ptr<installer::SetupSingleton> setup_singleton(
       installer::SetupSingleton::Acquire(cmd_line, prefs, &original_state,
                                          &installer_state));
@@ -1665,11 +1555,6 @@ int SetupMain(HINSTANCE instance) {
         installer::SETUP_SINGLETON_ACQUISITION_FAILED,
         IDS_INSTALL_SINGLETON_ACQUISITION_FAILED_BASE, nullptr);
     return installer::SETUP_SINGLETON_ACQUISITION_FAILED;
-  }
-
-  if (installer::kVivaldi) {
-    if (!vivaldi::BeginInstallOrUninstall(instance, installer_state))
-      return installer::INSTALL_FAILED;
   }
 
   installer::InstallStatus install_status = installer::UNKNOWN_STATUS;
@@ -1682,10 +1567,6 @@ int SetupMain(HINSTANCE instance) {
     install_status = InstallProducts(original_state, setup_exe, cmd_line, prefs,
                                      &installer_state);
     DoLegacyCleanups(installer_state, install_status);
-  }
-
-  if (installer::kVivaldi) {
-    vivaldi::EndInstallOrUninstall(installer_state, install_status);
   }
 
   UMA_HISTOGRAM_ENUMERATION("Setup.Install.Result", install_status,
@@ -1724,11 +1605,7 @@ int WINAPI wWinMain(HINSTANCE instance,
                     HINSTANCE prev_instance,
                     wchar_t* command_line,
                     int show_command) {
-#if !defined(OFFICIAL_BUILD)
-  vivaldi::CheckForDebugSetupCommand(show_command);
-#endif
-
-  const auto process_exit_code = SetupMain(instance);
+  const auto process_exit_code = SetupMain();
 
   // https://crbug.com/896565: Graceful shutdown sometimes fails for reasons out
   // of the installer's control. Crashes from such failures are inactionable, so

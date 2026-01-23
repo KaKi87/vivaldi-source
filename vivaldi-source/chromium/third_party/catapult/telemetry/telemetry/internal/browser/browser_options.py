@@ -297,6 +297,10 @@ class BrowserFinderOptions(argparse.Namespace):
                        'running 20+ benchmarks much faster (especially on '
                        'android where UpdateExecutableIfNeeded can take '
                        'minutes).')
+    group.add_argument('--do-not-store-tombstones',
+                       action='store_false',
+                       dest='store_tombstones',
+                       help='Do not store tombstones from an Android device.')
 
     # Cast browser options
     group = parser.add_argument_group('Cast browser options')
@@ -704,6 +708,7 @@ class BrowserOptions():
               'is used by default'))
     group.add_argument(
         '--extra-browser-args',
+        action='append',
         dest='extra_browser_args_as_string',
         help='Additional arguments to pass to the browser when it starts')
     group.add_argument(
@@ -761,9 +766,14 @@ class BrowserOptions():
     self.browser_type = finder_options.browser_type
 
     if hasattr(self, 'extra_browser_args_as_string'):
-      tmp = shlex.split(self.extra_browser_args_as_string, posix=(not _IsWin()))
-      self.AppendExtraBrowserArgs(tmp)
+      all_args = []
+      # with action='append', extra_browser_args_as_string is a list.
+      for arg_string in self.extra_browser_args_as_string:
+        all_args.extend(shlex.split(arg_string, posix=(not _IsWin())))
+      self.AppendExtraBrowserArgs(all_args)
       delattr(self, 'extra_browser_args_as_string')
+      self.ConsolidateValuesForArg('--enable-features')
+      self.ConsolidateValuesForArg('--disable-features')
     if hasattr(self, 'extra_wpr_args_as_string'):
       tmp = shlex.split(self.extra_wpr_args_as_string, posix=(not _IsWin()))
       self.extra_wpr_args.extend(tmp)

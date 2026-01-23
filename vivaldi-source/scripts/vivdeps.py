@@ -60,12 +60,12 @@ def IsAndroidEnabled():
     return True
   return os.access(os.path.join(SRC,".enable_android"), os.F_OK)
 
-def IsReclientEnabled(host_os):
+def IsSisoEnabled(host_os):
   if host_os not in ["win", "mac", "linux"]:
     return False
   if "FETCH_RECLIENT" in os.environ:
     return True
-  return os.access(os.path.join(SRC,".enable_gn_reclient"), os.F_OK) or os.access(os.path.join(SRC,".enable_gn_siso"), os.F_OK)
+  return os.access(os.path.join(SRC,".enable_gn_siso"), os.F_OK)
 
 def IsIOSEnabled():
   if "IOS_ENABLED" in os.environ:
@@ -112,7 +112,7 @@ def get_variables(a_checkout_os=None, a_target_cpu=None):
     checkout_os: True,
     "checkout_pgo_profiles": False,
     "build_with_chromium": True,
-    "checkout_reclient": IsReclientEnabled(host_os),
+    "checkout_remote_toolchain": IsSisoEnabled(host_os),
     "clangd_compdb": IsClangdCompDBEnabled()
   }
   for x in checkout_cpu:

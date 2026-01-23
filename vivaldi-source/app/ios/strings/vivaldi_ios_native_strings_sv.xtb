@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoomnivå för <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi är långsam, kraschar eller värmer upp enheten</translation>
 <translation id="1929299157575856072">STANDARDNIVÅ FÖR BLOCKERING</translation>
+<translation id="1933618400514506228">Serbokroatiska (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Öppna bilden i bakgrundsfliken</translation>
 <translation id="1986733655397734221">Ingen av dessa</translation>
 <translation id="1994506778397655062">Öppna i ny bakgrundsflik</translation>
@@ -167,7 +168,6 @@ blockerad</translation>
 <translation id="309084557304084991">Jag vill inte ha förladdade bokmärken och snabbval</translation>
 <translation id="3091563570137981919">Spårare och annonsblockering</translation>
 <translation id="3097968995088564986">Visa knappen Lägg till</translation>
-<translation id="3102790820790869053">Sök i de senaste flikarna</translation>
 <translation id="3134385238404760368">Inga senaste flikar</translation>
 <translation id="3142562627629111859">Ny grupp</translation>
 <translation id="3157931365184549694">Återställ</translation>
@@ -226,6 +226,7 @@ blockerad</translation>
 <translation id="383723620494271391">Något mer du vill lägga till?</translation>
 <translation id="3842727926262967527">Välj var du föredrar att ha flikfältet och adressfältet.</translation>
 <translation id="3845564230651302310">Använder nya blockeringsinställningar...</translation>
+<translation id="385051799172605136">Tillbaka</translation>
 <translation id="3858860766373142691">Namn</translation>
 <translation id="3861379244432690245">Aktivera direktmatchning</translation>
 <translation id="3866249974567520381">Beskrivning</translation>
@@ -310,7 +311,6 @@ blockerad</translation>
 <translation id="462860218383788109">Redigerat datum</translation>
 <translation id="4640946580087069269">Kopiera till anteckning</translation>
 <translation id="4643117005422448078">Toppsajter</translation>
-<translation id="4654428449690716275">Visa inte banners före eller efter att översättningar erbjuds</translation>
 <translation id="4654578955713250802">Blockera annonser och spårare</translation>
 <translation id="4655510151391078468">Den här koden matchar inte den vi skickade till dig.
          Du har <ph name="ATTEMPTS" /> försök kvar.</translation>
@@ -496,6 +496,7 @@ blockerad</translation>
 <translation id="6946395294519639514">Med paneler kan du hålla go-to-verktyg inom räckhåll i webbläsarens sidofält.</translation>
 <translation id="6951435330868954105">Hantera standardinställningar</translation>
 <translation id="6951948201878750661">Tryck för att välja den här färgen</translation>
+<translation id="6954630860045222581">Visa panel</translation>
 <translation id="6967884871145366229">Hantera sekretessinställningar</translation>
 <translation id="6973630695168034713">Mappar</translation>
 <translation id="7000227144065890583">Föreslå webbadress</translation>
@@ -663,6 +664,7 @@ blockerad</translation>
 <translation id="8948792607467387336">Välj som bakgrund</translation>
 <translation id="8964449607824577665">Utan ditt nuvarande krypteringslösenord kan vi inte dekryptera dina data. Att återställa det här lösenordet kräver att alla befintliga synkroniseringsdata på Vivaldis servrar tas bort.</translation>
 <translation id="8965371804397726192">Börja synkronisera alla data</translation>
+<translation id="896787570003733070">Visa inte banners före eller efter att översättning erbjuds</translation>
 <translation id="8993821994276892302">{count, plural,
            =1 {Bokmärke flyttat till "{title}"}
            other {Bokmärken flyttade till "{title}"}}</translation>

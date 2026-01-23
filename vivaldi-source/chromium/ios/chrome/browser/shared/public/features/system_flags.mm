@@ -17,7 +17,6 @@
 #import "components/password_manager/core/common/password_manager_features.h"
 #import "components/segmentation_platform/public/constants.h"
 #import "components/variations/variations_associated_data.h"
-#import "ios/chrome/browser/browsing_data/model/browsing_data_features.h"
 #import "ios/chrome/browser/flags/chrome_switches.h"
 #import "ios/chrome/browser/memory/model/features.h"
 #import "ios/chrome/browser/safety_check/model/ios_chrome_safety_check_manager_constants.h"
@@ -34,7 +33,6 @@ NSString* const kAlternateDiscoverFeedServerURL =
 NSString* const kEnableStartupCrash = @"EnableStartupCrash";
 NSString* const kFirstRunForceEnabled = @"FirstRunForceEnabled";
 NSString* const kFirstRunForceDisabled = @"FirstRunForceDisabled";
-NSString* const kUpgradePromoForceEnabled = @"UpgradePromoForceEnabled";
 NSString* const kOriginServerHost = @"AlternateOriginServerHost";
 NSString* const kWhatsNewPromoStatus = @"WhatsNewPromoStatus";
 NSString* const kClearApplicationGroup = @"ClearApplicationGroup";
@@ -71,6 +69,11 @@ NSString* const kInactiveTabsDemoMode = @"InactiveTabsDemoMode";
 NSString* const kInactiveTabsTestMode = @"InactiveTabsTestMode";
 NSString* const kAsyncStartupOverrideResponse = @"AsyncStartupOverrideResponse";
 NSString* const kLensResultPanelGwsURL = @"LensResultPanelGwsURL";
+NSString* const kForceDisableAIMEligibility = @"ForceDisableAIMEligibility";
+NSString* const kForceDisableCreateImagesEligibility =
+    @"ForceDisableCreateImagesEligibility";
+NSString* const kForceDisablePdfUploadEligibility =
+    @"ForceDisablePdfUploadEligibility";
 }  // namespace
 
 namespace experimental_flags {
@@ -83,11 +86,6 @@ bool AlwaysDisplayFirstRun() {
 bool NeverDisplayFirstRun() {
   return
       [[NSUserDefaults standardUserDefaults] boolForKey:kFirstRunForceDisabled];
-}
-
-bool AlwaysDisplayUpgradePromo() {
-  return [[NSUserDefaults standardUserDefaults]
-      boolForKey:kUpgradePromoForceEnabled];
 }
 
 NSString* GetOriginServerHost() {
@@ -103,18 +101,16 @@ bool ShouldResetNoticeCardOnFeedStart() {
   return [[NSUserDefaults standardUserDefaults] boolForKey:@"ResetNoticeCard"];
 }
 
-bool ShouldResetFirstFollowCount() {
-  return [[NSUserDefaults standardUserDefaults] boolForKey:@"ResetFirstFollow"];
-}
-
 bool ShouldForceContentNotificationsPromo() {
   return [[NSUserDefaults standardUserDefaults]
       boolForKey:@"ForceContentNotificationsPromo"];
 }
 
 bool ShouldForceFeedSigninPromo() {
+  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   return [[NSUserDefaults standardUserDefaults]
-      boolForKey:@"ForceFeedSigninPromo"];
+             boolForKey:@"ForceFeedSigninPromo"] ||
+         command_line->HasSwitch(switches::kForceFeedSigninPromo);
 }
 
 bool ShouldIgnoreDeviceLocaleConditions() {
@@ -125,20 +121,6 @@ bool ShouldIgnoreDeviceLocaleConditions() {
 bool ShouldIgnoreTileAblationConditions() {
   return [[NSUserDefaults standardUserDefaults]
       boolForKey:@"IgnoreTileAblationConditions"];
-}
-
-void DidResetFirstFollowCount() {
-  [[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"ResetFirstFollow"];
-}
-
-bool ShouldAlwaysShowFirstFollow() {
-  return [[NSUserDefaults standardUserDefaults]
-      boolForKey:@"AlwaysShowFirstFollow"];
-}
-
-bool ShouldAlwaysShowFollowIPH() {
-  return
-      [[NSUserDefaults standardUserDefaults] boolForKey:@"AlwaysShowFollowIPH"];
 }
 
 bool IsMemoryDebuggingEnabled() {
@@ -371,6 +353,21 @@ bool EnableAIPrototypingMenu() {
 NSString* GetLensResultPanelGwsURL() {
   return [[NSUserDefaults standardUserDefaults]
       stringForKey:kLensResultPanelGwsURL];
+}
+
+bool ShouldForceDisableComposeboxAIM() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceDisableAIMEligibility];
+}
+
+bool ShouldForceDisableComposeboxCreateImages() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceDisableCreateImagesEligibility];
+}
+
+bool ShouldForceDisableComposeboxPdfUpload() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceDisablePdfUploadEligibility];
 }
 
 }  // namespace experimental_flags

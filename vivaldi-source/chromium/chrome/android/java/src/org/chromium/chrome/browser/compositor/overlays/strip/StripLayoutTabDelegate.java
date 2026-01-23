@@ -352,7 +352,7 @@ public class StripLayoutTabDelegate {
         } else if (tab.getIsSelected()) {
             return VisualState.SELECTED;
         } else if (tab.getIsNonDragReordering()) {
-            return VisualState.NON_DRAG_REORDERING;
+            return VisualState.NORMAL; // Vivaldi
         } else if (tab.getIsMultiSelected() && tab.getIsHovered()) {
             return VisualState.MULTISELECT_HOVERED;
         } else if (tab.getIsMultiSelected()) {

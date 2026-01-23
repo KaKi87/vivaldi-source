@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Zoomnivå for <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi er treg, krasjer eller varmer opp enheten</translation>
 <translation id="1929299157575856072">STANDARD BLOKKERINGSNIVÅ</translation>
+<translation id="1933618400514506228">Serbokroatisk (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Åpne bilde i bakgrunnsfane</translation>
 <translation id="1986733655397734221">Ingen av disse</translation>
 <translation id="1994506778397655062">Åpne i ny bakgrunnsfane</translation>
@@ -167,7 +168,6 @@ blokkert</translation>
 <translation id="309084557304084991">Jeg vil ikke ha inkluderte bokmerker og hurtigvalg</translation>
 <translation id="3091563570137981919">Sporings- og reklameblokkering</translation>
 <translation id="3097968995088564986">Vis legg til-knapp</translation>
-<translation id="3102790820790869053">Søk i nylige faner</translation>
 <translation id="3134385238404760368">Ingen nylige faner</translation>
 <translation id="3142562627629111859">Ny gruppe</translation>
 <translation id="3157931365184549694">Gjenopprett</translation>
@@ -310,7 +310,6 @@ blokkert</translation>
 <translation id="462860218383788109">Dato redigert</translation>
 <translation id="4640946580087069269">Kopier til notat</translation>
 <translation id="4643117005422448078">Toppnettsteder</translation>
-<translation id="4654428449690716275">Ikke vis bannere før eller etter oversettelser tilbys</translation>
 <translation id="4654578955713250802">Blokker reklame og sporing</translation>
 <translation id="4655510151391078468">Denne koden stemmer ikke med den vi sendte deg.
  Du har <ph name="ATTEMPTS" /> forsøk igjen.</translation>
@@ -663,6 +662,7 @@ Du har nådd maksgrensen for antall forsøk. Be om en ny kode ved å velge Send 
 <translation id="8948792607467387336">Velg som bakgrunn</translation>
 <translation id="8964449607824577665">Uten ditt gjeldende krypteringspassord, kan vi ikke dekryptere dataene dine. Nullstilling av dette passordet krever sletting av alle eksisterende synkroniserte data på Vivaldis servere.</translation>
 <translation id="8965371804397726192">Start synkronisering av alle data</translation>
+<translation id="896787570003733070">Ikke vis bannere før eller etter at oversettelse tilbys</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Bokmerke flyttet til "{title}"}
           other {Bokmerker flyttet til "{title}"}}</translation>

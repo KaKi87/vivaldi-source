@@ -11,7 +11,6 @@
 #include "build/build_config.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view_layout_linux.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view_linux.h"
 #include "chrome/browser/ui/views/frame/browser_native_widget_aura_linux.h"
@@ -84,7 +83,7 @@ BrowserDesktopWindowTreeHostLinux::BrowserDesktopWindowTreeHostLinux(
       browser_widget->browser_native_widget());
   native_widget_->set_host(this);
 
-  browser_widget->set_frame_type(browser_widget->UseCustomFrame()
+  browser_widget->set_frame_type(native_widget_->UseCustomFrame()
                                      ? views::Widget::FrameType::kForceCustom
                                      : views::Widget::FrameType::kForceNative);
 
@@ -181,10 +180,8 @@ void BrowserDesktopWindowTreeHostLinux::TabDraggingKindChanged(
           ui::GetWaylandToplevelExtension(*platform_window())) {
     if (tab_drag_kind != TabDragKind::kNone) {
       if (auto event_source = GetCurrentTabDragEventSource()) {
-        const auto allow_system_drag = base::FeatureList::IsEnabled(
-            features::kAllowWindowDragUsingSystemDragDrop);
         wayland_extension->StartWindowDraggingSessionIfNeeded(
-            *event_source, allow_system_drag);
+            *event_source, /*allow_system_drag=*/true);
       }
     }
   }
@@ -223,9 +220,7 @@ void BrowserDesktopWindowTreeHostLinux::UpdateFrameHints() {
   if (ui::OzonePlatform::GetInstance()->IsWindowCompositingSupported()) {
     // Set the opaque region.
     std::vector<gfx::Rect> opaque_region;
-    if (IsShowingFrame(
-            browser_widget_->browser_native_widget()->UseCustomFrame(),
-            window_state)) {
+    if (IsShowingFrame(native_widget_->UseCustomFrame(), window_state)) {
       // The opaque region is a list of rectangles that contain only fully
       // opaque pixels of the window.  We need to convert the clipping
       // rounded-rect into this format.
@@ -351,9 +346,7 @@ gfx::Insets BrowserDesktopWindowTreeHostLinux::CalculateInsetsInDIP(
     ui::PlatformWindowState window_state) const {
   // If we are not showing frame, the insets should be zero.
   if (!browser_widget_ ||
-      !IsShowingFrame(
-          browser_widget_->browser_native_widget()->UseCustomFrame(),
-          window_state)) {
+      !IsShowingFrame(native_widget_->UseCustomFrame(), window_state)) {
     return gfx::Insets();
   }
 
@@ -394,11 +387,8 @@ void BrowserDesktopWindowTreeHostLinux::OnWindowTiledStateChanged(
     return;
   }
 
-  bool maximized = new_tiled_edges.top && new_tiled_edges.left &&
-                   new_tiled_edges.bottom && new_tiled_edges.right;
-  bool tiled = new_tiled_edges.top || new_tiled_edges.left ||
-               new_tiled_edges.bottom || new_tiled_edges.right;
-  browser_widget_->set_tiled(tiled && !maximized);
+  browser_widget_->set_tiled(new_tiled_edges.top || new_tiled_edges.left ||
+                             new_tiled_edges.bottom || new_tiled_edges.right);
   UpdateFrameHints();
   if (SupportsClientFrameShadow()) {
     // Trigger a re-layout as the insets will change even if the bounds don't.

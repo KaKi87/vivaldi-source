@@ -266,7 +266,8 @@ import org.chromium.build.BuildConfig;
     }
 
     @Override
-    public void setUseDesktopUserAgent(boolean override, boolean reloadOnChange, int source) {
+    public void setUseDesktopUserAgent(
+            boolean override, boolean reloadOnChange, boolean skipOnInitialNavigation) {
         if (mNativeNavigationControllerAndroid != 0) {
             // Vivaldi
             if (!BuildConfig.IS_VIVALDI) {
@@ -275,14 +276,16 @@ import org.chromium.build.BuildConfig;
                     "Thread dump for debugging, override: "
                             + override
                             + " reloadOnChange: "
-                            + reloadOnChange
-                            + " caller: "
-                            + source);
+                            + reloadOnChange);
             Thread.dumpStack();
-            }
+            } // End Vivaldi
+
             NavigationControllerImplJni.get()
                     .setUseDesktopUserAgent(
-                            mNativeNavigationControllerAndroid, override, reloadOnChange, source);
+                            mNativeNavigationControllerAndroid,
+                            override,
+                            reloadOnChange,
+                            skipOnInitialNavigation);
         }
     }
 
@@ -323,6 +326,15 @@ import org.chromium.build.BuildConfig;
                     .getLastCommittedEntryIndex(mNativeNavigationControllerAndroid);
         }
         return -1;
+    }
+
+    @Override
+    public boolean canViewSource() {
+        if (mNativeNavigationControllerAndroid != 0) {
+            return NavigationControllerImplJni.get()
+                    .canViewSource(mNativeNavigationControllerAndroid);
+        }
+        return false;
     }
 
     @Override
@@ -468,7 +480,7 @@ import org.chromium.build.BuildConfig;
                 long nativeNavigationControllerAndroid,
                 boolean override,
                 boolean reloadOnChange,
-                int source);
+                boolean skipOnInitialNavigation);
 
         NavigationEntry getEntryAtIndex(long nativeNavigationControllerAndroid, int index);
 
@@ -477,6 +489,8 @@ import org.chromium.build.BuildConfig;
         NavigationEntry getPendingEntry(long nativeNavigationControllerAndroid);
 
         int getLastCommittedEntryIndex(long nativeNavigationControllerAndroid);
+
+        boolean canViewSource(long nativeNavigationControllerAndroid);
 
         boolean removeEntryAtIndex(long nativeNavigationControllerAndroid, int index);
 

@@ -504,7 +504,6 @@ using vivaldi::NoteNode;
   if (count == 0) {
     TableViewTextItem* item =
       [[TableViewTextItem alloc] initWithType:NoteHomeItemTypeMessage];
-    item.textAlignment = NSTextAlignmentLeft;
     item.textColor = [UIColor colorNamed:kTextPrimaryColor];
     item.text = noResults;
     [self.tableViewModel addItem:item

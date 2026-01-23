@@ -2,16 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/bookmarks/android/bookmark_bridge.h"
 
 #include <stddef.h>
 #include <stdint.h>
-
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +20,7 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/adapters.h"
 #include "base/containers/stack.h"
 #include "base/functional/bind.h"
@@ -81,8 +76,8 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "chrome/browser/importer/profile_writer.h"
-
 #endif // End Vivaldi
+
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/bookmarks/android/jni_headers/BookmarkBridge_jni.h"
 
@@ -202,7 +197,7 @@ void RecordLoadedStateEnum(LoadedState state) {
 }  // namespace
 
 // static
-ScopedJavaLocalRef<jobject> JNI_BookmarkBridge_NativeGetForProfile(
+static ScopedJavaLocalRef<jobject> JNI_BookmarkBridge_NativeGetForProfile(
     JNIEnv* env,
     Profile* profile) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -545,7 +540,7 @@ std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
       partner_bookmarks_shim_->HasPartnerBookmarks()) {
     top_level_folders.push_back(mobile_node);
   }
-  }
+  } // End Vivaldi
 
   const BookmarkNode* bookmark_bar_node = bookmark_model_->bookmark_bar_node();
   if (IsPermanentFolderVisible(
@@ -555,16 +550,17 @@ std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
   }
 
   if (vivaldi::IsVivaldiRunning()) {
-  const BookmarkNode* mobile_node = bookmark_model_->mobile_node();
-  // Partner bookmarks are child of the local mobile_node.
-  if (mobile_node->children().size() > 0)
-    if (IsPermanentFolderVisible(
-            (force_visible_mask & BookmarkNodeMaskBit::MOBILE) != 0,
-            mobile_node) ||
-        partner_bookmarks_shim_->HasPartnerBookmarks()) {
-        top_level_folders.push_back(mobile_node);
+    const BookmarkNode* mobile_node = bookmark_model_->mobile_node();
+    // Partner bookmarks are child of the local mobile_node.
+    if (mobile_node->children().size() > 0) {
+      if (IsPermanentFolderVisible(
+              (force_visible_mask & BookmarkNodeMaskBit::MOBILE) != 0,
+              mobile_node) ||
+          partner_bookmarks_shim_->HasPartnerBookmarks()) {
+          top_level_folders.push_back(mobile_node);
+      }
     }
-  }
+  } // End Vivaldi
 
   const BookmarkNode* other_node = bookmark_model_->other_node();
   if (IsPermanentFolderVisible(
@@ -583,8 +579,7 @@ std::vector<const BookmarkNode*> BookmarkBridge::GetTopLevelFolderIdsImpl(
   if (vivaldi::IsVivaldiRunning()) {
     const BookmarkNode* trash_node = bookmark_model_->trash_node();
     top_level_folders.push_back(trash_node);
-  }
-
+  } // End Vivaldi
 
   // Managed node doesn't use the same IsPermanentFolderVisible logic because it
   // doesn't have a corresponding account folder and shouldn't be shown unless
@@ -881,9 +876,11 @@ jint BookmarkBridge::GetTotalBookmarkCount(
       if (partner_bookmarks_shim_->IsPartnerBookmark(child.get()) &&
           partner_bookmarks_shim_->GetTitle(child.get()).empty())
         continue;
+
       // VIVALDI
       if (vivaldi::IsVivaldiRunning() && vivaldi_bookmark_kit::IsSeparator(child.get()))
         continue;
+
       if (child->is_folder())
         nodes.push(child.get());
       else
@@ -1011,7 +1008,9 @@ jboolean BookmarkBridge::IsFolderVisible(JNIEnv* env, jlong id, jint type) {
       type == BookmarkType::BOOKMARK_TYPE_READING_LIST) {
     const BookmarkNode* node = bookmarks::GetBookmarkNodeByID(
         bookmark_model_, static_cast<int64_t>(id));
+
     if (!node) return false; // Vivaldi
+
     return node->IsVisible();
   }
   DCHECK_EQ(BookmarkType::BOOKMARK_TYPE_PARTNER, type);
@@ -1044,12 +1043,11 @@ void BookmarkBridge::SearchBookmarks(JNIEnv* env,
     query.type = static_cast<power_bookmarks::PowerBookmarkType>(type);
   }
 
-
   if (!vivaldi::IsVivaldiRunning()) {
   std::vector<const BookmarkNode*> results =
       SearchBookmarksImpl(query, max_results);
   AddBookmarkNodesToBookmarkIdList(env, j_list, results);
-  } else {
+  } else { // Vivaldi
       std::vector<const BookmarkNode *> results =
               SearchBookmarksImplVivaldi(query, max_results);
       AddBookmarkNodesToBookmarkIdList(env, j_list, results);
@@ -1210,9 +1208,9 @@ void BookmarkBridge::MoveBookmarkImpl(const BookmarkNode* node,
   // Vivaldi uses this for reordering bookmarks, cf VAB-9214
   if (!vivaldi::IsVivaldiRunning())
   if (node->parent() == new_parent_node) {
-
     return;
   }
+
   if (vivaldi::IsVivaldiRunning() &&
         new_parent_node->HasAncestor(node)) {
       return;
@@ -1461,8 +1459,7 @@ ScopedJavaLocalRef<jobject> BookmarkBridge::CreateJavaBookmark(
   // TODO(crbug.com/40924440): Folders need to use most recent child's time for
   // date_last_used.
   return Java_BookmarkBridge_createBookmarkItem(
-      env, node->id(), type, GetTitle(node), url,
-      node->is_folder(), parent_id,
+      env, node->id(), type, GetTitle(node), url, node->is_folder(), parent_id,
       GetBookmarkType(parent), IsEditable(node), IsManaged(node),
       node->date_added().InMillisecondsSinceUnixEpoch(), read,
       node->date_last_used().InMillisecondsSinceUnixEpoch(),
@@ -1826,11 +1823,12 @@ void BookmarkBridge::ReorderChildren(
 
   // iterate through array, adding the BookmarkNode*s of the objects
   for (int i = 0; i < arraySize; ++i) {
-    const BookmarkNode* child_node = GetNodeByID(elements[i], bookmark_type);
+    const BookmarkNode* child_node =
+        GetNodeByID(UNSAFE_TODO(elements[i]), bookmark_type);
     CHECK(child_node->parent() == parent_node);
     CHECK(base::checked_cast<jsize>(parent_node->children().size()) ==
           arraySize);
-    ordered_nodes.push_back(GetNodeByID(elements[i], 0));
+    ordered_nodes.push_back(GetNodeByID(UNSAFE_TODO(elements[i]), 0));
   }
 
   bookmark_model_->ReorderChildren(parent_node, ordered_nodes);
@@ -1918,3 +1916,5 @@ void BookmarkBridge::CreateOrDestroyAccountReadingListManagerIfNeeded() {
 
 // Vivaldi additions. Need static functions
 #include "browser/android/bookmarks/vivaldi_bookmark_bridge.inc"
+
+DEFINE_JNI(BookmarkBridge)

@@ -21,6 +21,8 @@ const wchar_t kVivaldiInstallerRegisterBrowser[] = L"RegisterBrowser";
 const wchar_t kVivaldiInstallerAdvancedMode[] = L"AdvancedMode";
 const wchar_t kVivaldiInstallerDisableStandaloneAutoupdate[] =
     L"DisableStandaloneAutoupdate";
+const wchar_t kVivaldiInstallerUpLoadCrashReports[] =
+    L"UploadCrashReports";
 
 // Vivaldi paths and filenames
 
@@ -44,6 +46,9 @@ const char kVivaldiMini[] = VIVALDI_INSTALLER_SWITCH_MINI;
 // Attempt to register a browser as a default even for a stand-alone
 // installation.
 const char kVivaldiRegisterStandalone[] = "vivaldi-register-standalone";
+
+// Enable crashlog uploading for the instance that gets started from the installer.
+const char kVivaldiEnableCrashlogUpload[] = "vivaldi-enable-crashlog-uploading";
 
 // The update should run in the background with no interaction with the user.
 const char kVivaldiSilent[] = VIVALDI_INSTALLER_SWITCH_SILENT;

@@ -135,10 +135,6 @@ bool IsScrollerInLinksMode(const Element& scroller) {
                           ScrollMarkerGroup::ScrollMarkerMode::kLinks);
 }
 
-bool IsScrollerInTabsMode(const Element& scroller) {
-  return IsScrollerInMode(scroller, ScrollMarkerGroup::ScrollMarkerMode::kTabs);
-}
-
 bool IsScrollMarkerFromScrollerInTabsMode(const Element& maybe_scroll_marker) {
   auto* scroll_marker =
       DynamicTo<ScrollMarkerPseudoElement>(maybe_scroll_marker);
@@ -290,20 +286,13 @@ Element* GetPreviousForCarouselPseudoInFocusOrder(
   }
   // In the `tabs` mode, the ::scroll-marker pseudo-element is a focus
   // navigation scope owner for its associated originating element. This means
-  // that the backwards tab focus moves from the content to the scroll marker,
-  // but for carousel we want to go: The ultimate originating element of the
-  // ::scroll-marker,
-  // ::scroll-buttons, ::scroll-marker.
-  // Here it would be equal to finding the rightmost carousel pseudo-element, as
-  // it would be either scroll button or active ::scroll-marker.
+  // that the backwards tab focus moves from the content to the scroll marker.
   if (RuntimeEnabledFeatures::CSSScrollMarkerGroupModesEnabled()) {
     if (auto* scroll_marker = DynamicTo<ScrollMarkerPseudoElement>(
             current.GetPseudoElement(kPseudoIdScrollMarker))) {
-      if (scroll_marker->IsSelected()) {
-        Element* scroller = scroll_marker->ScrollMarkerGroup()->parentElement();
-        if (IsScrollerInTabsMode(*scroller)) {
-          return GetPrevInCarouselOrder(*scroller, kPseudoIdNone);
-        }
+      if (scroll_marker->IsSelected() &&
+          IsScrollMarkerFromScrollerInTabsMode(*scroll_marker)) {
+        return scroll_marker;
       }
     }
   }
@@ -349,9 +338,15 @@ Element* InvokerForOpenPopover(const Node* node) {
 }
 
 const Element* InclusiveAncestorOpenPopoverWithInvoker(const Element* element) {
-  for (; element; element = FlatTreeTraversal::ParentElement(*element)) {
-    if (InvokerForOpenPopover(element)) {
-      return element;  // Return the popover
+  for (const Element* current = element; current;
+       current = FlatTreeTraversal::ParentElement(*current)) {
+    if (RuntimeEnabledFeatures::
+            OpenPopoverInvokerRestrictToSameTreeScopeEnabled() &&
+        element->GetTreeScope() != current->GetTreeScope()) {
+      break;
+    }
+    if (InvokerForOpenPopover(current)) {
+      return current;  // Return the popover
     }
   }
   return nullptr;
@@ -1046,6 +1041,11 @@ inline bool IsKeyboardFocusableReadingFlowOwner(const Element& element) {
   return IsReadingFlowScopeOwner(&element) && element.IsKeyboardFocusableSlow();
 }
 
+inline bool IsKeyboardFocusableScrollMarkerOwner(const Element& element) {
+  return IsScrollMarkerFromScrollerInTabsMode(element) &&
+         element.IsKeyboardFocusableSlow();
+}
+
 inline bool IsKeyboardFocusableShadowHost(const Element& element) {
   return IsShadowHostWithoutCustomFocusLogic(element) &&
          (element.IsKeyboardFocusableSlow() ||
@@ -1278,6 +1278,20 @@ Element* FindFocusableElementRecursivelyBackward(
       return found;
     }
 
+    if (IsKeyboardFocusableScrollMarkerOwner(*found) &&
+        RuntimeEnabledFeatures::CSSScrollMarkerGroupModesEnabled() &&
+        found != scope.Owner()) {
+      ScopedFocusNavigation inner_scope =
+          ScopedFocusNavigation::OwnedByScrollMarker(
+              const_cast<Element&>(*found), owner_map);
+      Element* found_in_inner_focus_scope =
+          FindFocusableElementRecursivelyBackward(inner_scope, owner_map);
+      if (found_in_inner_focus_scope) {
+        return found_in_inner_focus_scope;
+      }
+      return found;
+    }
+
     // Now |found| is on a focusable reading flow owner. Find inside
     // container backwards. If any focusable element is found, return it,
     // otherwise return the container itself.
@@ -1353,6 +1367,25 @@ Element* FindFocusableElementDescendingDownIntoFrameDocument(
   return element;
 }
 
+namespace {
+ScopedFocusNavigation GetScopeFor(Element*& owner,
+                                  FocusController::OwnerMap& owner_map) {
+  ScopedFocusNavigation new_scope =
+      ScopedFocusNavigation::CreateFor(*owner, owner_map);
+  while (new_scope.Owner() == owner) {
+    // This can happen if a single element is both the root of a scope,
+    // *and* the owner of a scope. E.g. <slot popover>. See
+    // crbug.com/447888734.
+    owner = owner->parentElement();
+    if (!owner) {
+      break;
+    }
+    new_scope = ScopedFocusNavigation::CreateFor(*owner, owner_map);
+  }
+  return new_scope;
+}
+}  // namespace
+
 Element* FindFocusableElementAcrossFocusScopesForward(
     ScopedFocusNavigation& scope,
     FocusController::OwnerMap& owner_map) {
@@ -1390,7 +1423,7 @@ Element* FindFocusableElementAcrossFocusScopesForward(
     Element* owner = current_scope.Owner();
     if (!owner)
       break;
-    current_scope = ScopedFocusNavigation::CreateFor(*owner, owner_map);
+    current_scope = GetScopeFor(owner, owner_map);
     found = FindFocusableElementRecursivelyForward(current_scope, owner_map);
   }
   return FindFocusableElementDescendingDownIntoFrameDocument(
@@ -1429,7 +1462,7 @@ Element* FindFocusableElementAcrossFocusScopesBackward(
       found = owner;
       break;
     }
-    current_scope = ScopedFocusNavigation::CreateFor(*owner, owner_map);
+    current_scope = GetScopeFor(owner, owner_map);
     found = FindFocusableElementRecursivelyBackward(current_scope, owner_map);
   }
   return FindFocusableElementDescendingDownIntoFrameDocument(
@@ -1540,7 +1573,7 @@ void FocusController::FocusDocumentView(Frame* frame, bool notify_embedder) {
         }
       }
       DispatchFocusEvent(*document, *focused_element);
-    }
+    } // End Vivaldi
   }
 
   // dispatchBlurEvent/dispatchFocusEvent could have changed the focused frame,
@@ -1812,6 +1845,7 @@ bool FocusController::AdvanceFocusInDocumentOrder(
           ->AdvanceFocus(type, &frame->LocalFrameRoot());
       return true;
     }
+
     Settings* settings = document->GetSettings();
     if (!vivaldi::IsVivaldiRunning() ||settings->GetAllowTabCycleIntoUI()) {
     // We didn't find an element to focus, so we should try to pass focus to
@@ -1824,7 +1858,7 @@ bool FocusController::AdvanceFocusInDocumentOrder(
       page_->GetChromeClient().TakeFocus(type);
       return true;
     }
-    }
+    } // End Vivaldi
 
     // Chrome doesn't want focus, so we should wrap focus.
     ScopedFocusNavigation doc_scope = ScopedFocusNavigation::CreateForDocument(

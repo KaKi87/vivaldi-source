@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 export interface PageElementTypes {
+  actuationOnWebSwitch: HTMLInputElement;
   content: HTMLElement;
   status: HTMLElement;
   pageHeader: HTMLElement;
@@ -76,6 +77,8 @@ export interface PageElementTypes {
   desktopScreenshotImg: HTMLImageElement;
   desktopScreenshotErrorReason: HTMLSpanElement;
   panelScreenshot: HTMLButtonElement;
+  captureRegionBtn: HTMLButtonElement;
+  captureRegionResultList: HTMLUListElement;
   createTabInBackground: HTMLInputElement;
   canAttachCheckbox: HTMLInputElement;
   scrollToDocumentId: HTMLSpanElement;
@@ -123,8 +126,18 @@ export interface PageElementTypes {
   stopActorTask: HTMLButtonElement;
   actorTaskId: HTMLInputElement;
   executeAction: HTMLButtonElement;
+  credentialSelection: HTMLDivElement;
+  selectCredential: HTMLSelectElement;
+  credentialOnce: HTMLButtonElement;
+  credentialAlways: HTMLButtonElement;
   actionProtoEncodedText: HTMLInputElement;
   actionStatus: HTMLSpanElement;
+  autofillSuggestionsDialogSection: HTMLElement;
+  autofillSuggestionsDialogStatus: HTMLSpanElement;
+  autofillSuggestionsList: HTMLUListElement;
+  selectedAutofillSuggestionId: HTMLInputElement;
+  sendAutofillSuggestionsResponse: HTMLButtonElement;
+  cancelAutofillSuggestionsDialog: HTMLButtonElement;
   actionUpdatedContextResult: HTMLSpanElement;
   actionUpdatedScreenshotImg: HTMLImageElement;
   macOsPermissionsFieldset: HTMLFieldSetElement;
@@ -156,6 +169,8 @@ export interface PageElementTypes {
   switchConversationBtn: HTMLButtonElement;
   registerConversationBtn: HTMLButtonElement;
   conversationId: HTMLInputElement;
+  textmode: HTMLInputElement;
+  audiomode: HTMLInputElement;
 }
 
 export const $: PageElementTypes = new Proxy({}, {

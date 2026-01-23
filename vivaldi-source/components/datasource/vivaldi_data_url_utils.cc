@@ -109,11 +109,11 @@ std::optional<PathType> ParseUrl(std::string_view url, std::string* data) {
 
   // Treat the old format chrome://thumb/ as an alias to chrome://vivaldi-data/
   // as the path alone allows to uniquely parse it, see ParsePath().
-  std::string_view host = gurl.host_piece();
+  std::string_view host = gurl.host();
   if (host != VIVALDI_DATA_URL_HOST && host != VIVALDI_THUMB_URL_HOST)
     return std::nullopt;
 
-  return ParsePath(gurl.path_piece(), data);
+  return ParsePath(gurl.path(), data);
 }
 
 bool IsResourceURL(std::string_view url, std::string* resource_path) {

@@ -21,8 +21,8 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -96,7 +96,8 @@ const CGFloat kContentOptimalWidth = 327;
         CustomSymbolWithPointSize(kIncognitoSymbol, imageSize);
 
     if (IsVivaldiRunning())
-      incognitoLogo = [UIImage imageNamed:vMenuPrivateTab]; // End Vivaldi
+      incognitoLogo =
+          CustomSymbolWithPointSize(vMenuPrivateTab, imageSize);  // End Vivaldi
 
     _logoView = [[UIImageView alloc] initWithImage:incognitoLogo];
     _logoView.tintColor = UIColor.whiteColor;

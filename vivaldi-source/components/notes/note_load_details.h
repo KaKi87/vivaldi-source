@@ -10,7 +10,6 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/scoped_refptr.h"
 #include "components/notes/note_node.h"
 
 namespace vivaldi {
@@ -33,18 +32,6 @@ class NoteLoadDetails {
   PermanentNoteNode* main_notes_node() { return main_notes_node_; }
   PermanentNoteNode* other_notes_node() { return other_notes_node_; }
   PermanentNoteNode* trash_notes_node() { return trash_notes_node_; }
-
-  // Computed checksum.
-  void set_computed_checksum(const std::string& value) {
-    computed_checksum_ = value;
-  }
-  const std::string& computed_checksum() const { return computed_checksum_; }
-
-  // Stored checksum.
-  void set_stored_checksum(const std::string& value) {
-    stored_checksum_ = value;
-  }
-  const std::string& stored_checksum() const { return stored_checksum_; }
 
   int64_t max_id() const { return max_id_; }
   void set_max_id(int64_t max_id) { max_id_ = max_id; }
@@ -80,8 +67,6 @@ class NoteLoadDetails {
   raw_ptr<PermanentNoteNode> main_notes_node_ = nullptr;
   raw_ptr<PermanentNoteNode> other_notes_node_ = nullptr;
   raw_ptr<PermanentNoteNode> trash_notes_node_ = nullptr;
-  std::string computed_checksum_;
-  std::string stored_checksum_;
   int64_t max_id_ = 1;
   bool ids_reassigned_ = false;
   bool uuids_reassigned_ = false;

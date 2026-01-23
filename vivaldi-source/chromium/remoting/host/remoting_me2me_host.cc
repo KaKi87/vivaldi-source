@@ -145,6 +145,7 @@
 #include <gtk/gtk.h>
 
 #include "remoting/host/linux/gnome_remote_desktop_session.h"
+#include "remoting/host/linux/portal_remote_desktop_session.h"
 #include "ui/events/platform/x11/x11_event_source.h"
 #include "ui/gfx/x/connection.h"
 #include "ui/gfx/x/xlib_support.h"
@@ -1707,7 +1708,6 @@ std::optional<ErrorCode> HostProcess::OnSessionPoliciesReceived(
 
   std::string username = GetUsername();
   LOG(INFO) << "Current local username is '" << username << "'";
-  std::set<std::string> allowed_emails;
   for (const std::string& owner_email : host_owner_emails_) {
     auto email_parts = base::SplitStringOnce(owner_email, '@');
     if (!email_parts.has_value()) {
@@ -1717,19 +1717,14 @@ std::optional<ErrorCode> HostProcess::OnSessionPoliciesReceived(
     auto owner_username = email_parts->first;
     if (base::EqualsCaseInsensitiveASCII(username, owner_username)) {
       LOG(INFO) << owner_email << " matches the local username";
-      allowed_emails.emplace(owner_email);
-    } else {
-      LOG(WARNING) << owner_email << " does not match the local username";
+      return std::nullopt;
     }
+    LOG(WARNING) << owner_email << " does not match the local username";
   }
 
-  if (allowed_emails.empty()) {
-    LOG(ERROR) << "No owner emails are allowed based on match username policy.";
-    // TODO: crbug.com/359977809 - Add a new error code for mismatched username.
-    return ErrorCode::DISALLOWED_BY_POLICY;
-  }
-
-  return std::nullopt;
+  LOG(ERROR) << "No owner emails are allowed based on match username policy.";
+  // TODO: crbug.com/359977809 - Add a new error code for mismatched username.
+  return ErrorCode::DISALLOWED_BY_POLICY;
 
 #endif  // BUILDFLAG(IS_WIN) #else
 }
@@ -1837,16 +1832,31 @@ void HostProcess::StartHost() {
 
 #if BUILDFLAG(IS_LINUX) && defined(REMOTING_USE_X11)
   if (webrtc::DesktopCapturer::IsRunningUnderWayland()) {
-    GnomeRemoteDesktopSession::GetInstance()->Init(
-        base::BindOnce([](base::expected<void, std::string> result) {
-          if (result.has_value()) {
-            LOG(INFO)
-                << "Gnome remote desktop session initialization succeeded.";
-          } else {
-            LOG(ERROR) << "Gnome remote desktop session initialization failed: "
-                       << result.error();
-          }
-        }));
+    if (GnomeRemoteDesktopSession::IsRunningUnderGnome()) {
+      GnomeRemoteDesktopSession::GetInstance()->Init(
+          base::BindOnce([](base::expected<void, std::string> result) {
+            if (result.has_value()) {
+              LOG(INFO)
+                  << "Gnome remote desktop session initialization succeeded.";
+            } else {
+              LOG(ERROR)
+                  << "Gnome remote desktop session initialization failed: "
+                  << result.error();
+            }
+          }));
+    } else {
+      PortalRemoteDesktopSession::GetInstance()->Init(
+          base::BindOnce([](base::expected<void, std::string> result) {
+            if (result.has_value()) {
+              LOG(INFO)
+                  << "Portal remote desktop session initialization succeeded.";
+            } else {
+              LOG(ERROR)
+                  << "Portal remote desktop session initialization failed: "
+                  << result.error();
+            }
+          }));
+    }
   }
 #endif
 

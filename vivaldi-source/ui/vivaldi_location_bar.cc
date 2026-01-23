@@ -25,6 +25,10 @@ OmniboxView* VivaldiLocationBar::GetOmniboxView() {
   return nullptr;
 }
 
+OmniboxController* VivaldiLocationBar::GetOmniboxController() {
+  return nullptr;
+}
+
 content::WebContents* VivaldiLocationBar::GetWebContents() { return nullptr; }
 
 LocationBarModel* VivaldiLocationBar::GetLocationBarModel() { return nullptr; }

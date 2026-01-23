@@ -28,6 +28,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window_state.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/color/chrome_color_provider_utils.h"
 #include "chrome/browser/ui/tabs/tab_menu_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
@@ -60,6 +61,7 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
+#include "ui/color/color_provider.h"
 #include "ui/color/color_recipe.h"
 #include "ui/color/color_transform.h"
 #include "ui/display/display.h"
@@ -102,16 +104,35 @@ void SetWebContentsCanAcceptLoadDrops(content::WebContents* contents,
 
 namespace web_app {
 
+DEFINE_USER_DATA(AppBrowserController);
+
+// static
+const AppBrowserController* AppBrowserController::From(
+    const BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
+// static
+AppBrowserController* AppBrowserController::From(
+    BrowserWindowInterface* browser) {
+  return Get(browser->GetUnownedUserDataHost());
+}
+
 // static
 bool AppBrowserController::IsWebApp(const BrowserWindowInterface* browser) {
-  return browser && browser->GetFeatures().app_browser_controller();
+  return browser && From(browser);
+}
+
+// static
+bool AppBrowserController::IsIsolatedWebApp(
+    const BrowserWindowInterface* browser) {
+  return IsWebApp(browser) && From(browser)->IsIsolatedWebApp();
 }
 
 // static
 bool AppBrowserController::IsForWebApp(const BrowserWindowInterface* browser,
                                        const webapps::AppId& app_id) {
-  return IsWebApp(browser) &&
-         browser->GetFeatures().app_browser_controller()->app_id() == app_id;
+  return IsWebApp(browser) && From(browser)->app_id() == app_id;
 }
 
 // static
@@ -122,8 +143,7 @@ BrowserWindowInterface* AppBrowserController::FindForWebApp(
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
         if (browser->GetBrowserForMigrationOnly()
-                ->IsAttemptingToCloseBrowser() ||
-            browser->GetBrowserForMigrationOnly()->IsBrowserClosing()) {
+                ->IsAttemptingToCloseBrowser()) {
           return true;  // continue iterating
         }
         if (browser->GetType() != BrowserWindowInterface::TYPE_APP) {
@@ -160,7 +180,7 @@ std::optional<int> AppBrowserController::FindTabIndexForApp(
       return true;
     }
     return (home_tab_scope == HomeTabScope::kInScope) ==
-           (browser->GetAppBrowserController()->GetPinnedHomeTab() == contents);
+           (From(browser)->GetPinnedHomeTab() == contents);
   };
   // The active web contents should have preference if it is in scope.
   if (browser->GetFeatures().tab_strip_model()->active_index() !=
@@ -185,7 +205,7 @@ std::optional<AppBrowserController::BrowserAndTabIndex>
 AppBrowserController::FindTopLevelBrowsingContextForWebApp(
     const Profile& profile,
     const webapps::AppId& app_id,
-    Browser::Type browser_type,
+    bool for_app_browser,
     bool for_focus_existing,
     HomeTabScope home_tab_scope) {
   std::optional<AppBrowserController::BrowserAndTabIndex>
@@ -193,11 +213,10 @@ AppBrowserController::FindTopLevelBrowsingContextForWebApp(
   ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
       [&](BrowserWindowInterface* browser) {
         if (browser->GetBrowserForMigrationOnly()
-                ->IsAttemptingToCloseBrowser() ||
-            browser->GetBrowserForMigrationOnly()->IsBrowserClosing()) {
+                ->IsAttemptingToCloseBrowser()) {
           return true;  // continue iterating
         }
-        if (browser->GetType() != browser_type) {
+        if (IsWebApp(browser) != for_app_browser) {
           return true;  // continue iterating
         }
         if (browser->GetProfile() != &profile) {
@@ -239,7 +258,8 @@ AppBrowserController::AppBrowserController(Browser* browser,
       app_id_(std::move(app_id)),
       has_tab_strip_(has_tab_strip),
       theme_provider_(
-          ThemeService::CreateBoundThemeProvider(browser_->profile(), this)) {
+          ThemeService::CreateBoundThemeProvider(browser_->profile(), this)),
+      scoped_unowned_user_data_(browser->GetUnownedUserDataHost(), *this) {
   CHECK(browser->tab_strip_model()->empty());
   browser->tab_strip_model()->AddObserver(this);
 }
@@ -269,7 +289,7 @@ bool AppBrowserController::ShouldShowCustomTabBar() const {
   }
 
   GURL start_url = GetAppStartUrl();
-  std::string_view start_url_scheme = start_url.scheme_piece();
+  std::string_view start_url_scheme = start_url.scheme();
 
   bool is_internal_start_url_scheme =
       start_url_scheme == extensions::kExtensionScheme ||
@@ -379,8 +399,12 @@ std::vector<actions::ActionId> AppBrowserController::GetTitleBarPageActions()
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   std::vector<actions::ActionId> types_enabled = {
-      kActionFind,       kActionShowPasswordsBubbleOrPage, kActionShowTranslate,
-      kActionZoomNormal, kActionShowFileSystemAccess,
+      kActionFind,
+      kActionShowPasswordsBubbleOrPage,
+      kActionShowTranslate,
+      kActionZoomNormal,
+      kActionShowFileSystemAccess,
+      kActionShowCookieControls,
   };
 
 #if DCHECK_IS_ON()
@@ -429,6 +453,10 @@ bool AppBrowserController::AppUsesBorderlessMode() const {
   return false;
 }
 
+bool AppBrowserController::UrlMatchesBorderlessPattern(const GURL& url) const {
+  return false;
+}
+
 bool AppBrowserController::AppUsesTabbed() const {
   return false;
 }
@@ -457,6 +485,10 @@ bool AppBrowserController::HasReloadButton() const {
 }
 
 bool AppBrowserController::HasPendingUpdate() const {
+  return false;
+}
+
+bool AppBrowserController::HasPendingUpdateNotIgnoredByUser() const {
   return false;
 }
 
@@ -555,13 +587,6 @@ void AppBrowserController::PrimaryPageChanged(content::Page& page) {
   // So if they are cleared, they don't work anymore when coming back to scope.
   if (AppUsesWindowControlsOverlay()) {
     draggable_region_ = std::nullopt;
-  }
-
-  // Collect draggable app regions if the app supports Window Controls Overlay
-  // or Borderless mode.
-  if (AppUsesWindowControlsOverlay() || AppUsesBorderlessMode()) {
-    content::RenderFrameHost& host = page.GetMainDocument();
-    UpdateSupportsDraggableRegions(/*supports_draggable_regions=*/true, &host);
   }
 }
 
@@ -736,7 +761,8 @@ void AppBrowserController::AddColorMixers(
   mixer[kColorPwaToolbarButtonIconDisabled] =
       ui::SetAlpha(kColorPwaToolbarButtonIcon, gfx::kDisabledControlAlpha);
   if (bg_color) {
-    mixer[kColorWebContentsBackground] = {kColorPwaBackground};
+    mixer[kColorWebContentsBackground] =
+        ui::SetAlpha(kColorPwaBackground, SK_AlphaOPAQUE);
   }
 
   mixer[kColorInfoBarBackground] = {kColorPwaToolbarBackground};
@@ -837,8 +863,7 @@ void AppBrowserController::OnTabInserted(content::WebContents* contents) {
   // RenderFrameCreated to handle existing web contents being reparented into an
   // app window.
   if (AppUsesWindowControlsOverlay() || AppUsesBorderlessMode()) {
-    content::RenderFrameHost* host = contents->GetPrimaryMainFrame();
-    UpdateSupportsDraggableRegions(/*supports_draggable_regions=*/true, host);
+    contents->SetSupportsDraggableRegions(/*supports_draggable_regions=*/true);
   }
 
   SetWebContentsCanAcceptLoadDrops(contents, false);
@@ -847,8 +872,7 @@ void AppBrowserController::OnTabInserted(content::WebContents* contents) {
 void AppBrowserController::OnTabRemoved(content::WebContents* contents) {
   // Stop collecting draggable app regions when the web contents is removed
   // since it may be reparented to a tab in the browser.
-  content::RenderFrameHost* host = contents->GetPrimaryMainFrame();
-  UpdateSupportsDraggableRegions(/*supports_draggable_regions=*/false, host);
+  contents->SetSupportsDraggableRegions(/*supports_draggable_regions=*/false);
 
   SetWebContentsCanAcceptLoadDrops(contents, true);
 }
@@ -973,21 +997,6 @@ void AppBrowserController::SetInitialURL(const GURL& initial_url) {
   initial_url_ = initial_url;
 
   OnReceivedInitialURL();
-}
-
-void AppBrowserController::UpdateSupportsDraggableRegions(
-    bool supports_draggable_regions,
-    content::RenderFrameHost* host) {
-  CHECK(host);
-
-  // App regions are only supported in the main frame.
-  if (!host->IsInPrimaryMainFrame()) {
-    return;
-  }
-
-  mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> client;
-  host->GetRemoteAssociatedInterfaces()->GetInterface(&client);
-  client->SetSupportsDraggableRegions(supports_draggable_regions);
 }
 
 }  // namespace web_app

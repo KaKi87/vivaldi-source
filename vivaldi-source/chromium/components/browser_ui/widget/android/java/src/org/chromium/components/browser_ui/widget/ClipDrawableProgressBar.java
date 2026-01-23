@@ -17,9 +17,9 @@ import android.util.AttributeSet;
 import android.view.Gravity;
 import android.widget.ImageView;
 
-import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 
+import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.OffsetTag;
@@ -44,8 +44,6 @@ public class ClipDrawableProgressBar extends ImageView {
         public @Nullable OffsetTag offsetTag;
     }
 
-    /** An observer for visible progress updates. */
-    @VisibleForTesting
     public interface ProgressBarObserver {
         /**
          * A notification that the visible progress has been updated. This may not coincide with
@@ -70,7 +68,6 @@ public class ClipDrawableProgressBar extends ImageView {
     private int mStaticBackgroundColor;
     protected final int mProgressBarHeight;
     private float mProgress;
-    private int mDesiredVisibility;
 
     // The visibility of the android and composited UI shouldn't be coupled together. During
     // browser controls movement, the android view goes invisible, but the composited layers should
@@ -79,6 +76,7 @@ public class ClipDrawableProgressBar extends ImageView {
     // subclassing a View anymore, so we would only need the composited layers visibility, and the
     // android progress bar animations might need cleaning up.
     private int mCompositedLayersVisibility;
+    private int mDesiredAndroidVisibility;
 
     /**
      * The width of the moving background drawable in pixels. This is used when {@link
@@ -90,7 +88,7 @@ public class ClipDrawableProgressBar extends ImageView {
     private int mViewWidth;
 
     /** An observer of updates to the progress bar. */
-    private @Nullable ProgressBarObserver mProgressBarObserver;
+    private final ObserverList<ProgressBarObserver> mObservers = new ObserverList<>();
 
     /**
      * Create the progress bar with a custom height.
@@ -101,7 +99,7 @@ public class ClipDrawableProgressBar extends ImageView {
         super(context, attrs);
 
         if (!shouldAnimateCompositedLayer()) {
-            mDesiredVisibility = getVisibility();
+            mDesiredAndroidVisibility = getVisibility();
         }
 
         mForegroundColor = SemanticColorUtils.getProgressBarForeground(getContext());
@@ -178,11 +176,8 @@ public class ClipDrawableProgressBar extends ImageView {
         return false;
     }
 
-    /** @param observer An update observer for the progress bar. */
-    @VisibleForTesting
-    public void setProgressBarObserver(ProgressBarObserver observer) {
-        assert mProgressBarObserver == null;
-        mProgressBarObserver = observer;
+    public void addObserver(ProgressBarObserver observer) {
+        mObservers.addObserver(observer);
     }
 
     /**
@@ -219,7 +214,10 @@ public class ClipDrawableProgressBar extends ImageView {
         } else {
             getDrawable().setLevel(Math.round(progress * DRAWABLE_MAX_LEVEL));
         }
-        if (mProgressBarObserver != null) mProgressBarObserver.onVisibleProgressUpdated();
+
+        for (ProgressBarObserver observer : mObservers) {
+            observer.onVisibleProgressUpdated();
+        }
     }
 
     /**
@@ -346,11 +344,15 @@ public class ClipDrawableProgressBar extends ImageView {
 
     private void updateInternalVisibility() {
         int oldVisibility = getVisibility();
-        int newVisibility = mDesiredVisibility;
-        if (getAlpha() == 0 && mDesiredVisibility == VISIBLE) newVisibility = INVISIBLE;
+        int newVisibility = mDesiredAndroidVisibility;
+        if (getAlpha() == 0 && mDesiredAndroidVisibility == VISIBLE) newVisibility = INVISIBLE;
         if (oldVisibility != newVisibility && !shouldAnimateCompositedLayer()) {
             super.setVisibility(newVisibility);
         }
+    }
+
+    public int getDesiredAndroidVisibility() {
+        return mDesiredAndroidVisibility;
     }
 
     private int applyAlpha(int color, float alpha) {
@@ -360,12 +362,12 @@ public class ClipDrawableProgressBar extends ImageView {
     // View implementations.
 
     /**
-     * Note that this visibility might not be respected for optimization. For example, if alpha
-     * is 0, it will remain View#INVISIBLE even if this is called with View#VISIBLE.
+     * Note that this visibility might not be respected for optimization. For example, if alpha is
+     * 0, it will remain View#INVISIBLE even if this is called with View#VISIBLE.
      */
     @Override
     public void setVisibility(int visibility) {
-        mDesiredVisibility = visibility;
+        mDesiredAndroidVisibility = visibility;
         updateInternalVisibility();
     }
 
@@ -427,32 +429,27 @@ public class ClipDrawableProgressBar extends ImageView {
     protected boolean onSetAlpha(int alpha) {
         int oldVisibility = mCompositedLayersVisibility;
         if (alpha == 0) {
-            mDesiredVisibility = INVISIBLE;
             mCompositedLayersVisibility = INVISIBLE;
         } else {
-            mDesiredVisibility = VISIBLE;
             mCompositedLayersVisibility = VISIBLE;
         }
 
-        if (oldVisibility != mCompositedLayersVisibility && mProgressBarObserver != null) {
-            mProgressBarObserver.onCompositedLayersVisibilityChanged();
+        if (oldVisibility != mCompositedLayersVisibility) {
+            for (ProgressBarObserver observer : mObservers) {
+                observer.onCompositedLayersVisibilityChanged();
+            }
         }
 
         updateInternalVisibility();
         return super.onSetAlpha(alpha);
     }
 
-    private boolean shouldAnimateCompositedLayer() {
+    public boolean shouldAnimateCompositedLayer() {
         return ChromeFeatureList.sAndroidAnimatedProgressBarInViz.isEnabled()
                 || ChromeFeatureList.sAndroidAnimatedProgressBarInBrowser.isEnabled();
     }
 
-    @Override
-    public int getVisibility() {
-        if (shouldAnimateCompositedLayer()) {
-            return mCompositedLayersVisibility;
-        } else {
-            return super.getVisibility();
-        }
+    public int getCompositedVisibilityForTesting() {
+        return mCompositedLayersVisibility;
     }
 }

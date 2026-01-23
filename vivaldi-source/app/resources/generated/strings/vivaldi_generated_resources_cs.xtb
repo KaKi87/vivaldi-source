@@ -50,6 +50,7 @@
 <translation id="1779468444204342338">Minimální</translation>
 <translation id="1815083418640426271">Vložit jako prostý text</translation>
 <translation id="1828901632669367785">Pro tisk použít systémové okno…</translation>
+<translation id="1843048149176045210">Zkopírovat odkaz ke stažení</translation>
 <translation id="1850508293116537636">Otočit &amp;ve směru hodinových ručiček</translation>
 <translation id="1886996562706621347">Povolit dotazy stránek, zda je chcete použít jako výchozí obslužný nástroj protokolů (doporučeno)</translation>
 <translation id="1901303067676059328">Vybr&amp;at vše</translation>
@@ -215,6 +216,7 @@
 <translation id="4613271546271159013">Rozšíření změnilo stránku, která se zobrazí při otevření nového listu.</translation>
 <translation id="4616405296204756919">Uložená hesla můžete používat na libovolném zařízení. Uložena jsou v <ph name="VIVALDI_PASSWORD_MANAGER" />.</translation>
 <translation id="4643612240819915418">&amp;Otevřít video v novém listu</translation>
+<translation id="4644205769234414680">Povolit v soukromém režimu</translation>
 <translation id="4654801841330730814">Vše</translation>
 <translation id="4677772697204437347">Paměť GPU</translation>
 <translation id="4681930562518940301">Otevřít původní &amp;obrázek v novém listu</translation>
@@ -367,6 +369,7 @@
 <translation id="7453008956351770337">Výběrem tiskárny udělíte následujícímu rozšíření oprávnění k přístupu k tiskárně:</translation>
 <translation id="7564847347806291057">Ukončit úlohu</translation>
 <translation id="7576690715254076113">Kompletovat</translation>
+<translation id="7612050744024016345">Všechna rozšíření</translation>
 <translation id="7629827748548208700">List: <ph name="TAB_NAME" /></translation>
 <translation id="7658239707568436148">Zrušit</translation>
 <translation id="7659154729610375585">Přesto anonymní režim ukončit?</translation>

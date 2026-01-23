@@ -1,0 +1,136 @@
+# Copyright (c) 2023 Vivaldi Technologies AS. All rights reserved
+
+import("//build/config/ios/rules.gni")
+
+bundle_data_xcassets("vivaldi_symbol_assets") {
+  catalog = "VivaldiSymbolAssets.xcassets"
+  sources = [
+    # vivaldi_new_tab
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_tab.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_tab.symbolset/vivaldi_new_tab.svg",
+
+    # vivaldi_new_background_tab
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_background_tab.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_background_tab.symbolset/vivaldi_new_background_tab.svg",
+
+    # vivaldi_new_window
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_window.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_new_window.symbolset/vivaldi_new_window.svg",
+
+    # vivaldi_private_tab
+    "VivaldiSymbolAssets.xcassets/vivaldi_private_tab.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_private_tab.symbolset/vivaldi_private_tab.svg",
+
+    # vivaldi_link
+    "VivaldiSymbolAssets.xcassets/vivaldi_link.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_link.symbolset/vivaldi_link.svg",
+
+    # vivaldi_edit
+    "VivaldiSymbolAssets.xcassets/vivaldi_edit.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_edit.symbolset/vivaldi_edit.svg",
+
+    # vivaldi_share
+    "VivaldiSymbolAssets.xcassets/vivaldi_share.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_share.symbolset/vivaldi_share.svg",
+
+    # vivaldi_move
+    "VivaldiSymbolAssets.xcassets/vivaldi_move.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_move.symbolset/vivaldi_move.svg",
+
+    # vivaldi_copy
+    "VivaldiSymbolAssets.xcassets/vivaldi_copy.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_copy.symbolset/vivaldi_copy.svg",
+
+    # vivaldi_save
+    "VivaldiSymbolAssets.xcassets/vivaldi_save.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_save.symbolset/vivaldi_save.svg",
+
+    # vivaldi_save_to_photos
+    "VivaldiSymbolAssets.xcassets/vivaldi_save_to_photos.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_save_to_photos.symbolset/vivaldi_save_to_photos.svg",
+
+    # vivaldi_close
+    "VivaldiSymbolAssets.xcassets/vivaldi_close.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_close.symbolset/vivaldi_close.svg",
+
+    # vivaldi_pin
+    "VivaldiSymbolAssets.xcassets/vivaldi_pin.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_pin.symbolset/vivaldi_pin.svg",
+
+    # vivaldi_unpin
+    "VivaldiSymbolAssets.xcassets/vivaldi_unpin.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_unpin.symbolset/vivaldi_unpin.svg",
+
+    # vivaldi_select
+    "VivaldiSymbolAssets.xcassets/vivaldi_select.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_select.symbolset/vivaldi_select.svg",
+
+    # vivaldi_add_bookmark
+    "VivaldiSymbolAssets.xcassets/vivaldi_add_bookmark.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_add_bookmark.symbolset/vivaldi_add_bookmark.svg",
+
+    # vivaldi_edit_bookmark
+    "VivaldiSymbolAssets.xcassets/vivaldi_edit_bookmark.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_edit_bookmark.symbolset/vivaldi_edit_bookmark.svg",
+
+    # vivaldi_add_reading_list
+    "VivaldiSymbolAssets.xcassets/vivaldi_add_reading_list.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_add_reading_list.symbolset/vivaldi_add_reading_list.svg",
+
+    # vivaldi_show_bookmarks
+    "VivaldiSymbolAssets.xcassets/vivaldi_show_bookmarks.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_show_bookmarks.symbolset/vivaldi_show_bookmarks.svg",
+
+    # vivaldi_show_reading_list
+    "VivaldiSymbolAssets.xcassets/vivaldi_show_reading_list.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_show_reading_list.symbolset/vivaldi_show_reading_list.svg",
+
+    # vivaldi_qr_code
+    "VivaldiSymbolAssets.xcassets/vivaldi_qr_code.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_qr_code.symbolset/vivaldi_qr_code.svg",
+
+    # vivaldi_open_in
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_in.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_in.symbolset/vivaldi_open_in.svg",
+
+    # vivaldi_open_image_in_tab
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_image_in_tab.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_image_in_tab.symbolset/vivaldi_open_image_in_tab.svg",
+
+    # vivaldi_search_for_image
+    "VivaldiSymbolAssets.xcassets/vivaldi_search_for_image.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_search_for_image.symbolset/vivaldi_search_for_image.svg",
+
+    # vivaldi_open_offline_version
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_offline_version.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_open_offline_version.symbolset/vivaldi_open_offline_version.svg",
+
+    # vivaldi_eye_off
+    "VivaldiSymbolAssets.xcassets/vivaldi_eye_off.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_eye_off.symbolset/vivaldi_eye_off.svg",
+
+    # vivaldi_eye_on
+    "VivaldiSymbolAssets.xcassets/vivaldi_eye_on.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_eye_on.symbolset/vivaldi_eye_on.svg",
+
+    # vivaldi_print
+    "VivaldiSymbolAssets.xcassets/vivaldi_print.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_print.symbolset/vivaldi_print.svg",
+
+    # vivaldi_search
+    "VivaldiSymbolAssets.xcassets/vivaldi_search.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_search.symbolset/vivaldi_search.svg",
+
+    # vivaldi_clear_history_autofill
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_autofill.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_autofill.symbolset/vivaldi_clear_history_autofill.svg",
+
+    # vivaldi_clear_history_cookies
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_cookies.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_cookies.symbolset/vivaldi_clear_history_cookies.svg",
+
+    # vivaldi_clear_history_cache
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_cache.symbolset/Contents.json",
+    "VivaldiSymbolAssets.xcassets/vivaldi_clear_history_cache.symbolset/vivaldi_clear_history_cache.svg",
+  ]
+}

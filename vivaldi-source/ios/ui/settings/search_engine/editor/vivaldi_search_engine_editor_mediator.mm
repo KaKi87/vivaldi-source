@@ -20,9 +20,6 @@
   ProfileIOS* _profile;
   TemplateURLService* _templateURLService;
 
-  // Template URL being edited (null for new search engines)
-  const TemplateURL* _editingItem;
-
   // Internal model representation for editing
   VivaldiSearchEngineEditorItem* _editingItemInternal;
 
@@ -32,8 +29,11 @@
   // Array of existing search engine nicknames for validation
   NSMutableArray<VivaldiSearchEngineNicknameModel*>* _nicknames;
 
-  // Whether we're editing an existing engine or creating new
-  BOOL _isEditing;
+  VivaldiSearchEngineEditorEntryReason _entryReason;
+
+  VivaldiSearchEngineEditorEntryPoint _entryPoint;
+  BOOL _shouldSetAsDefault;
+  VivaldiSearchEngineEditorItem* _prefilledItem;
 }
 
 @end
@@ -43,13 +43,18 @@
 #pragma mark - Initialization
 
 - (instancetype)initWithProfile:(ProfileIOS*)profile
-                      isEditing:(BOOL)isEditing
-                    editingItem:(const TemplateURL*)editingItem {
+                    entryReason:
+                        (VivaldiSearchEngineEditorEntryReason)entryReason
+                     entryPoint:(VivaldiSearchEngineEditorEntryPoint)entryPoint
+                           item:(VivaldiSearchEngineEditorItem*)item {
   self = [super init];
   if (self) {
     _profile = profile;
-    _isEditing = isEditing;
-    _editingItem = editingItem;
+    _entryReason = entryReason;
+    _entryPoint = entryPoint;
+    _prefilledItem = item;
+    _editingItemInternal = item ?: [[VivaldiSearchEngineEditorItem alloc] init];
+    _shouldSetAsDefault = NO;
 
     [self setupTemplateURLService];
   }
@@ -65,10 +70,18 @@
 
   [self.consumer searchEngineBackendWillChange];
 
-  if (_isEditing) {
+  TemplateURL* newly_added_url = nullptr;
+  if (_entryReason == VivaldiSearchEngineEditorEntryReasonEdit) {
     [self updateExistingSearchEngine];
   } else {
-    [self createNewSearchEngine];
+    newly_added_url = [self createNewSearchEngine];
+
+    if (_entryPoint == VivaldiSearchEngineEditorEntryPointContextMenu &&
+        _shouldSetAsDefault && newly_added_url &&
+        _templateURLService->CanMakeDefault(newly_added_url)) {
+      _templateURLService->SetUserSelectedDefaultSearchProvider(
+          newly_added_url);
+    }
   }
 
   [self.consumer searchEngineBackendDidChange];
@@ -97,8 +110,7 @@
   if (!_templateURLService)
     return;
 
-  TemplateURL* itemToUpdate =
-      _templateURLService->GetTemplateURLForGUID(_editingItem->sync_guid());
+  TemplateURL* itemToUpdate = [self templateURLForCurrentEditorItem];
 
   if (!itemToUpdate) {
     return;
@@ -113,7 +125,7 @@
           base::SysNSStringToUTF8(_editingItemInternal.postParameters)),
       GetUrlFromDisplay(
           base::SysNSStringToUTF8(_editingItemInternal.suggestURL)),
-      _editingItem->suggestions_url_post_params(),
+      itemToUpdate->suggestions_url_post_params(),
       GetUrlFromDisplay(
           base::SysNSStringToUTF8(_editingItemInternal.imageSearchURL)),
       GetUrlFromDisplay(base::SysNSStringToUTF8(
@@ -122,9 +134,9 @@
           GURL(base::SysNSStringToUTF8(_editingItemInternal.url))));
 }
 
-- (void)createNewSearchEngine {
+- (TemplateURL*)createNewSearchEngine {
   if (!_templateURLService)
-    return;
+    return nullptr;
 
   TemplateURLData data;
   data.SetShortName(base::SysNSStringToUTF16(_editingItemInternal.name));
@@ -143,7 +155,9 @@
       GURL(base::SysNSStringToUTF8(_editingItemInternal.url)));
   data.safe_for_autoreplace = false;
 
-  _templateURLService->Add(std::make_unique<TemplateURL>(data));
+  TemplateURL* added =
+      _templateURLService->Add(std::make_unique<TemplateURL>(data));
+  return added;
 }
 
 #pragma mark - Private Helper Methods
@@ -176,38 +190,27 @@
                                                        nickname:nickname];
 }
 
-- (VivaldiSearchEngineEditorItem*)createEditorItemFromTemplateURL:
-    (const TemplateURL*)templateURL {
-  if (!_templateURLService)
-    return nil;
-
-  return [[VivaldiSearchEngineEditorItem alloc]
-                   initWithGuid:base::SysUTF8ToNSString(
-                                    templateURL->sync_guid())
-                           name:base::SysUTF16ToNSString(
-                                    templateURL->short_name())
-                       nickname:base::SysUTF16ToNSString(templateURL->keyword())
-                            url:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->url()))
-                     suggestURL:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->suggestions_url()))
-                 postParameters:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL
-                                            ->suggestions_url_post_params()))
-                 imageSearchURL:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->image_url()))
-      imageSearchPostParameters:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->image_url_post_params()))];
-}
-
 - (void)cleanup {
   _observer.reset();
   _profile = nullptr;
   _templateURLService = nullptr;
-  _editingItem = nil;
   _editingItemInternal = nil;
   _consumer = nil;
   _nicknames = nil;
+}
+
+- (TemplateURL*)templateURLForCurrentEditorItem {
+  if (!_templateURLService)
+    return nullptr;
+  NSString* guid = _prefilledItem.guid ?: _editingItemInternal.guid;
+  if (!guid.length) {
+    return nullptr;
+  }
+  std::string guid_utf8 = base::SysNSStringToUTF8(guid);
+  if (guid_utf8.empty()) {
+    return nullptr;
+  }
+  return _templateURLService->GetTemplateURLForGUID(guid_utf8);
 }
 
 #pragma mark - Property Accessors
@@ -218,12 +221,11 @@
   // Provide initial data to consumer
   [consumer availableNicknamesDidUpdate:[_nicknames copy]];
 
-  // Set up editing item if we're in edit mode
-  if (_isEditing && _editingItem) {
-    VivaldiSearchEngineEditorItem* localItem =
-        [self createEditorItemFromTemplateURL:_editingItem];
-    _editingItemInternal = localItem;
-    [consumer searchEngineEditorItemDidChange:localItem];
+  if (_prefilledItem) {
+    _editingItemInternal = _prefilledItem;
+    [consumer searchEngineEditorItemDidChange:_prefilledItem];
+  } else if (_editingItemInternal) {
+    [consumer searchEngineEditorItemDidChange:_editingItemInternal];
   }
 }
 
@@ -231,6 +233,10 @@
 
 - (void)searchEngineEditorItemDidChange:(VivaldiSearchEngineEditorItem*)item {
   _editingItemInternal = item;
+}
+
+- (void)searchEngineEditorDefaultToggleDidChange:(BOOL)isOn {
+  _shouldSetAsDefault = isOn;
 }
 
 #pragma mark - SearchEngineObserving

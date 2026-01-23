@@ -225,6 +225,8 @@ class VivaldiBrowserComponentWrapperImpl
       std::string content_setting_string) override;
 
   Browser* GetWorkspaceBrowser(const double workspace_id) override;
+  content::WebContents* GetFollowerTab(Browser* browser,
+                                       const std::string follower_ext_id) override;
   int CountTabsInWorkspace(TabStripModel* tab_strip,
                            const double workspace_id) override;
   VivaldiBrowserWindow* VivaldiBrowserWindowFromId(int id) override;

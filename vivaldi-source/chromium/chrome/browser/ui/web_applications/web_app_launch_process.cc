@@ -7,7 +7,6 @@
 #include "base/debug/crash_logging.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/files/file_path.h"
-#include "base/functional/callback_forward.h"
 #include "base/memory/values_equivalent.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
@@ -303,8 +302,7 @@ BrowserWindowInterface* WebAppLaunchProcess::MaybeFindBrowserForLaunch() const {
     }
 #endif
     return chrome::FindTabbedBrowser(
-        &profile_.get(), /*match_original_profiles=*/false, display_id,
-        /*ignore_closing_browsers=*/true);
+        &profile_.get(), /*match_original_profiles=*/false, display_id);
   }
 
   if (params_->disposition == WindowOpenDisposition::NEW_WINDOW) {

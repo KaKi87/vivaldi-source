@@ -7,9 +7,7 @@ import("//build/config/chrome_build.gni")
 
 import("//testing/test.gni")
 
-if (defined(is_vivaldi) && is_vivaldi) {
-  import("//vivaldi/gn/config/features.gni")
-}
+assert(false, "Use Vivaldi's own installer code")
 
 if (is_win) {
   source_set("metainstaller_utils") {
@@ -226,7 +224,7 @@ generate_embedded_i18n("generate_strings") {
       "//chrome/installer/util/prebuild/create_installer_string_rc.py"
 
   grdfile_folder = "//chrome/app/"
-  grdfile_name = "google_chrome_strings"
+  grdfile_name = "${branding_path_product}_strings"
   xtb_relative_path = "resources"
   grd_files_info = [ [
         grdfile_folder,
@@ -237,9 +235,7 @@ generate_embedded_i18n("generate_strings") {
 
   output_file_name_base = "installer_util_strings"
 
-  if (!defined(is_vivaldi) || !is_vivaldi) {
   branding = branding_path_product
-  }
 }
 
 # Compile the generated .rc file.

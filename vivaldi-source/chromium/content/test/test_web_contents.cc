@@ -519,12 +519,13 @@ FrameTreeNodeId TestWebContents::AddPrerender(const GURL& url) {
       ui::PAGE_TRANSITION_LINK,
       /*should_warm_up_compositor=*/false,
       /*should_prepare_paint_tree=*/false,
-      /*should_pause_javascript_execution=*/false,
+      blink::mojom::SpeculationAction::kPrerender,
       /*url_match_predicate=*/{},
       /*prerender_navigation_handle_callback=*/{},
       PreloadPipelineInfoImpl::Create(
           /*planned_max_preloading_type=*/PreloadingType::kPrerender),
-      /*allow_reuse=*/false));
+      /*allow_reuse=*/false,
+      /*form_submission=*/false));
 }
 
 TestRenderFrameHost* TestWebContents::AddPrerenderAndCommitNavigation(

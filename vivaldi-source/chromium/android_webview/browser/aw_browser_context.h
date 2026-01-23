@@ -25,9 +25,7 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
-#include "base/functional/callback.h"
 #include "base/lazy_instance.h"
-#include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "components/keyed_service/core/simple_factory_key.h"
@@ -60,7 +58,6 @@ class VisitedLinkWriter;
 namespace android_webview {
 
 class AwBrowserContextIoThreadHandle;
-class AwFormDatabaseService;
 class AwQuotaManagerBridge;
 class CookieManager;
 
@@ -109,7 +106,6 @@ class AwBrowserContext : public content::BrowserContext,
   AwQuotaManagerBridge* GetQuotaManagerBridge();
   jlong GetQuotaManagerBridge(JNIEnv* env);
 
-  AwFormDatabaseService* GetFormDatabaseService();
   CookieManager* GetCookieManager();
 
   bool IsDefaultBrowserContext() const;
@@ -247,6 +243,9 @@ class AwBrowserContext : public content::BrowserContext,
   const std::vector<scoped_refptr<AwOriginMatchedHeader>>&
   GetOriginMatchedHeaders();
 
+  // Adds a QUIC hints for the given origins.
+  void AddQuicHints(JNIEnv* env, const std::vector<GURL>& origins);
+
  private:
   friend class AwBrowserContextIoThreadHandle;
   void CreateUserPrefService();
@@ -267,11 +266,6 @@ class AwBrowserContext : public content::BrowserContext,
   base::FilePath http_cache_path_;
 
   scoped_refptr<AwQuotaManagerBridge> quota_manager_bridge_;
-
-  // Cleans up the database tables created by the AwFormDatabaseService
-  // until M132.
-  // TODO(crbug.com/390473673): Remove after M143.
-  std::unique_ptr<AwFormDatabaseService> form_database_service_;
 
   std::unique_ptr<visitedlink::VisitedLinkWriter> visitedlink_writer_;
 

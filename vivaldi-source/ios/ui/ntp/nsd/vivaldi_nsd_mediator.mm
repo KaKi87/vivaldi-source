@@ -296,7 +296,7 @@ using bookmarks::BookmarkNode;
   __weak VivaldiNSDMediator* weakSelf = self;
   const GURL url = bookmark_utils_ios::ConvertUserDataToGURL(item.url);
   GURL blockURL(url);
-  auto faviconLoadedBlock = ^(FaviconAttributes* attributes) {
+  auto faviconLoadedBlock = ^(FaviconAttributes* attributes, bool cached) {
     VivaldiNSDMediator* strongSelf = weakSelf;
     if (!strongSelf)
       return;

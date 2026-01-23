@@ -57,7 +57,11 @@ class VideoAcceleratorUtil {
 
     // Encoders known to support temporal layers.
     private static final Set<String> TEMPORAL_SVC_SUPPORTING_ENCODERS =
-            Set.of("c2.qti.avc.encoder", "c2.exynos.h264.encoder");
+            Set.of(
+                    "c2.qti.avc.encoder",
+                    "c2.exynos.h264.encoder",
+                    "c2.cros-codecs.vaapi.avc.encoder",
+                    "c2.cros-codecs.vaapi.vp9.encoder");
 
     // Possible supported resolutions.
     private static final Resolution[] SUPPORTED_RESOLUTIONS = {
@@ -214,16 +218,6 @@ class VideoAcceleratorUtil {
     // choose not to report it as supported.
     private static boolean requiresHardwareEncoder(String type) {
         return !type.equalsIgnoreCase(MediaCodecUtil.MimeTypes.VIDEO_H264);
-    }
-
-    // H.264 high profile isn't required by Android platform, so we can only add support if
-    // we know its supported by the underlying codec.
-    private static boolean hasHighProfileSupport(String name) {
-        var lowerName = name.toLowerCase(Locale.ROOT);
-
-        // Some platforms seem to have a trailing `.` in the name...
-        return lowerName.startsWith("omx.google.h264.decoder")
-                || lowerName.startsWith("c2.android.avc.decoder");
     }
 
     private static int getNumberOfTemporalLayers(String name) {
@@ -595,14 +589,6 @@ class VideoAcceleratorUtil {
                                     VideoCodecProfile.AV1PROFILE_PROFILE_MAIN, kNoVideoCodecLevel);
                             break;
                     }
-                }
-
-                // Prior to Oreo, high profile support wasn't advertised properly.
-                if (codec == VideoCodec.H264
-                        && Build.VERSION.SDK_INT < Build.VERSION_CODES.O
-                        && hasHighProfileSupport(info.getName())) {
-                    supportedProfileLevels.put(
-                            VideoCodecProfile.H264PROFILE_HIGH, kNoVideoCodecLevel);
                 }
 
                 boolean isSoftwareCodec = MediaCodecUtil.isSoftwareCodec(info);

@@ -36,16 +36,17 @@
 #include "chrome/browser/chromeos/app_mode/kiosk_web_app_install_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-#include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/webui/ash/login/app_launch_splash_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/error_screen_handler.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chromeos/ash/components/dbus/session_manager/fake_session_manager_client.h"
 #include "chromeos/ash/components/policy/device_local_account/device_local_account_type.h"
+#include "chromeos/ash/experiences/settings_ui/settings_app_manager.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/test/policy_builder.h"
 #include "extensions/browser/app_window/app_window.h"
@@ -304,13 +305,13 @@ bool PressBailoutAccelerator() {
       LoginAcceleratorAction::kAppLaunchBailout);
 }
 
-Browser* OpenA11ySettings(Profile& profile) {
+Browser* OpenA11ySettings(const user_manager::User& user) {
   auto& session = CHECK_DEREF(KioskController::Get().GetKioskSystemSession());
-  auto& settings_manager =
-      CHECK_DEREF(chrome::SettingsWindowManager::GetInstance());
+  auto& settings_manager = CHECK_DEREF(ash::SettingsAppManager::Get());
 
-  settings_manager.ShowOSSettings(
-      &profile, chromeos::settings::mojom::kManageAccessibilitySubpagePath);
+  settings_manager.Open(
+      user,
+      {.sub_page = chromeos::settings::mojom::kManageAccessibilitySubpagePath});
 
   EXPECT_FALSE(DidKioskCloseNewWindow());
 
@@ -343,7 +344,7 @@ void CloseAppWindow(const KioskApp& app) {
     }
     case KioskAppType::kWebApp:
     case KioskAppType::kIsolatedWebApp: {
-      EXPECT_GE(BrowserList::GetInstance()->size(), 1u);
+      EXPECT_GE(chrome::GetTotalBrowserCount(), 1u);
       BrowserWindowInterface* web_app_browser = nullptr;
       // TODO(crbug.com/444072535): Picking a Browser from the global browser
       // list is flaky and very test dependent. This should be updated to

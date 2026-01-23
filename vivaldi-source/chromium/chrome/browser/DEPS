@@ -67,6 +67,7 @@ include_rules = [
   "+components/bookmarks/managed",
   "+components/bookmarks/test",
   "+components/breadcrumbs/core",
+  "+components/browser_apis/tab_strip",
   "+components/browser_sync",
   "+components/browser_ui/accessibility",
   "+components/browser_ui/desktop_windowing/android",
@@ -99,11 +100,11 @@ include_rules = [
   "+components/consent_auditor",
   "+components/constrained_window",
   "+components/content_capture/browser",
+  "+components/content_capture/common",
   "+components/content_extraction/content/browser",
   "+components/content_settings/browser",
   "+components/content_settings/core/browser",
   "+components/content_settings/core/test",
-  "+components/contextual_search/core/browser",
   "+components/contextual_tasks/public",
   "+components/cookie_config",
   "+components/country_codes",
@@ -121,6 +122,7 @@ include_rules = [
   "+components/device_signals/core/common",
   "+components/content_relationship_verification",
   "+components/data_sharing/public",
+  "+components/desktop_to_mobile_promos",
   "+components/digital_goods",
   "+components/domain_reliability",
   "+components/dom_distiller/content/browser",
@@ -150,7 +152,6 @@ include_rules = [
   "+components/find_in_page",
   "+components/fingerprinting_protection_filter/browser",
   "+components/fingerprinting_protection_filter/common",
-  "+components/fingerprinting_protection_filter/interventions/browser",
   "+components/fingerprinting_protection_filter/interventions/common",
   "+components/fingerprinting_protection_filter/mojom",
   "+components/gcm_driver",
@@ -177,7 +178,6 @@ include_rules = [
   "+components/input",
   "+components/installedapp",
   "+components/invalidation",
-  "+components/ip_protection",
   "+components/javascript_dialogs",
   "+components/keep_alive_registry",
   "+components/keyed_service/content",
@@ -361,6 +361,7 @@ include_rules = [
   "+components/translate/content/browser",
   "+components/language_detection/content/browser",
   "+components/language_detection/content/common",
+  "+components/touch_to_search/core/browser",
   "+components/translate/content/common",
   "+components/translate/core/browser",
   "+components/translate/core/common",
@@ -386,6 +387,7 @@ include_rules = [
   "+components/visited_url_ranking",
   "+components/viz/common",
   "+components/viz/host",
+  "+components/wallet/core/common",
   "+components/web_cache/browser",
   "+components/web_modal",
   "+components/web_resource",
@@ -455,15 +457,12 @@ include_rules = [
   "+services/proxy_resolver",  # Android runs the packaged proxy resolver
                                # service in process and needs impl access.
   "+services/proxy_resolver/public/mojom",
-  "+services/proxy_resolver_win/public/mojom",
-  "+services/resource_coordinator/public/cpp",
+  "+services/resource_coordinator/public",
   "+services/screen_ai",
   "+services/strings",
   "+services/webnn/public/mojom/features.mojom-features.h",
   "+services/tracing/public/cpp",
   "+services/video_capture/public",
-  "+services/video_effects/public",
-  "+services/video_effects/test",
   "+services/viz/public",
   "+services/viz/privileged",
   "+skia/ext",
@@ -522,6 +521,7 @@ include_rules = [
   "+third_party/icu/source/common/unicode",
   "+third_party/icu/source/i18n/unicode",
   "+third_party/leveldatabase",
+  "+third_party/lens_server_proto",
   "+third_party/libxml/chromium/xml_writer.h",
   "+third_party/protobuf/src/google/protobuf",
   "+third_party/re2",
@@ -536,6 +536,10 @@ include_rules = [
   "+third_party/blink/public/common",
   "+third_party/blink/public/mojom",
   "+third_party/blink/public/public_buildflags.h",
+
+  # Ensure that only the public interface of contextual search gets used.
+  "-components/contextual_search/internal",
+  "+components/contextual_search",
 ]
 
 specific_include_rules = {
@@ -621,5 +625,8 @@ specific_include_rules = {
   ],
   "fake_server_helper_android\.cc": [
     "+components/saved_tab_groups",
+  ],
+  r"android/omnibox/composebox_query_controller_bridge\.cc": [
+    "+components/contextual_search/internal",
   ],
 }

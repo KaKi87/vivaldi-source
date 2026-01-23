@@ -76,7 +76,7 @@ group("All") {
   }
   if (is_win) {
     deps += [
-      "//chrome/installer/mini_installer",
+      "//vivaldi/installer/mini_installer/mini_installer",
       "//components/zucchini:zucchini",
       "//components/zucchini:zucchini64",
       # "//ui/views/examples:views_examples", # example test software for viewing icons
@@ -182,6 +182,12 @@ group("All") {
       ]
     }
   }
+  if (is_win) {
+    deps += [
+      "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
+      ":copy_symbol_tools",
+    ]
+  }
 }
 
 if (!is_ios) {
@@ -237,6 +243,21 @@ if (is_mac || is_linux) {
       "//third_party/breakpad:minidump_stackwalk($host_system_allocator_toolchain)",
       "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
       "//third_party/breakpad:minidump_dump($host_system_allocator_toolchain)",
+    ]
+  }
+}
+if (is_win) {
+  copy("copy_symbol_tools") {
+    toolchain_folder = get_label_info("$host_system_allocator_toolchain","name")
+
+    sources = [
+      "$root_build_dir/$toolchain_folder/dump_syms.exe",
+    ]
+    outputs = [
+      "$root_build_dir/{{source_file_part}}"
+    ]
+    deps = [
+      "//third_party/breakpad:dump_syms($host_system_allocator_toolchain)",
     ]
   }
 }

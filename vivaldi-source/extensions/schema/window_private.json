@@ -126,6 +126,29 @@
         ]
       },
       {
+        "id": "MouseEdgeType",
+        "type": "string",
+        "description": "Relative position of mouse to this window.",
+        "enum": [
+          {
+            "name": "away",
+            "description": "The mouse cursor is not inside any of the hot-rects"
+          },
+          {
+            "name": "left"
+          },
+          {
+            "name": "right"
+          },
+          {
+            "name": "top"
+          },
+          {
+            "name": "bottom"
+          }
+        ]
+      },
+      {
         "id": "FocusedElementInfo",
         "type": "object",
         "description": "Information about the HTML element having focus.",
@@ -167,6 +190,9 @@
           },
           {
             "name": "heavyPadding"
+          },
+          {
+            "name": "autohideHeavyPadding"
           }
         ]
       },
@@ -189,6 +215,35 @@
             "description": "Image to show as base64 encoded."
           }
         }
+      },
+      {
+        "id": "EdgeMouseParameters",
+        "type": "object",
+        "description": "Event member for mouse vincinity events.",
+        "properties": {
+          "mousePosition": {
+            "$ref": "MouseEdgeType"
+          }
+        }
+      },
+      {
+        "id": "HotSpotStatus",
+        "type": "string",
+        "description": "Status for hot spot set via windowPrivate.setHotSpot.",
+        "enum": [
+          {
+            "name": "away"
+          },
+          {
+            "name": "above"
+          }
+        ]
+      },
+      {
+        "id": "HotSpotLocation",
+        "type": "string",
+        "enum": [ "left", "right", "top", "bottom" ],
+        "description": "Position in window used to calculate a rect based on width and height."
       }
     ],
     "functions": [
@@ -215,7 +270,7 @@
         "returns_async": {
           "name": "callback",
           "parameters": [
-              {
+            {
               "name": "windowId",
               "type": "integer",
               "description": "The window id of the created window if successful or -1 on an error or if the user immediately closed the window."
@@ -345,6 +400,30 @@
         "type": "function",
         "description": "Performs a haptic feedback.",
         "parameters": []
+      },
+      {
+        "name": "setHotSpot",
+        "type": "function",
+        "description": "Update or set the hot-spot that will be used to compare current mouseposition and report in event onMouseInHotSpot.",
+        "parameters": [
+          {
+            "name": "windowId",
+            "type": "integer",
+            "description": "Used to identify target window."
+          },
+          {
+            "name": "location",
+            "$ref": "HotSpotLocation"
+          },
+          {
+            "name": "width",
+            "type": "number"
+          },
+          {
+            "name": "height",
+            "type": "number"
+          }
+        ]
       }
     ],
     "events": [
@@ -477,7 +556,7 @@
       {
         "name": "onToastMessage",
         "type": "function",
-        "description": "Fire .",
+        "description": "Fired when the browser should show a toast message.",
         "parameters": [
           {
             "type": "integer",
@@ -486,6 +565,36 @@
           {
             "name": "params",
             "$ref": "ToastParameters"
+          }
+        ]
+      },
+      {
+        "name": "onMouseCloseToEdge",
+        "type": "function",
+        "description": "Fires when the mousecursor is close to the window edge.",
+        "parameters": [
+          {
+            "type": "integer",
+            "name": "windowId"
+          },
+          {
+            "name": "params",
+            "$ref": "EdgeMouseParameters"
+          }
+        ]
+      },
+      {
+        "name": "onMouseInHotSpot",
+        "type": "function",
+        "description": "Fires when the mousecursor is over specified rect in |setHotSpot|.",
+        "parameters": [
+          {
+            "type": "integer",
+            "name": "windowId"
+          },
+          {
+            "name": "params",
+            "$ref": "HotSpotStatus"
           }
         ]
       }

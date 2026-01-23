@@ -30,7 +30,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+// Vivaldi
 import org.vivaldi.browser.common.VivaldiIntentHandler;
+import org.vivaldi.browser.launcher_shortcuts.VivaldiLauncherShortcutUtils;
 
 /** A helper activity for routing launcher shortcut intents. */
 @NullMarked
@@ -49,9 +51,6 @@ public class LauncherShortcutActivity extends Activity {
 
     private static @Nullable String sLabelForTesting;
 
-    /** Vivaldi */
-    public static final String ACTION_SCAN_QR_CODE = "vivaldi.shortcut.action.SCAN_QR_CODE";
-
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -62,7 +61,7 @@ public class LauncherShortcutActivity extends Activity {
 
         // Exit early if the original intent action isn't for opening a new tab.
         // Vivaldi
-        if (!intentAction.equals(ACTION_SCAN_QR_CODE))
+        if (!intentAction.equals(VivaldiLauncherShortcutUtils.ACTION_SCAN_QR_CODE))
         if (!intentAction.equals(ACTION_OPEN_NEW_TAB)
                 && !intentAction.equals(ACTION_OPEN_NEW_WINDOW)
                 && !intentAction.equals(ACTION_OPEN_NEW_INCOGNITO_TAB)
@@ -212,6 +211,8 @@ public class LauncherShortcutActivity extends Activity {
             Context context, String launcherShortcutIntentAction) {
         Intent newIntent;
         if (launcherShortcutIntentAction.equals(ACTION_OPEN_NEW_TAB)
+                || launcherShortcutIntentAction.equals(
+                        VivaldiLauncherShortcutUtils.ACTION_SCAN_QR_CODE) // Vivaldi
                 || launcherShortcutIntentAction.equals(ACTION_OPEN_NEW_INCOGNITO_TAB)) {
             newIntent =
                     IntentHandler.createTrustedOpenNewTabIntent(
@@ -227,7 +228,8 @@ public class LauncherShortcutActivity extends Activity {
 
         // Vivaldi
         newIntent.putExtra(VivaldiIntentHandler.EXTRA_SCAN_QR_CODE,
-                launcherShortcutIntentAction.equals(ACTION_SCAN_QR_CODE));
+                launcherShortcutIntentAction.equals(
+                        VivaldiLauncherShortcutUtils.ACTION_SCAN_QR_CODE));
 
         return newIntent;
     }

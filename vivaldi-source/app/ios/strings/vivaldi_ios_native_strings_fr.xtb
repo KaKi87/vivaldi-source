@@ -82,6 +82,7 @@
 <translation id="1871058849247304245">Facteur de zoom pour <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi est lent, se bloque ou chauffe l’appareil</translation>
 <translation id="1929299157575856072">NIVEAU DE BLOCAGE PAR DÉFAUT</translation>
+<translation id="1933618400514506228">Serbo-Croate (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Ouvrir l’image dans un onglet en arrière-plan</translation>
 <translation id="1986733655397734221">Aucun de tout cela</translation>
 <translation id="1994506778397655062">Ouvrir dans un onglet en arrière-plan</translation>
@@ -167,7 +168,6 @@ bloquées</translation>
 <translation id="309084557304084991">Je ne veux pas de signets pu de Speed Dials préchargés</translation>
 <translation id="3091563570137981919">Blocage des traceurs et des publicités</translation>
 <translation id="3097968995088564986">Afficher le bouton d’ajout</translation>
-<translation id="3102790820790869053">Rechercher dans les onglets récents</translation>
 <translation id="3134385238404760368">Pas d’onglet récent</translation>
 <translation id="3142562627629111859">Nouveau groupe</translation>
 <translation id="3157931365184549694">Restaurer</translation>
@@ -226,6 +226,7 @@ bloquées</translation>
 <translation id="383723620494271391">Souhaitez-vous ajouter autre chose ?</translation>
 <translation id="3842727926262967527">Choisissez où vous préférez placer vos barres d’onglets et d’adresses.</translation>
 <translation id="3845564230651302310">Application des nouveaux paramètres de blocage…</translation>
+<translation id="385051799172605136">Retour</translation>
 <translation id="3858860766373142691">Nom</translation>
 <translation id="3861379244432690245">Autoriser Direct Match</translation>
 <translation id="3866249974567520381">Description</translation>
@@ -310,7 +311,6 @@ bloqués</translation>
 <translation id="462860218383788109">Date de modification</translation>
 <translation id="4640946580087069269">Copier dans une note</translation>
 <translation id="4643117005422448078">Top Sites</translation>
-<translation id="4654428449690716275">Ne pas afficher de bannière avant ou après la traduction</translation>
 <translation id="4654578955713250802">Blocage des publicités et des traqueurs</translation>
 <translation id="4655510151391078468">Ce code ne correspond pas à celui que nous vous avons envoyé.
 Vous avez <ph name="ATTEMPTS" /> tentatives restantes.</translation>
@@ -496,6 +496,7 @@ bloqué</translation>
 <translation id="6946395294519639514">Avec les panneaux, vous pouvez garder les outils de navigation à portée de main dans la barre latérale du navigateur.</translation>
 <translation id="6951435330868954105">Gérer les réglages par défaut</translation>
 <translation id="6951948201878750661">Presser pour sélectionner cette couleur</translation>
+<translation id="6954630860045222581">Afficher le panneau</translation>
 <translation id="6967884871145366229">Gérer les options de respect de la vie privée</translation>
 <translation id="6973630695168034713">Dossiers</translation>
 <translation id="7000227144065890583">URL des suggestions</translation>
@@ -663,6 +664,7 @@ Vous avez atteint la limite maximale de mauvaises tentatives. Veuillez demander 
 <translation id="8948792607467387336">Sélectionner en tant que fond d’écran</translation>
 <translation id="8964449607824577665">Sans votre mot de passe de chiffrement actuel, nous ne pouvons pas déchiffrer vos données. La réinitialisation de ce mot de passe nécessite la suppression de toutes les données de synchronisation existantes sur les serveurs Vivaldi.</translation>
 <translation id="8965371804397726192">Commencer à synchroniser toutes les données</translation>
+<translation id="896787570003733070">Ne pas afficher de bannière avant ou après la traduction</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Signet déplacé en "{title}"}
           other {Signets déplacés en "{title}"}}</translation>

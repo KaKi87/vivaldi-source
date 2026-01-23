@@ -17,7 +17,6 @@
 #include "chrome/browser/actor/tools/tool_delegate.h"
 #include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/task_id.h"
-#include "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #include "content/public/browser/weak_document_ptr.h"
 
 namespace actor {
@@ -74,6 +73,10 @@ class ToolController {
   void PostValidate(mojom::ActionResultPtr result);
   void PostUpdateTask(mojom::ActionResultPtr result);
   void PostInvokeTool(mojom::ActionResultPtr result);
+  void WaitForObservation(mojom::ActionResultPtr action_result);
+  void ObservationDelayComplete(
+      mojom::ActionResultPtr action_result,
+      ObservationDelayController::Result observation_result);
 
   AggregatedJournal& journal() { return tool_delegate_->GetJournal(); }
 
@@ -100,7 +103,7 @@ class ToolController {
   };
   std::optional<ActiveState> active_state_;
 
-  std::optional<ObservationDelayController::PageStabilityConfig>
+  ObservationDelayController::PageStabilityConfig
       observation_page_stability_config_;
 
   // Set while a tool invocation is in progress, delays invocation of the

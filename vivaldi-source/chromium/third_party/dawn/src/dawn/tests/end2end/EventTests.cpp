@@ -394,6 +394,11 @@ TEST_P(EventCompletionTests, WorkDoneAfterDeviceLoss) {
 
 // WorkDone event twice after submitting some trivial work.
 TEST_P(EventCompletionTests, WorkDoneTwice) {
+    // TODO(crbug.com/440123094): Investigate crash on WebGPU on Metal.
+    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal) &&
+                          GetParam().mWaitTypeAndCallbackMode ==
+                              WaitTypeAndCallbackMode::Spin_AllowSpontaneous);
+
     TrivialSubmit();
     TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
     TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
@@ -435,43 +440,6 @@ TEST_P(EventCompletionTests, WorkDoneOutOfOrder) {
     TestWaitAll();
     TrackForTest(f1);
     TestWaitAll(/*loopOnlyOnce=*/true);
-}
-
-TEST_P(EventCompletionTests, WorkDoneDropInstanceBeforeEvent) {
-    // TODO(crbug.com/dawn/1987): Wire does not implement instance destruction correctly yet.
-    DAWN_TEST_UNSUPPORTED_IF(UsesWire());
-    // Spontaneous events only make sense with WaitType::Spin since we are dropping the instance.
-    DAWN_TEST_UNSUPPORTED_IF(IsSpontaneous() && GetWaitType() != WaitType::Spin);
-
-    UseSecondInstance();
-    testInstance = nullptr;  // Drop the last external ref to the instance.
-
-    if (IsSpontaneous()) {
-        TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
-        TestWaitAll();
-    } else {
-        TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::CallbackCancelled));
-        EXPECT_EQ(mCallbacksCompletedCount, 1u);
-    }
-}
-
-TEST_P(EventCompletionTests, WorkDoneDropInstanceAfterEvent) {
-    // TODO(crbug.com/dawn/1987): Wire does not implement instance destruction correctly yet.
-    DAWN_TEST_UNSUPPORTED_IF(UsesWire());
-    // Spontaneous events only make sense with WaitType::Spin since we are dropping the instance.
-    DAWN_TEST_UNSUPPORTED_IF(IsSpontaneous() && GetWaitType() != WaitType::Spin);
-
-    UseSecondInstance();
-
-    if (IsSpontaneous()) {
-        TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
-        testInstance = nullptr;  // Drop the last external ref to the instance.
-        TestWaitAll();
-    } else {
-        TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::CallbackCancelled));
-        testInstance = nullptr;  // Drop the last external ref to the instance.
-        EXPECT_EQ(mCallbacksCompletedCount, 1u);
-    }
 }
 
 // TODO(crbug.com/dawn/1987):
@@ -543,11 +511,6 @@ TEST_P(WaitAnyTests, UnsupportedTimeout) {
 
 TEST_P(WaitAnyTests, UnsupportedCount) {
     for (uint64_t timeout : {uint64_t(0), uint64_t(1)}) {
-        // TODO(crbug.com/443308345): D3D11's delay flush queue doesn't seem to work if we are only
-        // using a small timeout. It works if we increase the timeout to 0.2-0.3ms, but it should
-        // really be immediate.
-        DAWN_TEST_UNSUPPORTED_IF(timeout > 0 && HasToggleEnabled("d3d11_delay_flush_to_gpu"));
-
         // We don't support values higher than the default (64), and if you ask for lower than 64
         // you still get 64. DawnTest doesn't request anything (so requests 0) so gets 64.
         for (size_t count : {kTimedWaitAnyMaxCountDefault, kTimedWaitAnyMaxCountDefault + 1}) {
@@ -560,10 +523,9 @@ TEST_P(WaitAnyTests, UnsupportedCount) {
             FlushWire();
             wgpu::WaitStatus status = instance.WaitAny(infos.size(), infos.data(), timeout);
             if (timeout == 0) {
-                ASSERT_TRUE(status == wgpu::WaitStatus::Success ||
-                            status == wgpu::WaitStatus::TimedOut);
+                ASSERT_NE(status, wgpu::WaitStatus::Error);
             } else if (count <= 64) {
-                ASSERT_EQ(status, wgpu::WaitStatus::Success);
+                ASSERT_NE(status, wgpu::WaitStatus::Error);
             } else {
                 ASSERT_EQ(status, wgpu::WaitStatus::Error);
             }

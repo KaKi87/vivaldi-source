@@ -341,10 +341,13 @@ tsl_cc_test(
     srcs = ["group_events_test.cc"],
     deps = [
         ":group_events",
+        ":preprocess_xplane",
         ":tf_xplane_visitor",
+        ":timespan",
         ":xplane_builder",
         ":xplane_schema",
         ":xplane_test_utils",
+        ":xplane_utils",
         ":xplane_visitor",
         "//xla/tsl/platform:env_impl",
         "//xla/tsl/platform:test",
@@ -477,9 +480,22 @@ cc_library(
         "//xla/tsl/platform:status",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/log",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@local_tsl//tsl/profiler/lib:profiler_session",
         "@local_tsl//tsl/profiler/protobuf:profiler_options_proto_cc",
+    ],
+)
+
+tsl_cc_test(
+    name = "session_manager_test",
+    srcs = ["session_manager_test.cc"],
+    deps = [
+        ":session_manager",
+        "//xla/tsl/platform:test",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings:string_view",
+        "@com_google_googletest//:gtest_main",
     ],
 )
 
@@ -491,6 +507,7 @@ cc_library(
         ":xplane_builder",
         ":xplane_schema",
         ":xplane_utils",
+        ":xplane_visitor",
         "@com_google_absl//absl/log",
         "@local_tsl//tsl/profiler/protobuf:xplane_proto_cc",
     ],
@@ -501,8 +518,6 @@ tsl_cc_test(
     srcs = ["timestamp_utils_test.cc"],
     deps = [
         ":timestamp_utils",
-        ":xplane_schema",
-        ":xplane_utils",
         ":xplane_visitor",
         "//xla/tsl/platform:test",
         "@com_google_googletest//:gtest_main",

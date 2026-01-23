@@ -200,9 +200,13 @@ class TabStateAndLogsImpl::PotentialPopupRecord {
   }
 
   void CloseOpener() {
+    if (!opener_) {
+      // Already closed
+      return;
+    }
+
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(&content::WebContents::Close, opener_->GetWeakPtr()));
+        FROM_HERE, base::BindOnce(&content::WebContents::Close, opener_));
     SelfDestruct();
   }
 
@@ -263,7 +267,7 @@ void TabStateAndLogsImpl::SetAdQueryTriggers(
 
   ResetAdAttribution();
   ad_click_time_ = base::TimeTicks::Now();
-  current_ad_click_domain_ = ad_url.host_piece();
+  current_ad_click_domain_ = ad_url.host();
   ad_query_triggers_.swap(triggers);
 
   // Only the first matching ad-query-trigger rule should be used. This

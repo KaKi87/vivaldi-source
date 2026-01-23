@@ -73,7 +73,7 @@ std::string CreateSortKey(
   }
 
   // To separate HTTP/HTTPS credentials, add the scheme to the key.
-  key += kSortKeyPartsSeparator + GetShownUrl(credential).scheme();
+  key += kSortKeyPartsSeparator + GetShownUrl(credential).GetScheme();
 
   // Separate passwords from passkeys.
   key += kSortKeyPartsSeparator;

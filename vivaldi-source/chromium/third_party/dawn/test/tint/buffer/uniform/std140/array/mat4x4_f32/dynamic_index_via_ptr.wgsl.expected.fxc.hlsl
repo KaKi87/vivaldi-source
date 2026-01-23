@@ -5,7 +5,7 @@ cbuffer cbuffer_a : register(b0) {
 RWByteAddressBuffer s : register(u1);
 static int counter = int(0);
 int i() {
-  counter = (counter + int(1));
+  counter = asint((asuint(counter) + asuint(int(1))));
   return counter;
 }
 
@@ -42,6 +42,6 @@ void f() {
   float4x4 l_a[4] = v_1(0u);
   float4x4 l_a_i = v(v_5);
   float4 l_a_i_i = asfloat(a[((v_5 + v_6) / 16u)]);
-  s.Store(0u, asuint((((asfloat(a[((v_5 + v_6) / 16u)][(((v_5 + v_6) % 16u) / 4u)]) + l_a[0u][0u].x) + l_a_i[0u].x) + l_a_i_i.x)));
+  s.Store(0u, asuint((((asfloat(a[((v_5 + v_6) / 16u)][(((v_5 + v_6) & 15u) >> 2u)]) + l_a[0u][0u].x) + l_a_i[0u].x) + l_a_i_i.x)));
 }
 

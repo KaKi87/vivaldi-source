@@ -86,8 +86,8 @@ struct PendingRegistration {
 @property(nonatomic, strong)
     VivaldiTableViewSegmentedControlItem* segmentedControlItem;
 @property(nonatomic, strong) VivaldiTableViewTextItem* startSyncingButton;
-@property(nonatomic, strong) TableViewTextItem* deleteDataButton;
-@property(nonatomic, strong) TableViewTextItem* logOutButton;
+@property(nonatomic, strong) TableViewTextButtonItem* deleteDataButton;
+@property(nonatomic, strong) TableViewTextButtonItem* logOutButton;
 @property(nonatomic, strong) VivaldiTableViewSyncUserInfoItem* userInfoItem;
 @property(nonatomic, strong) VivaldiTableViewSyncStatusItem* syncStatusItem;
 @property(nonatomic, strong) NSDateFormatter* formatter;
@@ -149,6 +149,12 @@ struct PendingRegistration {
     [_syncManager stop];
     _syncManager = nil;
   }
+}
+
+- (void)setSettingsConsumer:
+        (id<VivaldiSyncSettingsConsumer>)settingsConsumer {
+  _settingsConsumer = settingsConsumer;
+  [self updateSwitchItemTargets];
 }
 
 - (void)startMediating {
@@ -570,6 +576,46 @@ struct PendingRegistration {
 
 #pragma mark - Private Methods
 
+- (void)bookmarksSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kBookmarks
+                     isOn:sender.isOn];
+}
+
+- (void)settingsSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kPreferences
+                     isOn:sender.isOn];
+}
+
+- (void)passwordsSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kPasswords
+                     isOn:sender.isOn];
+}
+
+- (void)autofillSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kAutofill
+                     isOn:sender.isOn];
+}
+
+- (void)tabsSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kTabs
+                     isOn:sender.isOn];
+}
+
+- (void)historySwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kHistory
+                     isOn:sender.isOn];
+}
+
+- (void)readingListSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kReadingList
+                     isOn:sender.isOn];
+}
+
+- (void)notesSwitchToggled:(UISwitch*)sender {
+  [self updateChosenTypes:syncer::UserSelectableType::kNotes
+                     isOn:sender.isOn];
+}
+
 - (void)updateUserInfoSection {
   if (![self.settingsConsumer.tableViewModel
           hasSectionForSectionIdentifier:SectionIdentifierSyncUserInfo]) {
@@ -919,10 +965,11 @@ struct PendingRegistration {
   [model addSectionWithIdentifier:SectionIdentifierSyncSignOut];
 
   self.logOutButton =
-      [[TableViewTextItem alloc] initWithType:ItemTypeLogOutButton];
-  self.logOutButton.text = l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_LOG_OUT);
-  self.logOutButton.textAlignment = NSTextAlignmentCenter;
-  self.logOutButton.textColor = [UIColor colorNamed:kBlueColor];
+      [[TableViewTextButtonItem alloc] initWithType:ItemTypeLogOutButton];
+  self.logOutButton.buttonText =
+      l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_LOG_OUT);
+  self.logOutButton.buttonTextColor = [UIColor colorNamed:kBlueColor];
+  self.logOutButton.buttonBackgroundColor = [UIColor clearColor];
   self.logOutButton.accessibilityTraits = UIAccessibilityTraitButton;
 
   [model addItem:self.logOutButton
@@ -934,11 +981,11 @@ struct PendingRegistration {
   [model addSectionWithIdentifier:SectionIdentifierSyncDeleteData];
 
   self.deleteDataButton =
-      [[TableViewTextItem alloc] initWithType:ItemTypeDeleteDataButton];
-  self.deleteDataButton.text =
+      [[TableViewTextButtonItem alloc] initWithType:ItemTypeDeleteDataButton];
+  self.deleteDataButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_SYNC_CONFIRM_CLEAR_SERVER_DATA_TITLE);
-  self.deleteDataButton.textAlignment = NSTextAlignmentCenter;
-  self.deleteDataButton.textColor = [UIColor colorNamed:kRedColor];
+  self.deleteDataButton.buttonTextColor = [UIColor colorNamed:kRedColor];
+  self.deleteDataButton.buttonBackgroundColor = [UIColor clearColor];
   self.deleteDataButton.accessibilityTraits = UIAccessibilityTraitButton;
 
   [model addItem:self.deleteDataButton
@@ -1009,7 +1056,7 @@ struct PendingRegistration {
 
   TableViewTextItem* syncAllInfoTextbox =
       [[TableViewTextItem alloc] initWithType:ItemTypeSyncAllInfoTextbox];
-  syncAllInfoTextbox.textAlignment = NSTextAlignmentLeft;
+  syncAllInfoTextbox.titleNumberOfLines = 0;
   syncAllInfoTextbox.text = l10n_util::GetNSString(IDS_VIVALDI_SYNC_EVERYTHING);
 
   _syncAllItems = @[ syncAllInfoTextbox ];
@@ -1090,6 +1137,7 @@ struct PendingRegistration {
     switchItemReadingList,
     switchItemNotes,
   ];
+  [self updateSwitchItemTargets];
 }
 
 - (void)refreshSyncSelectedItems {
@@ -1099,6 +1147,56 @@ struct PendingRegistration {
   for (TableViewSwitchItem* item in _syncSelectedItems) {
     BOOL syncStatus = [self syncStatusForItemType:item.type];
     item.on = syncStatus;
+  }
+}
+
+#pragma mark - Switch item helpers
+
+- (void)configureSwitchItem:(TableViewSwitchItem*)item {
+  if (!item) {
+    return;
+  }
+
+  item.target = self;
+  item.tag = item.type;
+
+  switch (item.type) {
+    case ItemTypeSyncBookmarksSwitch:
+      item.selector = @selector(bookmarksSwitchToggled:);
+      break;
+    case ItemTypeSyncSettingsSwitch:
+      item.selector = @selector(settingsSwitchToggled:);
+      break;
+    case ItemTypeSyncPasswordsSwitch:
+      item.selector = @selector(passwordsSwitchToggled:);
+      break;
+    case ItemTypeSyncAutofillSwitch:
+      item.selector = @selector(autofillSwitchToggled:);
+      break;
+    case ItemTypeSyncTabsSwitch:
+      item.selector = @selector(tabsSwitchToggled:);
+      break;
+    case ItemTypeSyncHistorySwitch:
+      item.selector = @selector(historySwitchToggled:);
+      break;
+    case ItemTypeSyncReadingListSwitch:
+      item.selector = @selector(readingListSwitchToggled:);
+      break;
+    case ItemTypeSyncNotesSwitch:
+      item.selector = @selector(notesSwitchToggled:);
+      break;
+    default:
+      item.selector = nil;
+      break;
+  }
+}
+
+- (void)updateSwitchItemTargets {
+  if (!_syncSelectedItems) {
+    return;
+  }
+  for (TableViewSwitchItem* item in _syncSelectedItems) {
+    [self configureSwitchItem:item];
   }
 }
 

@@ -28,7 +28,6 @@ import org.chromium.components.autofill.AutofillSuggestion;
 import org.chromium.components.autofill.FillingProduct;
 import org.chromium.components.autofill.FillingProductBridge;
 import org.chromium.components.autofill.RecordType;
-import org.chromium.components.autofill.SuggestionType;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -39,6 +38,8 @@ import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * As model of the keyboard accessory component, this class holds the data relevant to the visual
@@ -107,11 +108,8 @@ class KeyboardAccessoryProperties {
                 .with(ANIMATE_SUGGESTIONS_FROM_TOP, false);
     }
 
-    /**
-     * This class wraps data used in ViewHolders of the accessory bar's {@link RecyclerView}. It can
-     * hold an {@link Action}s that defines a callback and a recording type.
-     */
-    static class BarItem {
+    /** This class wraps 1 or several items displayed in the KeyboardAccessory. */
+    abstract static class BarItem {
         /** This type is used to infer which type of view will represent this item. */
         @IntDef({
             Type.ACTION_BUTTON,
@@ -120,7 +118,9 @@ class KeyboardAccessoryProperties {
             Type.HOME_AND_WORK_SUGGESTION,
             Type.TAB_LAYOUT,
             Type.ACTION_CHIP,
-            Type.DISMISS_CHIP
+            Type.DISMISS_CHIP,
+            Type.GROUP,
+            Type.PAYMENTS_SUGGESTION
         })
         @Retention(RetentionPolicy.SOURCE)
         @interface Type {
@@ -131,23 +131,19 @@ class KeyboardAccessoryProperties {
             int TAB_LAYOUT = 4;
             int ACTION_CHIP = 5;
             int DISMISS_CHIP = 6;
+            int GROUP = 7;
+            int PAYMENTS_SUGGESTION = 8;
         }
 
         private final @Type int mType;
-        private final @Nullable Action mAction;
-        private final @StringRes int mCaptionId;
 
         /**
-         * Creates a new item. An item must have a type and can have an action.
+         * Creates a new item. An item must have a type.
          *
          * @param type A {@link Type}.
-         * @param action An {@link Action}.
-         * @param captionId A {@link StringRes} to describe the bar item.
          */
-        BarItem(@Type int type, @Nullable Action action, @StringRes int captionId) {
+        BarItem(@Type int type) {
             mType = type;
-            mAction = action;
-            mCaptionId = captionId;
         }
 
         /**
@@ -158,6 +154,57 @@ class KeyboardAccessoryProperties {
         @Type
         int getViewType() {
             return mType;
+        }
+
+        /**
+         * If this {@link BarItem} is a instance of {@link ActionBarItem}, returns itself in a list.
+         * Otherwise, returns a list of {@link ActionBarItem} contained in this group.
+         */
+        abstract List<ActionBarItem> getActionBarItems();
+    }
+
+    /**
+     * This class groups a couple of {@link AutofillBarItem} for UI purposes. For more information,
+     * see {@link KeyboardAccessoryChipGroup}.
+     */
+    static class GroupBarItem extends BarItem {
+        private final List<ActionBarItem> mActionBarItems;
+
+        GroupBarItem(List<ActionBarItem> actionBarItems) {
+            super(Type.GROUP);
+            mActionBarItems = actionBarItems;
+        }
+
+        @Override
+        List<ActionBarItem> getActionBarItems() {
+            return Collections.unmodifiableList(mActionBarItems);
+        }
+    }
+
+    /**
+     * This class wraps data used in ViewHolders of the accessory bar's {@link RecyclerView}. It can
+     * hold an {@link Action}s that defines a callback and a recording type.
+     */
+    static class ActionBarItem extends BarItem {
+        private final @Nullable Action mAction;
+        private final @StringRes int mCaptionId;
+
+        /**
+         * Creates a new item. An action item must have a type and can have an action.
+         *
+         * @param type A {@link Type}.
+         * @param action An {@link Action}.
+         * @param captionId A {@link StringRes} to describe the bar item.
+         */
+        ActionBarItem(@Type int type, @Nullable Action action, @StringRes int captionId) {
+            super(type);
+            mAction = action;
+            mCaptionId = captionId;
+        }
+
+        @Override
+        List<ActionBarItem> getActionBarItems() {
+            return List.of(this);
         }
 
         /**
@@ -181,8 +228,8 @@ class KeyboardAccessoryProperties {
 
         @Override
         public String toString() {
-            String typeName = "BarItem(" + mType + ")"; // Fallback. We shouldn't crash.
-            switch (mType) {
+            String typeName = "BarItem(" + getViewType() + ")"; // Fallback. We shouldn't crash.
+            switch (getViewType()) {
                 case Type.ACTION_BUTTON:
                     typeName = "ACTION_BUTTON";
                     break;
@@ -207,7 +254,7 @@ class KeyboardAccessoryProperties {
      * This {@link BarItem} is used to render Autofill suggestions into the accessory bar. For that,
      * it needs (in addition to an {@link Action}) the held {@link AutofillSuggestion}.
      */
-    static class AutofillBarItem extends BarItem {
+    static class AutofillBarItem extends ActionBarItem {
         private final AutofillSuggestion mSuggestion;
         private @Nullable String mFeature;
 
@@ -250,23 +297,34 @@ class KeyboardAccessoryProperties {
         @VisibleForTesting
         public static @Type int getBarItemType(AutofillSuggestion suggestion, Profile profile) {
             AutofillProfilePayload payload = suggestion.getAutofillProfilePayload();
-            if (FillingProductBridge.getFillingProductFromSuggestionType(
-                                    suggestion.getSuggestionType())
-                            == FillingProduct.ADDRESS
-                    && payload != null) {
-                PersonalDataManager personalDataManager =
-                        PersonalDataManagerFactory.getForProfile(profile);
-                AutofillProfile autofillProfile = personalDataManager.getProfile(payload.getGuid());
-                if (autofillProfile != null) {
-                    @RecordType int type = autofillProfile.getRecordType();
-                    if (type == RecordType.ACCOUNT_HOME || type == RecordType.ACCOUNT_WORK) {
-                        return Type.HOME_AND_WORK_SUGGESTION;
+            switch (FillingProductBridge.getFillingProductFromSuggestionType(
+                    suggestion.getSuggestionType())) {
+                case FillingProduct.ADDRESS:
+                    {
+                        if (payload != null) {
+                            PersonalDataManager personalDataManager =
+                                    PersonalDataManagerFactory.getForProfile(profile);
+                            AutofillProfile autofillProfile =
+                                    personalDataManager.getProfile(payload.getGuid());
+                            if (autofillProfile != null) {
+                                @RecordType int type = autofillProfile.getRecordType();
+                                if (type == RecordType.ACCOUNT_HOME
+                                        || type == RecordType.ACCOUNT_WORK) {
+                                    return Type.HOME_AND_WORK_SUGGESTION;
+                                }
+                            }
+                        }
                     }
-                }
+                    break;
+                case FillingProduct.CREDIT_CARD:
+                case FillingProduct.IBAN:
+                    return Type.PAYMENTS_SUGGESTION;
+                case FillingProduct.LOYALTY_CARD:
+                    return Type.LOYALTY_CARD_SUGGESTION;
+                default:
+                    return Type.SUGGESTION;
             }
-            return suggestion.getSuggestionType() == SuggestionType.LOYALTY_CARD_ENTRY
-                    ? Type.LOYALTY_CARD_SUGGESTION
-                    : Type.SUGGESTION;
+            return Type.SUGGESTION;
         }
     }
 
@@ -275,7 +333,7 @@ class KeyboardAccessoryProperties {
      * whenever it is scrolled out of/into view. This wrapper allows to trigger a callback whenever
      * the view is recreated so it can be bound to its component.
      */
-    static final class SheetOpenerBarItem extends BarItem {
+    static final class SheetOpenerBarItem extends ActionBarItem {
         private final SheetOpenerCallbacks mSheetOpenerCallbacks;
 
         SheetOpenerBarItem(SheetOpenerCallbacks sheetOpenerCallbacks) {
@@ -298,7 +356,7 @@ class KeyboardAccessoryProperties {
      * <p>This item triggers the provided runnable, which handles the logic for closing the
      * associated keyboard accessory.
      */
-    static final class DismissBarItem extends BarItem {
+    static final class DismissBarItem extends ActionBarItem {
         DismissBarItem(Runnable dismissRunnable) {
             super(
                     Type.DISMISS_CHIP,

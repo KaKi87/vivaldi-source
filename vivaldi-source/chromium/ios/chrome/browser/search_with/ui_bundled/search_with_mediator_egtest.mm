@@ -86,9 +86,9 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   http_response->set_code(net::HTTP_OK);
   GURL request_url = request.GetURL();
 
-  if (request_url.path_piece() == kBasicSelectionUrl) {
+  if (request_url.path() == kBasicSelectionUrl) {
     http_response->set_content(kBasicSelectionHtmlTemplate);
-  } else if (request_url.path_piece() == kSearchResultUrl) {
+  } else if (request_url.path() == kSearchResultUrl) {
     std::string html = kSearchResultHtmlTemplate;
     std::string query;
     bool has_query = net::GetValueForKeyInQuery(request_url, "q", &query);
@@ -116,6 +116,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
 
   if ([self isRunningTest:@selector(testSearchWithReaderMode)]) {
     config.features_enabled.push_back(kEnableReaderMode);
+    config.features_enabled.push_back(kEnableReaderModeInUS);
   }
   return config;
 }

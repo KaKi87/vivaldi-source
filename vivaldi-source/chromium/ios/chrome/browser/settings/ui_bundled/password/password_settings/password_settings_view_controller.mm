@@ -25,11 +25,9 @@
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_image_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_multi_detail_text_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
@@ -315,43 +313,6 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
   _modelLoadStatus = ModelLoadComplete;
 }
 
-#pragma mark - UITableViewDataSource
-
-- (UITableViewCell*)tableView:(UITableView*)tableView
-        cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-  UITableViewCell* cell = [super tableView:tableView
-                     cellForRowAtIndexPath:indexPath];
-
-  switch ([self.tableViewModel itemTypeForIndexPath:indexPath]) {
-    case ItemTypeSavePasswordsSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                                action:@selector(savePasswordsSwitchChanged:)
-                      forControlEvents:UIControlEventValueChanged];
-      break;
-    }
-    case ItemTypeManagedSavePasswords: {
-      TableViewInfoButtonCell* managedCell =
-          base::apple::ObjCCastStrict<TableViewInfoButtonCell>(cell);
-      [managedCell.trailingButton
-                 addTarget:self
-                    action:@selector(didTapManagedUIInfoButton:)
-          forControlEvents:UIControlEventTouchUpInside];
-      break;
-    }
-    case ItemTypeAutomaticPasskeyUpgradesSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView
-                 addTarget:self
-                    action:@selector(automaticPasskeyUpgradesSwitchChanged:)
-          forControlEvents:(UIControlEvents)UIControlEventValueChanged];
-    }
-  }
-  return cell;
-}
-
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView
@@ -457,6 +418,8 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
   savePasswordsItem.accessibilityIdentifier =
       kPasswordSettingsSavePasswordSwitchTableViewId;
   savePasswordsItem.on = _savingPasswordsEnabled;
+  savePasswordsItem.target = self;
+  savePasswordsItem.selector = @selector(savePasswordsSwitchChanged:);
   return savePasswordsItem;
 }
 
@@ -473,6 +436,8 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
       kPasswordSettingsManagedSavePasswordSwitchTableViewId;
   managedSavePasswordsItem.statusText = l10n_util::GetNSString(
       _savingPasswordsEnabled ? IDS_IOS_SETTING_ON : IDS_IOS_SETTING_OFF);
+  managedSavePasswordsItem.target = self;
+  managedSavePasswordsItem.selector = @selector(didTapManagedUIInfoButton:);
   return managedSavePasswordsItem;
 }
 
@@ -552,6 +517,9 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
   automaticPasskeyUpgradesSwitchItem.on = _automaticPasskeyUpgradesEnabled;
   automaticPasskeyUpgradesSwitchItem.accessibilityIdentifier =
       kPasswordSettingsAutomaticPasskeyUpgradeToggleId;
+  automaticPasskeyUpgradesSwitchItem.target = self;
+  automaticPasskeyUpgradesSwitchItem.selector =
+      @selector(automaticPasskeyUpgradesSwitchChanged:);
   return automaticPasskeyUpgradesSwitchItem;
 }
 
@@ -645,10 +613,13 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
 - (TableViewTextItem*)createExportPasswordsItem {
   TableViewTextItem* exportPasswordsItem =
       [[TableViewTextItem alloc] initWithType:ItemTypeExportPasswordsButton];
-  exportPasswordsItem.text =
-      CredentialExchangeEnabled()
-          ? l10n_util::GetNSString(IDS_IOS_EXPORT_PASSWORDS_AND_PASSKEYS)
-          : l10n_util::GetNSString(IDS_IOS_EXPORT_PASSWORDS);
+  exportPasswordsItem.text = l10n_util::GetNSString(IDS_IOS_EXPORT_PASSWORDS);
+  if (@available(iOS 26, *)) {
+    if (CredentialExchangeEnabled()) {
+      exportPasswordsItem.text =
+          l10n_util::GetNSString(IDS_IOS_EXPORT_PASSWORDS_AND_PASSKEYS);
+    }
+  }
   exportPasswordsItem.accessibilityTraits = UIAccessibilityTraitButton;
   return exportPasswordsItem;
 }

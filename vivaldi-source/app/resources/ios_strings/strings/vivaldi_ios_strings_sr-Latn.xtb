@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Da biste zaključali svoje privatne kartice, podesite Touch ID, Face ID ili kod.</translation>
 <translation id="1189137610071296104">Otvori u grupi kartica</translation>
 <translation id="1310184829257917508">Zatraži otvaranje veza iz drugih aplikacija u privatnom režimu</translation>
+<translation id="1624481300475123200">Automatsko popunjavanje lozinki</translation>
 <translation id="1743244221910283364">Odbaci promene</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Dodaj karticu u grupu}
         other {Dodaj kartice u grupu}}</translation>
 <translation id="207677936531967364">Nova stranica privatne kartice</translation>
 <translation id="2099591136582442348">Ovo će trajno izbrisati grupu sa vašeg uređaja.</translation>
+<translation id="2104086191144208395">Primetili ste problem?</translation>
 <translation id="2181990701313127304">Nova kartica u grupi</translation>
 <translation id="2351280151183279120">Deli grupu</translation>
 <translation id="2353953000228441783">Podrazumevani prikaz sajtova</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Otvori ${url} u privatnom režimu</translation>
 <translation id="398477389655464998">Kopiraj vezu do istaknutog teksta</translation>
 <translation id="3993429087389909418">Kartice će ostati otvorene na ovom uređaju, ali će grupa biti izbrisana sa svih uređaja prijavljenih na <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Primetili ste problem?</translation>
 <translation id="4216644171369573466">Grupa kartica, <ph name="GROUP_TITLE" />, meni.</translation>
 <translation id="4304713468139749426">Upravljač lozinkama</translation>
 <translation id="4439281775431634915">Vaše grupe kartica se čuvaju ovde</translation>
@@ -61,18 +62,26 @@
 <translation id="5431239785743546285">Stranice koje ste pročitali</translation>
 <translation id="5521301883748677039">Izbrisati grupu?</translation>
 <translation id="5544011153887687593">Kartica grupe kartica. <ph name="TAB_INDEX_IN_GROUP" /> od <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Funkcija Handoff vam omogućuje da započnete pregledanje veb stranice na ovom uređaju, a zatim lako nastavite na svom Mac-u. Trenutno otvorena veb stranica će se pojaviti u doku vašeg Mac-a.
+
+Handoff takođe mora biti omogućen u odeljku Opšte u podešavanjima, a vaši uređaji moraju koristiti isti iCloud nalog.</translation>
 <translation id="5614553682702429503">Sačuvati lozinku?</translation>
+<translation id="5620163320393916465">Nema sačuvanih lozinki</translation>
 <translation id="570209299585559496">Za promenu podrazumevanog prikaza sajtova na desktop verziju, otvorite podešavanja a zatim podešavanja sadržaja</translation>
 <translation id="5719777162751096990">Premesti u grupu kartica</translation>
+<translation id="5869522115854928033">Sačuvane lozinke</translation>
 <translation id="5962477178930921574">Nalepi i pretraži</translation>
 <translation id="6163856768888310791">Razgrupiši</translation>
 <translation id="6168969409902608220">Imenuj grupu</translation>
 <translation id="6192561334825788389">Prevucite ekran udesno za pregledanje u privatnom režimu.</translation>
 <translation id="6233792867654386826">Otvara unete URL adrese u Vivaldi prgledaču.</translation>
 <translation id="6271462272606946663">Sakrij zahtev za mobilnu verziju sajta</translation>
+<translation id="6309282378909663947">Lozinke iz upravljača lozinkama Vivaldi pregledača</translation>
 <translation id="6478587527114893588">Zatvori grupu.</translation>
 <translation id="6527405730445064713">Grupa kartica. Raširena.</translation>
 <translation id="6532106788206463496">Sačuvaj promene</translation>
+<translation id="6636411080833380839">Ukloni iz grupe</translation>
+<translation id="6644512095122093795">Ponudi čuvanje lozinki</translation>
 <translation id="6666425778700353369">Ovo će izbrisati grupu na svim uređajima prijavljenim na <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Prilagodi meni</translation>
 <translation id="6695835495840050460">Dodirnite „Dodaj karticu u novu grupu”</translation>
@@ -93,6 +102,7 @@
 <translation id="7585610907974664408">Nova privatna kartica u grupi</translation>
 <translation id="7661319142491611883">Raširi grupu kartica.</translation>
 <translation id="7706213624515206557">Prikaži sve kartice u grupi kartica</translation>
+<translation id="7937179923651776879">Pristupite svojim lozinkama iz bilo koje aplikacije</translation>
 <translation id="7961015016161918242">Nikada</translation>
 <translation id="8326104954595890674">Nova privatna kartica</translation>
 <translation id="8345989863850359861">Ukloniti karticu i izbrisati grupu?</translation>
@@ -108,6 +118,8 @@
 <translation id="8951084872625418241">Nova kartica u grupi</translation>
 <translation id="9042893549633094279">Privatnost i bezbednost</translation>
 <translation id="9094033019050270033">Ažuriraj lozinku</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Napusti grupu</translation>
 <translation id="959061183386231608">Kartice će ostati otvorene na ovom uređaju, ali će grupa biti trajno izbrisana.</translation>
+<translation id="988141524645182168">Drugi uređaji</translation>
 </translationbundle>

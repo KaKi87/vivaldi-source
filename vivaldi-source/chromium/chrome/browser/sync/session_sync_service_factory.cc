@@ -29,13 +29,12 @@
 #include "components/sync_sessions/sync_sessions_client.h"
 #include "content/public/common/url_utils.h"
 
-#include "components/sync_sessions/vivaldi_local_session_observer.h"
-
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/sync/glue/synced_window_delegates_getter_android.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #include "app/vivaldi_apptools.h"
+#include "components/sync_sessions/vivaldi_local_session_observer.h"
 #include "extensions/common/constants.h"
 
 namespace {
@@ -139,6 +138,7 @@ class SyncSessionsClientImpl final : public sync_sessions::SyncSessionsClient {
 
   vivaldi::VivaldiLocalSessionObserver vivaldi_local_session_observer_;
 };
+
 }  // namespace
 
 // static

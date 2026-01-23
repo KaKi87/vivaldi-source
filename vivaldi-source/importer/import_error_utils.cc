@@ -47,7 +47,8 @@ ImportResult ImportFileOperations::ParseJsonFile(
     return import_result::Error(read_result.error());
   }
 
-  std::optional<base::Value> parsed = base::JSONReader::Read(read_result.value());
+  std::optional<base::Value> parsed = base::JSONReader::Read(
+      read_result.value(), base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!parsed) {
     return import_result::Error(parse_error_id);
   }

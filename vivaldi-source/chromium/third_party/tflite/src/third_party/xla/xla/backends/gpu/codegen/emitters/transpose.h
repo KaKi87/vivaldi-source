@@ -29,13 +29,13 @@ limitations under the License.
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
 #include "xla/backends/gpu/codegen/emitters/emitter_base.h"
 #include "xla/codegen/emitters/computation_partitioner.h"
 #include "xla/hlo/analysis/indexing_map.h"
+#include "xla/hlo/analysis/symbolic_expr.h"
 #include "xla/hlo/ir/hlo_instruction.h"
 #include "xla/hlo/ir/hlo_instructions.h"
 #include "xla/service/gpu/hlo_fusion_analysis.h"
@@ -49,8 +49,9 @@ namespace gpu {
 
 class TransposeFusionBase : public EmitterBase {
  public:
-  explicit TransposeFusionBase(const HloFusionAnalysis& analysis)
-      : analysis_(analysis) {}
+  explicit TransposeFusionBase(const HloFusionAnalysis& analysis,
+                               mlir::MLIRContext* mlir_context)
+      : analysis_(analysis), mlir_context_(mlir_context) {}
 
  protected:
   absl::Status EmitEntryFunction(
@@ -86,6 +87,7 @@ class TransposeFusionBase : public EmitterBase {
       mlir::ValueRange thread_and_block_ids) const = 0;
 
   const HloFusionAnalysis& analysis_;
+  mlir::MLIRContext* mlir_context_;
 
   // Transpose instructions that require shared memory. Note that not all
   // transposes require shared memory, e.g. the ones with a large innermost
@@ -115,15 +117,15 @@ class TransposeFusionBase : public EmitterBase {
 // https://goo.gl/MStRV6.
 class TransposeFusion : public TransposeFusionBase {
  public:
-  explicit TransposeFusion(const HloFusionAnalysis& analysis);
+  explicit TransposeFusion(const HloFusionAnalysis& analysis,
+                           mlir::MLIRContext* mlir_context);
   LaunchDimensions launch_dimensions() const override;
 
   std::optional<IndexingMap> ComputeThreadIdToOutputIndexing(
       int64_t root_index, mlir::MLIRContext* mlir_context) const override;
 
-  std::optional<IndexingMap> ComputeThreadIdToInputIndexing(
-      int64_t root_index, int64_t hero_operand_index,
-      mlir::MLIRContext* mlir_context) const override;
+  std::optional<std::vector<IndexingMap>> ComputeThreadIdToInputIndexing(
+      int64_t root_index, mlir::MLIRContext* mlir_context) const override;
 
  protected:
   WriteResult EmitWriteToShMemMlir(
@@ -142,11 +144,12 @@ class TransposeFusion : public TransposeFusionBase {
 
  private:
   IndexingMap GetIndexing(bool input, const xla::Shape& shape,
-                          mlir::MLIRContext* ctx) const;
-  IndexingMap GetSharedMemoryIndexing(bool read, mlir::MLIRContext* ctx) const;
+                          mlir::MLIRContext* mlir_context) const;
+  IndexingMap GetSharedMemoryIndexing(bool read,
+                                      mlir::MLIRContext* mlir_context) const;
 
   llvm::SmallVector<mlir::AffineExpr, 4> GetThreadOffsets(
-      bool read, mlir::MLIRContext* ctx) const;
+      bool read, mlir::MLIRContext* mlir_context) const;
   bool MostMinorDimensionUnchanged() const;
 
   TransposeDescription transpose_;
@@ -231,16 +234,15 @@ class PackedTranspose : public TransposeFusionBase {
   explicit PackedTranspose(const HloFusionAnalysis& analysis,
                            const TransposeSpec& spec,
                            absl::Span<const int64_t> output_block_tile,
-                           int64_t num_warps);
+                           int64_t num_warps, mlir::MLIRContext* mlir_context);
 
   LaunchDimensions launch_dimensions() const override;
 
   std::optional<IndexingMap> ComputeThreadIdToOutputIndexing(
       int64_t root_index, mlir::MLIRContext* mlir_context) const override;
 
-  std::optional<IndexingMap> ComputeThreadIdToInputIndexing(
-      int64_t root_index, int64_t hero_operand_index,
-      mlir::MLIRContext* mlir_context) const override;
+  std::optional<std::vector<IndexingMap>> ComputeThreadIdToInputIndexing(
+      int64_t root_index, mlir::MLIRContext* mlir_context) const override;
 
  protected:
   WriteResult EmitWriteToShMemMlir(
@@ -296,7 +298,7 @@ class PackedTranspose : public TransposeFusionBase {
 };
 
 std::unique_ptr<EmitterBase> CreateTransposeFusion(
-    const HloFusionAnalysis& analysis);
+    const HloFusionAnalysis& analysis, mlir::MLIRContext* mlir_context);
 
 }  // namespace gpu
 }  // namespace xla

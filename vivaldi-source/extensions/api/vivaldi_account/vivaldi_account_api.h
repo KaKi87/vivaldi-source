@@ -4,9 +4,7 @@
 #define EXTENSIONS_API_VIVALDI_ACCOUNT_VIVALDI_ACCOUNT_H_
 
 #include <memory>
-#include <string>
 
-#include "base/memory/weak_ptr.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_function.h"
@@ -120,11 +118,6 @@ class VivaldiAccountSetPendingRegistrationFunction : public ExtensionFunction {
 
  private:
   ~VivaldiAccountSetPendingRegistrationFunction() override = default;
-  void OnEncryptDone(
-      std::optional<vivaldi::vivaldi_account::PendingRegistration>
-          pending_registration,
-      std::unique_ptr<std::string> encrypted_password,
-      bool result);
   // ExtensionFunction:
   ResponseAction Run() override;
 };
@@ -137,10 +130,6 @@ class VivaldiAccountGetPendingRegistrationFunction : public ExtensionFunction {
 
  private:
   ~VivaldiAccountGetPendingRegistrationFunction() override = default;
-  void OnDecryptDone(
-      std::optional<vivaldi::vivaldi_account::PendingRegistration>
-          pending_registration,
-      bool result);
   // ExtensionFunction:
   ResponseAction Run() override;
 };

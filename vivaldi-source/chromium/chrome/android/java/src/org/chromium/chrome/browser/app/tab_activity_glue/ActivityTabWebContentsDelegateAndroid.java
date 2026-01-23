@@ -13,7 +13,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Rect;
-import android.graphics.RectF;
 import android.media.AudioManager;
 import android.util.Pair;
 import android.view.KeyEvent;
@@ -64,9 +63,11 @@ import org.chromium.chrome.browser.util.AndroidTaskUtils;
 import org.chromium.chrome.browser.util.WindowFeatures;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuUtils;
 import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndroid;
+import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.common.ResourceRequestBody;
 import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.display.DisplayAndroid;
 import org.chromium.ui.display.DisplayUtil;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
@@ -83,6 +84,7 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.common.VivaldiUtils;
 
 /**
  * {@link WebContentsDelegateAndroid} that interacts with {@link Activity} and those of the lifetime
@@ -175,7 +177,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public boolean isFullscreenForTabOrPending() {
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             // It may happen that the tab does not have valid WebContents object. In Android
             // the New Tab Page is not the actual web but the native views.
             if (mTab.getWebContents() == null) {
@@ -203,7 +205,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public void requestKeyboardLock(boolean escKeyLocked) {
-        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (!ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             return;
         }
         // It may happen that the tab does not have valid WebContents object. In Android
@@ -219,7 +221,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public void cancelKeyboardLockRequest() {
-        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (!ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             return;
         }
         // It may happen that the tab does not have valid WebContents object. In Android
@@ -255,11 +257,25 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
         WindowAndroid window = mTab.getWindowAndroid();
         boolean openingPopup =
                 window != null
-                        && PopupCreator.arePopupsEnabled(window.getDisplay())
+                        && PopupCreator.arePopupsEnabled(windowFeatures, window.getDisplay())
                         && (disposition == WindowOpenDisposition.NEW_POPUP);
+        boolean openingDocumentPip =
+                ChromeFeatureList.isEnabled(ChromeFeatureList.DOCUMENT_PICTURE_IN_PICTURE_API)
+                        && disposition == WindowOpenDisposition.NEW_PICTURE_IN_PICTURE
+                        && window != null
+                        && PopupCreator.isTaskMoveAllowedOnDisplay(
+                                windowFeatures,
+                                window.getDisplay()); // Require task move enabled for docpip;
         if (disposition == WindowOpenDisposition.NEW_POPUP) {
             RecordHistogram.recordBooleanHistogram(
                     "Android.MultiWindowMode.PopupOpensInNewWindow", openingPopup);
+        }
+
+        if (openingDocumentPip) {
+            // Document pip doesn't require a tab to be created, so we can return early.
+            PopupCreator.moveWebContentsToNewDocumentPictureInPictureWindow(
+                    webContents, windowFeatures);
+            return true;
         }
 
         // Auxiliary navigations starting in a PWA will always cause a tab reparenting, we
@@ -289,7 +305,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
         if (openingPopup) {
             assert window != null;
-            PopupCreator.moveTabToNewPopup(tab, windowFeatures, window.getDisplay());
+            PopupCreator.moveTabToNewPopup(tab, windowFeatures);
         }
 
         if (disposition == WindowOpenDisposition.NEW_FOREGROUND_TAB) {
@@ -370,14 +386,19 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
             return;
         }
 
-        WindowAndroid window = mTab.getWindowAndroid();
-        if (window == null) return;
-        final Pair<Integer, Rect> localCoordinatesPx =
-                DisplayUtil.getLocalCoordinatesPx(new RectF(bounds), window.getDisplay());
+        final Pair<DisplayAndroid, Rect> localCoordinates =
+                DisplayUtil.convertGlobalDipToLocalPxCoordinates(bounds);
+        if (localCoordinates == null) {
+            return;
+        }
+
+        final DisplayAndroid display = localCoordinates.first;
+        final Rect localBounds = localCoordinates.second;
+
         delegate.moveTaskTo(
                 appTask,
-                localCoordinatesPx.first,
-                DisplayUtil.clampWindowToDisplay(localCoordinatesPx.second, window.getDisplay()));
+                display.getDisplayId(),
+                DisplayUtil.clampWindowToDisplay(localBounds, display));
     }
 
     @Override
@@ -479,7 +500,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public boolean preHandleKeyboardEvent(long nativeKeyEvent) {
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             return mExclusiveAccessManager != null
                     && mExclusiveAccessManager.preHandleKeyboardEvent(nativeKeyEvent);
         } else {
@@ -504,8 +525,8 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
     }
 
     /**
-     * Redispatches unhandled media keys. This allows bluetooth headphones with play/pause or
-     * other buttons to function correctly.
+     * Redispatches unhandled media keys. This allows bluetooth headphones with play/pause or other
+     * buttons to function correctly.
      */
     private void handleMediaKey(KeyEvent e) {
         switch (e.getKeyCode()) {
@@ -594,7 +615,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public void enterFullscreenModeForTab(
-            long requestingFrame,
+            RenderFrameHost renderFrameHost,
             boolean prefersNavigationBar,
             boolean prefersStatusBar,
             long displayId) {
@@ -602,10 +623,10 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
                 ChromeFeatureList.ENABLE_FULLSCREEN_TO_ANY_SCREEN_ANDROID)) {
             displayId = INVALID_DISPLAY;
         }
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             if (mExclusiveAccessManager != null) {
                 mExclusiveAccessManager.enterFullscreenModeForTab(
-                        requestingFrame,
+                        renderFrameHost,
                         new FullscreenOptions(prefersNavigationBar, prefersStatusBar, displayId));
             }
         } else {
@@ -621,14 +642,14 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public void fullscreenStateChangedForTab(
-            long requestingFrame,
+            RenderFrameHost renderFrameHost,
             boolean prefersNavigationBar,
             boolean prefersStatusBar,
             long displayId) {
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             if (mExclusiveAccessManager != null) {
                 mExclusiveAccessManager.enterFullscreenModeForTab(
-                        requestingFrame,
+                        renderFrameHost,
                         new FullscreenOptions(prefersNavigationBar, prefersStatusBar, displayId));
             }
         } else {
@@ -644,7 +665,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
 
     @Override
     public void exitFullscreenModeForTab() {
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.ENABLE_EXCLUSIVE_ACCESS_MANAGER)) {
+        if (ChromeFeatureList.sEnableExclusiveAccessManager.isEnabled()) {
             if (mExclusiveAccessManager != null) {
                 mExclusiveAccessManager.exitFullscreenModeForTab(mTab.getWebContents());
             }
@@ -683,8 +704,7 @@ public class ActivityTabWebContentsDelegateAndroid extends TabWebContentsDelegat
         Profile profile = mTab.getProfile();
         // Vivaldi
         if (BuildConfig.IS_VIVALDI) {
-            return WebContentsDarkModeController.isEnabledForUrl(
-                            profile, webContents.getVisibleUrl());
+            return VivaldiUtils.getWebsiteAutoDarkStatus(profile, webContents.getVisibleUrl());
         }
         return isNightModeEnabled()
                 && WebContentsDarkModeController.isEnabledForUrl(

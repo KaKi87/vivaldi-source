@@ -149,10 +149,8 @@ XnnFusionThunk::CreateXnnExecutable(
         capturing_builder_(arguments_, results_, arguments_buffers));
   }
 
-  uint32_t flags = XNN_FLAG_SLINKY_ENABLED | XNN_FLAG_SLINKY_STATIC_BOUNDS;
-#ifdef NDEBUG
-  flags |= XNN_FLAG_SLINKY_NO_CHECKS;
-#endif
+  uint32_t flags = XNN_FLAG_SLINKY_ENABLED | XNN_FLAG_SLINKY_STATIC_BOUNDS |
+                   XNN_FLAG_DONT_SPIN_WORKERS;
 
   TF_ASSIGN_OR_RETURN(
       executable.runtime, CreateXnnRuntime([&](xnn_runtime_t* runtime) {
@@ -194,10 +192,8 @@ absl::Status XnnFusionThunk::UpdateXnnExecutable(
       executable.subgraph,
       capturing_builder_(arguments_, results_, arguments_buffers));
 
-  uint32_t flags = XNN_FLAG_SLINKY_ENABLED | XNN_FLAG_SLINKY_STATIC_BOUNDS;
-#ifdef NDEBUG
-  flags |= XNN_FLAG_SLINKY_NO_CHECKS;
-#endif
+  uint32_t flags = XNN_FLAG_SLINKY_ENABLED | XNN_FLAG_SLINKY_STATIC_BOUNDS |
+                   XNN_FLAG_DONT_SPIN_WORKERS;
 
   TF_ASSIGN_OR_RETURN(
       executable.runtime, CreateXnnRuntime([&](xnn_runtime_t* runtime) {
@@ -276,10 +272,10 @@ XnnFusionThunk::~XnnFusionThunk() = default;
 XnnFusionThunk::BufferUses XnnFusionThunk::buffer_uses() const {
   BufferUses buffer_uses;
   for (const Argument& argument : arguments_) {
-    buffer_uses.push_back(BufferUse::Read(argument.slice));
+    buffer_uses.push_back(BufferUse::Read(argument.slice, argument.shape));
   }
   for (const Result& result : results_) {
-    buffer_uses.push_back(BufferUse::Write(result.slice));
+    buffer_uses.push_back(BufferUse::Write(result.slice, result.shape));
   }
 
   return buffer_uses;

@@ -19,12 +19,13 @@ class GURL;
 #ifdef __OBJC__
 // In Objective-C++ context: use proper Objective-C block syntax
 @class FaviconAttributes;
-using FaviconAttributesCompletionBlock = void (^)(FaviconAttributes*);
+using FaviconAttributesCompletionBlock =
+    void (^)(FaviconAttributes*, bool cached);
 #else
 // In pure C++ context: use forward declaration and base::OnceCallback
 class FaviconAttributes;
 using FaviconAttributesCompletionBlock =
-    base::OnceCallback<void(FaviconAttributes*)>;
+    base::OnceCallback<void(FaviconAttributes*, bool cached)>;
 #endif
 
 // Use VivaldiFaviconOptions from the service header
@@ -102,11 +103,14 @@ class VivaldiFaviconLoader : public KeyedService {
   // Helper methods to reduce code duplication
   base::OnceCallback<void(const favicon_base::LargeIconResult&)>
   CreateLargeIconResultToAttributesCallback(
-      FaviconAttributesCompletionBlock completion);
+      const GURL& icon_url,
+      FaviconAttributesCompletionBlock completion,
+      bool cached);
 
   // Generic helper for handling favicon requests with different service methods
   template <typename ServiceMethod>
-  void RequestFaviconWithMode(ServiceMethod service_method,
+  void RequestFaviconWithMode(const GURL& icon_url,
+                              ServiceMethod service_method,
                               VivaldiFaviconOptions options,
                               FaviconAttributesCompletionBlock completion);
 

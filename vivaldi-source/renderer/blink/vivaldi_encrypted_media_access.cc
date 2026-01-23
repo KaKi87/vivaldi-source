@@ -1,6 +1,7 @@
 // Copyright (c) 2024 Vivaldi Technologies AS. All rights reserved
 
 #include "renderer/mojo/vivaldi_encrypted_media_access.mojom.h"
+#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"

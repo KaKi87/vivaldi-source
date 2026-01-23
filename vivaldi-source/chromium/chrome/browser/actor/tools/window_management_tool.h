@@ -5,18 +5,18 @@
 #ifndef CHROME_BROWSER_ACTOR_TOOLS_WINDOW_MANAGEMENT_TOOL_H_
 #define CHROME_BROWSER_ACTOR_TOOLS_WINDOW_MANAGEMENT_TOOL_H_
 
+#include "base/callback_list.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/actor/tools/tool.h"
-#include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/browser_list_observer.h"
+#include "chrome/browser/actor/tools/tool_callbacks.h"
 #include "chrome/common/actor/task_id.h"
 #include "components/tabs/public/tab_interface.h"
 
 namespace actor {
 
 // A tool to manage browser windows, e.g. create, close, activate, etc.
-class WindowManagementTool : public Tool, public BrowserListObserver {
+class WindowManagementTool : public Tool {
  public:
   enum class Action { kCreate, kActivate, kClose };
 
@@ -31,25 +31,25 @@ class WindowManagementTool : public Tool, public BrowserListObserver {
   ~WindowManagementTool() override;
 
   // actor::Tool:
-  void Validate(ValidateCallback callback) override;
-  void Invoke(InvokeCallback callback) override;
+  void Validate(ToolCallback callback) override;
+  void Invoke(ToolCallback callback) override;
   std::string DebugString() const override;
   std::string JournalEvent() const override;
   std::unique_ptr<ObservationDelayController> GetObservationDelayer(
-      std::optional<ObservationDelayController::PageStabilityConfig>
-          page_stability_config) const override;
+      ObservationDelayController::PageStabilityConfig page_stability_config)
+      override;
   void UpdateTaskBeforeInvoke(ActorTask& task,
-                              InvokeCallback callback) const override;
+                              ToolCallback callback) const override;
   void UpdateTaskAfterInvoke(ActorTask& task,
                              mojom::ActionResultPtr result,
-                             InvokeCallback callback) const override;
+                             ToolCallback callback) const override;
   tabs::TabHandle GetTargetTab() const override;
 
-  // BrowserListObserver
-  void OnBrowserRemoved(Browser* browser) final;
-  void OnBrowserSetLastActive(Browser* browser) final;
-
  private:
+  // Called when the browser with `window_id_` has closed.
+  void OnBrowserDidClose(BrowserWindowInterface* browser);
+
+  void OnBrowserDidBecomeActive(BrowserWindowInterface* Browser);
   void OnInvokeFinished(mojom::ActionResultPtr result);
 
   Action action_;
@@ -58,10 +58,13 @@ class WindowManagementTool : public Tool, public BrowserListObserver {
   // If creating a window, this will be set to the handle of the initial tab.
   std::optional<tabs::TabHandle> created_tab_handle_;
 
-  InvokeCallback callback_;
+  ToolCallback callback_;
 
-  base::ScopedObservation<BrowserList, BrowserListObserver>
-      browser_list_observation_{this};
+  // Subscription to the close event for the Browser corresponding to
+  // `window_id_`.
+  base::CallbackListSubscription browser_did_close_subscription_;
+
+  base::CallbackListSubscription browser_did_become_active_subscription_;
 
   base::WeakPtrFactory<WindowManagementTool> weak_ptr_factory_{this};
 };

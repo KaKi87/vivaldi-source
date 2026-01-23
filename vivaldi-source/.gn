@@ -49,6 +49,9 @@ default_args.optimize_webui = true
 # We don't need the Chrome field trials
 default_args.disable_fieldtrial_testing_config = true
 
+# Currently we do not enable extensions for android
+default_args.enable_desktop_android_extensions = false
+
 # These are the targets to check headers for by default. The files in targets
 # matching these patterns (see "gn help label_pattern" for format) will have
 # their includes checked for proper dependencies when you run either

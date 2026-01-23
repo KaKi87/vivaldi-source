@@ -33,7 +33,7 @@ ConfirmInfoBarWebProxy::~ConfirmInfoBarWebProxy() {}
 void ConfirmInfoBarWebProxy::PlatformSpecificHide(bool animate) {
   base::Value::List args(
       extensions::vivaldi::infobars::OnInfobarRemoved::Create(
-          tab_id_, 0));
+          tab_id_, delegate()->GetIdentifier()));
   ::vivaldi::BroadcastEvent(
       extensions::vivaldi::infobars::OnInfobarRemoved::kEventName,
       std::move(args), profile_);

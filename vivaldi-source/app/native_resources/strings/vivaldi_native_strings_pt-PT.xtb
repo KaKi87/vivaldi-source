@@ -30,6 +30,7 @@
 <translation id="1756609631857154536">O ficheiro de palavras-passe não existe</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Propriedades da imagem...</translation>
+<translation id="1826707182290941822">As suas definições Chrome não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Chrome. Depois clique em Continuar.</translation>
 <translation id="1836997307232631937">Não consigo ler o ficheiro de palavras-passe e pode estar corrompido</translation>
 <translation id="1919345977826869612">Anúncios</translation>
 <translation id="1920297417712412573">Copiar para nota</translation>
@@ -40,6 +41,7 @@
 <translation id="1985669426322966465">Atualização de software</translation>
 <translation id="2079036669923635404">Clique aqui para atualizar o Vivaldi para a versão <ph name="VERSION" />.</translation>
 <translation id="2096375219036704155">Ficheiro de favoritos não encontrado</translation>
+<translation id="2101054359190001133">As suas definições Opera não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Opera. Depois clique em Continuar.</translation>
 <translation id="2141974047387702305">Ocorreu um erro ao transferir ficheiros de atualização. Verifique a sua ligação à Internet e tente novamente mais tarde.</translation>
 <translation id="2142146492302700970">Entrada 'encrypted_key' não encontrada no perfil de origem</translation>
 <translation id="2209970441698102782">Incapaz de encontrar o estado local no perfil de origem</translation>
@@ -126,6 +128,7 @@
     Por favor, saia agora e desbloqueie ou repare a sua chave de segurança e tente novamente. Ou pretende continuar mas perdendo os seus dados?</translation>
 <translation id="4074744496918018786">Abrir imagem numa nova janela privada</translation>
 <translation id="410351446219883937">Reprodução automática</translation>
+<translation id="4241573219093785166">As suas definições não podem ser importadas de outra instância Vivaldi enquanto ela estiver em execução. Para importar essas definições para este navegador, feche todas as janelas da outra instância Vivaldi. Depois clique em Continuar.</translation>
 <translation id="4281844954008187215">Condições de serviço</translation>
 <translation id="430967081421617822">Desde sempre</translation>
 <translation id="4324492550286218827">Paisagem 2</translation>
@@ -134,6 +137,7 @@
 <translation id="4420816922321010053">Quer mesmo sair do Vivaldi?</translation>
 <translation id="4430019312045809116">Volume</translation>
 <translation id="443008484043213881">Ferramentas</translation>
+<translation id="4441649773969751521">As suas definições Yandex não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Yandex. Depois clique em Continuar.</translation>
 <translation id="4456211719108566931">Monstro 6</translation>
 <translation id="4459169140545916303">Ativado há <ph name="DEVICE_LAST_ACTIVATED_TIME" /> dias</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
@@ -144,6 +148,7 @@
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Abrir imagem num novo separador em segundo plano</translation>
 <translation id="4582480609585453144">Abrir ligação num separador em segundo plano</translation>
+<translation id="461909702339733257">As suas definições Edge não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Edge. Depois clique em Continuar.</translation>
 <translation id="4636708767492582204">Enviar por correio eletrónico</translation>
 <translation id="4677434526832593569">Animal 8</translation>
 <translation id="4729666228450010210">Não foi possível abrir o ficheiro com o speeddial</translation>
@@ -153,6 +158,7 @@
 <translation id="4881695831933465202">Abrir</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> de <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Speed Dial importada</translation>
+<translation id="5034185370374718631">As suas definições Opera GX não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Opera GX. Depois clique em Continuar.</translation>
 <translation id="5092656712000637858">Adicionar página aos Painéis Web</translation>
 <translation id="5106275083540628394">Desencriptação falhada: risco de perda de dados</translation>
 <translation id="5177818338935286353">Monstro 7</translation>
@@ -219,6 +225,7 @@
 <translation id="7382439465323652245">Entrada 'os_crypt' não encontrada no perfil de origem</translation>
 <translation id="7421665776469827022">Dados guardados</translation>
 <translation id="7454640759045234067">Rastreadores bloqueados</translation>
+<translation id="7508642657131162635">As suas definições Brave não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Brave. Depois clique em Continuar.</translation>
 <translation id="7515032462649518126">Escolher imagem de avatar personalizada</translation>
 <translation id="7581266044164103589">Falhou a execução do instalador de atualizações. Confirme que o computador tem memória ou espaço em disco suficiente e tente novamente mais tarde.</translation>
 <translation id="7658239707568436148">Cancelar</translation>
@@ -260,6 +267,7 @@
 <translation id="8774017153185436870">Os websites podem reproduzir vídeo automaticamente</translation>
 <translation id="8813277370772331957">Lembrar mais tarde</translation>
 <translation id="8837256239226739065">Inspecionar o Service Worker de fundo</translation>
+<translation id="8861872665418508137">As suas definições Arc não estão disponíveis enquanto o navegador está em execução. Para importar essas definições para o Vivaldi, guarde o seu trabalho e feche todas as janelas Arc. Depois clique em Continuar.</translation>
 <translation id="8894900864683381599">Adicionar ligação aos Painéis Web</translation>
 <translation id="8912720443398351457">Quer mesmo fechar o Vivaldi?</translation>
 <translation id="8924818205225323428">O ficheiro de histórico não existe</translation>

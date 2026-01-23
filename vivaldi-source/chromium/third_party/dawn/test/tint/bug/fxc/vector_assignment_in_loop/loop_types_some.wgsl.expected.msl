@@ -1,6 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
+[[max_total_threads_per_threadgroup(1)]]
 kernel void v() {
   float2 v2f = 0.0f;
   float3 v3f = 0.0f;
@@ -21,10 +22,10 @@ kernel void v() {
       } else {
         break;
       }
-      v2f[min(uint(i), 1u)] = 1.0f;
-      v2i[min(uint(i), 1u)] = 1;
-      v2u[min(uint(i), 1u)] = 1u;
-      v2b[min(uint(i), 1u)] = true;
+      v2f[i] = 1.0f;
+      v2i[i] = 1;
+      v2u[i] = 1u;
+      v2b[i] = true;
       {
         i = as_type<int>((as_type<uint>(i) + as_type<uint>(1)));
       }

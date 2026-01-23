@@ -983,9 +983,6 @@ crbug.com/1046784 [ Release Win ] http/tests/devtools/elements/styles-4/styles-u
 crbug.com/1046784 [ Linux ] http/tests/devtools/coverage/coverage-suspended.js [ Slow ]
 crbug.com/1046784 [ Mac12 ] http/tests/devtools/coverage/coverage-suspended.js [ Slow ]
 crbug.com/1046784 [ Release Win ] http/tests/devtools/coverage/coverage-suspended.js [ Slow ]
-crbug.com/1046784 [ Linux ] http/tests/devtools/network/network-search.js [ Slow ]
-crbug.com/1046784 [ Mac12 ] http/tests/devtools/network/network-search.js [ Slow ]
-crbug.com/1046784 [ Release Win ] http/tests/devtools/network/network-search.js [ Slow ]
 crbug.com/1046784 [ Linux ] http/tests/devtools/elements/styles-4/styles-update-links-1.js [ Slow ]
 crbug.com/1046784 [ Mac12 ] http/tests/devtools/elements/styles-4/styles-update-links-1.js [ Slow ]
 crbug.com/1046784 [ Release Win ] http/tests/devtools/elements/styles-4/styles-update-links-1.js [ Slow ]
@@ -1184,7 +1181,7 @@ crbug.com/1462683 external/wpt/long-animation-frame/tentative/loaf-iframe-self.h
 crbug.com/1462683 virtual/threaded/external/wpt/long-animation-frame/tentative/loaf-iframe-self.html [ Slow ]
 
 # Slow because of multiple rounds of polling using the RemoteContext/executor framework.
-crbug.com/1517319 virtual/speculation-rules-prerender-target-hint/external/wpt/speculation-rules/prerender/prerender-while-prerender.html [ Slow ]
+crbug.com/1517319 external/wpt/speculation-rules/prerender/prerender-while-prerender.html [ Slow ]
 
 crbug.com/326619067 [ Mac ] external/wpt/css/css-scroll-snap/snap-events/scrollsnapchanging/scrollsnapchanging-on-user-root-scroll.tentative.html [ Slow ]
 crbug.com/332903033 [ Mac ] external/wpt/css/css-scroll-snap/snap-events/scrollsnapchanging/scrollsnapchanging-on-user-scroll.tentative.html [ Slow ]
@@ -1269,6 +1266,8 @@ crbug.com/387598611 fast/overflow/scrollbar-drag-origin.html [ Slow ]
 
 # WPT soft-navigation-heuristics test suite flakiness
 crbug.com/423705202 external/wpt/soft-navigation-heuristics/smoke/tentative/dom.html [ Slow ]
+
+crbug.com/452136055 [ Mac ] virtual/scalefactor200/external/wpt/css/filter-effects/backdrop-filters-sepia.html [ Slow ]
 
 # Gardener 2025-06-26
 crbug.com/40284969 external/wpt/performance-timeline/navigation-id-reset.tentative.html [ Slow ]

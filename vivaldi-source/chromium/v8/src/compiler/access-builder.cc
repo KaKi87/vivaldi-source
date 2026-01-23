@@ -4,6 +4,8 @@
 
 #include "src/compiler/access-builder.h"
 
+#include "src/codegen/machine-type.h"
+#include "src/compiler/property-access-builder.h"
 #include "src/compiler/type-cache.h"
 #include "src/handles/handles-inl.h"
 #include "src/objects/arguments.h"
@@ -151,10 +153,10 @@ FieldAccess AccessBuilder::ForJSObjectPropertiesOrHash() {
 // static
 FieldAccess AccessBuilder::ForJSObjectPropertiesOrHashKnownPointer() {
   FieldAccess access = {
-      kTaggedBase,          JSObject::kPropertiesOrHashOffset,
-      MaybeHandle<Name>(),  OptionalMapRef(),
-      Type::Any(),          MachineType::TaggedPointer(),
-      kPointerWriteBarrier, "JSObjectPropertiesOrHashKnownPointer"};
+      kTaggedBase,         JSObject::kPropertiesOrHashOffset,
+      MaybeHandle<Name>(), OptionalMapRef(),
+      Type::Any(),         MachineType::AnyTagged(),
+      kFullWriteBarrier,   "JSObjectPropertiesOrHashKnownPointer"};
   return access;
 }
 
@@ -233,7 +235,7 @@ FieldAccess AccessBuilder::ForJSExternalObjectValue() {
       "JSExternalObjectValue",
       ConstFieldInfo::None(),
       false,
-      kExternalObjectValueTag,
+      kFastApiExternalTypeTag,
   };
   return access;
 }
@@ -287,7 +289,6 @@ FieldAccess AccessBuilder::ForJSFunctionFeedbackCell() {
   return access;
 }
 
-#ifdef V8_ENABLE_LEAPTIERING
 // static
 FieldAccess AccessBuilder::ForJSFunctionDispatchHandleNoWriteBarrier() {
   // We currently don't require write barriers when writing dispatch handles of
@@ -300,32 +301,6 @@ FieldAccess AccessBuilder::ForJSFunctionDispatchHandleNoWriteBarrier() {
       kNoWriteBarrier,  "JSFunctionDispatchHandle"};
   return access;
 }
-#else
-#ifdef V8_ENABLE_SANDBOX
-// static
-FieldAccess AccessBuilder::ForJSFunctionCode() {
-  FieldAccess access = {kTaggedBase,
-                        JSFunction::kCodeOffset,
-                        MaybeHandle<Name>(),
-                        OptionalMapRef(),
-                        Type::OtherInternal(),
-                        MachineType::IndirectPointer(),
-                        kIndirectPointerWriteBarrier,
-                        "JSFunctionCode"};
-  access.indirect_pointer_tag = kCodeIndirectPointerTag;
-  return access;
-}
-#else
-// static
-FieldAccess AccessBuilder::ForJSFunctionCode() {
-  FieldAccess access = {kTaggedBase,           JSFunction::kCodeOffset,
-                        Handle<Name>(),        OptionalMapRef(),
-                        Type::OtherInternal(), MachineType::TaggedPointer(),
-                        kPointerWriteBarrier,  "JSFunctionCode"};
-  return access;
-}
-#endif  // V8_ENABLE_SANDBOX
-#endif  // V8_ENABLE_LEAPTIERING
 
 // static
 FieldAccess AccessBuilder::ForJSBoundFunctionBoundTargetFunction() {
@@ -1097,12 +1072,16 @@ FieldAccess AccessBuilder::ForFeedbackVectorSlot(int index) {
 }
 
 // static
-FieldAccess AccessBuilder::ForPropertyArraySlot(int index) {
+FieldAccess AccessBuilder::ForPropertyArraySlot(int index,
+                                                Representation representation) {
   int offset = PropertyArray::OffsetOfElementAt(index);
-  FieldAccess access = {kTaggedBase,       offset,
-                        Handle<Name>(),    OptionalMapRef(),
-                        Type::Any(),       MachineType::AnyTagged(),
-                        kFullWriteBarrier, "PropertyArraySlot"};
+  MachineType machine_type =
+      representation.IsHeapObject() || representation.IsDouble()
+          ? MachineType::TaggedPointer()
+          : MachineType::AnyTagged();
+  FieldAccess access = {
+      kTaggedBase, offset,       Handle<Name>(),    OptionalMapRef(),
+      Type::Any(), machine_type, kFullWriteBarrier, "PropertyArraySlot"};
   return access;
 }
 
@@ -1242,7 +1221,7 @@ ElementAccess AccessBuilder::ForFixedDoubleArrayElement() {
 
 // static
 FieldAccess AccessBuilder::ForEnumCacheKeys() {
-  FieldAccess access = {kTaggedBase,           EnumCache::kKeysOffset,
+  FieldAccess access = {kTaggedBase,           offsetof(EnumCache, keys_),
                         MaybeHandle<Name>(),   OptionalMapRef(),
                         Type::OtherInternal(), MachineType::TaggedPointer(),
                         kPointerWriteBarrier,  "EnumCacheKeys"};
@@ -1251,7 +1230,7 @@ FieldAccess AccessBuilder::ForEnumCacheKeys() {
 
 // static
 FieldAccess AccessBuilder::ForEnumCacheIndices() {
-  FieldAccess access = {kTaggedBase,           EnumCache::kIndicesOffset,
+  FieldAccess access = {kTaggedBase,           offsetof(EnumCache, indices_),
                         MaybeHandle<Name>(),   OptionalMapRef(),
                         Type::OtherInternal(), MachineType::TaggedPointer(),
                         kPointerWriteBarrier,  "EnumCacheIndices"};
@@ -1510,7 +1489,6 @@ FieldAccess AccessBuilder::ForFeedbackCellInterruptBudget() {
   return access;
 }
 
-#ifdef V8_ENABLE_LEAPTIERING
 // static
 FieldAccess AccessBuilder::ForFeedbackCellDispatchHandleNoWriteBarrier() {
   // Dispatch handles in FeedbackCells are effectively const-after-init and so
@@ -1526,7 +1504,6 @@ FieldAccess AccessBuilder::ForFeedbackCellDispatchHandleNoWriteBarrier() {
                         "FeedbackCellDispatchHandle"};
   return access;
 }
-#endif  // V8_ENABLE_LEAPTIERING
 
 // static
 FieldAccess AccessBuilder::ForFeedbackVectorInvocationCount() {

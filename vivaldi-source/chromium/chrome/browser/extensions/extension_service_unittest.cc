@@ -46,9 +46,7 @@
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
-#include "chrome/browser/extensions/blocklist.h"
 #include "chrome/browser/extensions/chrome_extension_cookies.h"
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/chrome_zipfile_installer.h"
@@ -67,17 +65,12 @@
 #include "chrome/browser/extensions/external_provider_impl.h"
 #include "chrome/browser/extensions/external_provider_manager.h"
 #include "chrome/browser/extensions/external_testing_loader.h"
-#include "chrome/browser/extensions/fake_safe_browsing_database_manager.h"
 #include "chrome/browser/extensions/installed_loader.h"
 #include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/managed_installation_mode.h"
 #include "chrome/browser/extensions/pack_extension_job.h"
-#include "chrome/browser/extensions/permissions/permissions_test_util.h"
-#include "chrome/browser/extensions/permissions/permissions_updater.h"
 #include "chrome/browser/extensions/plugin_manager.h"
 #include "chrome/browser/extensions/preinstalled_apps.h"
-#include "chrome/browser/extensions/scoped_database_manager_for_test.h"
-#include "chrome/browser/extensions/test_blocklist.h"
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -94,8 +87,6 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/scoped_browser_locale.h"
 #include "components/crx_file/id_util.h"
-#include "components/custom_handlers/protocol_handler_registry.h"
-#include "components/custom_handlers/simple_protocol_handler_registry_factory.h"
 #include "components/policy/core/common/management/scoped_management_service_override_for_testing.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -117,6 +108,7 @@
 #include "content/public/common/content_constants.h"
 #include "content/public/test/browser_task_environment.h"
 #include "extensions/browser/app_sorting.h"
+#include "extensions/browser/blocklist.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
 #include "extensions/browser/blocklist_state.h"
 #include "extensions/browser/disable_reason.h"
@@ -129,18 +121,24 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/external_install_info.h"
 #include "extensions/browser/external_provider_interface.h"
+#include "extensions/browser/fake_safe_browsing_database_manager.h"
 #include "extensions/browser/install_flag.h"
 #include "extensions/browser/management_policy.h"
 #include "extensions/browser/mock_external_provider.h"
 #include "extensions/browser/pending_extension_info.h"
 #include "extensions/browser/pending_extension_manager.h"
+#include "extensions/browser/permissions/permissions_test_util.h"
+#include "extensions/browser/permissions/permissions_updater.h"
 #include "extensions/browser/pref_names.h"
+#include "extensions/browser/scoped_database_manager_for_test.h"
+#include "extensions/browser/test_blocklist.h"
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/browser/test_management_policy.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/updater/extension_downloader_test_helper.h"
 #include "extensions/browser/updater/null_extension_cache.h"
 #include "extensions/browser/zipfile_installer.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_builder.h"
 #include "extensions/common/extension_features.h"
@@ -193,6 +191,8 @@
 #if BUILDFLAG(ENABLE_PLUGINS)
 #include "content/public/browser/plugin_service.h"
 #endif
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 // The blocklist tests rely on the safe-browsing database.
 #if BUILDFLAG(SAFE_BROWSING_DB_LOCAL)
@@ -2448,9 +2448,9 @@ TEST_F(ExtensionServiceTest, PackExtensionContainingKeyFails) {
   // This pack should fail because of the contained private key.
   EXPECT_FALSE(creator->Run(input_directory, crx_path, base::FilePath(),
       privkey_path, ExtensionCreator::kNoRunFlags));
-  EXPECT_THAT(creator->error_message(),
-              testing::ContainsRegex(
-                  "extension includes the key file.*privkey.pem"));
+  EXPECT_THAT(
+      base::UTF16ToUTF8(creator->error_message()),
+      testing::ContainsRegex("extension includes the key file.*privkey.pem"));
 }
 
 // Test Packaging and installing an extension using an openssl generated key.
@@ -3890,7 +3890,7 @@ TEST_F(ExtensionServiceTest, UnloadBlocklistedExtensionPolicy) {
   EXPECT_EQ(1u, registry()->enabled_extensions().size());
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetIndividualExtensionInstallationAllowed(good_crx, true);
   }
 
@@ -4047,7 +4047,7 @@ TEST_F(ExtensionServiceTest, BlockAndUnblockPolicyExtension) {
   InitializeEmptyExtensionServiceWithTestingPrefs();
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Blocklist everything.
     pref.SetBlocklistedByDefault(true);
     // Mark good.crx for force-installation.
@@ -4166,7 +4166,7 @@ TEST_F(ExtensionServiceTest, BlocklistedByPolicyWillNotInstall) {
 
   // Blocklist everything.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetBlocklistedByDefault(true);
   }
 
@@ -4177,7 +4177,7 @@ TEST_F(ExtensionServiceTest, BlocklistedByPolicyWillNotInstall) {
 
   // Now allowlist this particular extension.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetIndividualExtensionInstallationAllowed(good_crx, true);
   }
 
@@ -4196,7 +4196,7 @@ TEST_F(ExtensionServiceTest, BlocklistedByPolicyRemovedIfRunning) {
   EXPECT_EQ(1u, registry()->enabled_extensions().size());
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Blocklist this extension.
     pref.SetIndividualExtensionInstallationAllowed(good_crx, false);
   }
@@ -4212,7 +4212,7 @@ TEST_F(ExtensionServiceTest, ComponentExtensionAllowlisted) {
 
   // Blocklist everything.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetBlocklistedByDefault(true);
   }
 
@@ -4239,7 +4239,7 @@ TEST_F(ExtensionServiceTest, ComponentExtensionAllowlisted) {
 
   // Extension should not be uninstalled on blocklist changes.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetIndividualExtensionInstallationAllowed(good0, false);
   }
   task_environment()->RunUntilIdle();
@@ -4274,7 +4274,7 @@ TEST_F(ExtensionServiceTest, ComponentExtensionAllowlistedPermission) {
 
   // Component should not lose permissions on policy change.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.AddBlockedPermission(good0, "tabs");
   }
 
@@ -4295,7 +4295,7 @@ TEST_F(ExtensionServiceTest, PolicyInstalledExtensionsAllowlisted) {
   InitializeEmptyExtensionServiceWithTestingPrefs();
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Blocklist everything.
     pref.SetBlocklistedByDefault(true);
     // Mark good.crx for force-installation.
@@ -4319,7 +4319,7 @@ TEST_F(ExtensionServiceTest, PolicyInstalledExtensionsAllowlisted) {
 
   // Blocklist update should not uninstall the extension.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.SetIndividualExtensionInstallationAllowed(good0, false);
   }
   task_environment()->RunUntilIdle();
@@ -4348,7 +4348,7 @@ TEST_F(ExtensionServiceTest, NonCWSForceInstalledDisabledOnNonDomainJoin) {
   registrar()->AddExtension(extension);
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for force-installation.
     pref.SetIndividualExtensionAutoInstalled(
         extension->id(), "http://example.com/update_url", true);
@@ -4376,7 +4376,7 @@ TEST_F(ExtensionServiceTest, NonCWSForceInstalledEnabledOnDomainJoin) {
   registrar()->AddExtension(extension);
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for force-installation.
     pref.SetIndividualExtensionAutoInstalled(
         extension->id(), "http://example.com/update_url", true);
@@ -4589,7 +4589,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionNewExtensionInstall) {
 
   {
     // Update policy to block one of the required permissions of target.
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.AddBlockedPermission("*", "tabs");
   }
 
@@ -4598,7 +4598,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionNewExtensionInstall) {
 
   {
     // Update policy to block one of the optional permissions instead.
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.ClearBlockedPermissions("*");
     pref.AddBlockedPermission("*", "history");
   }
@@ -4610,7 +4610,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionNewExtensionInstall) {
   // unknown permission.
   UninstallExtension(id);
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.ClearBlockedPermissions("*");
     pref.AddBlockedPermission("*", "unknown.permission.for.testing");
   }
@@ -4635,7 +4635,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionConflictsWithForceInstall) {
 
   {
     // Block one of the required permissions.
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.AddBlockedPermission("*", "tabs");
   }
 
@@ -4656,7 +4656,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionConflictsWithForceInstall) {
 
   {
     // Clears the permission block list.
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.ClearBlockedPermissions("*");
   }
 
@@ -4684,7 +4684,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionExtensionUpdate) {
 
   {
     // Block one of the required permissions of 'permissions_blocklist2'.
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.AddBlockedPermission("*", "cookies");
   }
 
@@ -4753,7 +4753,7 @@ TEST_F(ExtensionServiceTest, PolicyBlockedPermissionPolicyUpdate) {
 
   // Set policy to block 'cookies' permission.
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     pref.AddBlockedPermission("*", "cookies");
   }
 
@@ -4988,7 +4988,7 @@ TEST_F(ExtensionServiceTest, ExternalExtensionBecomesEnabledIfForceInstalled) {
       TestManagementPolicyProvider::MUST_REMAIN_ENABLED);
   GetManagementPolicy()->RegisterProvider(&policy_provider);
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for force-installation.
     pref.SetIndividualExtensionAutoInstalled(
         good_crx, "http://example.com/update_url", true);
@@ -5689,18 +5689,22 @@ TEST_F(ExtensionServiceTest, ClearExtensionData) {
   idb_control.BindTestInterfaceForTesting(
       idb_control_test.BindNewPipeAndPassReceiver());
 
-  base::FilePath idb_path;
-  {
+  std::pair<base::FilePath, base::FilePath> idb_paths;
+  for (bool use_sqlite : {true, false}) {
     ASSERT_OK_AND_ASSIGN(auto bucket_locator,
                          GetStorageBucket(blink::StorageKey::CreateFirstParty(
                              url::Origin::Create(ext_url))));
     base::RunLoop run_loop;
     idb_control_test->GetFilePathForTesting(
-        bucket_locator,
+        bucket_locator, use_sqlite,
         base::BindLambdaForTesting([&](const base::FilePath& path) {
-          idb_path = path;
-          EXPECT_TRUE(base::CreateDirectory(idb_path));
-          EXPECT_TRUE(base::DirectoryExists(idb_path));
+          if (use_sqlite) {
+            idb_paths.first = path;
+          } else {
+            idb_paths.second = path;
+          }
+          EXPECT_TRUE(base::CreateDirectory(path));
+          EXPECT_TRUE(base::DirectoryExists(path));
           idb_control_test->ResetCachesForTesting(run_loop.QuitClosure());
         }));
     run_loop.Run();
@@ -5733,7 +5737,8 @@ TEST_F(ExtensionServiceTest, ClearExtensionData) {
   }
 
   // Check if the indexed db has disappeared too.
-  EXPECT_FALSE(base::DirectoryExists(idb_path));
+  EXPECT_FALSE(base::DirectoryExists(idb_paths.first));
+  EXPECT_FALSE(base::DirectoryExists(idb_paths.second));
 }
 
 std::vector<net::CanonicalCookie> IncludedCookies(
@@ -5831,18 +5836,22 @@ TEST_F(ExtensionServiceTest, ClearAppData) {
   idb_control.BindTestInterfaceForTesting(
       idb_control_test.BindNewPipeAndPassReceiver());
 
-  base::FilePath idb_path;
-  {
+  std::pair<base::FilePath, base::FilePath> idb_paths;
+  for (bool use_sqlite : {true, false}) {
     ASSERT_OK_AND_ASSIGN(auto bucket_locator,
                          GetStorageBucket(blink::StorageKey::CreateFirstParty(
                              url::Origin::Create(origin1))));
     base::RunLoop run_loop;
     idb_control_test->GetFilePathForTesting(
-        bucket_locator,
+        bucket_locator, use_sqlite,
         base::BindLambdaForTesting([&](const base::FilePath& path) {
-          idb_path = path;
-          EXPECT_TRUE(base::CreateDirectory(idb_path));
-          EXPECT_TRUE(base::DirectoryExists(idb_path));
+          if (use_sqlite) {
+            idb_paths.first = path;
+          } else {
+            idb_paths.second = path;
+          }
+          EXPECT_TRUE(base::CreateDirectory(path));
+          EXPECT_TRUE(base::DirectoryExists(path));
           idb_control_test->ResetCachesForTesting(run_loop.QuitClosure());
         }));
     run_loop.Run();
@@ -5891,7 +5900,8 @@ TEST_F(ExtensionServiceTest, ClearAppData) {
   }
 
   // Check if the indexed db has disappeared too.
-  EXPECT_FALSE(base::DirectoryExists(idb_path));
+  EXPECT_FALSE(base::DirectoryExists(idb_paths.first));
+  EXPECT_FALSE(base::DirectoryExists(idb_paths.second));
 }
 
 // Tests loading single extensions (like --load-extension)
@@ -6871,20 +6881,9 @@ TEST_F(ExtensionServiceTestSimple, Enabledness) {
   LoadErrorReporter::Init(false);  // no noisy errors
   std::unique_ptr<base::CommandLine> command_line;
 
-  auto profile_builder = []() {
-    TestingProfile::Builder builder;
-    // Use SimpleProtocolHandlerRegistryFactory to prevent OS integration during
-    // the protocol registration process.
-    builder.AddTestingFactory(
-        ProtocolHandlerRegistryFactory::GetInstance(),
-        custom_handlers::SimpleProtocolHandlerRegistryFactory::
-            GetDefaultFactory());
-    return builder;
-  };
-
   // The profile lifetimes must not overlap: services may use global variables.
   {
-    auto profile = profile_builder().Build();
+    auto profile = std::make_unique<TestingProfile>();
     bool ready = false;
     auto on_ready = [](bool* ready) { *ready = true; };
     ExtensionSystem::Get(profile.get())
@@ -6909,7 +6908,7 @@ TEST_F(ExtensionServiceTestSimple, Enabledness) {
   }
 
   {
-    auto profile = profile_builder().Build();
+    auto profile = std::make_unique<TestingProfile>();
     bool ready = false;
     auto on_ready = [](bool* ready) { *ready = true; };
     ExtensionSystem::Get(profile.get())
@@ -6930,7 +6929,7 @@ TEST_F(ExtensionServiceTestSimple, Enabledness) {
   }
 
   {
-    auto profile = profile_builder().Build();
+    auto profile = std::make_unique<TestingProfile>();
     bool ready = false;
     auto on_ready = [](bool* ready) { *ready = true; };
     ExtensionSystem::Get(profile.get())
@@ -6951,7 +6950,7 @@ TEST_F(ExtensionServiceTestSimple, Enabledness) {
   }
 
   {
-    auto profile = profile_builder().Build();
+    auto profile = std::make_unique<TestingProfile>();
     bool ready = false;
     auto on_ready = [](bool* ready) { *ready = true; };
     ExtensionSystem::Get(profile.get())
@@ -7617,7 +7616,7 @@ TEST_F(ExtensionServiceTest, ExternalInstallInitiallyDisabled) {
 // As for components, only external component extensions can be disabled.
 TEST_F(ExtensionServiceTest, DisablingComponentExtensions) {
   InitializeEmptyExtensionService();
-  service_->Init();
+  service()->Init();
 
   scoped_refptr<const Extension> external_component_extension = CreateExtension(
       "external_component_extension",
@@ -8439,7 +8438,7 @@ TEST_F(ExtensionServiceTest, UserInstalledExtensionThenRequiredByPolicy) {
   EXPECT_EQ(kVersionStr, extension->VersionString());
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for force-installation.
     pref.SetIndividualExtensionAutoInstalled(
         good_crx, "http://example.com/update_url", true);
@@ -8499,7 +8498,7 @@ TEST_F(ExtensionServiceTest,
   EXPECT_EQ(kVersionStr, extension->VersionString());
 
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for force-installation.
     pref.SetIndividualExtensionAutoInstalled(
         good_crx, "http://example.com/update_url", true);
@@ -8548,7 +8547,7 @@ TEST_F(ExtensionServiceTest,
 TEST_F(ExtensionServiceTest, InstallingUnacknowledgedExternalExtension) {
   InitializeEmptyExtensionServiceWithTestingPrefs();
   {
-    ManagementPrefUpdater pref(profile_->GetTestingPrefService());
+    ManagementPrefUpdater pref(testing_profile()->GetTestingPrefService());
     // Mark good.crx for recommended installation.
     pref.SetIndividualExtensionAutoInstalled(
         good_crx, "http://example.com/update_url", false);

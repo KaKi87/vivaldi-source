@@ -92,7 +92,7 @@ class InstallUtil {
   static bool IsRunningAsInteractiveUser();
 
   // Returns the toast activator registry path.
-  static std::wstring GetToastActivatorRegistryPath(base::FilePath* target = nullptr);
+  static std::wstring GetToastActivatorRegistryPath();
 
   // Populates |path| with EULA sentinel file path. Returns false on error.
   static bool GetEulaSentinelFilePath(base::FilePath* path);

@@ -11,13 +11,10 @@
 #include <string>
 #include <vector>
 
-#include "base/functional/callback.h"
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
-#include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
 #include "components/request_filter/request_filter_manager.h"
-#include "components/request_filter/request_filter_proxying_websocket.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -93,6 +90,7 @@ class RequestFilterProxyingWebSocket
                            OnBeforeSendHeadersCallback callback) override;
   void OnHeadersReceived(const std::string& headers,
                          const net::IPEndPoint& endpoint,
+                         const std::optional<net::SSLInfo>& ssl_info,
                          OnHeadersReceivedCallback callback) override;
 
   static void StartProxying(
@@ -159,6 +157,7 @@ class RequestFilterProxyingWebSocket
   OnAuthRequiredCallback auth_required_callback_;
   scoped_refptr<net::HttpResponseHeaders> override_headers_;
   std::vector<network::mojom::HttpHeaderPtr> additional_headers_;
+  const std::optional<net::SSLInfo>* ssl_info_ = nullptr;
 
   OnBeforeSendHeadersCallback on_before_send_headers_callback_;
   OnHeadersReceivedCallback on_headers_received_callback_;

@@ -84,7 +84,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   http_response->set_code(net::HTTP_OK);
   GURL request_url = request.GetURL();
 
-  if (request_url.path_piece() == kBasicSelectionUrl) {
+  if (request_url.path() == kBasicSelectionUrl) {
     http_response->set_content(kBasicSelectionHtmlTemplate);
     return std::move(http_response);
   }
@@ -118,6 +118,7 @@ std::unique_ptr<net::test_server::HttpResponse> StandardResponse(
   if ([self
           isRunningTest:@selector(MAYBE_testExplainWithGeminiInReadingMode)]) {
     config.features_enabled_and_params.push_back({kEnableReaderMode, {}});
+    config.features_enabled_and_params.push_back({kEnableReaderModeInUS, {}});
   }
   return config;
 }

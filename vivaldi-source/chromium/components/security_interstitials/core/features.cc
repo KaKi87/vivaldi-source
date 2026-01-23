@@ -5,10 +5,19 @@
 #include "components/security_interstitials/core/features.h"
 
 #include "base/feature_list.h"
+#include "build/build_config.h"
 
 namespace security_interstitials::features {
 
 // Enables a dialog-based UI for HTTPS-First Mode.
-BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT);
+// The flag is currently disabled on Android as the new UI is not implemented
+// there yet. (See crbug.com/469092867 for some previous unintended side
+// effects.)
+// NOTE(ondrej@vivaldi.com): VB-122838
+#if BUILDFLAG(IS_ANDROID)
+BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
+#else
+BASE_FEATURE(kHttpsFirstDialogUi, base::FEATURE_DISABLED_BY_DEFAULT); // Vivaldi keep disabled
+#endif
 
 }  // namespace security_interstitials::features

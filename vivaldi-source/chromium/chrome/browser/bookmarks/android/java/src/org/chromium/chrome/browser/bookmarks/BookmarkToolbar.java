@@ -62,6 +62,7 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
     // Vivaldi
     private boolean mSortButtonVisible;
     private boolean mAddToReadingListButtonVisible;
+    private boolean mExportImportBookmarksVisible;
 
     public BookmarkToolbar(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -248,6 +249,7 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
         // Vivaldi
         setAddToReadingListButtonVisible(mAddToReadingListButtonVisible);
         setSortButtonVisible(mSortButtonVisible);
+        setExportImportBookmarksVisible(mExportImportBookmarksVisible);
     }
 
     @Override
@@ -277,4 +279,12 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
         MenuItem addPageMenuItem = getMenu().findItem(R.id.add_page_to_reading_list_menu_id);
         if (addPageMenuItem != null) addPageMenuItem.setVisible(visible);
     }
+
+    // Vivaldi
+    void setExportImportBookmarksVisible(boolean visible) {
+        mExportImportBookmarksVisible = visible;
+        getMenu().findItem(R.id.import_bookmarks).setVisible(visible);
+        getMenu().findItem(R.id.export_bookmarks).setVisible(visible);
+    }
+
 }

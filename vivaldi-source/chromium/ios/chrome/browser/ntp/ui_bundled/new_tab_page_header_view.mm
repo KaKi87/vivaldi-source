@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_header_view.h"
 
 #import <UIKit/UIKit.h>
@@ -122,9 +117,6 @@ const CGFloat kCustomizationNewBadgeOffset = 14.0;
 // The name of the animation for the MIA button.
 NSString* const kMIACircleAnimationLightMode = @"mia_circle_animation_no_glow";
 NSString* const kMIACircleAnimationDarkMode = @"mia_glowing_circle_animation";
-
-// The value that makes the Lottie animation loop indefinitely.
-const CGFloat kLottieInfiniteLoopFlag = -1;
 
 // The value of the sides of the MIA circle animation for the normal size of the
 // fakebox.
@@ -321,24 +313,27 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
     _lastAnimationPercent = 0;
     _currentHintLabelScale = 1;
 
-    if (@available(iOS 17, *)) {
-      NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
-        UITraitPreferredContentSizeCategory.class,
-        UITraitUserInterfaceStyle.class
-      ]);
-      __weak __typeof(self) weakSelf = self;
-      UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
-                                       UITraitCollection* previousCollection) {
-        [weakSelf updateUIOnTraitChange:previousCollection];
-      };
-      [self registerForTraitChanges:traits withHandler:handler];
-      if (IsNTPBackgroundCustomizationEnabled()) {
-        [self
-            registerForTraitChanges:
-                @[ NewTabPageTrait.class, NewTabPageImageBackgroundTrait.class ]
+    NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
+      UITraitPreferredContentSizeCategory.class, UITraitUserInterfaceStyle.class
+    ]);
+    __weak __typeof(self) weakSelf = self;
+    UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
+                                     UITraitCollection* previousCollection) {
+      [weakSelf updateUIOnTraitChange:previousCollection];
+    };
+    [self registerForTraitChanges:traits withHandler:handler];
+    NSMutableArray<UITrait>* buttonTraits =
+        [@[ UITraitUserInterfaceStyle.class ] mutableCopy];
+    if (IsNTPBackgroundCustomizationEnabled()) {
+      NSArray<UITrait>* customizationTraits =
+          @[ NewTabPageTrait.class, NewTabPageImageBackgroundTrait.class ];
+      [buttonTraits addObjectsFromArray:customizationTraits];
+      [self registerForTraitChanges:customizationTraits
                          withAction:@selector(applyBackgroundTheme)];
-      }
     }
+    [self registerForTraitChanges:buttonTraits
+                       withAction:@selector
+                       (updateButtonsForCurrentTraitCollection)];
   }
   return self;
 }
@@ -376,7 +371,7 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
     return;
   }
   _placeholderText = placeholderText;
-  self.omnibox.textInput.placeholder = placeholderText;
+  [self.omnibox.textInput setDefaultPlaceholderText:placeholderText];
   self.searchHintLabel.text = placeholderText;
 }
 
@@ -398,8 +393,8 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
                 textColor:color
             textInputTint:color
                  iconTint:color
-      presentationContext:OmniboxPresentationContext::kLocationBar];
-  omnibox.textInput.placeholder = self.placeholderText;
+      presentationContext:OmniboxPresentationContext::kNTPHeader];
+  [omnibox.textInput setDefaultPlaceholderText:self.placeholderText];
   [omnibox.textInput setText:@""];
   omnibox.translatesAutoresizingMaskIntoConstraints = NO;
   [searchField addSubview:omnibox];
@@ -524,20 +519,33 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
   _logoView.image = logo;
 }
 
-- (void)updateButtonsForUserInterfaceStyle:(UIUserInterfaceStyle)style {
+// Updates button styling for the current trait collection.
+- (void)updateButtonsForCurrentTraitCollection {
   // Variations containing MIA entry point force disable colors in the icons.
   const BOOL aimInQuickActions = GetNTPMIAEntrypointVariation() ==
                                  NTPMIAEntrypointVariation::kAIMInQuickAction;
   const BOOL forceDisableColors =
       self.shouldShowMIAEntrypoint || aimInQuickActions;
-  const BOOL darkUIStyle = style == UIUserInterfaceStyleDark;
-  const BOOL useColorIcon = !darkUIStyle && !forceDisableColors;
+  const BOOL darkUIStyle =
+      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+  const BOOL ntpHasCustomBackground =
+      IsNTPBackgroundCustomizationEnabled() &&
+      ([self.traitCollection boolForNewTabPageImageBackgroundTrait] ||
+       [self.traitCollection objectForNewTabPageTrait]);
+  const BOOL useColorIcon =
+      !darkUIStyle && !forceDisableColors && !ntpHasCustomBackground;
 
   content_suggestions::ConfigureVoiceSearchButton(self.voiceSearchButton,
                                                   useColorIcon);
   if (self.lensButton) {
+    // Only color the badge if there's no image background.
+    UIColor* newBadgeColor =
+        [self.traitCollection boolForNewTabPageImageBackgroundTrait]
+            ? nil
+            : [self.traitCollection objectForNewTabPageTrait].tintColor;
     content_suggestions::ConfigureLensButtonAppearance(
-        self.lensButton, _useNewBadgeForLensButton, useColorIcon);
+        self.lensButton, _useNewBadgeForLensButton, useColorIcon,
+        newBadgeColor);
     if (_useNewBadgeForLensButton) {
       content_suggestions::ConfigureLensButtonWithNewBadgeAlpha(
           self.lensButton, 1 - _lastAnimationPercent);
@@ -901,20 +909,6 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
   _isAIMAllowed = allowed;
 }
 
-#pragma mark - UITraitEnvironment
-
-#if !defined(__IPHONE_17_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
-- (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
-  [super traitCollectionDidChange:previousTraitCollection];
-  if (@available(iOS 17, *)) {
-    return;
-  }
-
-  [self updateUIOnTraitChange:previousTraitCollection];
-}
-
-#endif
-
 #pragma mark - Property accessors
 
 - (UIView*)fakeLocationBar {
@@ -1077,8 +1071,7 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
     }
   }
 
-  [self updateButtonsForUserInterfaceStyle:self.traitCollection
-                                               .userInterfaceStyle];
+  [self updateButtonsForCurrentTraitCollection];
 
   [self addActionsToFakeboxButtons];
   [self updateHintLabelTrailingConstraint];
@@ -1282,7 +1275,7 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
     return kEndButtonMIAEnlargedFakebox;
   }
   // If normal sized fakebox and new bade is showing, reduce trailing space.
-  if (_useNewBadgeForLensButton && !ShouldEnlargeLogoAndFakebox()) {
+  if (_useNewBadgeForLensButton && !ShouldEnlargeNTPFakeboxForMIA()) {
     return kEndButtonNormalSizeFakeboxWithBadgeTrailingSpace;
   }
   // Common trailing space.
@@ -1354,7 +1347,7 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
       self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
           ? kMIACircleAnimationDarkMode
           : kMIACircleAnimationLightMode;
-  config.loopAnimationCount = kLottieInfiniteLoopFlag;
+  config.shouldLoop = YES;
   return ios::provider::GenerateLottieAnimation(config);
 }
 
@@ -1408,7 +1401,7 @@ CGFloat MIAAnimationOpacityForScrollProgress(CGFloat percent) {
 #pragma mark - helpers
 
 - (CGFloat)fakeboxHorizontalMargin {
-  if (IsSplitToolbarMode(self) && ShouldEnlargeLogoAndFakebox() &&
+  if (IsSplitToolbarMode(self) && ShouldEnlargeNTPFakeboxForMIA() &&
       !ShouldEnlargeNTPFakeboxForMIA()) {
     return kLargeFakeboxHorizontalMargin;
   }

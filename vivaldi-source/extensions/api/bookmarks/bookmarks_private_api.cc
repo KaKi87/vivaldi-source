@@ -49,6 +49,8 @@
 #include "browser/vivaldi_browser_finder.h"
 #if BUILDFLAG(IS_WIN)
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/win/jumplist.h"
 #include "chrome/browser/win/jumplist_factory.h"
@@ -150,9 +152,9 @@ BookmarksPrivateUpdateSpeedDialsForWindowsJumplistFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
 #if BUILDFLAG(IS_WIN)
-  Browser* browser = BrowserList::GetInstance()->GetLastActive();
+  BrowserWindowInterface* browser = GetLastActiveBrowserWindowInterfaceWithAnyProfile();
   if (browser && browser->is_vivaldi()) {
-    JumpList* jump_list = JumpListFactory::GetForProfile(browser->profile());
+    JumpList* jump_list = JumpListFactory::GetForProfile(browser->GetProfile());
     if (jump_list)
       jump_list->NotifyVivaldiSpeedDialsChanged(params->speed_dials);
   }

@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">För att låsa dina privata flikar, ställ in Touch ID, Face ID eller ett lösenord.</translation>
 <translation id="1189137610071296104">Öppna i flikstapeln</translation>
 <translation id="1310184829257917508">Be att få öppna länkar från andra appar privat</translation>
+<translation id="1624481300475123200">Autofyll lösenord</translation>
 <translation id="1743244221910283364">Radera ändringar</translation>
 <translation id="2010481384079864967">{count, plural,}
         =1 {Lägg till flik i stapeln}
         other {Lägg till flikar i stapeln}}</translation>
 <translation id="207677936531967364">Ny privat fliksida</translation>
 <translation id="2099591136582442348">Detta kommer att permanent radera stacken från din enhet.</translation>
+<translation id="2104086191144208395">Upptäckte du ett problem?</translation>
 <translation id="2181990701313127304">Ny flik i Stapeln</translation>
 <translation id="2351280151183279120">Dela stapel</translation>
 <translation id="2353953000228441783">Standardvy för webbplats</translation>
@@ -35,7 +37,6 @@
 <translation id="3981599532037327317">Öppna ${url} privat</translation>
 <translation id="398477389655464998">Kopiera länk till markering</translation>
 <translation id="3993429087389909418">Flikarna kommer att förbli öppna på den här enheten men stapeln kommer att raderas från alla enheter som är inloggade på <ph name="USER_EMAIL" />.</translation>
-<translation id="4026745073321351206">🙄 Hittat ett problem?</translation>
 <translation id="4216644171369573466">Flikstapel, <ph name="GROUP_TITLE" />, Meny.</translation>
 <translation id="4304713468139749426">Lösenordshanterare</translation>
 <translation id="4439281775431634915">Dina flikstaplar sparas här</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">Sidor du har läst</translation>
 <translation id="5521301883748677039">Ta bort stapel?</translation>
 <translation id="5544011153887687593">Fliken "Tabbstapel"-fliken. <ph name="TAB_INDEX_IN_GROUP" /> av <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Med överlämning kan du börja surfa på en webbplats på den här enheten och sedan enkelt fortsätta på din Mac. Den aktuella öppna webbplatsen visas i Dock på din Mac.
+
+Överlämning måste också vara aktiverat i Allmänt-sektionen i Inställningar, och dina enheter måste använda samma iCloud-konto.</translation>
 <translation id="5614553682702429503">Vill du spara lösenordet?</translation>
+<translation id="5620163320393916465">Inga sparade lösenord</translation>
 <translation id="570209299585559496">Du kan ändra standardwebbplatsvyn till skrivbordet i inställningar och sedan innehållsinställningar</translation>
 <translation id="5719777162751096990">Flytta till flikstapel</translation>
+<translation id="5869522115854928033">Sparade lösenord</translation>
 <translation id="5962477178930921574">Klistra in och sök</translation>
 <translation id="6163856768888310791">Avstapla</translation>
 <translation id="6168969409902608220">Namnge stapel</translation>
 <translation id="6192561334825788389">Du kan svepa åt höger för att bläddra privat.</translation>
 <translation id="6233792867654386826">Öppnar de inmatade webbadresserna i Vivaldi.</translation>
 <translation id="6271462272606946663">Dölj begär mobilwebbplats</translation>
+<translation id="6309282378909663947">Lösenord från Vivaldi Password Manager</translation>
 <translation id="6478587527114893588">Stäng stapel.</translation>
 <translation id="6527405730445064713">Flikstapel. Expanderad.</translation>
 <translation id="6532106788206463496">Spara ändringar</translation>
+<translation id="6636411080833380839">Ta bort från stapeln</translation>
+<translation id="6644512095122093795">Erbjud att spara lösenord</translation>
 <translation id="6666425778700353369">Detta tar bort stacken från alla enheter som är inloggade på <ph name="USER_EMAIL" />.</translation>
 <translation id="6680416467695217368">Anpassa meny</translation>
 <translation id="6695835495840050460">Tryck på "Lägg till flik i ny stapel"</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">Ny privat flik i stapeln</translation>
 <translation id="7661319142491611883">Expandera flikstapeln.</translation>
 <translation id="7706213624515206557">Visa alla flikar i flikstapeln</translation>
+<translation id="7937179923651776879">Få åtkomst till dina lösenord från valfri app</translation>
 <translation id="7961015016161918242">Aldrig</translation>
 <translation id="8326104954595890674">Ny privat flik</translation>
 <translation id="8345989863850359861">Ta bort fliken och radera stapeln?</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">Ny flik i Stapeln</translation>
 <translation id="9042893549633094279">Integritet och säkerhet</translation>
 <translation id="9094033019050270033">Uppdatera lösenordet</translation>
+<translation id="9203116392574189331">Överlämning</translation>
 <translation id="944434461715569989">Lämna stapeln</translation>
 <translation id="959061183386231608">Flikarna kommer att förbli öppna på den här enheten men stapeln kommer att raderas permanent.</translation>
+<translation id="988141524645182168">Andra enheter</translation>
 </translationbundle>

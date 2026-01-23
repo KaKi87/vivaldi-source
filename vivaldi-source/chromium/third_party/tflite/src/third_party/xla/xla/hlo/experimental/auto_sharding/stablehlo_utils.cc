@@ -49,7 +49,6 @@ absl::StatusOr<std::unique_ptr<xla::HloModule>> ConvertShardyToHlo(
   // need to add an option to to convert to custom call @Sharding.
   xla::sdy::StablehloExportPipelineOptions options;
   options.keepHloShardingConstraints = true;
-  options.keepShardMapBodyAsFunc = true;
   xla::sdy::addStablehloExportPipeline(pm, options);
 
   mlir::BaseScopedDiagnosticHandler diagnostic_handler(
@@ -74,7 +73,9 @@ absl::StatusOr<mlir::OwningOpRef<mlir::ModuleOp>> ConvertHloToShardyStablehlo(
   mlir::PassManager pm(context);
   llvm::SmallVector<bool> prop_args = {false};
   llvm::SmallVector<bool> prop_results = {false};
-  xla::sdy::addStablehloImportPipeline(pm, prop_args, prop_results);
+  xla::sdy::addStablehloImportPipeline(
+      pm, prop_args, prop_results,
+      /*enableStablehloCanonicalizeFromHloImport=*/false);
   // TODO(hanruobing): Explore reinserting the original mesh and calling
   // xla::sdy::createDedupMeshesPass
   if (mlir::failed(pm.run(stablehlo_module.get()))) {

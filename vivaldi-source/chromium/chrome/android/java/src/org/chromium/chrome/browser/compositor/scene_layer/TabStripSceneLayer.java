@@ -280,7 +280,9 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                     isSelected && shouldShowOutline
                             ? TabUiThemeUtil.getSelectedTabInTabGroupKeyboardFocusDrawableRes()
                             : TabUiThemeUtil.getTabKeyboardFocusDrawableRes();
-            @MediaState int mediaState = layoutHelper.getMediaIndicatorState(st);
+            TintedCompositorButton closeButton = st.getCloseButton();
+            @ColorInt int closeButtonTint = closeButton.getTint();
+            @MediaState int mediaState = st.getMediaState();
             boolean shouldShowMediaIndicator =
                     !(mediaState == MediaState.NONE || st.shouldHideMediaIndicator());
             @DrawableRes
@@ -288,21 +290,23 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                     shouldShowMediaIndicator
                             ? TabUtils.getMediaIndicatorDrawable(mediaState)
                             : Resources.ID_NULL;
+            @ColorInt
+            int mediaIndicatorTint =
+                    layoutHelper.getMediaIndicatorTintColor(mediaState, closeButtonTint);
 
-            // TODO(crbug.com/326301060): Update tab outline placeholder color with color picker.
             TabStripSceneLayerJni.get()
                     .putStripTabLayer(
                             mNativePtr,
                             st.getTabId(),
-                            st.getCloseButton().getResourceId(),
-                            st.getCloseButton().getBackgroundResourceId(),
-                            st.getCloseButton().isKeyboardFocused(),
+                            closeButton.getResourceId(),
+                            closeButton.getBackgroundResourceId(),
+                            closeButton.isKeyboardFocused(),
                             TabUiThemeUtil.getCircularButtonKeyboardFocusDrawableRes(),
                             st.getDividerResourceId(),
                             st.getResourceId(),
                             st.getOutlineResourceId(),
-                            st.getCloseButton().getTint(),
-                            st.getCloseButton().getBackgroundTint(),
+                            closeButtonTint,
+                            closeButton.getBackgroundTint(),
                             st.getDividerTint(),
                             st.getTint(),
                             layoutHelper.getSelectedOutlineGroupTint(
@@ -313,6 +317,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                             st.shouldHideFavicon(shouldShowMediaIndicator),
                             shouldShowMediaIndicator,
                             mediaIndicatorRes,
+                            mediaIndicatorTint,
                             Math.round(st.getMediaIndicatorWidth() * mDpToPx),
                             Math.round(layoutHelper.getWidth() * mDpToPx),
                             Math.round(st.getDrawX() * mDpToPx),
@@ -324,7 +329,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                             Math.round(st.getBottomMargin() * mDpToPx),
                             Math.round(st.getTopMargin() * mDpToPx),
                             Math.round(st.getCloseButtonPadding() * mDpToPx),
-                            st.getCloseButton().getOpacity(),
+                            closeButton.getOpacity(),
                             Math.round(widthToHideTabTitle * mDpToPx),
                             st.isStartDividerVisible(),
                             st.isEndDividerVisible(),
@@ -338,9 +343,8 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                             st.getLineWidth(),
                             Math.round(FOLIO_FOOT_LENGTH_DP * mDpToPx),
                             st.getIsPinned(),
-
                             // Note(david@vivaldi.com): From here we pass the Vivaldi parameters.
-                            layoutHelper.getActiveStripLayoutHelper().showTabsAsFavIcon(),
+                            st.isShownAsFavicon(),
                             st.getTitleOffset() * mDpToPx);
         }
     }
@@ -523,6 +527,7 @@ public class TabStripSceneLayer extends SceneOverlayLayer {
                 boolean shouldHideFavicon,
                 boolean shouldShowMediaIndicator,
                 @DrawableRes int mediaIndicatorResourceId,
+                @ColorInt int mediaIndicatorTint,
                 float mediaIndicatorWidth,
                 float toolbarWidth,
                 float x,

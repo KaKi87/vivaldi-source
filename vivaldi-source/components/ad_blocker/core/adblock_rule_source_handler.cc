@@ -31,6 +31,7 @@ constexpr int kUpdateTimeJitter = 30;       // minutes
 constexpr int kInitialUpdateDelay = 1;      // minutes
 
 constexpr char kTrackerInfoFileSuffix[] = "_tracker_infos.json";
+constexpr char kDownloadedSuffix[] = "_raw.txt";
 
 base::Time CalculateNextUpdateTime(const ActiveRuleSource& source) {
   return source.last_update +
@@ -81,7 +82,7 @@ struct RuleSourceHandler::RulesReadResult {
   RulesReadResult& operator=(RulesReadResult&&) = default;
 
   AdBlockMetadata metadata;
-  FetchResult fetch_result = FetchResult::kSuccess;
+  ReadResult result_type = ReadResult::kSuccess;
   RulesInfo rules_info;
   std::string checksum;
   std::optional<base::Value::Dict> tracker_infos;
@@ -93,22 +94,22 @@ RuleSourceHandler::RulesReadResult RuleSourceHandler::ReadRules(
     const base::FilePath& output_path,
     const base::FilePath& tracker_info_output_path,
     RulesCompiler rules_compiler,
-    RuleSourceSettings source_settings,
-    bool delete_after_read) {
+    RuleSourceSettings source_settings) {
   RulesReadResult read_result;
   if (!base::PathExists(source_path)) {
-    read_result.fetch_result = FetchResult::kFileNotFound;
+    read_result.result_type = ReadResult::kFileNotFound;
     return read_result;
   }
 
   std::string file_contents;
   if (!base::ReadFileToString(source_path, &file_contents)) {
-    read_result.fetch_result = FetchResult::kFileReadError;
+    read_result.result_type = ReadResult::kFileReadError;
     return read_result;
   }
   ParseResult parse_result;
   ParseContent(file_contents, source_settings, &parse_result);
-  read_result.fetch_result = parse_result.fetch_result;
+  read_result.result_type = parse_result.empty() ? ReadResult::kFileUnsupported
+                                                 : ReadResult::kSuccess;
   read_result.metadata = parse_result.metadata;
   read_result.rules_info = parse_result.rules_info;
   if (parse_result.tracker_infos) {
@@ -119,7 +120,7 @@ RuleSourceHandler::RulesReadResult RuleSourceHandler::ReadRules(
       read_result.tracker_infos = std::move(parse_result.tracker_infos);
   }
 
-  if (read_result.fetch_result == FetchResult::kFileUnsupported) {
+  if (read_result.result_type == ReadResult::kFileUnsupported) {
     // If the file used to have supported rules in a previous version, our
     // compiled copy of it is now obsolete, remove it.
     base::DeleteFile(output_path);
@@ -128,16 +129,12 @@ RuleSourceHandler::RulesReadResult RuleSourceHandler::ReadRules(
     CHECK(read_result.checksum.empty());
   }
 
-  if (delete_after_read) {
-    base::DeleteFile(source_path);
-  }
-
-  if (read_result.fetch_result != FetchResult::kSuccess)
+  if (read_result.result_type != ReadResult::kSuccess)
     return read_result;
 
   if (!rules_compiler.Run(parse_result, source_settings, output_path,
                           read_result.checksum))
-    read_result.fetch_result = FetchResult::kFailedSavingParsedRules;
+    read_result.result_type = ReadResult::kFailedSavingParsedRules;
 
   return read_result;
 }
@@ -168,6 +165,14 @@ RuleSourceHandler::RuleSourceHandler(
                            kTrackerInfoFileSuffix)),
       file_task_runner_(file_task_runner),
       weak_factory_(this) {
+  if (rule_source_.core.is_from_url()) {
+    download_path_ =
+        profile_path.Append(GetRulesFolderName())
+            .Append(GetGroupFolderName(group))
+            .AppendASCII(base::NumberToString(rule_source_.core.id()) +
+                         kDownloadedSuffix);
+  }
+
   if (rule_source_.next_fetch == base::Time()) {
     rule_source_.next_fetch = CalculateNextUpdateTime(rule_source_);
   }
@@ -193,7 +198,9 @@ void RuleSourceHandler::OnTrackerInfosLoaded(
   }
 }
 
-void RuleSourceHandler::FetchNow() {
+void RuleSourceHandler::FetchNow(bool recompile_needed) {
+  try_recompile_from_previous_download_ = recompile_needed;
+
   // We already have an update in progress.
   if (!update_timer_.IsRunning())
     return;
@@ -211,6 +218,11 @@ void RuleSourceHandler::Clear() {
   file_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(base::GetDeleteFileCallback(tracker_infos_path_)));
+  if (download_path_) {
+    file_task_runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(base::GetDeleteFileCallback(*download_path_)));
+  }
 }
 
 void RuleSourceHandler::StartUpdateTimer() {
@@ -230,7 +242,7 @@ void RuleSourceHandler::DoFetch() {
   if (rule_source_.core.is_from_url())
     DownloadRules();
   else
-    ReadRulesFromFile(rule_source_.core.source_file(), false);
+    ReadRulesFromFile(false, rule_source_.core.source_file());
 }
 
 void RuleSourceHandler::DownloadRules() {
@@ -277,54 +289,83 @@ void RuleSourceHandler::OnRulesDownloaded(base::FilePath file) {
   url_loader_.swap(url_loader);
 
   if (file.empty()) {
+    rule_source_.last_download_result = DownloadResult::kDownloadFailed;
     LOG(WARNING) << "Downloading rule source:" << rule_source_.core.source_url()
                  << " failed with error " << url_loader->NetError();
 
     rule_source_.is_fetching = false;
-    rule_source_.last_fetch_result = FetchResult::kDownloadFailed;
     rule_source_.next_fetch =
         GetNextUpdateTimeAfterFailUpdate(base::Time::Now());
     StartUpdateTimer();
     on_update_callback_.Run(this);
+
+    if (try_recompile_from_previous_download_) {
+      ReadRulesFromFile(true, *download_path_);
+    }
     return;
   }
 
-  ReadRulesFromFile(file, true);
+  file_task_runner_->PostTaskAndReplyWithResult(
+      FROM_HERE,
+      base::BindOnce(&base::Move, std::move(file), *download_path_),
+      base::BindOnce(&RuleSourceHandler::OnDownloadReplaced,
+                     weak_factory_.GetWeakPtr()));
 }
 
-void RuleSourceHandler::ReadRulesFromFile(const base::FilePath& file,
-                                          bool delete_after_read) {
+void RuleSourceHandler::OnDownloadReplaced(bool success) {
+  if (!success) {
+    rule_source_.last_download_result = DownloadResult::kReplaceFailed;
+    rule_source_.next_fetch =
+        GetNextUpdateTimeAfterFailUpdate(base::Time::Now());
+    StartUpdateTimer();
+    return;
+  }
+  rule_source_.last_download_result = DownloadResult::kSuccess;
+  ReadRulesFromFile(false, *download_path_);
+}
+void RuleSourceHandler::ReadRulesFromFile(bool from_previous_download,
+                                          const base::FilePath& file) {
   file_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
       base::BindOnce(&RuleSourceHandler::ReadRules, file, rules_list_path_,
                      tracker_infos_path_, rules_compiler_,
-                     rule_source_.core.settings(), delete_after_read),
+                     rule_source_.core.settings()),
       base::BindOnce(&RuleSourceHandler::OnRulesRead,
-                     weak_factory_.GetWeakPtr()));
+                     weak_factory_.GetWeakPtr(), from_previous_download));
 }
 
-void RuleSourceHandler::OnRulesRead(RulesReadResult result) {
-  rule_source_.last_fetch_result = result.fetch_result;
+void RuleSourceHandler::OnRulesRead(bool from_previous_download,
+                                    RulesReadResult result) {
+  try_recompile_from_previous_download_ = false;
+
+  rule_source_.last_read_result = result.result_type;
   rule_source_.is_fetching = false;
-  if (rule_source_.last_fetch_result == FetchResult::kSuccess ||
-      rule_source_.last_fetch_result == FetchResult::kFileUnsupported) {
+  bool read_success =
+      rule_source_.last_read_result == ReadResult::kSuccess ||
+      rule_source_.last_read_result == ReadResult::kFileUnsupported;
+
+  if (read_success) {
     rule_source_.unsafe_adblock_metadata = result.metadata;
     rule_source_.rules_info = result.rules_info;
     rule_source_.rules_list_checksum = result.checksum;
     rule_source_.last_update = base::Time::Now();
-
-    rule_source_.next_fetch = CalculateNextUpdateTime(rule_source_);
 
     if (result.tracker_infos) {
       rule_source_.has_tracker_infos = true;
       on_tracker_infos_update_callback_.Run(group_, rule_source_,
                                             std::move(*result.tracker_infos));
     }
-  } else {
-    rule_source_.next_fetch =
-        GetNextUpdateTimeAfterFailUpdate(base::Time::Now());
   }
 
+  // If we are recompiling from a previous download, there was a download
+  // failure. Set the next update time accordingly.
+  if (!read_success || from_previous_download) {
+    rule_source_.next_fetch =
+        GetNextUpdateTimeAfterFailUpdate(base::Time::Now());
+
+  } else {
+    rule_source_.next_fetch = CalculateNextUpdateTime(rule_source_);
+  }
   StartUpdateTimer();
   on_update_callback_.Run(this);
 }

@@ -95,6 +95,7 @@
 <translation id="4595560905247879544">Aplikacije i proširenja može mijenjati samo voditelj (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Proširenje je promijenilo stranicu koja se prikazuje kada otvorite novu karticu.</translation>
 <translation id="4643612240819915418">&amp;Otvori videozapis na novoj kartici</translation>
+<translation id="4644205769234414680">Dopusti u anonimnom</translation>
 <translation id="4654801841330730814">Sve</translation>
 <translation id="4677772697204437347">Memorija grafičkog procesora</translation>
 <translation id="488785315393301722">Pokaži pojedinosti</translation>
@@ -149,6 +150,7 @@
 <translation id="7453008956351770337">Odabirom tog pisača sljedećem proširenju dajete dopuštenje za pristup svojem pisaču:</translation>
 <translation id="7564847347806291057">Završi proces</translation>
 <translation id="7576690715254076113">Spari</translation>
+<translation id="7612050744024016345">Sva proširenja</translation>
 <translation id="7629827748548208700">Kartica: <ph name="TAB_NAME" /></translation>
 <translation id="7663719505383602579">Prijemnik: <ph name="ARC_PROCESS_NAME" /></translation>
 <translation id="7704305437604973648">Zadatak</translation>

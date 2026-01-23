@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> için yakınlaştırma düzeyi</translation>
 <translation id="1921508034244765766">Vivaldi yavaş, çöküyor veya cihaz ısınıyor</translation>
 <translation id="1929299157575856072">VARSAYILAN ENGELLEME SEVİYESİ</translation>
+<translation id="1933618400514506228">Sırp-Hırvatça (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Resmi arka plan sekmesinde aç</translation>
 <translation id="1986733655397734221">Bunların hiçbiri</translation>
 <translation id="1994506778397655062">Yeni arka plan sekmesinde aç</translation>
@@ -167,7 +168,6 @@ engellendi</translation>
 <translation id="309084557304084991">Önceden yüklenmiş yer imleri ve Hızlı Aramalar istemiyorum</translation>
 <translation id="3091563570137981919">İzleyici ve Reklam Engelleme</translation>
 <translation id="3097968995088564986">Ekle düğmesini göster</translation>
-<translation id="3102790820790869053">Son sekmeleri ara</translation>
 <translation id="3134385238404760368">Son sekme yok</translation>
 <translation id="3142562627629111859">Yeni Grup</translation>
 <translation id="3157931365184549694">Geri yükle</translation>
@@ -310,7 +310,6 @@ engellendi</translation>
 <translation id="462860218383788109">Değiştirme Tarihi</translation>
 <translation id="4640946580087069269">Nota kopyala</translation>
 <translation id="4643117005422448078">En iyi Siteler</translation>
-<translation id="4654428449690716275">Çeviriler sunulmadan önce veya sonra afiş göstermeyin</translation>
 <translation id="4654578955713250802">Reklamları ve İzleyicileri Engelle</translation>
 <translation id="4655510151391078468">Bu kod size gönderdiğimiz kodla eşleşmiyor.
          <ph name="ATTEMPTS" /> deneme hakkınız kaldı.</translation>
@@ -632,6 +631,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="851451113245350202">Son kapatılan sekmeler listesi</translation>
 <translation id="8515808232153642813">Şifreyi çöz</translation>
 <translation id="8517852590337319813">Hesabınızı etkinleştirin</translation>
+<translation id="8529159259480052204">Onay Afişlerini Gizle</translation>
 <translation id="8546963963006468833">Vivaldi ile, diğer uygulamalardaki bağlantıları sorunsuz bir şekilde açabilir, widget'lardan arama yapabilir ve parolaları otomatik olarak doldurabilirsiniz.</translation>
 <translation id="8562452229998620586">Kayıtlı parolalar burada görünecektir.</translation>
 <translation id="856439694359429369">Daha fazla seçenek için dokunun veya açmak için iki kez dokunun.</translation>
@@ -662,6 +662,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="8948792607467387336">Duvar Kağıdı Olarak Seç</translation>
 <translation id="8964449607824577665">Mevcut şifreleme şifreniz olmadan verilerinizin şifresini çözemeyiz. Bu şifrenin sıfırlanması, Vivaldi sunucularındaki mevcut tüm Senkronizasyon verilerinin silinmesini gerektirir.</translation>
 <translation id="8965371804397726192">Tüm Verileri Senkronize Etmeye Başlayın</translation>
+<translation id="896787570003733070">Çeviri sunulmadan önce veya sonra afişleri göstermeyin</translation>
 <translation id="8993821994276892302">{count, plural,
 =1 {Yer imi "{title}"a taşındı}
 other {Yer imleri "{title}"a taşındı}}</translation>

@@ -7,6 +7,7 @@
 #import "base/apple/foundation_util.h"
 #import "base/check.h"
 #import "base/i18n/rtl.h"
+#import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/search_engine_choice/ui/search_engine_choice_constants.h"
@@ -16,10 +17,12 @@
 #import "ios/chrome/browser/search_engine_choice/ui/snippet_search_engine_element.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/common/ui/button_stack/button_stack_utils.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/promo_style/constants.h"
 #import "ios/chrome/common/ui/promo_style/utils.h"
 #import "ios/chrome/common/ui/util/button_util.h"
+#import "ios/chrome/common/ui/util/chrome_button.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/device_util.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -67,7 +70,8 @@ const char* const kLearnMoreURL = "internal://choice-screen-learn-more";
 SnippetSearchEngineButton* CreateSnippetSearchEngineButtonWithElement(
     SnippetSearchEngineElement* element) {
   CHECK(element.keyword);
-  SnippetSearchEngineButton* button = [[SnippetSearchEngineButton alloc] init];
+  SnippetSearchEngineButton* button = [[SnippetSearchEngineButton alloc]
+      initWithCurrentDefaultState:element.currentDefaultState];
   button.faviconImage = element.faviconImage;
   button.searchEngineName = element.name;
   button.snippetText = element.snippetDescription;
@@ -78,9 +82,9 @@ SnippetSearchEngineButton* CreateSnippetSearchEngineButtonWithElement(
 
 // Creates a "Set as Default" button. The button is returned as disabled.
 ChromeButton* CreateSetAsDefaultButton() {
-  ChromeButton* button = PrimaryActionButton();
-  SetConfigurationTitle(
-      button, l10n_util::GetNSString(IDS_SEARCH_ENGINE_CHOICE_BUTTON_TITLE));
+  ChromeButton* button =
+      [[ChromeButton alloc] initWithStyle:ChromeButtonStylePrimary];
+  button.title = l10n_util::GetNSString(IDS_SEARCH_ENGINE_CHOICE_BUTTON_TITLE);
   button.translatesAutoresizingMaskIntoConstraints = NO;
   // Add semantic group, so the user can skip all the search engine stack view,
   // and jump to the SetAsDefault button, using VoiceOver.
@@ -91,7 +95,8 @@ ChromeButton* CreateSetAsDefaultButton() {
 
 // Create a more pill button.
 ChromeButton* CreateMorePillButton() {
-  ChromeButton* more_pill_button = PrimaryActionButton();
+  ChromeButton* more_pill_button =
+      [[ChromeButton alloc] initWithStyle:ChromeButtonStylePrimary];
   more_pill_button.layer.cornerRadius = kMorePillButtonCornerRadius;
   more_pill_button.layer.masksToBounds = YES;
   more_pill_button.accessibilityContainerType =
@@ -105,23 +110,24 @@ CGFloat ConvertVerticalCoordonateWithMainViewReference(UIView* mainView,
                                                        UIView* referenceView,
                                                        CGFloat y) {
   CGPoint point = CGPointMake(0, y);
-  CGPoint pointWithMainViewReference = [mainView convertPoint:point
-                                                     fromView:referenceView];
-  return pointWithMainViewReference.y;
+  CGPoint point_with_main_view_reference =
+      [mainView convertPoint:point fromView:referenceView];
+  return point_with_main_view_reference.y;
 }
 
-UITextView* CreateSubtitleTextView() {
-  UITextView* subtitleTextView = [[UITextView alloc] init];
-  subtitleTextView.backgroundColor = nil;
-  subtitleTextView.adjustsFontForContentSizeCategory = YES;
+UITextView* CreateSubtitleTextView(NSString* accessiblity_identifier) {
+  UITextView* subtitle_text_view = [[UITextView alloc] init];
+  subtitle_text_view.backgroundColor = nil;
+  subtitle_text_view.adjustsFontForContentSizeCategory = YES;
   // Disable and hide scrollbar.
-  subtitleTextView.textContainerInset = UIEdgeInsetsMake(0, 0, 0, 0);
-  subtitleTextView.scrollEnabled = NO;
-  subtitleTextView.showsVerticalScrollIndicator = NO;
-  subtitleTextView.showsHorizontalScrollIndicator = NO;
-  subtitleTextView.editable = NO;
-  subtitleTextView.translatesAutoresizingMaskIntoConstraints = NO;
-  return subtitleTextView;
+  subtitle_text_view.textContainerInset = UIEdgeInsetsMake(0, 0, 0, 0);
+  subtitle_text_view.scrollEnabled = NO;
+  subtitle_text_view.showsVerticalScrollIndicator = NO;
+  subtitle_text_view.showsHorizontalScrollIndicator = NO;
+  subtitle_text_view.editable = NO;
+  subtitle_text_view.translatesAutoresizingMaskIntoConstraints = NO;
+  subtitle_text_view.accessibilityIdentifier = accessiblity_identifier;
+  return subtitle_text_view;
 }
 
 // Returns the distance between subtitles according the system font size based
@@ -316,7 +322,8 @@ CGFloat GetSubtitleMarginDistance() {
   learnMoreAttributedString.accessibilityLabel =
       l10n_util::GetNSString(self.subtitle1LearnMoreA11yStringID);
   [subtitle1Text appendAttributedString:learnMoreAttributedString];
-  UITextView* subtitle1TextView = CreateSubtitleTextView();
+  UITextView* subtitle1TextView = CreateSubtitleTextView(
+      kSearchEngineChoiceSubtitle1AccessibilityIdentifier);
   [scrollContentView addSubview:subtitle1TextView];
   subtitle1TextView.attributedText = subtitle1Text;
   // The text alignment needs to be set after the setting the attributed text.
@@ -336,7 +343,8 @@ CGFloat GetSubtitleMarginDistance() {
                   [UIColor colorNamed:kGrey800Color],
               NSFontAttributeName : subtitleFont,
             }];
-    subtitle2TextView = CreateSubtitleTextView();
+    subtitle2TextView = CreateSubtitleTextView(
+        kSearchEngineChoiceSubtitle2AccessibilityIdentifier);
     [scrollContentView addSubview:subtitle2TextView];
     subtitle2TextView.attributedText = subtitle2Text;
     // The text alignment needs to be set after the setting the attributed text.
@@ -415,7 +423,7 @@ CGFloat GetSubtitleMarginDistance() {
 
   // Create a layout guide to constrain the width of the content, while still
   // allowing the scroll view to take the full screen width.
-  UILayoutGuide* widthLayoutGuide = AddPromoStyleWidthLayoutGuide(view);
+  UILayoutGuide* widthLayoutGuide = AddButtonStackContentWidthLayoutGuide(view);
   // This is the layout guide to compute the bottom margin of the "Set as
   // Default" button in the float container.
   // And the height of this layout guide is applied to
@@ -1000,8 +1008,8 @@ CGFloat GetSubtitleMarginDistance() {
   // properly scaled.
   UIFontTextStyle textStyle = GetTitleLabelFontTextStyle(self);
   _titleLabel.font = GetFRETitleFont(textStyle);
-  UpdateButtonToMatchPrimaryAction(_inlineSetAsDefaultButton);
-  UpdateButtonToMatchPrimaryAction(_floatingSetAsDefaultButton);
+  _inlineSetAsDefaultButton.style = ChromeButtonStylePrimary;
+  _floatingSetAsDefaultButton.style = ChromeButtonStylePrimary;
   [self updateMoreOrContinueButtonIfNeeded];
   _subtitleMarginLayoutConstraint.constant = GetSubtitleMarginDistance();
   // Update the SetAsDefault button once the layout changes take effect to have
@@ -1024,7 +1032,7 @@ CGFloat GetSubtitleMarginDistance() {
     return;
   }
   CHECK(_moreOrContinueButtonTitleStringID);
-  UpdateButtonToMatchPrimaryAction(_moreOrContinueButton);
+  _moreOrContinueButton.style = ChromeButtonStylePrimary;
   UIFont* font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
   NSDictionary* textAttributes = @{NSFontAttributeName : font};
   NSMutableAttributedString* attributedString =

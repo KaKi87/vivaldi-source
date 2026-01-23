@@ -55,6 +55,11 @@
 - (void)keyCommand_closeAll;
 - (void)keyCommand_undo;
 
+// Vivaldi
+- (void)keyCommand_vivShowPanel;
+- (void)keyCommand_vivTranslate;
+// End Vivaldi
+
 @end
 
 #endif  // IOS_CHROME_BROWSER_KEYBOARD_UI_BUNDLED_KEY_COMMAND_ACTIONS_H_

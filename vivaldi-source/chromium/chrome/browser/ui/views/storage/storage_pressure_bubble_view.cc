@@ -65,12 +65,21 @@ void StoragePressureBubbleView::ShowBubble(const url::Origin& origin) {
     if (!window)
       return;
     vivaldi_anchor_view = window->GetBubbleDialogAnchor();
+
+    if (!vivaldi_anchor_view) {
+      return;
+    }
   } // End Vivaldi
 
+
   StoragePressureBubbleView* bubble =
+#if defined(VIVALDI_BUILD)
+      new StoragePressureBubbleView(vivaldi_anchor_view,
+#else // VIVALDI_BUILD
       new StoragePressureBubbleView(BrowserView::GetBrowserViewForBrowser(bwi)
                                         ->toolbar_button_provider()
                                         ->GetAppMenuButton(),
+#endif // VIVALDI_BUILD
                                     bwi, origin);
 
   if (vivaldi_anchor_view) {

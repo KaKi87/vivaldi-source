@@ -1217,6 +1217,10 @@
     "vivaldi.quick_commands.show_synced_tabs": {
       "id": 331,
       "merge_method": "none"
+    },
+    "vivaldi.tabs.tiling.show_titlebar": {
+      "id": 333,
+      "merge_method": "none"
     }
   },
 
@@ -1561,6 +1565,9 @@
               "ctrl+f11"
             ]
           },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
+            "shortcuts": []
+          },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
               "8",
@@ -1635,6 +1642,9 @@
             "shortcuts": [
               "ctrl+n"
             ]
+          },
+          "COMMAND_NEW_GUEST_WINDOW": {
+            "shortcuts": []
           },
           "COMMAND_OPEN_PAGE": {
             "shortcuts": [
@@ -2044,8 +2054,16 @@
           "COMMAND_SHOW_WORKSPACE_MENU": {
             "shortcuts": []
           },
+          "COMMAND_MANAGE_PEOPLE": {
+            "shortcuts": []
+          },
           "COMMAND_TOGGLE_FORCE_DARK_MODE": {
             "shortcuts": []
+          },
+          "COMMAND_TOGGLE_CARET_BROWSING": {
+            "shortcuts": [
+              "shift+f7"
+            ]
           }
         }
       ],
@@ -2396,6 +2414,9 @@
               "ctrl+f11"
             ]
           },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
+            "shortcuts": []
+          },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
               "8",
@@ -2470,6 +2491,9 @@
             "shortcuts": [
               "ctrl+n"
             ]
+          },
+          "COMMAND_NEW_GUEST_WINDOW": {
+            "shortcuts": []
           },
           "COMMAND_OPEN_PAGE": {
             "shortcuts": [
@@ -2869,8 +2893,16 @@
           "COMMAND_SHOW_WORKSPACE_MENU": {
             "shortcuts": []
           },
+          "COMMAND_MANAGE_PEOPLE": {
+            "shortcuts": []
+          },
           "COMMAND_TOGGLE_FORCE_DARK_MODE": {
             "shortcuts": []
+          },
+          "COMMAND_TOGGLE_CARET_BROWSING": {
+            "shortcuts": [
+              "shift+f7"
+            ]
           }
         }
       ],
@@ -3208,6 +3240,9 @@
               "meta+f10"
             ]
           },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
+            "shortcuts": []
+          },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
               "8",
@@ -3276,6 +3311,9 @@
             "shortcuts": [
               "meta+n"
             ]
+          },
+          "COMMAND_NEW_GUEST_WINDOW": {
+            "shortcuts": []
           },
           "COMMAND_OPEN_PAGE": {
             "shortcuts": [
@@ -3685,8 +3723,16 @@
           "COMMAND_SHOW_WORKSPACE_MENU": {
             "shortcuts": []
           },
+          "COMMAND_MANAGE_PEOPLE": {
+            "shortcuts": []
+          },
           "COMMAND_TOGGLE_FORCE_DARK_MODE": {
             "shortcuts": []
+          },
+          "COMMAND_TOGGLE_CARET_BROWSING": {
+            "shortcuts": [
+              "shift+f7"
+            ]
           }
         }
       ]
@@ -4688,6 +4734,15 @@
       }
     },
     "mail": {
+      "windows":{
+        "description": "[DEPRECATED 2025/11] Where to display mail",
+        "type": "enum",
+        "enum_values": {
+          "single_window": 0,
+          "all_windows": 1
+        },
+        "default": "single_window"
+      },
       "accounts": {
         "description": "Mail account credentials for each set up account",
         "type": "list",
@@ -4996,7 +5051,7 @@
         "type": "enum",
         "enum_values": {
           "sentDate": 0,
-          "sender": 1,
+          "recipient": 1,
           "subject": 2,
           "threads": 3
         },
@@ -6170,11 +6225,12 @@
           "default": "icon"
         },
         "tracker_suggestion_show": {
+          "description": "[DEPRECATED 2025/10]",
           "type": "boolean",
           "default": true
         },
         "privacy_stats_show": {
-          "description": "Display privacy statistics in the SpeedDial (used only with VivaldiSpeeddialWidgets experiments, deprecate it after removing the experiment)",
+          "description": "[DEPRECATED 2025/12]",
           "type": "boolean",
           "default": false
         }
@@ -6578,6 +6634,11 @@
         "type": "boolean",
         "default": true
       },
+      "restrict_pinned_tabs": {
+        "description": "Restrict pinned tabs to current site",
+        "type": "boolean",
+        "default": true
+      },
       "stacking": {
         "allow_dnd": {
           "description": "Allow tab stacking by drag & drop",
@@ -6651,6 +6712,21 @@
           "description": "Render tiles without surrounding border",
           "type": "boolean",
           "default": false
+        },
+        "show_titlebar": {
+          "description": "Render tiles with a title bar",
+          "type": "boolean",
+          "default": true
+        },
+        "drag_and_drop": {
+          "description": "Enable drag-and-drop tiling",
+          "type": "boolean",
+          "default": true
+        },
+        "tip_display_counter": {
+          "description": "Count how many times the tip has been displayed",
+          "type": "integer",
+          "default": 0
         }
       },
       "tooltip": {
@@ -6877,6 +6953,11 @@
         "description": "List of currently previewed themes. Currently only the first element if any is used.",
         "default": []
       },
+      "unsplash_cache": {
+        "type": "dictionary",
+        "description": "Temporary storage for Daily Image from Unsplash",
+        "default": {}
+      },
       "system": {
         "type": "list",
         "description": "Default themes",
@@ -7097,6 +7178,7 @@
               "SyncStatus": "/resources/theme/vivaldi/SyncStatus.svg",
               "TabsTrash": "/resources/theme/vivaldi/MailMsgTrash.svg",
               "TilingToggle": "/resources/theme/vivaldi/TilingToggle.svg",
+              "ToggleAutoHide": "/resources/theme/vivaldi/ToggleAutoHide.svg",
               "UpdateButton": "/resources/theme/vivaldi/UpdateButton.svg",
               "WorkspaceButton": "/resources/theme/vivaldi/WorkspaceButton.svg"
             },
@@ -7191,6 +7273,7 @@
               "SyncStatus": "/resources/theme/vivaldi/SyncStatus.svg",
               "TabsTrash": "/resources/theme/vivaldi/MailMsgTrash.svg",
               "TilingToggle": "/resources/theme/vivaldi/TilingToggle.svg",
+              "ToggleAutoHide": "/resources/theme/vivaldi/ToggleAutoHide.svg",
               "UpdateButton": "/resources/theme/vivaldi/UpdateButton.svg",
               "WorkspaceButton": "/resources/theme/vivaldi/WorkspaceButton.svg"
             },
@@ -7285,6 +7368,7 @@
               "SyncStatus": "/resources/theme/vivaldi/SyncStatus.svg",
               "TabsTrash": "/resources/theme/vivaldi/MailMsgTrash.svg",
               "TilingToggle": "/resources/theme/vivaldi/TilingToggle.svg",
+              "ToggleAutoHide": "/resources/theme/vivaldi/ToggleAutoHide.svg",
               "UpdateButton": "/resources/theme/vivaldi/UpdateButton.svg",
               "WorkspaceButton": "/resources/theme/vivaldi/WorkspaceButton.svg"
             },
@@ -7393,6 +7477,7 @@
           "CalendarStatus",
           "StatusInfo",
           "VersionInfo",
+          "AutoHideToggle",
           "CaptureImages",
           "TilingToggle",
           "PageActions",
@@ -7999,6 +8084,49 @@
         "default": 24,
         "syncable": false
       }
+    },
+    "auto_hide": {
+      "enabled": {
+        "description": "Enable Auto-Hide feature",
+        "type": "boolean",
+        "default": false,
+        "syncable": false
+      },
+      "tab_bar": {
+        "description": "Auto-hide tab bar",
+        "type": "boolean",
+        "default": true,
+        "syncable": false
+      },
+      "panel": {
+        "description": "Auto-hide panel",
+        "type": "boolean",
+        "default": true,
+        "syncable": false
+      },
+      "address_bar": {
+        "description": "Auto-hide address bar",
+        "type": "boolean",
+        "default": true,
+        "syncable": false
+      },
+      "status_bar": {
+        "description": "Auto-hide status bar",
+        "type": "boolean",
+        "default": true,
+        "syncable": false
+      },
+      "bookmarks_bar": {
+        "description": "Auto hide bookmarks bar",
+        "type": "boolean",
+        "default": true,
+        "syncable": false
+      },
+      "show_introduction": {
+        "description": "Show an introduction pop up when enabling auto hide",
+        "type": "boolean",
+        "default": true
+      }
     }
   },
   "chromium": {
@@ -8254,6 +8382,14 @@
     "kCustomHandlersEnabled": {
       "path": "custom_handlers.enabled",
       "type": "boolean"
+    },
+    "kCaretBrowsingEnabled": {
+      "path": "settings.a11y.caretbrowsing.enabled",
+      "type": "boolean"
+    },
+    "kCaretBrowsingShowDialog": {
+      "path": "settings.a11y.caretbrowsing.show_dialog",
+      "type": "boolean"
     }
   },
   "chromium_local": {
@@ -8304,6 +8440,14 @@
     "kVivaldiCrashReportingConsentGranted": {
       "path": "vivaldi.CrashReportingConsentGranted",
       "type": "boolean"
+    },
+    "kVivaldiCrashReportLastUuidSeen": {
+      "path": "vivaldi.CrashReportLastUuidSeen",
+      "type": "string"
+    },
+    "kVivaldiCrashReportingConsentDialogLastSeenTime": {
+      "path": "vivaldi.CrashReportingConsentDialogLastSeenTime",
+      "type": "double"
     },
     "kVivaldiAutoUpdateStandalone": {
       "description": "enable autoupdates for standalone installs",

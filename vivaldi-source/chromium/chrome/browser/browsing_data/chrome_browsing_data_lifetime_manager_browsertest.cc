@@ -67,7 +67,9 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/test/base/ui_test_utils.h"
 #else
 #include "chrome/browser/android/tab_android.h"
@@ -483,12 +485,17 @@ IN_PROC_BROWSER_TEST_P(ChromeBrowsingDataLifetimeManagerScheduledRemovalTest,
       browser(), url, WindowOpenDisposition::NEW_WINDOW,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
-  EXPECT_EQ(BrowserList::GetInstance()->size(), 2u);
+  EXPECT_EQ(chrome::GetTotalBrowserCount(), 2u);
   content::WebContents* new_tab = nullptr;
-  for (Browser* b : *BrowserList::GetInstance()) {
-    if (b != browser())
-      new_tab = b->tab_strip_model()->GetActiveWebContents();
-  }
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [this, &new_tab](BrowserWindowInterface* browser_window_interface) {
+        if (browser_window_interface != browser()) {
+          new_tab = browser_window_interface->GetTabStripModel()
+                        ->GetActiveWebContents();
+          return false;
+        }
+        return true;
+      });
 
   ASSERT_TRUE(new_tab);
   ASSERT_NE(new_tab, GetActiveWebContents());

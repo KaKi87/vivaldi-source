@@ -79,12 +79,18 @@ public class SiteSettings extends BaseSiteSettingsFragment
     }
 
     private void configurePreferences() {
+        // TODO(crbug.com/439911511): Remove the divider directly form the layout.
+        if (getSiteSettingsDelegate().isSettingsContainmentEnabled()) {
+            Preference divider = findPreference("divider");
+            if (divider != null) {
+                getPreferenceScreen().removePreference(divider);
+            }
+        }
+
         if (getSiteSettingsDelegate().shouldShowTrackingProtectionUi()) {
-            Preference thirdPartyCookiesPref =
-                    findPreference(Type.THIRD_PARTY_COOKIES);
+            Preference thirdPartyCookiesPref = findPreference(Type.THIRD_PARTY_COOKIES);
             thirdPartyCookiesPref.setVisible(false);
-            Preference trackingProtectionPref =
-                    findPreference(Type.TRACKING_PROTECTION);
+            Preference trackingProtectionPref = findPreference(Type.TRACKING_PROTECTION);
             trackingProtectionPref.setVisible(true);
         }
 
@@ -100,9 +106,17 @@ public class SiteSettings extends BaseSiteSettingsFragment
 
         // Vivaldi (gabriel@vivaldi.com) ref. VAB-11385 Duplicated preference from Theme prefs.
         if (BuildConfig.IS_VIVALDI) {
-            Preference darkWebsitesPreferece =
-                    findPreference(Type.AUTO_DARK_WEB_CONTENT);
-            getPreferenceScreen().removePreference(darkWebsitesPreferece);
+            Preference darkWebsitesPreference = findPreference(Type.AUTO_DARK_WEB_CONTENT);
+            if (darkWebsitesPreference != null)
+                getPreferenceScreen().removePreference(darkWebsitesPreference);
+            // Ref. AUTO-308.
+            final String DEVICE_NAME_KIA_PV5 = "pbvivi";
+            if (BuildConfig.IS_OEM_GAS_BUILD &&
+                    android.os.Build.DEVICE.equals(DEVICE_NAME_KIA_PV5)) {
+                Preference micPreference = findPreference(Type.MICROPHONE);
+                if (micPreference != null)
+                    getPreferenceScreen().removePreference(micPreference);
+            }
         } // End Vivaldi
     }
 
@@ -278,5 +292,10 @@ public class SiteSettings extends BaseSiteSettingsFragment
     @Override
     public @AnimationType int getAnimationType() {
         return AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "content_settings";
     }
 }

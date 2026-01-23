@@ -36,11 +36,11 @@
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_multi_line_text_edit_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_edit_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_controller_test.h"
+#import "ios/chrome/common/ui/reauthentication/mock_reauthentication_module.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ios/chrome/grit/ios_strings.h"
-#import "ios/chrome/test/app/mock_reauthentication_module.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
@@ -202,6 +202,9 @@ NSString* DisplayName() {
                   messageAction:(void (^)(void))messageAction
                completionAction:(void (^)(BOOL))completionAction {
   self.snackbarMessage = messageText;
+}
+
+- (void)showSnackbarMessageAfterDismissingKeyboard:(NSString*)messageText {
 }
 
 - (void)dismissAllSnackbars {
@@ -877,17 +880,20 @@ TEST_F(PasswordDetailsTableViewControllerTest, SortsCredentialsByHiddenState) {
       PasskeyCredential::Source::kGooglePasswordManager;
   PasskeyCredential::RpId rp_id("www.example.com");
   base::Time creation_time = base::Time::Now();
+  base::Time last_used_time = base::Time::Now();
   PasskeyCredential hidden_passkey_credential(
       source, rp_id, PasskeyCredential::CredentialId({'c', 'r', 'e', 'd', '1'}),
       PasskeyCredential::UserId({'u', 's', 'e', 'r', '1'}),
       PasskeyCredential::Username("username1"),
       PasskeyCredential::DisplayName("display_name1"), creation_time,
+      last_used_time,
       /*hidden=*/true);
   PasskeyCredential passkey_credential(
       source, rp_id, PasskeyCredential::CredentialId({'c', 'r', 'e', 'd', '2'}),
       PasskeyCredential::UserId({'u', 's', 'e', 'r', '2'}),
       PasskeyCredential::Username("username2"),
       PasskeyCredential::DisplayName("display_name2"), creation_time,
+      last_used_time,
       /*hidden=*/false);
 
   NSArray<CredentialDetails*>* passkeys = @[

@@ -28,11 +28,10 @@ import org.chromium.ui.base.PageTransition;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 // Vivaldi
-import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.ChromeApplicationImpl;
 
 /** Implementation of {@link BookmarkOpener} which relies on intents. */
 @NullMarked
@@ -59,7 +58,9 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
     @Override
     public boolean openBookmarkInCurrentTab(BookmarkId id, boolean incognito) {
         if (id == null) return false;
-
+        if (ChromeApplicationImpl.isVivaldi() && mBookmarkModelSupplier.get() == null) {
+            return false;
+        } // End Vivaldi
         BookmarkItem item = mBookmarkModelSupplier.get().getBookmarkById(id);
         if (item == null) return false;
         maybeMarkReadingListItemAsRead(item);
@@ -75,7 +76,7 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
     public boolean openBookmarksInNewTabs(
             List<BookmarkId> bookmarkIds,
             boolean incognito,
-            Optional<@TabLaunchType Integer> tabLaunchType) {
+            @Nullable @TabLaunchType Integer tabLaunchType) {
         if (bookmarkIds.size() == 0) return false;
 
         BookmarkItem firstItem = null;
@@ -103,7 +104,9 @@ public class BookmarkOpenerImpl implements BookmarkOpener {
         intent.putExtra(Browser.EXTRA_CREATE_NEW_TAB, true);
         intent.putExtra(IntentHandler.EXTRA_OPEN_NEW_INCOGNITO_TAB, incognito);
         intent.putExtra(IntentHandler.EXTRA_ADDITIONAL_URLS, additionalUrls);
-        tabLaunchType.ifPresent(v -> IntentHandler.setTabLaunchType(intent, v));
+        if (tabLaunchType != null) {
+            IntentHandler.setTabLaunchType(intent, tabLaunchType);
+        }
         IntentHandler.startActivityForTrustedIntent(intent);
 
         return true;

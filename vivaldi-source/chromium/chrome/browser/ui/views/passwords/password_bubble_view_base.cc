@@ -126,11 +126,10 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
   ToolbarButtonProvider* button_provider =
       browser_view->toolbar_button_provider();
-  views::View* anchor_view =
-      button_provider->GetAnchorView(kActionShowPasswordsBubbleOrPage);
+  views::BubbleAnchor anchor =
+      button_provider->GetBubbleAnchor(kActionShowPasswordsBubbleOrPage);
 
-  PasswordBubbleViewBase* bubble =
-      CreateBubble(web_contents, anchor_view, reason);
+  PasswordBubbleViewBase* bubble = CreateBubble(web_contents, anchor, reason);
   DCHECK(bubble);
   DCHECK_EQ(bubble, g_manage_passwords_bubble_);
   // TODO(crbug.com/40218026): In non-DCHECK mode we could fall through here and
@@ -140,10 +139,12 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
     return;
   }
 
+  // Handle view-based anchors for icon highlighting.
   // If the anchor_view is a button, it will automatically be used as the
   // highlighted button by BubbleDialogDelegate. If not, we set the page action
   // icon as the highlighted button here.
-  if (!views::Button::AsButton(anchor_view)) {
+  auto* anchor_view = std::get_if<views::View*>(&anchor);
+  if (anchor_view && !views::Button::AsButton(*anchor_view)) {
     g_manage_passwords_bubble_->SetHighlightedButton(
         button_provider->GetPageActionView(kActionShowPasswordsBubbleOrPage));
   }
@@ -172,7 +173,7 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
 // static
 PasswordBubbleViewBase* PasswordBubbleViewBase::CreateBubble(
     content::WebContents* web_contents,
-    views::View* anchor_view,
+    views::BubbleAnchor anchor_view,
     DisplayReason reason) {
   PasswordBubbleViewBase* view = nullptr;
   base::WeakPtr<PasswordsModelDelegate> delegate =
@@ -286,7 +287,7 @@ const content::WebContents* PasswordBubbleViewBase::GetWebContents() const {
 
 PasswordBubbleViewBase::PasswordBubbleViewBase(
     content::WebContents* web_contents,
-    views::View* anchor_view,
+    views::BubbleAnchor anchor_view,
     bool easily_dismissable)
     : LocationBarBubbleDelegateView(anchor_view,
                                     web_contents,

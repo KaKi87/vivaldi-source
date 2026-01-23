@@ -142,7 +142,7 @@ void VivaldiSyncServiceImpl::ClearSyncData() {
           }
         })");
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  std::string full_path = sync_service_url_.path() + "/command/";
+  std::string full_path = sync_service_url_.GetPath() + "/command/";
   GURL::Replacements path_replacement;
   path_replacement.SetPathStr(full_path);
 

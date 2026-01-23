@@ -22,7 +22,6 @@
 namespace {
 // Size of the tab count label.
 const CGFloat kLabelSize = 14;
-
 // Offset of the tab count label when in kTabGroup state.
 #if defined(VIVALDI_BUILD)
 const CGFloat kLabelOffset = 1;
@@ -173,13 +172,15 @@ const CGFloat kLabelOffset = 3;
 // Updates the tab count text label color based on the current tab group state.
 - (void)updateTabCountLabelTextColor {
   if (vivaldi::IsVivaldiRunning()) {
-    if (self.iphHighlighted) {
+    if (self.tabGroupState == ToolbarTabGroupState::kTabGroup) {
+      self.tabCountLabel.textColor = self.toolbarConfiguration.backgroundColor;
+    } else if (self.iphHighlighted) {
       self.tabCountLabel.textColor =
           self.toolbarConfiguration.buttonsTintColorIPHHighlighted;
     } else {
       self.tabCountLabel.textColor = self.toolbarConfiguration.buttonsTintColor;
     }
-  } else {
+  } else { // Vivaldi
   switch (self.tabGroupState) {
     case ToolbarTabGroupState::kNormal:
       if (self.iphHighlighted) {
@@ -233,7 +234,9 @@ const CGFloat kLabelOffset = 3;
       (self.iphHighlighted)
           ? self.toolbarConfiguration.buttonsTintColorIPHHighlighted
           : self.toolbarConfiguration.buttonsTintColor;
-  if (self.iphHighlighted) {
+    if (self.tabGroupState == ToolbarTabGroupState::kTabGroup) {
+      self.tabCountLabel.textColor = self.toolbarConfiguration.backgroundColor;
+    } else if (self.iphHighlighted) {
     self.tabCountLabel.textColor =
         self.toolbarConfiguration.buttonsTintColorIPHHighlighted;
   } else {

@@ -10,7 +10,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/lens/core/mojom/geometry.mojom.h"
-#include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_query_controller.h"
 #include "components/lens/lens_overlay_dismissal_source.h"
 #include "components/lens/lens_overlay_invocation_source.h"
@@ -20,9 +19,6 @@
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/gfx/geometry/rect.h"
 
-class LensOverlayController;
-class GURL;
-
 namespace lens {
 class LensSessionMetricsLogger;
 class LensOverlayEventHandler;
@@ -30,6 +26,8 @@ class LensOverlayGen204Controller;
 class LensOverlaySidePanelCoordinator;
 class LensPermissionBubbleController;
 class LensComposeboxController;
+class LensQueryFlowRouter;
+class LensResultsPanelRouter;
 class LensSearchboxController;
 class LensSearchContextualizationController;
 }  // namespace lens
@@ -46,8 +44,11 @@ namespace syncer {
 class SyncService;
 }  // namespace syncer
 
+class GURL;
+class LensOverlayController;
 class PrefService;
 class ThemeService;
+enum class SidePanelEntryHideReason;
 
 // Controller for all Lens Search features in Chrome. All external entry points
 // should go through this controller.
@@ -56,6 +57,8 @@ class LensSearchController {
  public:
   explicit LensSearchController(tabs::TabInterface* tab);
   virtual ~LensSearchController();
+
+  friend class LensSearchControllerTest;
 
   DECLARE_USER_DATA(LensSearchController);
   static LensSearchController* From(tabs::TabInterface* tab);
@@ -187,6 +190,10 @@ class LensSearchController {
   // Returns whether the handshake with the Lens backend is complete.
   bool IsHandshakeComplete();
 
+  // Returns whether the current Lens session should be routed to the contextual
+  // tasks side panel.
+  virtual bool should_route_to_contextual_tasks() const;
+
   // Returns the tab interface that owns this controller.
   tabs::TabInterface* GetTabInterface();
 
@@ -196,18 +203,47 @@ class LensSearchController {
   // Gets the page title.
   std::optional<std::string> GetPageTitle();
 
+  // Handles the creation of a new thumbnail from a bitmap.
+  void HandleThumbnailCreatedBitmap(const SkBitmap& thumbnail);
+
+  // Callback used by the query flow router to pass the thumbnail bytes of a
+  // visual interaction request to the searchbox and composebox.
+  void HandleThumbnailCreated(const std::string& thumbnail_bytes,
+                              const SkBitmap& region_bitmap);
+
+  // Callback used by the query controller to notify the search controller of
+  // the response of an interaction request. If this is a visual interaction
+  // request, the response will contain the text container within that image.
+  virtual void HandleInteractionResponse(lens::mojom::TextPtr text);
+
+  // Clears the visual selection thumbnail on the searchbox.
+  void ClearVisualSelectionThumbnail();
+
+  // Sets a callback to be invoked when a thumbnail is created.
+  void SetThumbnailCreatedCallback(
+      base::RepeatingCallback<void(const std::string&)> callback);
+
+  // Whether the user has selected a region on the overlay.
+  bool HasRegionSelection();
+
   // Returns the weak pointer to this class.
   base::WeakPtr<LensSearchController> GetWeakPtr();
 
   // Returns the LensOverlayController.
-  LensOverlayController* lens_overlay_controller();
-  const LensOverlayController* lens_overlay_controller() const;
+  virtual LensOverlayController* lens_overlay_controller();
+  virtual const LensOverlayController* lens_overlay_controller() const;
 
   // Returns the LensOverlayQueryController.
-  lens::LensOverlayQueryController* lens_overlay_query_controller();
+  virtual lens::LensOverlayQueryController* lens_overlay_query_controller();
+
+  // Returns the LensQueryFlowRouter.
+  lens::LensQueryFlowRouter* query_router();
 
   // Returns the LensOverlaySidePanelCoordinator.
   lens::LensOverlaySidePanelCoordinator* lens_overlay_side_panel_coordinator();
+
+  // Returns the LensResultsPanelRouter.
+  lens::LensResultsPanelRouter* results_panel_router();
 
   // Returns the LensSearchboxController.
   lens::LensSearchboxController* lens_searchbox_controller();
@@ -219,11 +255,17 @@ class LensSearchController {
   lens::LensOverlayEventHandler* lens_overlay_event_handler();
 
   // Returns the LensSearchContextualizationController.
-  lens::LensSearchContextualizationController*
+  virtual lens::LensSearchContextualizationController*
   lens_search_contextualization_controller();
 
   // Returns the LensSessionMetricsLogger.
   lens::LensSessionMetricsLogger* lens_session_metrics_logger();
+
+  // Returns the LensOverlayGen204Controller.
+  virtual lens::LensOverlayGen204Controller* gen204_controller();
+
+  // Returns the current invocation source.
+  virtual std::optional<lens::LensOverlayInvocationSource> invocation_source();
 
   lens::LensPermissionBubbleController*
   get_lens_permission_bubble_controller_for_testing() {
@@ -251,7 +293,6 @@ class LensSearchController {
       lens::LensOverlayFullImageResponseCallback full_image_callback,
       lens::LensOverlayUrlResponseCallback url_callback,
       lens::LensOverlayInteractionResponseCallback interaction_callback,
-      lens::LensOverlaySuggestInputsCallback suggest_inputs_callback,
       lens::LensOverlayThumbnailCreatedCallback thumbnail_created_callback,
       lens::UploadProgressCallback page_content_upload_progress_callback,
       variations::VariationsClient* variations_client,
@@ -292,9 +333,14 @@ class LensSearchController {
   // cleaning up.
   void CloseLensPart2(lens::LensOverlayDismissalSource dismissal_source);
 
+  // Called on the UI thread with the processed thumbnail URI.
+  void OnThumbnailProcessed(bool is_region_selection,
+                            const std::string& thumbnail_uri);
+
   // The final step for closing the overlay. This is called after the lens
   // overlay has faded out.
-  void OnOverlayHidden(std::optional<lens::LensOverlayDismissalSource> dismissal_source);
+  void OnOverlayHidden(
+      std::optional<lens::LensOverlayDismissalSource> dismissal_source);
 
   // Called before the lens results panel begins hiding. This is called before
   // any side panel closing animations begin.
@@ -333,7 +379,6 @@ class LensSearchController {
   State state() { return state_; }
 
  private:
-
   // Passes the correct callbacks and dependencies to the protected
   // CreateLensQueryController method.
   std::unique_ptr<lens::LensOverlayQueryController> CreateLensQueryController(
@@ -343,6 +388,9 @@ class LensSearchController {
   // shared state that is used no matter the entrypoint.
   void StartLensSession(lens::LensOverlayInvocationSource invocation_source,
                         bool suppress_contextualization = false);
+
+  // Shows the mobile promo if the user is eligible.
+  void MaybeShowMobilePromo();
 
   // Runs the eligibility checks necessary for Lens to open on this tab. If the
   // user has not granted permission to use Lens on this tab, the permission
@@ -365,21 +413,9 @@ class LensSearchController {
   void HandleInteractionURLResponse(
       lens::proto::LensOverlayUrlResponse response);
 
-  // Callback used by the query controller to notify the search controller of
-  // the response of an interaction request. If this is a visual interaction
-  // request, the response will contain the text container within that image.
-  void HandleInteractionResponse(lens::mojom::TextPtr text);
-
-  // Callback used by the query controller to notify the search controller of
-  // the suggest inputs response. This is used to update the searchbox with
-  // the most recent suggest inputs.
-  void HandleSuggestInputsResponse(
-      lens::proto::LensOverlaySuggestInputs suggest_inputs);
-
-  // Callback used by the query controller to pass the thumbnail bytes of a
-  // visual interaction request to the searchbox.
-  void HandleThumbnailCreated(const std::string& thumbnail_bytes,
-                              const SkBitmap& region_bitmap);
+  // Callback used by the query controller to notify the search controller when
+  // the suggest inputs response is ready.
+  void OnSuggestInputsReady();
 
   // Callback used by the query controller to notify the search controller of
   // the progress of the page content upload.
@@ -413,6 +449,11 @@ class LensSearchController {
   // Tracks the internal state machine.
   State state_ = State::kOff;
 
+  // Whether the current Lens session should be routed to the contextual tasks
+  // side panel. This is set when the Lens session is initialized and is used to
+  // determine whether to route the queries and results to the contextual tasks.
+  bool should_route_to_contextual_tasks_ = false;
+
   // Tracks the state of the Lens Search feature when the tab is backgrounded.
   // This state is used to restore the Lens Search feature to the same state
   // when the tab is foregrounded.
@@ -423,6 +464,12 @@ class LensSearchController {
   // shown.
   bool hats_triggered_in_session_ = false;
 
+  // Whether the handshake with the Lens backend is complete.
+  bool is_handshake_complete_ = false;
+
+  // The invocation source of the current Lens session.
+  std::optional<lens::LensOverlayInvocationSource> invocation_source_;
+
   // If the side panel needed to be closed before dismissing Lens, this
   // stores the original dismissal_source so it is properly recorded when the
   // side panel is done closing and the callback is invoked.
@@ -432,6 +479,10 @@ class LensSearchController {
   // duration of a Lens feature being active on this tab.
   std::unique_ptr<lens::LensOverlayQueryController>
       lens_overlay_query_controller_;
+
+  // The query router for the Lens Search feature on this tab. Lives for the
+  // duration of a Lens feature being active on this tab.
+  std::unique_ptr<lens::LensQueryFlowRouter> query_router_;
 
   std::unique_ptr<lens::LensPermissionBubbleController>
       lens_permission_bubble_controller_;
@@ -444,6 +495,9 @@ class LensSearchController {
   // The side panel coordinator for the Lens Search feature on this tab.
   std::unique_ptr<lens::LensOverlaySidePanelCoordinator>
       lens_overlay_side_panel_coordinator_;
+
+  // The results side panel router used by this controller.
+  std::unique_ptr<lens::LensResultsPanelRouter> results_panel_router_;
 
   // The searchbox controller for the Lens Search feature on this tab.
   // TODO(crbug.com/413138792): Hook up this controller to handle searchbox
@@ -464,7 +518,7 @@ class LensSearchController {
   // logic.
   std::unique_ptr<lens::LensOverlayEventHandler> lens_overlay_event_handler_;
 
-    // The overlay controller for the Lens Search feature on this tab.
+  // The overlay controller for the Lens Search feature on this tab.
   std::unique_ptr<LensOverlayController> lens_overlay_controller_;
 
   // Holds subscriptions for TabInterface callbacks.
@@ -472,6 +526,9 @@ class LensSearchController {
 
   // Owned by Profile, and thus guaranteed to outlive this instance.
   raw_ptr<variations::VariationsClient> variations_client_;
+
+  // Callback to be invoked when a thumbnail is created.
+  base::RepeatingCallback<void(const std::string&)> thumbnail_created_callback_;
 
   // Unowned IdentityManager for fetching access tokens. Could be null for
   // incognito profiles.

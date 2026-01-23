@@ -7,14 +7,22 @@ third_party as part of gclient sync. It will automatically find the siso
 binary when run inside a gclient source tree, so users can just type
 "siso" on the command line."""
 
+import argparse
 import os
-import signal
+import platform
 import shlex
 import shutil
+import signal
+import subprocess
 import sys
+from typing import Optional
 
+import build_telemetry
 import caffeinate
 import gclient_paths
+
+
+_SYSTEM_DICT = {"Windows": "windows", "Darwin": "mac", "Linux": "linux"}
 
 
 def parse_args(args):
@@ -31,6 +39,13 @@ def parse_args(args):
     return subcmd, out_dir
 
 
+# Trivial check if siso contains subcommand.
+# Subcommand completes successfully if subcommand is present, returning 0,
+# and 2 if it's not present.
+def _is_subcommand_present(siso_path: str, subc: str) -> bool:
+    return subprocess.call([siso_path, "help", subc]) == 0
+
+
 def check_outdir(subcmd, out_dir):
     ninja_marker = os.path.join(out_dir, ".ninja_deps")
     if os.path.exists(ninja_marker):
@@ -40,6 +55,69 @@ def check_outdir(subcmd, out_dir):
               (out_dir, out_dir),
               file=sys.stderr)
         sys.exit(1)
+
+
+def apply_metrics_labels(args: list[str]) -> list[str]:
+    user_system = _SYSTEM_DICT.get(platform.system(), platform.system())
+
+    # TODO(ovsienko) - add targets to the processing. For this, the Siso needs to understand lists.
+    for arg in args[1:]:
+        # Respect user provided labels, abort.
+        if arg.startswith("--metrics_labels") or arg.startswith(
+                "-metrics_labels"):
+            return args
+
+    result = []
+    result.append("type=developer")
+    result.append("tool=siso")
+    result.append(f"host_os={user_system}")
+    return args + ["--metrics_labels", ",".join(result)]
+
+
+def apply_telemetry_flags(args: list[str], env: dict[str, str]) -> list[str]:
+    telemetry_flags = [
+        "enable_cloud_monitoring", "enable_cloud_profiler",
+        "enable_cloud_trace", "enable_cloud_logging"
+    ]
+    # Despite go.dev/issue/68312 being fixed, the issue is still reproducible
+    # for googlers. Due to this, the flag is still applied while the
+    # issue is being investigated.
+    env.setdefault("GOOGLE_API_USE_CLIENT_CERTIFICATE", "false")
+    flags_to_add = []
+    for flag in telemetry_flags:
+        found = False
+        for arg in args:
+            if (arg == f"-{flag}" or arg == f"--{flag}"
+                    or arg.startswith(f"-{flag}=")
+                    or arg.startswith(f"--{flag}=")):
+                found = True
+                break
+        if not found:
+            flags_to_add.append(f"--{flag}")
+
+    # This is a temporary measure as on new siso versions metrics_project
+    # gets set the same as project by default.
+    # TODO: remove this code after we make sure all clients are using new siso versions.
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-metrics_project", "--metrics_project")
+    parser.add_argument("-project", "--project")
+    metrics_env_var = "RBE_metrics_project"
+    project_env_var = "SISO_PROJECT"
+    # If metrics env variable is set, add flags and return.
+    if metrics_env_var in env:
+        return args + flags_to_add
+    # Check if metrics project is set. If so, then add flags and return.
+    known_args, _ = parser.parse_known_args(args)
+    if known_args.metrics_project:
+        return args + flags_to_add
+    if known_args.project:
+        return args + flags_to_add + [f"--metrics_project={known_args.project}"]
+    if project_env_var in env:
+        return args + flags_to_add + [f"--metrics_project={env[project_env_var]}"]
+    # Default case - no flags are set, so don't add any
+    return args
 
 
 def load_sisorc(rcfile):
@@ -62,7 +140,8 @@ def load_sisorc(rcfile):
     return global_flags, subcmd_flags
 
 
-def apply_sisorc(global_flags, subcmd_flags, args, subcmd):
+def apply_sisorc(global_flags: list[str], subcmd_flags: dict[str, list[str]],
+                 args: list[str], subcmd: str) -> list[str]:
     new_args = []
     for arg in args:
         if not new_args:
@@ -75,16 +154,55 @@ def apply_sisorc(global_flags, subcmd_flags, args, subcmd):
     return new_args
 
 
+def _fix_system_limits() -> None:
+    # On macOS and most Linux distributions, the default limit of open file
+    # descriptors is too low (256 and 1024, respectively).
+    # This causes a large j value to result in 'Too many open files' errors.
+    # Check whether the limit can be raised to a large enough value. If yes,
+    # use `resource.setrlimit` to increase the limit when running ninja.
+    if sys.platform in ["darwin", "linux"]:
+        import resource
+
+        # Increase the number of allowed open file descriptors to the maximum.
+        fileno_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if fileno_limit < hard_limit:
+            try:
+                resource.setrlimit(resource.RLIMIT_NOFILE,
+                                   (hard_limit, hard_limit))
+            except Exception:
+                pass
+
+
+# Utility function to produce actual command line flags for Siso.
+def _process_args(global_flags: list[str], subcmd_flags: dict[str, list[str]],
+                  args: list[str], subcmd: str, should_collect_logs: bool,
+                  env: dict[str, str]) -> list[str]:
+    new_args = apply_sisorc(global_flags, subcmd_flags, args, subcmd)
+    if args != new_args:
+        print('depot_tools/siso.py: %s' % shlex.join(new_args), file=sys.stderr)
+    # Add ninja specific flags.
+    if subcmd == "ninja":
+        new_args = apply_metrics_labels(new_args)
+        if should_collect_logs:
+            new_args = apply_telemetry_flags(new_args, env)
+    return new_args
+
+
 def _is_google_corp_machine():
     """This assumes that corp machine has gcert binary in known location."""
     return shutil.which("gcert") is not None
 
 
-def main(args):
+def main(args, telemetry_cfg: Optional[build_telemetry.Config] = None):
     # Do not raise KeyboardInterrupt on SIGINT so as to give siso time to run
     # cleanup tasks. Siso will be terminated immediately after the second
     # Ctrl-C.
     original_sigint_handler = signal.getsignal(signal.SIGINT)
+    if not telemetry_cfg:
+        telemetry_cfg = build_telemetry.load_config()
+    should_collect_logs = telemetry_cfg.enabled()
+
+    _fix_system_limits()
 
     def _ignore(signum, frame):
         try:
@@ -181,6 +299,8 @@ def main(args):
             return 1
         global_flags, subcmd_flags = load_sisorc(
             os.path.join(base_path, 'build', 'config', 'siso', '.sisorc'))
+        processed_args = _process_args(global_flags, subcmd_flags, args[1:],
+                                       subcmd, should_collect_logs, env)
         siso_paths = [
             siso_override_path,
             os.path.join(base_path, 'third_party', 'siso', 'cipd',
@@ -191,19 +311,14 @@ def main(args):
         for siso_path in siso_paths:
             if siso_path and os.path.isfile(siso_path):
                 check_outdir(subcmd, out_dir)
-                new_args = apply_sisorc(global_flags, subcmd_flags, args[1:],
-                                        subcmd)
-                if args[1:] != new_args:
-                    print('depot_tools/siso.py: %s' % shlex.join(new_args),
-                          file=sys.stderr)
-                return caffeinate.run([siso_path] + new_args, env=env)
+                return caffeinate.call([siso_path] + processed_args, env=env)
         print(
             'depot_tools/siso.py: Could not find siso in third_party/siso '
             'of the current project. Did you run gclient sync?',
             file=sys.stderr)
         return 1
     if siso_override_path:
-        return caffeinate.run([siso_override_path] + args[1:])
+        return caffeinate.call([siso_override_path] + args[1:], env=env)
 
     print(
         'depot_tools/siso.py: Could not find .sisoenv under build/config/siso '

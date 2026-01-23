@@ -68,6 +68,7 @@ import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TrustedCdn;
 import org.chromium.chrome.browser.ui.google_bottom_bar.GoogleBottomBarCoordinator;
+import org.chromium.chrome.browser.ui.web_app_header.WebAppHeaderUtils;
 import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 import org.chromium.components.page_info.PageInfoController.OpenedFromSource;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -204,8 +205,12 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                 mEdgeToEdgeControllerSupplier.get() != null
                         && mEdgeToEdgeControllerSupplier.get().isDrawingToEdge()
                         && mEdgeToEdgeControllerSupplier.get().isPageOptedIntoEdgeToEdge();
+        var systemBarColorHelper =
+                getEdgeToEdgeManager() != null
+                        ? getEdgeToEdgeManager().getEdgeToEdgeSystemBarColorHelper()
+                        : null;
         CustomTabNavigationBarController.update(
-                getWindow(), getIntentDataProvider(), this, drawEdgeToEdge);
+                getWindow(), getIntentDataProvider(), this, drawEdgeToEdge, systemBarColorHelper);
 
         mTimeoutHandler.restoreInstanceState(savedInstanceState);
     }
@@ -225,10 +230,19 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                     .setParentView(bottomContainer);
         }
 
-        // Setting task title and icon to be null will preserve the client app's title and icon.
-        setTaskDescription(
-                new ActivityManager.TaskDescription(
-                        null, null, getIntentDataProvider().getColorProvider().getToolbarColor()));
+        int toolbarColor = getIntentDataProvider().getColorProvider().getToolbarColor();
+        // Not setting the task title and icon or setting them to null (pre-Android T) will preserve
+        // the client app's title and icon.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            var taskDescription =
+                    new ActivityManager.TaskDescription.Builder()
+                            .setPrimaryColor(toolbarColor)
+                            .setStatusBarColor(toolbarColor)
+                            .build();
+            setTaskDescription(taskDescription);
+        } else {
+            setTaskDescription(new ActivityManager.TaskDescription(null, null, toolbarColor));
+        }
 
         GoogleBottomBarCoordinator googleBottomBarCoordinator =
                 getBaseCustomTabRootUiCoordinator().getGoogleBottomBarCoordinator();
@@ -290,7 +304,12 @@ public class CustomTabActivity extends BaseCustomTabActivity {
 
         // Window bounds adjustments are called here because we probe WebContents' width and height
         // from the native object.
+        // The condition including {@link #getSavedInstanceState} should be false iff the Activity
+        // has been recreated. If the Activity has been recreated, we should ignore the window
+        // features requested in the Intent as they should apply only for the initial launch of the
+        // Activity.
         if (getIntentDataProvider().getUiType() == CustomTabsUiType.POPUP
+                && getSavedInstanceState() == null
                 && ChromeFeatureList.isEnabled(
                         ChromeFeatureList.ANDROID_WINDOW_POPUP_RESIZE_AFTER_SPAWN)) {
             PopupCreator.adjustWindowBoundsToRequested(
@@ -433,14 +452,27 @@ public class CustomTabActivity extends BaseCustomTabActivity {
             Tab tab = getTabModelSelector().getCurrentTab();
             if (tab == null) return false;
             String publisher = TrustedCdn.getContentPublisher(tab);
-            new ChromePageInfo(
+            ChromePageInfo pageInfo =
+                    new ChromePageInfo(
                             getModalDialogManagerSupplier(),
                             publisher,
                             OpenedFromSource.MENU,
                             mRootUiCoordinator.getMerchantTrustSignalsCoordinatorSupplier()::get,
                             mRootUiCoordinator.getEphemeralTabCoordinatorSupplier(),
-                            getTabCreator(getCurrentTabModel().isIncognito()))
-                    .show(tab, ChromePageInfoHighlight.noHighlight());
+                            getTabCreator(getCurrentTabModel().isIncognito()));
+            boolean isMinimalUiVisible =
+                    WebAppHeaderUtils.isMinimalUiVisible(
+                            getIntentDataProvider(),
+                            getBaseCustomTabRootUiCoordinator().getDesktopWindowStateManager());
+            boolean isTWA = getIntentDataProvider().isTrustedWebActivity();
+            if (ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled()
+                    && isTWA
+                    && isMinimalUiVisible) {
+                String packageName = getIntentDataProvider().getClientPackageName();
+                pageInfo.show(tab, ChromePageInfoHighlight.noHighlight(), packageName);
+                return true;
+            }
+            pageInfo.show(tab, ChromePageInfoHighlight.noHighlight());
             return true;
         } else if (id == R.id.price_insights_menu_id) {
             getBaseCustomTabRootUiCoordinator().runPriceInsightsAction();
@@ -472,7 +504,8 @@ public class CustomTabActivity extends BaseCustomTabActivity {
             if (DomDistillerUrlUtils.isDistilledPage(tab.getUrl())) {
                 mBackPressManager.getCallback().handleOnBackPressed();
             } else {
-                DomDistillerTabUtils.distillCurrentPageAndView(tab.getWebContents());
+                DomDistillerTabUtils.distillCurrentPageAndViewIfSuccessful(
+                        tab.getWebContents(), null);
         }
         } // End Vivaldi VAB-11445
         return super.onMenuOrKeyboardAction(id, fromMenu, triggeringMotion);

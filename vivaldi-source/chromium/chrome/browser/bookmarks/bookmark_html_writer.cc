@@ -294,10 +294,6 @@ class Writer : public base::RefCountedThreadSafe<Writer> {
       return bookmark_html_writer::Result::kCouldNotWriteNodes;
     }
 
-    // Add the trash bookmarks descendants: local, then account if they exist.
-    if (trash_folder_value && !WriteDescendants(*trash_folder_value)) {
-        return bookmark_html_writer::Result::kCouldNotWriteNodes;
-    } // End Vivaldi
 
     DecrementIndent();
 

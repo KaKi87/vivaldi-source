@@ -123,12 +123,14 @@ DownloadDangerPromptViews::DownloadDangerPromptViews(
 
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
       views::DialogContentType::kText, views::DialogContentType::kText));
+
   if (!vivaldi::IsVivaldiRunning()) {
   SetUseDefaultFillLayout(true);
-  } else {
+  } else { // Vivaldi
     SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical));
-  }
+  } // End Vivaldi
+
   auto message_body_label = std::make_unique<views::Label>(GetMessageBody());
   message_body_label->SetMultiLine(true);
   message_body_label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
@@ -168,7 +170,7 @@ DownloadDangerPromptViews::DownloadDangerPromptViews(
       // Note the reversed logic!
       SetAcceptCallbackWithClose(keepandclose);
     }
-  }
+  } // End Vivaldi
 }
 
 DownloadDangerPromptViews::~DownloadDangerPromptViews() {
@@ -226,52 +228,56 @@ std::u16string DownloadDangerPromptViews::GetMessageBody() const {
       download_->GetFileNameToReportUser().LossyDisplayName();
   if (vivaldi::IsVivaldiRunning()) {
     switch (download_->GetDangerType()) {
+      case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_URL:
+        return l10n_util::GetStringUTF16(IDS_PROMPT_MALICIOUS_DOWNLOAD_URL);
       case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE:
         return l10n_util::GetStringFUTF16(IDS_PROMPT_DANGEROUS_DOWNLOAD,
                                           filename);
-      case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_URL:
       case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_CONTENT:
-      case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_ACCOUNT_COMPROMISE:
       case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_HOST:
+      case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_ACCOUNT_COMPROMISE:
         return l10n_util::GetStringFUTF16(IDS_PROMPT_MALICIOUS_DOWNLOAD_CONTENT,
                                           filename);
-      case download::DOWNLOAD_DANGER_TYPE_UNCOMMON_CONTENT:
+      case download::DOWNLOAD_DANGER_TYPE_UNCOMMON_CONTENT: {
+        bool request_ap_verdicts = false;
+  #if BUILDFLAG(FULL_SAFE_BROWSING)
+        request_ap_verdicts =
+            safe_browsing::AdvancedProtectionStatusManagerFactory::GetForProfile(
+                profile_)
+                ->IsUnderAdvancedProtection();
+  #endif
         return l10n_util::GetStringFUTF16(
-            safe_browsing::AdvancedProtectionStatusManagerFactory::
-                    GetForProfile(profile_)
-                        ->IsUnderAdvancedProtection()
+            request_ap_verdicts
                 ? IDS_PROMPT_UNCOMMON_DOWNLOAD_CONTENT_IN_ADVANCED_PROTECTION
                 : IDS_PROMPT_UNCOMMON_DOWNLOAD_CONTENT,
             filename);
+      }
       case download::DOWNLOAD_DANGER_TYPE_POTENTIALLY_UNWANTED:
         return l10n_util::GetStringFUTF16(IDS_PROMPT_DOWNLOAD_CHANGES_SETTINGS,
                                           filename);
       case download::DOWNLOAD_DANGER_TYPE_BLOCKED_TOO_LARGE:
         return l10n_util::GetStringFUTF16(IDS_PROMPT_DOWNLOAD_BLOCKED_TOO_LARGE,
                                           filename);
-
       case download::DOWNLOAD_DANGER_TYPE_BLOCKED_PASSWORD_PROTECTED:
         return l10n_util::GetStringFUTF16(
             IDS_PROMPT_DOWNLOAD_BLOCKED_PASSWORD_PROTECTED, filename);
-
       case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_WARNING:
         return l10n_util::GetStringUTF16(
             IDS_PROMPT_DOWNLOAD_SENSITIVE_CONTENT_WARNING);
-
+      case download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE:
+        return l10n_util::GetStringUTF16(
+            IDS_PROMPT_DOWNLOAD_FORCED_SAVE_TO_GDRIVE);
       case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK:
         return l10n_util::GetStringUTF16(
             IDS_PROMPT_DOWNLOAD_SENSITIVE_CONTENT_BLOCKED);
-
       case download::DOWNLOAD_DANGER_TYPE_PROMPT_FOR_SCANNING:
         return l10n_util::GetStringFUTF16(IDS_PROMPT_DEEP_SCANNING, filename);
       case download::DOWNLOAD_DANGER_TYPE_PROMPT_FOR_LOCAL_PASSWORD_SCANNING:
         return l10n_util::GetStringFUTF16(
             IDS_DOWNLOAD_LOCAL_DECRYPTION_PROMPT_ALERT, filename);
-
       case download::DOWNLOAD_DANGER_TYPE_BLOCKED_SCAN_FAILED:
         return l10n_util::GetStringUTF16(
             IDS_PROMPT_DOWNLOAD_BLOCKED_SCAN_FAILED);
-
       case download::DOWNLOAD_DANGER_TYPE_DEEP_SCANNED_SAFE:
       case download::DOWNLOAD_DANGER_TYPE_DEEP_SCANNED_FAILED:
       case download::DOWNLOAD_DANGER_TYPE_DEEP_SCANNED_OPENED_DANGEROUS:
@@ -285,7 +291,7 @@ std::u16string DownloadDangerPromptViews::GetMessageBody() const {
         break;
     }
     return std::u16string();
-  } else {
+  } else { // Vivaldi
   switch (download_->GetDangerType()) {
     case download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE:
       return l10n_util::GetStringFUTF16(IDS_PROMPT_DANGEROUS_DOWNLOAD,
@@ -310,7 +316,7 @@ std::u16string DownloadDangerPromptViews::GetMessageBody() const {
     default:
       NOTREACHED();
   }
-  }
+  } // End Vivaldi
 }
 
 void DownloadDangerPromptViews::RunDone(Action action) {
@@ -373,8 +379,7 @@ DownloadDangerPrompt* DownloadDangerPrompt::Create(
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   DownloadDangerPromptViews* download_danger_prompt =
       new DownloadDangerPromptViews(item, profile, std::move(done));
-  constrained_window::ShowWebModalDialogViews(
-      download_danger_prompt,
+  constrained_window::ShowWebModalDialogViews(download_danger_prompt,
                                               web_contents);
   return download_danger_prompt;
 }

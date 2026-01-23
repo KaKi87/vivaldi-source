@@ -9,9 +9,9 @@
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/lens/core/mojom/lens_ghost_loader.mojom.h"
 #include "chrome/browser/lens/core/mojom/lens_side_panel.mojom.h"
+#include "chrome/browser/ui/lens/lens_query_flow_router.h"
 #include "chrome/browser/ui/webui/searchbox/lens_searchbox_client.h"
 #include "chrome/browser/ui/webui/searchbox/lens_searchbox_handler.h"
-#include "components/lens/proto/server/lens_overlay_response.pb.h"
 #include "components/omnibox/browser/lens_suggest_inputs_utils.h"
 #include "components/sessions/core/session_id.h"
 #include "content/public/browser/web_contents.h"
@@ -26,6 +26,9 @@ using GetIsContextualSearchboxCallback =
 namespace lens {
 
 struct SearchQuery;
+namespace proto {
+class LensOverlaySuggestInputs;
+}  // namespace proto
 
 // Controller for the Lens searchbox. This class is responsible for handling
 // communications between the Lens WebUI searchbox and other Lens components.
@@ -86,18 +89,6 @@ class LensSearchboxController : public LensSearchboxClient {
   // Sets whether the thumbnail is shown in the side panel.
   void SetShowSidePanelSearchboxThumbnail(bool shown);
 
-  // Handles the create of a new thumbnail from a bitmap.
-  void HandleThumbnailCreatedBitmap(const SkBitmap& thumbnail);
-
-  // Handles the creation of a new thumbnail based on the user selection.
-  void HandleThumbnailCreated(const std::string& thumbnail_bytes);
-
-  // Handles an update to the suggest inputs. This will be called whenever
-  // any part of the suggest inputs changes, such as when a new objects
-  // request is sent, or when an interaction data response is received.
-  void HandleSuggestInputsResponse(
-      lens::proto::LensOverlaySuggestInputs suggest_inputs);
-
   // Cleans up internal state associated with the searchbox.
   void CloseUI();
 
@@ -118,14 +109,18 @@ class LensSearchboxController : public LensSearchboxClient {
   base::CallbackListSubscription GetLensSuggestInputsWhenReady(
       ::LensOverlaySuggestInputsCallback callback);
 
+  // Called when the suggest inputs have been updated and are ready to be sent
+  // to any pending callbacks.
+  void NotifySuggestInputsReady(
+      lens::proto::LensOverlaySuggestInputs suggest_inputs);
+
   // Overridden from LensSearchboxClient:
   const GURL& GetPageURL() const override;
   SessionID GetTabId() const override;
   metrics::OmniboxEventProto::PageClassification GetPageClassification()
       const override;
   std::string& GetThumbnail() override;
-  const lens::proto::LensOverlaySuggestInputs& GetLensSuggestInputs()
-      const override;
+  lens::proto::LensOverlaySuggestInputs GetLensSuggestInputs() const override;
   void OnTextModified() override;
   void OnThumbnailRemoved() override;
   void OnSuggestionAccepted(const GURL& destination_url,
@@ -151,18 +146,12 @@ class LensSearchboxController : public LensSearchboxClient {
     // The URI of the thumbnail in the searchbox.
     std::string thumbnail_uri = "";
 
-    // The latest suggest inputs from the query controller.
-    lens::proto::LensOverlaySuggestInputs suggest_inputs_;
-
     // Whether to suppress contextualization for the current session.
     bool suppress_contextualization = false;
 
     // Whether the thumbnail should be shown in the side panel.
     bool show_side_panel_thumbnail = true;
   };
-
-  // Called on the UI thread with the processed thumbnail URI.
-  void OnThumbnailProcessed(const std::string& thumbnail_uri);
 
   // Returns the WebContents associated with the tab this instance of Lens is
   // invoked on.

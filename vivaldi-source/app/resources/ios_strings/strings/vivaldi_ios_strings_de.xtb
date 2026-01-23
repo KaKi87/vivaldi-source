@@ -6,12 +6,14 @@
 <translation id="1137850887415122856">Touch ID, Face ID oder einen Passcode einrichten, um private Tabs zu sperren.</translation>
 <translation id="1189137610071296104">In Tabgruppe öffnen</translation>
 <translation id="1310184829257917508">Nachfragen zum Öffnen von Links aus anderen Apps im privaten Modus</translation>
+<translation id="1624481300475123200">Passwörter automatisch ausfüllen</translation>
 <translation id="1743244221910283364">Änderungen verwerfen</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Tab zur Gruppe hinzufügen}
         other {Tabs zur Gruppe hinzufügen}}</translation>
 <translation id="207677936531967364">Neue private Tab Seite</translation>
 <translation id="2099591136582442348">Dies löscht die Gruppe dauerhaft von Ihrem Gerät.</translation>
+<translation id="2104086191144208395">Ein Problem entdeckt?</translation>
 <translation id="2181990701313127304">Neuer Tab in der Gruppe</translation>
 <translation id="2351280151183279120">Gruppe teilen</translation>
 <translation id="2353953000228441783">Website Standardansicht</translation>
@@ -35,12 +37,11 @@
 <translation id="3981599532037327317">${url} privat öffnen</translation>
 <translation id="398477389655464998">Link zum Hervorheben kopieren</translation>
 <translation id="3993429087389909418">Die Tabs bleiben auf diesem Gerät geöffnet, aber die Gruppe wird von allen Geräten gelöscht, die mit <ph name="USER_EMAIL" /> angemeldet sind.</translation>
-<translation id="4026745073321351206">🙄 Ein Problem entdeckt?</translation>
 <translation id="4216644171369573466">Tabgruppe, <ph name="GROUP_TITLE" />, Menu.</translation>
 <translation id="4304713468139749426">Passwortverwaltung</translation>
 <translation id="4439281775431634915">Tabgruppen werden hier gespeichert</translation>
 <translation id="4569525137269575065">Gruppe schließen</translation>
-<translation id="473775607612524610">Update</translation>
+<translation id="473775607612524610">Aktualisieren</translation>
 <translation id="4755216899422789286">URLs in Vivaldi öffnen</translation>
 <translation id="4772190485302020393">Alle Tabs und Gruppen schließen</translation>
 <translation id="4802185666270672526">„Desktopwebsite anfordern“ ausblenden</translation>
@@ -60,18 +61,26 @@
 <translation id="5431239785743546285">Gelesene Seiten</translation>
 <translation id="5521301883748677039">Gruppe löschen?</translation>
 <translation id="5544011153887687593">Tabgruppe Tab.. <ph name="TAB_INDEX_IN_GROUP" /> von <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Mit Handoff können Sie eine Website auf diesem Gerät aufrufen und dann ganz einfach auf Ihrem Mac weiterlesen. Die aktuell geöffnete Website wird im Dock Ihres Mac angezeigt.
+
+Handoff muss außerdem in den Einstellungen unter „Allgemein“ aktiviert sein, und Ihre Geräte müssen dasselbe iCloud-Konto verwenden.</translation>
 <translation id="5614553682702429503">Passwort speichern?</translation>
+<translation id="5620163320393916465">Keine gespeicherten Passwörter</translation>
 <translation id="570209299585559496">Sie können die Standardansicht der Website unter Einstellungen und dann unter Inhaltseinstellungen auf Desktop ändern</translation>
 <translation id="5719777162751096990">In Tabgruppe verschieben</translation>
+<translation id="5869522115854928033">Gespeicherte Passwörter</translation>
 <translation id="5962477178930921574">Einfügen und Suchen</translation>
 <translation id="6163856768888310791">Gruppierung aufheben</translation>
 <translation id="6168969409902608220">Gruppe benamen</translation>
 <translation id="6192561334825788389">Nach rechts wischen, um privat zu surfen.</translation>
 <translation id="6233792867654386826">Öffnet eingegebene URLs in Vivaldi.</translation>
 <translation id="6271462272606946663">Mobile Seite anfordern ausblenden</translation>
+<translation id="6309282378909663947">Passwörter vom Vivaldi Password Manager</translation>
 <translation id="6478587527114893588">Gruppe schließen.</translation>
 <translation id="6527405730445064713">Tabgruppe. Erweitert.</translation>
 <translation id="6532106788206463496">Änderungen speichern</translation>
+<translation id="6636411080833380839">Aus Gruppe entfernen</translation>
+<translation id="6644512095122093795">Passwörter speichern anbieten</translation>
 <translation id="6666425778700353369">Dies löscht die Gruppe von allen Geräten, die mit <ph name="USER_EMAIL" /> angemeldet sind.</translation>
 <translation id="6680416467695217368">Menü anpassen</translation>
 <translation id="6695835495840050460">Auf "Tab zu neuer Gruppe hinzufügen" tippen</translation>
@@ -92,6 +101,7 @@
 <translation id="7585610907974664408">Neuer privater Tab in der Gruppe</translation>
 <translation id="7661319142491611883">Gruppe erweitern.</translation>
 <translation id="7706213624515206557">Alle Tabs der Tabgruppe anzeigen</translation>
+<translation id="7937179923651776879">Zugriff auf Ihre Passwörter von jeder App aus</translation>
 <translation id="7961015016161918242">Niemals</translation>
 <translation id="8326104954595890674">Neuer privater Tab</translation>
 <translation id="8345989863850359861">Tab entfernen und Gruppe löschen?</translation>
@@ -107,6 +117,8 @@
 <translation id="8951084872625418241">Neuer Tab in der Gruppe</translation>
 <translation id="9042893549633094279">Datenschutz und Sicherheit</translation>
 <translation id="9094033019050270033">Passwort aktualisieren</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Gruppe verlassen</translation>
 <translation id="959061183386231608">Die Tabs bleiben auf diesem Gerät geöffnet, aber die Gruppe wird dauerhaft gelöscht.</translation>
+<translation id="988141524645182168">Andere Geräte</translation>
 </translationbundle>

@@ -54,6 +54,8 @@ ExtensionFunction::ResponseAction InfobarsSendButtonActionFunction::Run() {
   for (infobars::InfoBar* infobar : service->infobars()) {
     // TODO this cannot be a confirminfobardelegate directly so check the type
     // first.
+    if (!infobar || !infobar->delegate())
+      continue;
 
     if (infobar->delegate()->GetIdentifier() ==
         infobars::InfoBarDelegate::TAB_SHARING_INFOBAR_DELEGATE) {

@@ -41,11 +41,14 @@ namespace extensions {
 
 void DragDownloadItems(std::vector<DraggableDownloadItem> downloads,
                        gfx::NativeView native_view) {
-  if (downloads.empty()) {
+  if (downloads.empty() || !native_view) {
     return;
   }
-  DCHECK(native_view);
   NSView* view = native_view.GetNativeNSView();
+  if (!view) {
+    return;
+  }
+
   NSPoint current_position = view.window.mouseLocationOutsideOfEventStream;
   current_position =
       [view backingAlignedRect:NSMakeRect(current_position.x,

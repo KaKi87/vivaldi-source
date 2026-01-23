@@ -185,7 +185,6 @@ class AutocompleteProvider
     TYPE_RECENTLY_CLOSED_TABS = 1 << 24,
     TYPE_CONTEXTUAL_SEARCH = 1 << 25,
     TYPE_TAB_GROUP = 1 << 26,
-    TYPE_GEMINI_PROTOTYPE = 1 << 27,
 
     // Vivaldi
     TYPE_BOOKMARK_NICKNAME = 1 << 29,

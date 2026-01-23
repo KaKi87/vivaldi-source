@@ -12,7 +12,7 @@ void PageInfoInfoBarDelegate::CreateForVivaldi(
   std::unique_ptr<vivaldi::ConfirmInfoBarWebProxy> infobar =
       std::make_unique<vivaldi::ConfirmInfoBarWebProxy>(
           std::unique_ptr<ConfirmInfoBarDelegate>(
-              new PageInfoInfoBarDelegate(content::ReloadType::NORMAL)),
+              new PageInfoInfoBarDelegate()),
           std::u16string(), std::u16string());
   infobar_manager->AddInfoBar(std::move(infobar));
 }

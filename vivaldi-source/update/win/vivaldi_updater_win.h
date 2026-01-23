@@ -13,7 +13,7 @@
 #include "base/memory/weak_ptr.h"
 
 #include "extensions/api/auto_update/auto_update_status.h"
-#include "update/update_backend_notifier.h"
+#include "update/vivaldi_update_backend_notifier.h"
 
 #include "update_notifier/thirdparty/winsparkle/src/download.h"
 #include "update_notifier/thirdparty/winsparkle/src/error.h"
@@ -29,7 +29,7 @@ using vivaldi_update_notifier::InstallerLaunchData;
 
 class UpdaterCheckVivaldi {
  public:
-  UpdaterCheckVivaldi(const base::WeakPtr<UpdateBackendNotifier>& delegate);
+  UpdaterCheckVivaldi(const base::WeakPtr<VivaldiUpdateBackendNotifier>& delegate);
 
   UpdaterCheckVivaldi(const UpdaterCheckVivaldi&) = delete;
   UpdaterCheckVivaldi& operator=(const UpdaterCheckVivaldi&) = delete;
@@ -61,7 +61,7 @@ class UpdaterCheckVivaldi {
   scoped_refptr<base::SequencedTaskRunner> result_runner_;
 
   bool install_update_if_possible_;
-  base::WeakPtr<UpdateBackendNotifier> update_backend_;
+  base::WeakPtr<VivaldiUpdateBackendNotifier> update_backend_;
 
   base::WeakPtrFactory<UpdaterCheckVivaldi> weak_ptr_factory_{this};
 };

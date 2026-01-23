@@ -276,13 +276,14 @@ VivaldiRootDocumentHandler::GetGlobalErrorByMenuItemCommandID(int commandid) {
 }
 
 void VivaldiRootDocumentHandler::OnExtensionCommandAdded(
-    const std::string& extension_id,
-    const Command& added_command) {
+    const extensions::ExtensionId& extension_id,
+    const std::string& command_name) {
   // NOTE(daniel@vivaldi.com): Our JS code only has to handle actions, i.e.
   // "Activate the extension" as it's called in vivaldi://extensions. Other
   // extension commands get set in vivaldi_browser_window.cc.
-  if (!Command::IsActionRelatedCommand(added_command.command_name()))
+  if (!Command::IsActionRelatedCommand(command_name))
     return;
+  /*
   std::string shortcut_text =
       ::vivaldi::ShortcutText(added_command.accelerator().key_code(),
                               added_command.accelerator().modifiers(), 0);
@@ -291,13 +292,15 @@ void VivaldiRootDocumentHandler::OnExtensionCommandAdded(
       vivaldi::extension_action_utils::OnCommandAdded::Create(extension_id,
                                                               shortcut_text),
       profile_);
+      */
 }
 
 void VivaldiRootDocumentHandler::OnExtensionCommandRemoved(
-    const std::string& extension_id,
-    const Command& removed_command) {
-  if (!Command::IsActionRelatedCommand(removed_command.command_name()))
+    const extensions::ExtensionId& extension_id,
+    const std::string& command_name) {
+  if (!Command::IsActionRelatedCommand(command_name))
     return;
+  /*
   std::string shortcut_text =
       ::vivaldi::ShortcutText(removed_command.accelerator().key_code(),
                               removed_command.accelerator().modifiers(), 0);
@@ -307,6 +310,7 @@ void VivaldiRootDocumentHandler::OnExtensionCommandRemoved(
       vivaldi::extension_action_utils::OnCommandRemoved::Create(extension_id,
                                                                 shortcut_text),
       profile_);
+      */
 }
 
 

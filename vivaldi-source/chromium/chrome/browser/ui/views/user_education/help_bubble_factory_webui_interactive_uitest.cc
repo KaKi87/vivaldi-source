@@ -5,7 +5,6 @@
 #include <memory>
 #include <utility>
 
-#include "base/functional/callback_forward.h"
 #include "base/i18n/base_i18n_switches.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/to_string.h"
@@ -211,10 +210,17 @@ class HelpBubbleFactoryWebUIInteractiveUiTest : public InteractiveBrowserTest {
   raw_ptr<views::View> side_panel_ = nullptr;
 };
 
+// TODO(https://crbug.com/463379523): This test is flaky on CI on Mac.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_ShowFloatingHelpBubble DISABLED_ShowFloatingHelpBubble
+#else
+#define MAYBE_ShowFloatingHelpBubble ShowFloatingHelpBubble
+#endif
 IN_PROC_BROWSER_TEST_F(HelpBubbleFactoryWebUIInteractiveUiTest,
-                       ShowFloatingHelpBubble) {
+                       MAYBE_ShowFloatingHelpBubble) {
   const DeepQuery kPathToAddCurrentTabElement{"reading-list-app",
                                               "#currentPageActionButton"};
+  gfx::Rect bubble_rect;
   RunTestSequence(
       OpenReadingListSidePanel(),
       ShowHelpBubble(kAddCurrentTabToReadingListElementId),
@@ -235,19 +241,15 @@ IN_PROC_BROWSER_TEST_F(HelpBubbleFactoryWebUIInteractiveUiTest,
 
       // Expect the bubble to overlap the side panel slightly, as the anchor
       // element is not flush with the edge of the side panel.
-      CheckView(user_education::HelpBubbleView::kHelpBubbleElementIdForTesting,
-                base::BindOnce(
-                    [](ui::ElementContext context, views::View* bubble) {
-                      const gfx::Rect bubble_rect =
-                          bubble->GetWidget()->GetWindowBoundsInScreen();
-                      const gfx::Rect side_panel_rect =
-                          views::ElementTrackerViews::GetInstance()
-                              ->GetFirstMatchingView(kSidePanelElementId,
-                                                     context)
-                              ->GetBoundsInScreen();
-                      return bubble_rect.Intersects(side_panel_rect);
-                    },
-                    GetContext())),
+      WithView(user_education::HelpBubbleView::kHelpBubbleElementIdForTesting,
+               [&bubble_rect](views::View* bubble) {
+                 bubble_rect = bubble->GetWidget()->GetWindowBoundsInScreen();
+               }),
+      CheckElement(kSidePanelElementId,
+                   [&bubble_rect](ui::TrackedElement* side_panel) {
+                     return bubble_rect.Intersects(
+                         side_panel->GetScreenBounds());
+                   }),
 
       CloseHelpBubble(),
 
@@ -315,8 +317,16 @@ IN_PROC_BROWSER_TEST_F(HelpBubbleFactoryWebUIInteractiveUiTest,
 }
 
 // Regression test for item (1) in crbug.com/1422875.
+// TODO(https://crbug.com/463379523): This test is flaky on CI on Mac.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_FloatingHelpBubbleHiddenOnWebUiHidden \
+  DISABLED_FloatingHelpBubbleHiddenOnWebUiHidden
+#else
+#define MAYBE_FloatingHelpBubbleHiddenOnWebUiHidden \
+  FloatingHelpBubbleHiddenOnWebUiHidden
+#endif
 IN_PROC_BROWSER_TEST_F(HelpBubbleFactoryWebUIInteractiveUiTest,
-                       FloatingHelpBubbleHiddenOnWebUiHidden) {
+                       MAYBE_FloatingHelpBubbleHiddenOnWebUiHidden) {
   RunTestSequence(
       OpenReadingListSidePanel(),
       ShowHelpBubble(kAddCurrentTabToReadingListElementId),
@@ -349,8 +359,14 @@ class HelpBubbleFactoryRtlWebUIInteractiveUiTest
 // This verifies that the "element bounds updated" event gets sent when the side
 // panel is resized, even if none of the elements in the side panel are resized.
 // This is a regression test for crbug.com/1425487.
+// TODO(https://crbug.com/463379523): This test is flaky on CI on Mac.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_ResizeSidePanelSendsUpdate DISABLED_ResizeSidePanelSendsUpdate
+#else
+#define MAYBE_ResizeSidePanelSendsUpdate ResizeSidePanelSendsUpdate
+#endif
 IN_PROC_BROWSER_TEST_F(HelpBubbleFactoryRtlWebUIInteractiveUiTest,
-                       ResizeSidePanelSendsUpdate) {
+                       MAYBE_ResizeSidePanelSendsUpdate) {
   RunTestSequence(
       OpenReadingListSidePanel(),
       InAnyContext(

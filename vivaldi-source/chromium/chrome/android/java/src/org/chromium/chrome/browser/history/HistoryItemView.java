@@ -39,8 +39,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import android.graphics.Bitmap;
+import android.widget.ImageView;
 import android.widget.TextView;
 
+import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.bookmarks.BookmarkViewUtils;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
 import org.chromium.components.favicon.IconType;
@@ -109,7 +111,6 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
                 getResources()
                         .getDimensionPixelSize(R.dimen.history_item_remove_button_lateral_padding),
                 getPaddingBottom());
-
         } // End Vivaldi
 
         mChipView = findViewById(R.id.chip);
@@ -119,6 +120,7 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
     @Override
     public void setItem(HistoryItem item) {
         if (getItem() == item) return;
+
         super.setItem(item);
 
         if (ChromeApplicationImpl.isVivaldi()) {
@@ -298,5 +300,27 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
         SimpleDateFormat format = new SimpleDateFormat("HH:mm",
                 Locale.getDefault());
         return format.format(date);
+    }
+
+    // Vivaldi
+    @Override
+    protected void updateView(boolean animate) {
+        ImageView iconView = getIconView();
+        ImageView checkImage = getCheckImage();
+        if (isChecked() && checkImage != null) {
+            if (checkImage != null) {
+                checkImage.setVisibility(View.VISIBLE);
+                setBackgroundResource(
+                       R.drawable.rounded_rectangle_surface_container_low);
+            }
+        } else {
+            if (iconView != null) {
+                iconView.setImageDrawable(getIconDrawable());
+                ImageViewCompat.setImageTintList(iconView, getDefaultIconTint());
+            }
+            if (checkImage != null)
+                checkImage.setVisibility(View.GONE);
+            setBackgroundResource(R.drawable.improved_bookmark_row_visual_background);
+        }
     }
 }

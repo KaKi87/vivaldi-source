@@ -103,7 +103,7 @@ void RemoveFetchedSubresourceUrlsAfterLCP(
 }
 
 bool IsSameSite(const GURL& url1, const GURL& url2) {
-  return url1.SchemeIs(url2.scheme()) &&
+  return url1.SchemeIs(url2.GetScheme()) &&
          net::registry_controlled_domains::SameDomainOrHost(
              url1, url2,
              net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
@@ -717,8 +717,6 @@ void LcpCriticalPathPredictorPageLoadMetricsObserver::FinalizeLCP() {
       predictor ? predictor->GetLcppStat(initiator_origin_, *commit_url_)
                 : std::nullopt;
 
-  // TODO(crbug.com/40517495): kSpeculativePreconnectFeature flag can also
-  // affect this. Unflag the feature.
   if (lcpp_data_inputs_.has_value()
       // Don't learn LCPP when prerender to avoid data skew. Activation LCP
       // should be much shorter than regular LCP.

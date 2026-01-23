@@ -60,6 +60,7 @@ import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListItemType;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
 import org.chromium.ui.listmenu.ListMenuSubmenuItemProperties;
+import org.chromium.ui.listmenu.ListMenuUtils;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
@@ -72,7 +73,6 @@ import org.chromium.ui.widget.ViewRectUpdater;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -149,12 +149,16 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
         mAllBookmarksButtonModel.set(
                 BookmarkBarButtonProperties.ICON_SUPPLIER,
                 LazyOneshotSupplier.fromValue(
-                        AppCompatResources.getDrawable(mActivity, R.drawable.star_outline_24dp)));
+                        AppCompatResources.getDrawable(
+                                mActivity, R.drawable.ic_all_bookmarks_icon_16dp)));
         mAllBookmarksButtonModel.set(
                 BookmarkBarButtonProperties.TEXT_APPEARANCE_ID,
                 R.style.TextAppearance_TextMedium_Primary_Baseline);
         mAllBookmarksButtonModel.set(
                 BookmarkBarButtonProperties.TITLE,
+                mActivity.getString(R.string.bookmark_bar_all_bookmarks_button_title));
+        mAllBookmarksButtonModel.set(
+                BookmarkBarButtonProperties.TOOLTIP,
                 mActivity.getString(R.string.bookmark_bar_all_bookmarks_button_title));
 
         mItemsModel = itemsModel;
@@ -324,7 +328,7 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
             mBookmarkOpener.openBookmarksInNewTabs(
                     List.of(item.getId()),
                     profile.isOffTheRecord(),
-                    Optional.of(TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND));
+                    TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND);
             return;
         }
 
@@ -445,11 +449,11 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                 BrowserUiListMenuUtils.getBasicListMenu(
                         mActivity,
                         bookmarkItems,
-                        (model) -> {
+                        (model, view) -> {
                             View.OnClickListener clickListener =
                                     model.get(ListMenuItemProperties.CLICK_LISTENER);
                             if (clickListener != null) {
-                                clickListener.onClick(null);
+                                clickListener.onClick(view);
                             }
                         });
 
@@ -460,8 +464,7 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                         mAnchoredPopupWindow.dismiss();
                     }
                 },
-                /* drillDownOverrideValue= */ true,
-                /* flyoutController= */ null);
+                ListMenuUtils.createHierarchicalMenuController(mActivity));
 
         View popupContentView = popupListMenu.getContentView();
         // This is needed because list_menu_layout.xml already sets a background, and we want to
@@ -711,6 +714,7 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                                 mActivity.getString(
                                         R.string.bookmark_bar_folder_content_description,
                                         bookmarkItem.getTitle()))
+                        .with(ListMenuItemProperties.TOOLTIP, bookmarkItem.getTitle())
                         .with(ListMenuItemProperties.IS_TEXT_ELLIPSIZED_AT_END, true)
                         .with(ListMenuSubmenuItemProperties.SUBMENU_ITEMS, childrenList)
                         .with(ListMenuItemProperties.START_ICON_BITMAP, sFolderIconBitmap)
@@ -746,7 +750,7 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                             mBookmarkOpener.openBookmarksInNewTabs(
                                     List.of(bookmarkItem.getId()),
                                     mProfileSupplier.get().isOffTheRecord(),
-                                    Optional.of(TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND));
+                                    TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND);
                         } else {
                             // Default behavior (open in current tab).
                             mBookmarkOpener.openBookmarkInCurrentTab(
@@ -773,6 +777,9 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                 new PropertyModel.Builder(ListMenuItemProperties.ALL_KEYS)
                         .with(ListMenuItemProperties.TITLE, bookmarkItem.getTitle())
                         .with(ListMenuItemProperties.SUBTITLE, bookmarkItem.getUrl().getSpec())
+                        .with(
+                                ListMenuItemProperties.TOOLTIP,
+                                bookmarkItem.getTitle() + "\n" + bookmarkItem.getUrl().getSpec())
                         .with(ListMenuItemProperties.IS_SUBTITLE_ELLIPSIZED_AT_END, true)
                         .with(ListMenuItemProperties.IS_TEXT_ELLIPSIZED_AT_END, true)
                         .with(ListMenuItemProperties.ENABLED, true)
@@ -929,7 +936,7 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                     mBookmarkOpener.openBookmarksInNewTabs(
                             List.of(bookmarkItem.getId()),
                             mProfileSupplier.get().isOffTheRecord(),
-                            Optional.of(TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND));
+                            TabLaunchType.FROM_BOOKMARK_BAR_BACKGROUND);
                 } else {
                     mBookmarkOpener.openBookmarkInCurrentTab(
                             bookmarkItem.getId(), mProfileSupplier.get().isOffTheRecord());
@@ -1043,6 +1050,11 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
                                                 item.getTitle())
                                         : null)
                         .with(BookmarkBarButtonProperties.TITLE, item.getTitle())
+                        .with(
+                                BookmarkBarButtonProperties.TOOLTIP,
+                                item.isFolder()
+                                        ? item.getTitle()
+                                        : item.getTitle() + "\n" + item.getUrl().getSpec())
                         .with(BookmarkBarButtonProperties.BOOKMARK_ITEM, item)
                         .with(BookmarkBarButtonProperties.TEXT_APPEARANCE_ID, textStyleRes)
                         .with(BookmarkBarButtonProperties.BACKGROUND_DRAWABLE_ID, backgroundResId);
@@ -1097,8 +1109,8 @@ class BookmarkBarMediator implements BookmarkBarItemsProvider.Observer {
         // Select the correct ripple drawable based on the theme.
         mCurrentBackgroundId =
                 isIncognito
-                        ? R.drawable.default_chip_ripple_baseline
-                        : R.drawable.default_chip_ripple;
+                        ? R.drawable.bookmark_bar_ripple_baseline
+                        : R.drawable.bookmark_bar_ripple;
 
         // Update the "All Bookmarks" star icon based on the correct theme.
         mAllBookmarksButtonModel.set(

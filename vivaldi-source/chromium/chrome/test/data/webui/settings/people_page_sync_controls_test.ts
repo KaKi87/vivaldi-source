@@ -171,6 +171,18 @@ suite('SyncControlsTest', function() {
     assertFalse(syncControls.hidden);
   });
 
+  // Regression test for crbug.com/467318495.
+  test('SyncNotConfirmed', function() {
+    syncControls.syncStatus = {
+      disabled: false,
+      hasError: true,
+      signedInState: SignedInState.SYNCING,
+      statusAction: StatusAction.CONFIRM_SYNC_SETTINGS,
+    };
+    // Controls are not hidden when sync is not yet confirmed.
+    assertFalse(syncControls.hidden);
+  });
+
   // <if expr="is_chromeos">
   test('SyncCookiesSupported', async function() {
     // Sync everything enabled.
@@ -427,6 +439,22 @@ suite('SyncControlsAccountSettingsTest', function() {
       statusAction: StatusAction.ENTER_PASSPHRASE,
     };
     // Controls are hidden when signed in and there is a passphrase error.
+    assertTrue(syncControls.hidden);
+  });
+
+  test('SignedInLocalSyncEnabled', async function() {
+    setupPrefs();
+
+    // Controls are available by default.
+    assertFalse(syncControls.hidden);
+
+    const syncPrefs = getSyncAllPrefs();
+    syncPrefs.localSyncEnabled = true;
+    webUIListenerCallback('sync-prefs-changed', syncPrefs);
+    await flushTasks();
+    await waitAfterNextRender(syncControls);
+
+    // Controls are hidden when signed in and local sync is enabled.
     assertTrue(syncControls.hidden);
   });
 

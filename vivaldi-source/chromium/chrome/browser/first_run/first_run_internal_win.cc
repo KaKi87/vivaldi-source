@@ -39,6 +39,7 @@
 
 namespace {
 
+#ifndef VIVALDI_BUILD
 // Launches the setup exe with the given parameter/value on the command-line.
 // For non-metro Windows, it waits for its termination, returns its exit code
 // in |*ret_code|, and returns true if the exit code is valid.
@@ -105,6 +106,7 @@ bool CreateEULASentinel() {
          base::CreateDirectory(eula_sentinel.DirName()) &&
          base::WriteFile(eula_sentinel, std::string_view());
 }
+#endif  // VIVALDI_BUILD
 
 }  // namespace
 
@@ -112,6 +114,7 @@ namespace first_run {
 namespace internal {
 
 void DoPostImportPlatformSpecificTasks() {
+#ifndef VIVALDI_BUILD
   // Trigger the Active Setup command for system-level Chromes to finish
   // configuring this user's install (e.g. per-user shortcuts).
   if (!InstallUtil::IsPerUserInstall()) {
@@ -122,9 +125,11 @@ void DoPostImportPlatformSpecificTasks() {
              base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}),
         base::BindOnce(&InstallUtil::TriggerActiveSetupCommand));
   }
+#endif // VIVALDI_BUILD
 }
 
 bool ShowPostInstallEULAIfNeeded(installer::InitialPreferences* install_prefs) {
+#ifndef VIVALDI_BUILD
   if (IsEULANotAccepted(install_prefs)) {
     // Show the post-installation EULA. This is done by setup.exe and the
     // result determines if we continue or not. We wait here until the user
@@ -152,6 +157,7 @@ bool ShowPostInstallEULAIfNeeded(installer::InitialPreferences* install_prefs) {
       }
     }
   }
+#endif  // VIVALDI_BUILD
   return true;
 }
 

@@ -37,6 +37,10 @@ namespace url {
 class Origin;
 }  // namespace url
 
+namespace update_client {
+class Configurator;
+}
+
 namespace extensions {
 class ComponentExtensionResourceManager;
 class EventRouterForwarder;
@@ -164,6 +168,8 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
   void AttachExtensionTaskManagerTag(content::WebContents* web_contents,
                                      mojom::ViewType view_type) override;
   scoped_refptr<update_client::UpdateClient> CreateUpdateClient(
+      scoped_refptr<update_client::Configurator>) override;
+  scoped_refptr<update_client::Configurator> CreateUpdateClientConfigurator(
       content::BrowserContext* context) override;
   std::unique_ptr<ScopedExtensionUpdaterKeepAlive> CreateUpdaterKeepAlive(
       content::BrowserContext* context) override;
@@ -251,6 +257,26 @@ class ChromeExtensionsBrowserClient : public ExtensionsBrowserClient {
   custom_handlers::ProtocolHandlerRegistry* GetProtocolHandlerRegistry(
       content::BrowserContext* context) override;
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+  void CheckManagementPolicy(content::BrowserContext* context) override;
+  scoped_refptr<safe_browsing::SafeBrowsingDatabaseManager>
+  GetSafeBrowsingDatabaseManager() const override;
+  std::optional<safe_browsing::V4ProtocolConfig> GetV4ProtocolConfig()
+      const override;
+  void OnActiveTabPermissionGranted(
+      const Extension* extension,
+      content::WebContents* web_contents) const override;
+  ExtensionManagementClient* GetExtensionManagementClient(
+      content::BrowserContext* context) override;
+  void RunBlockActionsIfNeeded(const Extension* extension,
+                               content::WebContents* web_contents,
+                               SitePermissionsHelper* permission_helper,
+                               bool* reload_required) override;
+  void ShowReloadBubbleForAllExtensions(
+      const std::vector<const Extension*>& extensions,
+      content::WebContents* web_contents) override;
+  bool HasBeenBlocked(const Extension& extension,
+                      content::WebContents* web_contents) const override;
 
   static void set_did_chrome_update_for_testing(bool did_update);
 

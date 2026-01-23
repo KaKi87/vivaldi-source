@@ -75,7 +75,7 @@ int GetMinimumAllowableDistilledContentLength() {
 // Feature declarations below -- alphabetical order.
 BASE_FEATURE(kReaderModeDistillInApp, base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kReaderModeImprovements, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kReaderModeImprovements, base::FEATURE_ENABLED_BY_DEFAULT); // Vivaldi
 
 namespace android {
 static jlong JNI_DomDistillerFeatureMap_GetNativeMap(JNIEnv* env) {
@@ -94,3 +94,7 @@ BASE_FEATURE(kEnableReaderModeNewCss, base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_IOS)
 
 }  // namespace dom_distiller
+
+#if BUILDFLAG(IS_ANDROID)
+DEFINE_JNI(DomDistillerFeatureMap)
+#endif

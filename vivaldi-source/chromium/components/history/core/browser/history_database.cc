@@ -91,6 +91,17 @@ HistoryDatabase::HistoryDatabase(
 HistoryDatabase::~HistoryDatabase() = default;
 
 bool HistoryDatabase::RazeDbIfTooOld() {
+  if (!sql::MetaTable::DoesTableExist(&db_)) {
+    // The database has no meta table, so its version number can't be retrieved.
+    // We assume that the whole database is empty and return true, to let the
+    // caller re-create the table.
+    //
+    // TODO(crbug.com/40777743): It's technically possible for a non-empty
+    // database to be missing the meta table. Such database would be in an
+    // invalid state and should be razed before it's re-initialized.
+    return true;
+  }
+
   const int db_version = sql::InitializedMetaTable(db_).GetVersionNumber();
   base::UmaHistogramSparse("History.DatabaseVersion", db_version);
 
@@ -289,10 +300,10 @@ void HistoryDatabase::ComputeDatabaseMetrics(
       GURL url(url_sql.ColumnStringView(0));
       base::Time visit_time = url_sql.ColumnTime(1);
       ++month_url_count;
-      month_hosts.insert(url.host());
+      month_hosts.insert(url.GetHost());
       if (visit_time > one_week_ago) {
         ++week_url_count;
-        week_hosts.insert(url.host());
+        week_hosts.insert(url.GetHost());
       }
     }
     base::UmaHistogramCounts1M("History.WeeklyURLCount", week_url_count);

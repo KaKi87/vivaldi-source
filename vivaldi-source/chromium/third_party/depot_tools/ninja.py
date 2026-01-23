@@ -32,7 +32,7 @@ def find_ninja_in_path():
             return ninja_path
 
 
-def parse_args(ninja_args):
+def parse_args(ninja_args: list[str]):
     out_dir = "."
     tool = ""
     for i, arg in enumerate(ninja_args):
@@ -40,9 +40,9 @@ def parse_args(ninja_args):
             tool = ninja_args[i + 1]
         elif arg.startswith("-t"):
             tool = arg[2:]
-        elif arg == "-C":
+        elif arg == "-C" and i + 1 < len(ninja_args):
             out_dir = ninja_args[i + 1]
-        elif arg.startswith("-C"):
+        elif arg.startswith("-C") and len(arg) > 2:
             out_dir = arg[2:]
     return tool, out_dir
 
@@ -77,7 +77,7 @@ def fallback(tool, out_dir, ninja_args):
     ninja_path = find_ninja_in_path()
     if ninja_path:
         check_out_dir(tool, out_dir)
-        return caffeinate.run([ninja_path] + ninja_args)
+        return caffeinate.call([ninja_path] + ninja_args)
 
     print(
         "depot_tools/ninja.py: Could not find Ninja in the third_party of "
@@ -130,7 +130,7 @@ def main(args):
         )
         if os.path.isfile(ninja_path):
             check_out_dir(tool, out_dir)
-            return caffeinate.run([ninja_path] + args[1:])
+            return caffeinate.call([ninja_path] + args[1:])
 
     return fallback(tool, out_dir, args[1:])
 

@@ -6,7 +6,6 @@
 
 #include "base/base_paths.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
@@ -103,19 +102,23 @@ std::string FakeDistilledPage::GetPageHtmlWithScripts() {
   }
 
   // Special handling for dom_distiller_viewer.js to allow for placeholder
-  // replacement to align pinch zoom minimum scaling with prefs UI.
+  // replacement to align pinch zoom scaling with prefs UI.
   std::string viewer_js =
       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
           IDR_DOM_DISTILLER_VIEWER_JS);
 
   std::string min_scale = "0.5";
+  std::string max_scale = "2.0";
 #if BUILDFLAG(IS_ANDROID)
   if (base::FeatureList::IsEnabled(kReaderModeDistillInApp)) {
     min_scale = "1.0";
+    max_scale = "2.5";
   }
 #endif
   base::ReplaceFirstSubstringAfterOffset(&viewer_js, 0, "$MIN_SCALE",
                                          min_scale);
+  base::ReplaceFirstSubstringAfterOffset(&viewer_js, 0, "$MAX_SCALE",
+                                         max_scale);
 
   StrAppend(&html, {"<script>", viewer_js, "</script>"});
 

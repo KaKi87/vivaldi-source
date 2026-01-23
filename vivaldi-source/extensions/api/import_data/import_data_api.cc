@@ -159,40 +159,44 @@ std::istream& safeGetline(std::istream& is, std::string& line, bool& crlf) {
   }
 }
 
-// These are really flags, but never sent as flags.
-static struct ImportItemToStringMapping {
-  user_data_importer::ImportItem item;
-  const char* name;
-} import_item_string_mapping[]{
-    //  NOTE(julien): We explicitly do not support importing searches ( see
-    //  VB-20905 )
-    // clang-format off
-    {user_data_importer::FAVORITES, "favorites"},
-    {user_data_importer::PASSWORDS, "passwords"},
-    {user_data_importer::HISTORY, "history"},
-    {user_data_importer::COOKIES, "cookies"},
-    {user_data_importer::NOTES, "notes"},
-    {user_data_importer::SPEED_DIAL, "speeddial"},
-    {user_data_importer::CONTACTS, "contacts"},
-    {user_data_importer::EXTENSIONS, "extensions"},
-    {user_data_importer::TABS, "tabs"},
-    // clang-format on
-};
-
-const size_t kImportItemToStringMappingLength =
-    std::size(import_item_string_mapping);
-
-const std::string ImportItemToString(user_data_importer::ImportItem item) {
-  for (size_t i = 0; i < kImportItemToStringMappingLength; i++) {
-    if (item == import_item_string_mapping[i].item) {
-      return import_item_string_mapping[i].name;
-    }
+constexpr std::string_view ImportItemToString(
+    user_data_importer::ImportItem item) {
+  switch (item) {
+    case user_data_importer::HISTORY:
+      return "history";
+    case user_data_importer::FAVORITES:
+      return "favorites";
+    case user_data_importer::COOKIES:
+      return "cookies";
+    case user_data_importer::PASSWORDS:
+      return "passwords";
+    case user_data_importer::SEARCH_ENGINES:
+      return "searchengines";
+    case user_data_importer::HOME_PAGE:
+      return "homepage";
+    case user_data_importer::AUTOFILL_FORM_DATA:
+      return "autofillformdata";
+    // Vivaldi types
+    case user_data_importer::NOTES:
+      return "notes";
+    case user_data_importer::MASTER_PASSWORD:
+      return "masterpassword";
+    case user_data_importer::SPEED_DIAL:
+      return "speeddial";
+    case user_data_importer::EMAIL:
+      return "email";
+    case user_data_importer::CONTACTS:
+      return "contacts";
+    case user_data_importer::EXTENSIONS:
+      return "extensions";
+    case user_data_importer::TABS:
+      return "tabs";
+    case user_data_importer::NONE:
+    case user_data_importer::ALL:
+      NOTREACHED() << "NONE and ALL are not legal "
+                      "user_data_importer::ImportItem values.";
   }
-  // Missing datatype in the array?
-  NOTREACHED();
-  //return nullptr;
 }
-
 
 #if BUILDFLAG(IS_WIN)
   static std::string toSystemUTF(const std::wstring& str) {
@@ -261,32 +265,33 @@ void ImportDataAPI::ImportStarted() {
 
 void ImportDataAPI::ImportItemStarted(user_data_importer::ImportItem item) {
   import_succeeded_count_++;
-  const std::string item_name = ImportItemToString(item);
+  const std::string_view item_name = ImportItemToString(item);
 
   ::vivaldi::BroadcastEvent(
       vivaldi::import_data::OnImportItemStarted::kEventName,
-      vivaldi::import_data::OnImportItemStarted::Create(item_name),
+      vivaldi::import_data::OnImportItemStarted::Create(std::string(item_name)),
       browser_context_);
 }
 
 void ImportDataAPI::ImportItemEnded(user_data_importer::ImportItem item) {
   import_succeeded_count_--;
-  const std::string item_name = ImportItemToString(item);
+  const std::string_view item_name = ImportItemToString(item);
 
   ::vivaldi::BroadcastEvent(
       vivaldi::import_data::OnImportItemEnded::kEventName,
-      vivaldi::import_data::OnImportItemEnded::Create(item_name),
+      vivaldi::import_data::OnImportItemEnded::Create(std::string(item_name)),
       browser_context_);
 }
 void ImportDataAPI::ImportItemFailed(user_data_importer::ImportItem item,
                                      const std::string& error) {
   // Ensure we get an error at the end.
   import_succeeded_count_++;
-  const std::string item_name = ImportItemToString(item);
+  const std::string_view item_name = ImportItemToString(item);
 
   ::vivaldi::BroadcastEvent(
       vivaldi::import_data::OnImportItemFailed::kEventName,
-      vivaldi::import_data::OnImportItemFailed::Create(item_name, error),
+      vivaldi::import_data::OnImportItemFailed::Create(std::string(item_name),
+                                                       error),
       browser_context_);
 }
 
@@ -576,20 +581,18 @@ void ImportDataGetProfilesFunction::Finished() {
     profile->import_type = MapImportType(source_profile.importer_type);
 
     profile->mail_path = toSystemUTF(source_profile.mail_path.value());
-    profile->has_default_install = !source_profile.source_path.empty();
 
-    if (profile->has_default_install) {
-      profile->detected_profile_path = toSystemUTF(source_profile.source_path.value());
+    if (!source_profile.source_path.empty()) {
+      profile->profile_path = toSystemUTF(source_profile.source_path.value());
     } else {
       // To be able to detect Safari, first we need to
       // obtain a permission from the user.
       profile->requires_access_permission =
           profile->import_type == ImportTypes::kSafari;
-
-      profile->requires_interactive_import = true;
-      profile->suggested_profile_path =
-          MapSuggestedProfilePath(profile->import_type);
     }
+
+    profile->suggested_profile_path =
+        MapSuggestedProfilePath(profile->import_type);
     if (source_profile.importer_type ==
             user_data_importer::TYPE_OPERA_BOOKMARK_FILE ||
         source_profile.importer_type ==
@@ -625,27 +628,20 @@ ExtensionFunction::ResponseAction ImportDataGetProfilesFunction::Run() {
   ProfileSingletonFactory* singl = ProfileSingletonFactory::getInstance();
   api_importer_list_ = singl->getInstance()->getImporterList();
 
-  // if (!singl->getProfileRequested() &&
-  // !api_importer_list->count()){
   singl->setProfileRequested(true);
   api_importer_list_->DetectSourceProfiles(
       g_browser_process->GetApplicationLocale(), true,
       base::BindOnce(&ImportDataGetProfilesFunction::Finished, this));
   return RespondLater();
-  // }
 }
 
-ImportDataStartImportFunction::ImportDataStartImportFunction() {}
+ImportDataStartImportFunction::ImportDataStartImportFunction() = default;
 
-ImportDataStartImportFunction::~ImportDataStartImportFunction() {
-  if (select_file_dialog_)
-    select_file_dialog_->ListenerDestroyed();
-}
+ImportDataStartImportFunction::~ImportDataStartImportFunction() = default;
 
 // ExtensionFunction:
 ExtensionFunction::ResponseAction ImportDataStartImportFunction::Run() {
   using vivaldi::import_data::StartImport::Params;
-  namespace Results = vivaldi::import_data::StartImport::Results;
 
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
@@ -684,6 +680,9 @@ ExtensionFunction::ResponseAction ImportDataStartImportFunction::Run() {
   }
 
   imported_items_ = (selected_items & supported_items);
+  if (!imported_items_) {
+    return RespondNow(Error("There were no settings to import."));
+  }
 
   source_profile.selected_profile_name = params->profile_name;
 
@@ -691,32 +690,15 @@ ExtensionFunction::ResponseAction ImportDataStartImportFunction::Run() {
     source_profile.master_password = params->master_password.value();
   }
 
-  std::u16string dialog_title;
-  if (importer_type_ == user_data_importer::TYPE_BOOKMARKS_FILE ||
-      importer_type_ == user_data_importer::TYPE_OPERA_BOOKMARK_FILE ||
-      ((importer_type_ == user_data_importer::TYPE_OPERA ||
-        importer_type_ == user_data_importer::TYPE_EDGE_CHROMIUM ||
-        importer_type_ == user_data_importer::TYPE_BRAVE ||
-        importer_type_ == user_data_importer::TYPE_VIVALDI ||
-        importer_type_ == user_data_importer::TYPE_CHROMIUM ||
-        importer_type_ == user_data_importer::TYPE_CHROME) &&
-       (!params->ask_user_for_file_location || params->import_path.has_value()))) {
+  if (params->import_path) {
     base::FilePath import_path =
         base::FilePath::FromUTF8Unsafe(params->import_path->c_str());
     source_profile.source_path = import_path;
-    source_profile.importer_type = importer_type_;
-
-    StartImport(source_profile);
-    return RespondNow(NoArguments());
-  } else {
-    if (imported_items_) {
-      StartImport(source_profile);
-    } else {
-      LOG(WARNING) << "There were no settings to import from '"
-                   << source_profile.importer_name << "'.";
-    }
-    return RespondNow(NoArguments());
   }
+
+  StartImport(source_profile);
+
+  return RespondNow(NoArguments());
 }
 
 void ImportDataStartImportFunction::StartImport(

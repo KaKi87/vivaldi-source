@@ -35,14 +35,15 @@ import org.chromium.chrome.browser.ChromeStringConstants;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider.CustomTabsUiType;
 import org.chromium.chrome.browser.customtabs.CustomTabIntentDataProvider;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.sync.TrustedVaultClient;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.sync.SyncService;
-import org.chromium.components.sync.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.components.sync.UserActionableError;
+import org.chromium.components.trusted_vault.TrustedVaultUserActionTriggerForUMA;
 import org.chromium.google_apis.gaia.GoogleServiceAuthErrorState;
 import org.chromium.ui.widget.Toast;
 
@@ -53,6 +54,8 @@ import java.lang.annotation.RetentionPolicy;
 @NullMarked
 public class SyncSettingsUtils {
     private static final String MY_ACCOUNT_URL = "https://myaccount.google.com/smartlink/home";
+    private static final String BOOKMARK_LIMIT_HELP_PAGE_URL =
+            "https://support.google.com/chrome/answer/165139";
     private static final String TAG = "SyncSettingsUtils";
 
     @IntDef({TitlePreference.FULL_NAME, TitlePreference.EMAIL})
@@ -135,6 +138,8 @@ public class SyncSettingsUtils {
                 return context.getString(R.string.hint_sync_settings_not_confirmed_description);
             case UserActionableError.NEEDS_UPM_BACKEND_UPGRADE:
                 return context.getString(R.string.sync_error_card_outdated_gms);
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return context.getString(R.string.bookmark_sync_limit_error_description);
             case UserActionableError.NONE:
             default:
                 return null;
@@ -164,6 +169,8 @@ public class SyncSettingsUtils {
                 return context.getString(R.string.sync_needs_verification_title);
             case UserActionableError.NEEDS_UPM_BACKEND_UPGRADE:
                 return context.getString(R.string.sync_error_outdated_gms);
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return context.getString(R.string.bookmark_sync_limit_error_title);
             case UserActionableError.NONE:
             default:
                 return null;
@@ -192,6 +199,8 @@ public class SyncSettingsUtils {
                 return context.getString(R.string.sync_promo_turn_on_sync);
             case UserActionableError.NEEDS_UPM_BACKEND_UPGRADE:
                 return context.getString(R.string.password_manager_outdated_gms_positive_button);
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return context.getString(R.string.learn_more);
             case UserActionableError.NONE:
             default:
                 return null;
@@ -200,7 +209,6 @@ public class SyncSettingsUtils {
 
     /** Return a short summary of the current sync status. */
     public static String getSyncStatusSummary(Context context, Profile profile) {
-        // TODO(crbug.com/40890809): Use getUserActionableError().
         SyncService syncService = SyncServiceFactory.getForProfile(profile);
         if (syncService == null) {
             return context.getString(R.string.sync_off);
@@ -215,48 +223,42 @@ public class SyncSettingsUtils {
             return context.getString(R.string.sync_is_disabled_by_administrator);
         }
 
-        if (!syncService.isInitialSyncFeatureSetupComplete()) {
-            return context.getString(R.string.sync_settings_not_confirmed);
-        }
-
-        @GoogleServiceAuthErrorState int authErrorState = syncService.getAuthError().getState();
-        if (authErrorState != GoogleServiceAuthErrorState.NONE) {
-            return getSyncStatusSummaryForAuthError(context, authErrorState);
-        }
-
-        if (syncService.requiresClientUpgrade()) {
-            return context.getString(
-                    R.string.sync_error_upgrade_client, ApkInfo.getHostPackageLabel());
-        }
-
-        if (syncService.hasUnrecoverableError()) {
-            return context.getString(R.string.sync_error_generic);
-        }
-
         if (syncService.getSelectedTypes().isEmpty()) {
             return context.getString(R.string.sync_data_types_off);
         }
 
+        @UserActionableError int userActionableError = syncService.getUserActionableError();
+
+        switch (userActionableError) {
+            case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
+                return context.getString(R.string.sync_settings_not_confirmed);
+            case UserActionableError.UNRECOVERABLE_ERROR:
+                return context.getString(R.string.sync_error_generic);
+            case UserActionableError.SIGN_IN_NEEDS_UPDATE:
+                return getSyncStatusSummaryForAuthError(
+                        context, syncService.getAuthError().getState());
+            case UserActionableError.NEEDS_CLIENT_UPGRADE:
+                return context.getString(
+                        R.string.sync_error_upgrade_client, ApkInfo.getHostPackageLabel());
+            case UserActionableError.NEEDS_PASSPHRASE:
+                return context.getString(R.string.sync_need_passphrase);
+            case UserActionableError.NEEDS_TRUSTED_VAULT_KEY_FOR_EVERYTHING:
+                return context.getString(R.string.sync_error_card_title);
+            case UserActionableError.NEEDS_TRUSTED_VAULT_KEY_FOR_PASSWORDS:
+                return context.getString(R.string.password_sync_error_summary);
+            case UserActionableError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_EVERYTHING:
+            case UserActionableError.TRUSTED_VAULT_RECOVERABILITY_DEGRADED_FOR_PASSWORDS:
+                return context.getString(R.string.sync_needs_verification_title);
+            case UserActionableError.NEEDS_UPM_BACKEND_UPGRADE:
+                return context.getString(R.string.sync_error_outdated_gms);
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return context.getString(R.string.bookmark_sync_limit_error_title);
+            case UserActionableError.NONE:
+                break;
+        }
+
         if (!syncService.isSyncFeatureActive()) {
             return context.getString(R.string.sync_setup_progress);
-        }
-
-        if (syncService.isPassphraseRequiredForPreferredDataTypes()) {
-            return context.getString(R.string.sync_need_passphrase);
-        }
-
-        if (syncService.isTrustedVaultKeyRequiredForPreferredDataTypes()) {
-            return syncService.isEncryptEverythingEnabled()
-                    ? context.getString(R.string.sync_error_card_title)
-                    : context.getString(R.string.password_sync_error_summary);
-        }
-
-        if (syncService.isTrustedVaultRecoverabilityDegraded()) {
-            return context.getString(R.string.sync_needs_verification_title);
-        }
-
-        if (syncService.getUserActionableError() == UserActionableError.NEEDS_UPM_BACKEND_UPGRADE) {
-            return context.getString(R.string.sync_error_outdated_gms);
         }
 
         return context.getString(R.string.sync_on);
@@ -357,7 +359,11 @@ public class SyncSettingsUtils {
      */
     public static void openSyncDashboard(Activity activity) {
         // TODO(crbug.com/41450409): Create a builder for custom tab intents.
-        openCustomTabWithURL(activity, ChromeStringConstants.SYNC_DASHBOARD_URL);
+        openCustomTabWithURL(
+                activity,
+                ChromeFeatureList.isEnabled(ChromeFeatureList.SYNC_ENABLE_NEW_SYNC_DASHBOARD_URL)
+                        ? ChromeStringConstants.NEW_SYNC_DASHBOARD_URL
+                        : ChromeStringConstants.LEGACY_SYNC_DASHBOARD_URL);
     }
 
     /**
@@ -370,6 +376,18 @@ public class SyncSettingsUtils {
     public static void openGoogleMyAccount(Activity activity) {
         RecordUserAction.record("SyncPreferences_ManageGoogleAccountClicked");
         openCustomTabWithURL(activity, MY_ACCOUNT_URL);
+    }
+
+    /**
+     * Opens a help center article for the bookmark sync limit and acknowledges the error.
+     *
+     * @param activity The activity to use for starting the intent.
+     * @param profile The profile to acknowledge the error for.
+     */
+    public static void openBookmarkLimitHelpPage(Activity activity, SyncService syncService) {
+        assert syncService != null;
+        syncService.acknowledgeBookmarksLimitExceededError();
+        openCustomTabWithURL(activity, BOOKMARK_LIMIT_HELP_PAGE_URL);
     }
 
     /**
@@ -564,6 +582,9 @@ public class SyncSettingsUtils {
                 return new ErrorCardDetails(
                         R.string.sync_error_card_outdated_gms,
                         R.string.password_manager_outdated_gms_positive_button);
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return new ErrorCardDetails(
+                        R.string.bookmark_sync_limit_error_description, R.string.learn_more);
             case UserActionableError.UNRECOVERABLE_ERROR:
             case UserActionableError.NEEDS_SETTINGS_CONFIRMATION:
             case UserActionableError.NONE:
@@ -603,6 +624,8 @@ public class SyncSettingsUtils {
                 return ".UpmBackendOutdated";
             case UserActionableError.UNRECOVERABLE_ERROR:
                 return ".OtherErrors";
+            case UserActionableError.BOOKMARKS_LIMIT_EXCEEDED:
+                return ".BookmarkLimitReached";
             default:
                 assert false;
                 return "";

@@ -120,6 +120,7 @@ update_target("//chrome/browser:browser") {
     "//vivaldi/components/datasource/vivaldi_data_source.h",
     "//vivaldi/components/datasource/synced_file_data_source.cc",
     "//vivaldi/components/datasource/synced_file_data_source.h",
+    "//vivaldi/components/datasource/vivaldi_image_store_constants.h",
     "//vivaldi/components/datasource/vivaldi_image_store.cc",
     "//vivaldi/components/datasource/vivaldi_image_store.h",
     "//vivaldi/components/datasource/vivaldi_theme_io.cc",

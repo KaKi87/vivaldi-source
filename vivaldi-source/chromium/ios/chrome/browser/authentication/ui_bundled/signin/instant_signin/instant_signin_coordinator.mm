@@ -94,7 +94,7 @@
   signin::IdentityManager* identityManager =
       IdentityManagerFactory::GetForProfile(self.profile->GetOriginalProfile());
   CHECK(!identityManager->HasPrimaryAccount(signin::ConsentLevel::kSignin),
-        base::NotFatalUntil::M142);
+        base::NotFatalUntil::M148);
   _signinLogger = [[UserSigninLogger alloc] initWithAccessPoint:self.accessPoint
                                                     promoAction:_promoAction];
   [_signinLogger logSigninStarted];
@@ -230,24 +230,25 @@
 #pragma mark - InstantSigninMediatorDelegate
 
 - (void)instantSigninMediator:(InstantSigninMediator*)mediator
-          didSigninWithResult:(SigninCoordinatorResult)result {
+    didSigninWithCancelationResult:
+        (signin_ui::CancelationReason)cancelationResult {
   [self removeActivityOverlay];
-  switch (result) {
-    case SigninCoordinatorResultSuccess: {
+  switch (cancelationResult) {
+    case signin_ui::CancelationReason::kNotCanceled: {
       signin_metrics::RecordConsistencyPromoUserAction(_actionToRecordOnSuccess,
                                                        self.accessPoint);
       [self runCompletionWithSigninResult:SigninCoordinatorResultSuccess
                        completionIdentity:_identity];
       break;
     }
-    case SigninCoordinatorResultDisabled:
-    case SigninCoordinatorResultInterrupted:
-    case SigninCoordinatorResultCanceledByUser:
-    case SigninCoordinatorProfileSwitch:
-      [self runCompletionWithSigninResult:result completionIdentity:nil];
+    case signin_ui::CancelationReason::kUserCanceled:
+      [self runCompletionWithSigninResult:SigninCoordinatorResultCanceledByUser
+                       completionIdentity:nil];
       break;
-    case SigninCoordinatorUINotAvailable:
-      NOTREACHED();
+    case signin_ui::CancelationReason::kFailed:
+      [self runCompletionWithSigninResult:SigninCoordinatorResultInterrupted
+                       completionIdentity:nil];
+      break;
   }
 }
 
@@ -314,17 +315,23 @@
                                    prefilledEmail:nil
                              continuationProvider:_continuationProvider];
   __weak __typeof(self) weakSelf = self;
-  _addAccountSigninCoordinator.signinCompletion = ^(
-      SigninCoordinatorResult result, id<SystemIdentity> resultIdentity) {
-    [weakSelf addAccountDoneWithResult:result resultIdentity:resultIdentity];
-  };
+  _addAccountSigninCoordinator.signinCompletion =
+      ^(SigninCoordinator* coordinator, SigninCoordinatorResult result,
+        id<SystemIdentity> resultIdentity) {
+        [weakSelf addAccountDoneWithCoordinator:coordinator
+                                         result:result
+                                 resultIdentity:resultIdentity];
+      };
   [_addAccountSigninCoordinator start];
 }
 
 // Starts the sign-in flow if the identity has been selected, otherwise, it
 // ends this coordinator.
-- (void)addAccountDoneWithResult:(SigninCoordinatorResult)result
-                  resultIdentity:(id<SystemIdentity>)resultIdentity {
+- (void)addAccountDoneWithCoordinator:(SigninCoordinator*)coordinator
+                               result:(SigninCoordinatorResult)result
+                       resultIdentity:(id<SystemIdentity>)resultIdentity {
+  CHECK_EQ(_addAccountSigninCoordinator, coordinator,
+           base::NotFatalUntil::M151);
   CHECK(_addAccountSigninCoordinator)
       << base::SysNSStringToUTF8([self description]);
   [self stopAddAccountSigninCoordinator];

@@ -8,6 +8,8 @@
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/common/pref_names.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/content_settings/core/common/content_settings.h"
@@ -22,10 +24,9 @@
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/mojom/autoplay/autoplay.mojom.h"
 
+// Vivaldi
 #if !BUILDFLAG(IS_ANDROID)
 #include "components/tabs/tab_helpers.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
-#include "chrome/browser/ui/tabs/tab_utils.h"
 #endif
 
 using content_settings::SettingSource;
@@ -118,10 +119,6 @@ void SoundContentSettingObserver::OnContentSettingChanged(
 void SoundContentSettingObserver::MuteOrUnmuteIfNecessary() {
   bool mute = GetCurrentContentSetting() == CONTENT_SETTING_BLOCK;
 
-// TabMutedReason does not exist on Android.
-#if BUILDFLAG(IS_ANDROID)
-  web_contents()->SetAudioMuted(mute);
-#else
   // We don't want to overwrite TabMutedReason with no change.
   if (mute == web_contents()->IsAudioMuted())
     return;
@@ -129,30 +126,33 @@ void SoundContentSettingObserver::MuteOrUnmuteIfNecessary() {
   TabMutedReason reason = GetTabAudioMutedReason(web_contents());
 
   // Do not override the decisions of an extension.
-  if (reason == TabMutedReason::EXTENSION)
+  if (reason == TabMutedReason::kExtension) {
     return;
+  }
 
   // Don't unmute a chrome:// URL if the tab has been explicitly muted on a
   // chrome:// URL.
-  if (reason == TabMutedReason::CONTENT_SETTING_CHROME &&
+  if (reason == TabMutedReason::kContentSettingChrome &&
       web_contents()->GetLastCommittedURL().SchemeIs(
           content::kChromeUIScheme)) {
     return;
   }
 
   // Do not unmute if we're muted due to audio indicator.
-  if (!mute && reason == TabMutedReason::AUDIO_INDICATOR)
-    return;
-
-  // NOTE(andre@vivaldi.com) : Vivaldi can set a tab to muted in extdata. Do not
-  // override this here.
-  if (vivaldi::IsTabMuted(web_contents())){
+  if (!mute && reason == TabMutedReason::kAudioIndicator) {
     return;
   }
 
-  SetTabAudioMuted(web_contents(), mute, TabMutedReason::CONTENT_SETTING,
+  // NOTE(andre@vivaldi.com) : Vivaldi can set a tab to muted in extdata. Do not
+  // override this here.
+#if !BUILDFLAG(IS_ANDROID)
+  if (vivaldi::IsTabMuted(web_contents())) {
+    return;
+  }
+#endif
+
+  SetTabAudioMuted(web_contents(), mute, TabMutedReason::kContentSetting,
                    std::string());
-#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 ContentSetting SoundContentSettingObserver::GetCurrentContentSetting() {

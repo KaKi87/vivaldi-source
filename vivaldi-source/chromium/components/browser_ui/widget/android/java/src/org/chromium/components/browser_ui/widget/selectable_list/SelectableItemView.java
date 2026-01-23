@@ -57,16 +57,19 @@ public abstract class SelectableItemView<E> extends CheckableSelectableItemView<
     /** The resource for the start icon background. */
     private final int mStartIconBackgroundRes;
 
+    // Vivaldi
+    protected ImageView mCheckImage;
+
     /** Constructor for inflating from XML. */
     public SelectableItemView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         mLayoutRes = R.layout.modern_list_item_view;
+
         if (BuildConfig.IS_VIVALDI)
             mStartIconBackgroundRes = R.drawable.vivaldi_list_item_icon_modern_bg;
-        else
+        else // Vivaldi
         mStartIconBackgroundRes = R.drawable.list_item_icon_modern_bg;
-
         mDefaultLevel = getResources().getInteger(R.integer.list_item_level_default);
         mSelectedLevel = getResources().getInteger(R.integer.list_item_level_selected);
     }
@@ -109,6 +112,8 @@ public abstract class SelectableItemView<E> extends CheckableSelectableItemView<
         mEndButtonView = findViewById(R.id.end_button);
         mTitleView = findViewById(R.id.title);
         mDescriptionView = findViewById(R.id.description);
+        // Vivaldi
+        mCheckImage = findViewById(R.id.check_image);
 
         if (mStartIconView != null) {
             mStartIconView.setBackgroundResource(mStartIconBackgroundRes);
@@ -128,4 +133,10 @@ public abstract class SelectableItemView<E> extends CheckableSelectableItemView<
     protected @Nullable Drawable getStartIconDrawable() {
         return getIconDrawable();
     }
+
+    // Vivaldi
+    public ImageView getCheckImage() {
+        return mCheckImage;
+    }
+    // End Vivaldi
 }

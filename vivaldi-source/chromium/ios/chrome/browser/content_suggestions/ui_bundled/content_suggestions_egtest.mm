@@ -20,7 +20,7 @@
 #import "ios/chrome/browser/content_suggestions/ui_bundled/magic_stack/magic_stack_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/new_tab_page_app_interface.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/ntp_home_constant.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/constants.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/public/set_up_list_constants.h"
 #import "ios/chrome/browser/first_run/ui_bundled/first_run_constants.h"
 #import "ios/chrome/browser/home_customization/utils/home_customization_constants.h"
 #import "ios/chrome/browser/home_customization/utils/home_customization_helper.h"
@@ -31,7 +31,6 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/browser/signin/model/test_constants.h"
-#import "ios/chrome/common/ui/confirmation_alert/constants.h"
 #import "ios/chrome/common/ui/promo_style/constants.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -79,16 +78,14 @@ void TapView(NSString* accessibility_id) {
 
 // Tap the PromoStyleSecondaryActionButton.
 void TapPromoStyleSecondaryActionButton() {
-  id<GREYMatcher> button =
-      grey_accessibilityID(kPromoStyleSecondaryActionAccessibilityIdentifier);
+  id<GREYMatcher> button = chrome_test_util::ButtonStackSecondaryButton();
   [[EarlGrey selectElementWithMatcher:button] assertWithMatcher:grey_notNil()];
   [[EarlGrey selectElementWithMatcher:button] performAction:grey_tap()];
 }
 
 // Tap the ConfirmationAlertSecondaryAction Button.
 void TapSecondaryActionButton() {
-  id<GREYMatcher> button = grey_accessibilityID(
-      kConfirmationAlertSecondaryActionAccessibilityIdentifier);
+  id<GREYMatcher> button = chrome_test_util::ButtonStackSecondaryButton();
   [[EarlGrey selectElementWithMatcher:button] assertWithMatcher:grey_notNil()];
   [[EarlGrey selectElementWithMatcher:button] performAction:grey_tap()];
 }
@@ -155,7 +152,7 @@ void TapMagicStackEditButton() {
 
 - (void)setUp {
   [super setUp];
-  [NewTabPageAppInterface disableSetUpList];
+  [NewTabPageAppInterface disableTipsCards];
 }
 
 - (void)tearDownHelper {
@@ -378,11 +375,12 @@ void TapMagicStackEditButton() {
       assertWithMatcher:grey_sufficientlyVisible()];
 
   // Turn off the Set Up list toggle.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_allOf(grey_kindOfClassName(@"UISwitch"),
-                            grey_ancestor(grey_accessibilityID(
-                                kCustomizationToggleSetUpListIdentifier)),
-                            nil)] performAction:grey_turnSwitchOn(NO)];
+  [[EarlGrey
+      selectElementWithMatcher:grey_allOf(
+                                   grey_kindOfClassName(@"UISwitch"),
+                                   grey_ancestor(grey_accessibilityID(
+                                       kCustomizationToggleTipsIdentifier)),
+                                   nil)] performAction:grey_turnSwitchOn(NO)];
 
   // Dismiss the menu.
   [[EarlGrey
@@ -413,7 +411,7 @@ void TapMagicStackEditButton() {
 
   NSString* setupListHideTitle = l10n_util::GetNSStringF(
       IDS_IOS_SET_UP_LIST_HIDE_MODULE_CONTEXT_MENU_DESCRIPTION,
-      l10n_util::GetStringUTF16(IDS_IOS_SET_UP_LIST_TIPS_TITLE));
+      l10n_util::GetStringUTF16(IDS_IOS_MAGIC_STACK_TIP_TITLE));
   [[EarlGrey
       selectElementWithMatcher:
           grey_allOf(chrome_test_util::ContextMenuItemWithAccessibilityLabel(

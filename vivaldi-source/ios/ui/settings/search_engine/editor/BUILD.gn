@@ -7,8 +7,12 @@ source_set("vivaldi_search_engine_editor") {
     "vivaldi_search_engine_editor_consumer.h",
     "vivaldi_search_engine_editor_coordinator.h",
     "vivaldi_search_engine_editor_coordinator.mm",
+    "vivaldi_search_engine_editor_entry_reason.h",
+    "vivaldi_search_engine_editor_entry_point.h",
     "vivaldi_search_engine_editor_mediator.h",
     "vivaldi_search_engine_editor_mediator.mm",
+    "vivaldi_search_engine_editor_utils.h",
+    "vivaldi_search_engine_editor_utils.mm",
   ]
 
   deps = [

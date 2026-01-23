@@ -82,6 +82,19 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxFileThumbnail) {
   RunTest("new_tab_page/composebox/file_thumbnail_test.js", "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ContextualEntrypointAndCarousel) {
+  RunTest("new_tab_page/composebox/contextual_entrypoint_and_carousel_test.js",
+          "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ActionChips) {
+  RunTest("new_tab_page/action_chips/action_chips_test.js", "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ErrorScrim) {
+  RunTest("new_tab_page/composebox/error_scrim_test.js", "mocha.run()");
+}
+
 using NewTabPageNtpPromoTest = NewTabPageBrowserTest;
 
 IN_PROC_BROWSER_TEST_F(NewTabPageNtpPromoTest, IndividualPromosTest) {
@@ -246,7 +259,13 @@ IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, RealboxNext) {
           "runMochaSuite('NewTabPageAppTest RealboxNext')");
 }
 
-IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, WallpaperSearch) {
+IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, ActionChips) {
+  RunTest("new_tab_page/app_test.js",
+          "runMochaSuite('NewTabPageAppTest ActionChips')");
+}
+
+// TODO(crbug.com/428156129): Re-enable test
+IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, DISABLED_WallpaperSearch) {
   RunTest("new_tab_page/app_test.js",
           "runMochaSuite('NewTabPageAppTest WallpaperSearch')");
 }
@@ -259,6 +278,11 @@ IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, MicrosoftAuth) {
 IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, NewTabFooter) {
   RunTest("new_tab_page/app_test.js",
           "runMochaSuite('NewTabPageAppTest NewTabFooter')");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, AutoRemovalToast) {
+  RunTest("new_tab_page/app_test.js",
+          "runMochaSuite('NewTabPageAppTest AutoRemovalToast')");
 }
 
 class NewTabPageModulesMostRelevantTabResumptionModuleTest

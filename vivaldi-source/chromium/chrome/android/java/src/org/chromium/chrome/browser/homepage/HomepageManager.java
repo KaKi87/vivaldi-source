@@ -5,6 +5,8 @@
 package org.chromium.chrome.browser.homepage;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory.getIncognitoResolver;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory.getOriginalResolver;
 
 import android.content.Context;
 
@@ -17,7 +19,6 @@ import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.common.ChromeUrlConstants;
 import org.chromium.chrome.browser.homepage.settings.HomepageMetricsEnums.HomeButtonStatus;
 import org.chromium.chrome.browser.homepage.settings.HomepageMetricsEnums.HomepageLocationType;
 import org.chromium.chrome.browser.homepage.settings.HomepageSettings;
@@ -26,6 +27,7 @@ import org.chromium.chrome.browser.partnercustomizations.PartnerBrowserCustomiza
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
+import org.chromium.chrome.browser.url_constants.UrlConstantResolver;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.url.GURL;
@@ -120,7 +122,11 @@ public class HomepageManager
     public boolean shouldCloseAppWithZeroTabs() {
         // Vivaldi should never close with zero tabs. Ref. VAB-8242.
         if (BuildConfig.IS_VIVALDI) return false;
-        return isHomepageEnabled() && !UrlUtilities.isNtpUrl(getHomepageGurl());
+
+        // If the current homepage is the NTP, this will return true, regardless of the value of
+        // isIncognito.
+        return isHomepageEnabled()
+                && !UrlUtilities.isNtpUrl(getHomepageGurl(/* isIncognito= */ false));
     }
 
     /**
@@ -144,16 +150,16 @@ public class HomepageManager
      * @see #getPrefHomepageUseChromeNtp()
      * @see #getPrefHomepageUseDefaultUri()
      */
-    public GURL getHomepageGurl() {
+    public GURL getHomepageGurl(boolean isIncognito) {
         if (HomepagePolicyManager.isHomepageNewTabPageEnabled()) {
-            return getNativeNtpUrlOrEmpty();
+            return getNtpUrl(isIncognito);
         }
 
         if (!isHomepageEnabled()) return GURL.emptyGURL();
 
-        GURL homepageGurl = getHomepageGurlIgnoringEnabledState();
+        GURL homepageGurl = getHomepageGurlIgnoringEnabledState(isIncognito);
         if (homepageGurl.isEmpty()) {
-            homepageGurl = getNativeNtpUrlOrEmpty();
+            homepageGurl = getNtpUrl(isIncognito);
         }
 
         return homepageGurl;
@@ -163,7 +169,7 @@ public class HomepageManager
      * @return A GURL for the default homepage URI if the homepage is partner provided, or the new
      *     tab page if the homepage button is force enabled via flag.
      */
-    public GURL getDefaultHomepageGurl() {
+    public GURL getDefaultHomepageGurl(boolean isIncognito) {
         if (PartnerBrowserCustomizations.getInstance().isHomepageProviderAvailableAndEnabled()) {
             return assumeNonNull(PartnerBrowserCustomizations.getInstance().getHomePageUrl());
         }
@@ -201,7 +207,7 @@ public class HomepageManager
             }
         }
 
-        return ChromeUrlConstants.nativeNtpGurl();
+        return getNtpUrl(isIncognito);
     }
 
     /**
@@ -213,7 +219,9 @@ public class HomepageManager
      * @return Whether the current homepage is something other than the NTP.
      */
     public boolean isHomepageNonNtp() {
-        @Nullable GURL currentHomepage = getHomepageGurl();
+        // If the current homepage is the NTP, this will return true, regardless of the value of
+        // isIncognito.
+        @Nullable GURL currentHomepage = getHomepageGurl(/* isIncognito= */ false);
         return currentHomepage != null
                 && !currentHomepage.isEmpty()
                 && !UrlUtilities.isNtpUrl(currentHomepage);
@@ -224,18 +232,18 @@ public class HomepageManager
      *
      * @return Homepage GURL based on policy and shared preference settings.
      */
-    private GURL getHomepageGurlIgnoringEnabledState() {
+    private GURL getHomepageGurlIgnoringEnabledState(boolean isIncognito) {
         if (HomepagePolicyManager.isHomepageNewTabPageEnabled()) {
-            return ChromeUrlConstants.nativeNtpGurl();
+            return getNtpUrl(isIncognito);
         }
         if (HomepagePolicyManager.isHomepageLocationManaged()) {
             return HomepagePolicyManager.getHomepageUrl();
         }
         if (getPrefHomepageUseChromeNtp()) {
-            return ChromeUrlConstants.nativeNtpGurl();
+            return getNtpUrl(isIncognito);
         }
         if (getPrefHomepageUseDefaultUri()) {
-            return getDefaultHomepageGurl();
+            return getDefaultHomepageGurl(isIncognito);
         }
         return getPrefHomepageCustomGurl();
     }
@@ -492,9 +500,11 @@ public class HomepageManager
         };
     }
 
-    /** Returns {@link ChromeUrlConstants#nativeNtpGurl()}, or an empty URL. */
-    private static GURL getNativeNtpUrlOrEmpty() {
-        GURL nativeNtpGurl = ChromeUrlConstants.nativeNtpGurl();
-        return nativeNtpGurl == null ? GURL.emptyGURL() : nativeNtpGurl;
+    /**
+     * Returns a GURL representing the NTP. This GURL can be used prior to native initialization.
+     */
+    private static GURL getNtpUrl(boolean isIncognito) {
+        UrlConstantResolver resolver = isIncognito ? getIncognitoResolver() : getOriginalResolver();
+        return resolver.getNtpGurl();
     }
 }

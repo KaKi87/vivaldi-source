@@ -68,7 +68,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             "remove_desktop_site_menu_item";
     private final Verifier mVerifier;
     private final @CustomTabsUiType int mUiType;
-    private final boolean mShowShare;
+    private boolean mShowShare;
     private final boolean mShowStar;
     private final boolean mShowDownload;
     private final boolean mIsOpenedByChrome;
@@ -165,6 +165,11 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         boolean requestDesktopSiteVisible = true;
         boolean tryAddingReadAloud = ReadAloudFeatures.isEnabledForOverflowMenuInCct();
         boolean readerModePrefsVisible = false;
+        boolean translateVisible = true;
+        // When the icon row is visible, site info is a button in that row.
+        // This is a separate menu item row for the site info shown within the icon row.
+        boolean siteSettingsItemVisible = false;
+        boolean zoomVisible = false;
 
         if (ChromeFeatureList.sCctAdaptiveButton.isEnabled()) {
             if (ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
@@ -190,7 +195,6 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             findInPageVisible = false;
             bookmarkItemVisible = false; // Set to skip initialization.
             downloadItemVisible = false; // Set to skip initialization.
-            openInChromeItemVisible = false;
             requestDesktopSiteVisible = false;
             addToHomeScreenVisible = false;
             tryAddingReadAloud = false;
@@ -199,7 +203,6 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             iconRowVisible = false;
             bookmarkItemVisible = false; // Set to skip initialization.
             downloadItemVisible = false; // Set to skip initialization.
-            openInChromeItemVisible = false;
             requestDesktopSiteVisible = false;
             addToHomeScreenVisible = false;
             tryAddingReadAloud = false;
@@ -211,25 +214,39 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             addToHomeScreenVisible = !mVerifier.wasPreviouslyVerified(url.getSpec());
             downloadItemVisible = false;
             bookmarkItemVisible = false;
+        } else if (mUiType == CustomTabsUiType.TRUSTED_WEB_ACTIVITY) {
+            // The CCT menu button was removed for TWAs. This would only affect the
+            // app header's menu button.
+            addToHomeScreenVisible = !mVerifier.wasPreviouslyVerified(url.getSpec());
+            downloadItemVisible = false;
+            bookmarkItemVisible = false;
+            if (ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled()) {
+                requestDesktopSiteVisible = false;
+
+                translateVisible = false;
+                // Remove icons.
+                iconRowVisible = false;
+                // Site settings menu item row.
+                siteSettingsItemVisible = true;
+                zoomVisible = true;
+                findInPageVisible = true;
+                mShowShare = true;
+            }
         } else if (mUiType == CustomTabsUiType.OFFLINE_PAGE) {
-            openInChromeItemVisible = false;
             bookmarkItemVisible = true;
             downloadItemVisible = false;
             addToHomeScreenVisible = false;
             requestDesktopSiteVisible = true;
             tryAddingReadAloud = false;
         } else if (mUiType == CustomTabsUiType.AUTH_TAB) {
-            openInChromeItemVisible = false;
             bookmarkItemVisible = false;
             downloadItemVisible = false;
             addToHomeScreenVisible = false;
             tryAddingReadAloud = false;
         } else if (mUiType == CustomTabsUiType.NETWORK_BOUND_TAB) {
-            openInChromeItemVisible = false;
             addToHomeScreenVisible = false;
             requestDesktopSiteVisible = true;
         } else if (mUiType == CustomTabsUiType.POPUP) {
-            openInChromeItemVisible = false;
             bookmarkItemVisible = false;
             downloadItemVisible = false;
             addToHomeScreenVisible = false;
@@ -238,7 +255,6 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         }
 
         if (!FirstRunStatus.getFirstRunFlowComplete()) {
-            openInChromeItemVisible = false;
             bookmarkItemVisible = false;
             downloadItemVisible = false;
             addToHomeScreenVisible = false;
@@ -247,8 +263,11 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         if (mIsIncognitoBranded) {
             addToHomeScreenVisible = false;
             downloadItemVisible = false;
-            openInChromeItemVisible = false;
             tryAddingReadAloud = false;
+        }
+
+        if (CustomTabIntentDataProvider.isOpenInBrowserDisallowed(mUiType, mIsIncognitoBranded)) {
+            openInChromeItemVisible = false;
         }
 
         // Vivaldi
@@ -333,6 +352,15 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                     new MVCListAdapter.ListItem(
                             AppMenuHandler.AppMenuItemType.DIVIDER,
                             buildModelForDivider(R.id.divider_line_id)));
+        }
+
+        // --- App info row ---
+        if (siteSettingsItemVisible) {
+            modelList.add(
+                    new MVCListAdapter.ListItem(
+                            AppMenuHandler.AppMenuItemType.STANDARD,
+                            buildModelForStandardMenuItem(
+                                    R.id.info_menu_id, R.string.menu_app_info, 0)));
         }
 
         // --- Open in browser ---
@@ -422,8 +450,14 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                 maybeBuildSimplifiedViewItem(currentTab, isNativePage, shouldShowIconBeforeItem());
         if (simplifiedViewItem != null) modelList.add(simplifiedViewItem);
 
+        // Vivaldi: Reader Mode Prefs (Appearance)
+        if (shouldShowReaderModePrefs(currentTab)) {
+            MVCListAdapter.ListItem readerModePrefsItem = buildReaderModePrefsItem();
+            modelList.add(readerModePrefsItem);
+        }
+
         // --- Translate ---
-        if (shouldShowTranslateMenuItem(currentTab)) {
+        if (translateVisible && shouldShowTranslateMenuItem(currentTab)) {
             modelList.add(buildTranslateMenuItem(currentTab, false));
         }
 
@@ -435,6 +469,15 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         // --- Open in Browser ---
         if (openInChromeItemVisible && !showOpenInBrowserAtTop) {
             addOpenInChrome(modelList, /* showIcon= */ false);
+        }
+
+        // --- Zoom ---
+        if (zoomVisible) {
+            modelList.add(
+                    new MVCListAdapter.ListItem(
+                            AppMenuHandler.AppMenuItemType.STANDARD,
+                            buildModelForStandardMenuItem(
+                                    R.id.page_zoom_id, R.string.page_zoom_menu_title, 0)));
         }
         return modelList;
     }
@@ -452,7 +495,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                            .build();
            modelList.add(
                    new MVCListAdapter.ListItem(AppMenuHandler.AppMenuItemType.STANDARD, model));
-        } else {
+        } else { // Vivaldi
         String title =
                 mIsOffTheRecord
                         ? ContextUtils.getApplicationContext()
@@ -463,9 +506,9 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                         .with(AppMenuItemProperties.TITLE, title)
                         .build();
         if (showIcon) {
-           model.set(
-                   AppMenuItemProperties.ICON,
-                   AppCompatResources.getDrawable(mContext, R.drawable.ic_open_in_new_white_24dp));
+            model.set(
+                    AppMenuItemProperties.ICON,
+                    AppCompatResources.getDrawable(mContext, R.drawable.ic_open_in_new_white_24dp));
         }
         modelList.add(new MVCListAdapter.ListItem(AppMenuHandler.AppMenuItemType.STANDARD, model));
         } // Vivaldi

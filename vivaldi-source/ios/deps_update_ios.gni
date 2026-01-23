@@ -134,7 +134,8 @@ update_target("//ios/chrome/browser/web/model:web_internal") {
     "//vivaldi/ios/background_audio:background_audio",
     "//vivaldi/ios/reader_mode:vivaldi_reader_mode_feature",
     "//vivaldi/ios/website_dark_mode:website_dark_mode",
-    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings"
+    "//vivaldi/ios/ui/settings/appearance:vivaldi_appearance_settings",
+    "//vivaldi/ios/search:vivaldi_add_search_engine_feature",
   ]
 }
 
@@ -156,7 +157,7 @@ update_target("//ios/chrome/browser/first_run/ui_bundled:ui_bundled") {
   deps += [
     "//vivaldi/ios/in_app_rating:vivaldi_in_app_rating_manager_swift",
     "//vivaldi/ios/ui/common:vivaldi_common",
-    "//vivaldi/ios/ui/context_menu:context_menu",
+    "//vivaldi/ios/ui/vivaldi_symbols:vivaldi_symbols",
     "//vivaldi/ios/ui/custom_views:custom_views",
     "//vivaldi/ios/ui/helpers:helpers",
     "//vivaldi/ios/ui/onboarding:vivaldi_onboarding",
@@ -188,6 +189,7 @@ update_target("//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid:grid_u
 update_target("//ios/chrome/browser/browser_container/ui_bundled:ui") {
   deps += [
     "//vivaldi/ios/ui/copy_to_note",
+    "//vivaldi/ios/ui/search_engine/add_search_engine:vivaldi_add_search_engine",
   ]
 }
 
@@ -258,6 +260,18 @@ update_target("//ios/chrome/browser/infobars/model:badge") {
 # Icons for the iPad main menu
 update_target("//ios/chrome/browser/keyboard/ui_bundled:ui_bundled") {
   deps += [
-    "//vivaldi/ios/ui/context_menu/resources:vivaldi_context_menu_assets",
+    "//vivaldi/ios/ui/vivaldi_symbols/resources:vivaldi_symbol_assets",
+  ]
+}
+
+update_target("//ios/chrome/share_extension:share") {
+  deps += [
+    "//vivaldi//ios/ui/autofill/resources:vivaldi_autofill_assets",
+  ]
+}
+
+update_template_instance("//ios/chrome/app/resources:system_strings") {
+  deps += [
+    "//vivaldi/ios/ui/main_menu:merge_vivaldi_localize_strings",
   ]
 }

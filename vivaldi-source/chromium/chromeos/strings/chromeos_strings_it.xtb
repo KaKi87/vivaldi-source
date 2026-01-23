@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">arance</translation>
 <translation id="1275718070701477396">Selezionato</translation>
 <translation id="1290331692326790741">Segnale debole</translation>
+<translation id="1292474106138697109">Display Strumenti del corso</translation>
 <translation id="1300115153046603471">APN è di tipo predefinito e <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">Converti</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> immagini</translation>
 <translation id="4300272766492248925">Apri app</translation>
 <translation id="430786093962686457">chiffon</translation>
+<translation id="4309762678330556039">Crea automaticamente trascrizioni e cerca l'audio. Puoi creare registrazioni anche quando non disponi di una connessione a internet.</translation>
 <translation id="4310735698903592804">Sfondi recenti IA di Google integrata</translation>
 <translation id="4320904097188876154">rosa neon</translation>
 <translation id="432961742358282111">Fai clic con il tasto destro del mouse o tieni premuto per ottenere definizioni, traduzioni o conversioni di unità. Utilizza i tasti Freccia destra o Freccia sinistra per gestire la funzionalità.</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">Altre opzioni</translation>
 <translation id="5600027863942488546">Tasto <ph name="KEY_NAME" /> testato</translation>
 <translation id="5606865426897221650">Tab</translation>
+<translation id="5612205513582918357">Strumenti del corso sta condividendo il tuo schermo con <ph name="RECEIVER_NAME" /></translation>
 <translation id="5613201299517339763">Account disconnesso</translation>
 <translation id="5620281292257375798">Solo per uso interno</translation>
 <translation id="5628106863521633649">Lingue disponibili</translation>

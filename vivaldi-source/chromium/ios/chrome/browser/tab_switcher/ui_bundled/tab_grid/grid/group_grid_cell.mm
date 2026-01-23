@@ -13,6 +13,7 @@
 #import "base/strings/string_number_conversions.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/saved_tab_groups/ui/face_pile_providing.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -29,6 +30,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_constants.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -53,6 +55,15 @@ const CGFloat kTopBarLargeInset = 20;
 
 // The face pile view.
 @property(nonatomic, strong) UIView* facePile;
+// Border for when the cell is selected.
+@property(nonatomic, strong) UIView* border;
+// UI elements for highlighted state.
+// Container for the cell's contents to enable shrinking transform.
+@property(nonatomic, strong) UIView* containerView;
+// Background view to show while cell is highlighted.
+@property(nonatomic, strong) UIView* groupingBackgroundView;
+// Dimming view over the cell contents while cell is highlighted.
+@property(nonatomic, strong) UIView* dimmingView;
 
 @end
 
@@ -78,9 +89,9 @@ const CGFloat kTopBarLargeInset = 20;
   // Since the close icon dimensions are smaller than the recommended tap target
   // size, use an overlaid tap target button.
   UIButton* _closeTapTargetButton;
-  UIView* _border;
-
   TabGroupSnapshotsView* _groupSnapshotsView;
+  // YES if the cell is currently highlighted.
+  BOOL _highlighted;
 }
 
 // `-dequeueReusableCellWithReuseIdentifier:forIndexPath:` calls this method to
@@ -98,9 +109,23 @@ const CGFloat kTopBarLargeInset = 20;
     self.backgroundColor = [UIColor colorNamed:kGridBackgroundColor];
 
     [self setupSelectedBackgroundView];
-    UIView* contentView = self.contentView;
-    contentView.layer.cornerRadius = kGridCellCornerRadius;
-    contentView.layer.masksToBounds = YES;
+    self.contentView.layer.cornerRadius = kGridCellCornerRadius;
+    self.contentView.layer.masksToBounds = YES;
+    UIView* contentContainer = self.contentView;
+
+    if (IsTabGridDragAndDropEnabled()) {
+      UIView* containerView = [[UIView alloc] init];
+      containerView.translatesAutoresizingMaskIntoConstraints = NO;
+      containerView.backgroundColor =
+          [UIColor colorNamed:kSecondaryBackgroundColor];
+      containerView.layer.cornerRadius = kGridCellCornerRadius;
+      containerView.layer.masksToBounds = YES;
+      [self.contentView addSubview:containerView];
+      _containerView = containerView;
+      AddSameConstraints(self.contentView, containerView);
+      contentContainer = _containerView;
+    }
+
     [self setupTopBar];
     _groupSnapshotsView = [[TabGroupSnapshotsView alloc]
         initWithLightInterface:self.theme == GridThemeLight
@@ -116,9 +141,9 @@ const CGFloat kTopBarLargeInset = 20;
     _closeTapTargetButton.accessibilityIdentifier =
         kGridCellCloseButtonIdentifier;
 
-    [contentView addSubview:_topBar];
-    [contentView addSubview:_groupSnapshotsView];
-    [contentView addSubview:_closeTapTargetButton];
+    [contentContainer addSubview:_topBar];
+    [contentContainer addSubview:_groupSnapshotsView];
+    [contentContainer addSubview:_closeTapTargetButton];
     _opacity = 1.0;
 
     self.contentView.backgroundColor =
@@ -140,35 +165,67 @@ const CGFloat kTopBarLargeInset = 20;
     _groupSnapshotsView.layer.masksToBounds = YES;
 
     NSArray* constraints = @[
-      [_topBar.topAnchor constraintEqualToAnchor:contentView.topAnchor],
-      [_topBar.leadingAnchor constraintEqualToAnchor:contentView.leadingAnchor],
+      [_topBar.topAnchor constraintEqualToAnchor:contentContainer.topAnchor],
+      [_topBar.leadingAnchor
+          constraintEqualToAnchor:contentContainer.leadingAnchor],
       [_topBar.trailingAnchor
-          constraintEqualToAnchor:contentView.trailingAnchor],
+          constraintEqualToAnchor:contentContainer.trailingAnchor],
       [_groupSnapshotsView.topAnchor
           constraintEqualToAnchor:_topBar.bottomAnchor],
       [_groupSnapshotsView.leadingAnchor
-          constraintEqualToAnchor:contentView.leadingAnchor
+          constraintEqualToAnchor:contentContainer.leadingAnchor
                          constant:kSnapshotViewLeadingOffset],
       [_groupSnapshotsView.trailingAnchor
-          constraintEqualToAnchor:contentView.trailingAnchor
+          constraintEqualToAnchor:contentContainer.trailingAnchor
                          constant:-kSnapshotViewTrailingOffset],
       [_groupSnapshotsView.bottomAnchor
-          constraintEqualToAnchor:contentView.bottomAnchor
+          constraintEqualToAnchor:contentContainer.bottomAnchor
                          constant:-kSnapShotViewBottomOffset],
       [_closeTapTargetButton.topAnchor
-          constraintEqualToAnchor:contentView.topAnchor],
+          constraintEqualToAnchor:contentContainer.topAnchor],
       [_closeTapTargetButton.trailingAnchor
-          constraintEqualToAnchor:contentView.trailingAnchor],
+          constraintEqualToAnchor:contentContainer.trailingAnchor],
       [_closeTapTargetButton.widthAnchor
           constraintEqualToConstant:kGridCellCloseTapTargetWidthHeight],
       [_closeTapTargetButton.heightAnchor
           constraintEqualToConstant:kGridCellCloseTapTargetWidthHeight],
     ];
     [NSLayoutConstraint activateConstraints:constraints];
-  }
 
-  [self registerForTraitChanges:@[ UITraitPreferredContentSizeCategory.class ]
-                     withAction:@selector(updateTopBarConstraints)];
+    if (IsTabGridDragAndDropEnabled()) {
+      self.groupingBackgroundView = [[UIView alloc] initWithFrame:self.bounds];
+      self.groupingBackgroundView.translatesAutoresizingMaskIntoConstraints =
+          NO;
+      self.groupingBackgroundView.backgroundColor =
+          [UIColor colorNamed:kStaticBlue400Color];
+      self.groupingBackgroundView.layer.cornerRadius = kGridCellCornerRadius;
+      self.groupingBackgroundView.layer.masksToBounds = YES;
+      self.groupingBackgroundView.alpha = 0.0;
+      self.groupingBackgroundView.hidden = YES;
+      // Insert it behind the cell's contentView
+      [self addSubview:self.groupingBackgroundView];
+      [self.contentView insertSubview:self.groupingBackgroundView
+                         belowSubview:self.containerView];
+      AddSameConstraints(self.groupingBackgroundView, self);
+
+      self.dimmingView = [[UIView alloc] initWithFrame:self.bounds];
+      self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
+      self.dimmingView.backgroundColor =
+          [[UIColor blackColor] colorWithAlphaComponent:0.5];
+      self.dimmingView.hidden = YES;
+      self.dimmingView.alpha = 0.0;
+      [contentContainer addSubview:self.dimmingView];
+      AddSameConstraints(self.dimmingView, contentContainer);
+    }
+
+    [self registerForTraitChanges:@[ UITraitPreferredContentSizeCategory.class ]
+                       withAction:@selector(updateTopBarConstraints)];
+
+    if (IsVivaldiRunning()) {
+      [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+              withAction:@selector(updateBorderColorForCurrentTheme)];
+    } // End Vivaldi
+  }
   return self;
 }
 
@@ -180,6 +237,7 @@ const CGFloat kTopBarLargeInset = 20;
   // Note: (prio@vivaldi.com) - Do no override window since we only
   // override it with browser theme settings.
   if (IsVivaldiRunning()) {
+    [self updateBorderColorForCurrentTheme];
     return;
   } // End Vivaldi
 
@@ -202,6 +260,9 @@ const CGFloat kTopBarLargeInset = 20;
   self.opacity = 1.0;
   self.hidden = NO;
   self.facePileProvider = nil;
+  if (IsTabGridDragAndDropEnabled()) {
+    [self setHighlightForGrouping:NO];
+  }
 }
 
 #pragma mark - UIAccessibility
@@ -243,6 +304,35 @@ const CGFloat kTopBarLargeInset = 20;
   return [_groupSnapshotsView allGroupTabViews];
 }
 
+- (void)setHighlightForGrouping:(BOOL)highlight {
+  CHECK(IsTabGridDragAndDropEnabled());
+  if (_highlighted == highlight) {
+    return;
+  }
+  _highlighted = highlight;
+
+  __weak __typeof(self) weakSelf = self;
+  if (highlight) {
+    // Shrink and dim contents of cell while revealing blue background covering
+    // rest of the cell.
+    [UIView animateWithDuration:kGridCellHighlightDuration
+                     animations:^{
+                       [weakSelf highlightCell];
+                     }];
+
+  } else {
+    [UIView animateWithDuration:kGridCellHighlightDuration
+        animations:^{
+          [weakSelf resetHighlight];
+        }
+        completion:^(BOOL finished) {
+          GroupGridCell* strongSelf = weakSelf;
+          strongSelf.dimmingView.hidden = YES;
+          strongSelf.groupingBackgroundView.hidden = YES;
+        }];
+  }
+}
+
 #pragma mark - Setters
 
 // Updates the theme to either dark or light. Updating is only done if the
@@ -251,6 +341,13 @@ const CGFloat kTopBarLargeInset = 20;
   if (_theme == theme) {
     return;
   }
+
+  // Note: (prio@vivaldi.com) - Do no override theme since we only
+  // override it with browser theme settings.
+  if (IsVivaldiRunning()) {
+    [self updateBorderColorForCurrentTheme];
+    return;
+  } // End Vivaldi
 
   // The light and dark themes have different colored borders based on the
   // theme, regardless of dark mode, so `overrideUserInterfaceStyle` is not
@@ -559,6 +656,10 @@ const CGFloat kTopBarLargeInset = 20;
                        traitCollection:(UITraitCollection*)traitCollection {
   self.overrideUserInterfaceStyle =
       self.window.windowScene.traitCollection.userInterfaceStyle;
+
+  if (IsVivaldiRunning()) {
+    [self updateBorderColorForCurrentTheme];
+  } // End Vivaldi
 }
 
 // Updates the top bar constraints accoring to the availability of
@@ -591,5 +692,43 @@ const CGFloat kTopBarLargeInset = 20;
                                 base::NumberToString16(_tabsCount));
   }
 }
+
+// Animations to highlight this cell.
+- (void)highlightCell {
+  self.groupingBackgroundView.alpha = 1.0;
+  self.groupingBackgroundView.hidden = NO;
+  self.dimmingView.hidden = NO;
+  self.dimmingView.alpha = 1.0;
+  [self.containerView bringSubviewToFront:self.dimmingView];
+  self.containerView.transform = CGAffineTransformMakeScale(
+      kGridCellHighlightScaleTransform, kGridCellHighlightScaleTransform);
+  if (!self.border.hidden) {
+    // If cell is selected, then fill in space between
+    // border and the cell view to merge into one blue
+    // background with _groupingBackgroundView.
+    self.border.layer.borderWidth =
+        kGridCellSelectionRingGapWidth + kGridCellSelectionRingTintWidth + 1;
+  }
+}
+
+// Animations to reset the highlight of this cell.
+- (void)resetHighlight {
+  self.groupingBackgroundView.alpha = 0.0;
+  self.dimmingView.alpha = 0.0;
+  self.containerView.transform = CGAffineTransformIdentity;
+  if (!self.border.hidden) {
+    self.border.layer.borderWidth = kGridCellSelectionRingTintWidth;
+  }
+}
+
+// Vivaldi
+- (void)updateBorderColorForCurrentTheme {
+  _border.layer.borderColor = !_border.hidden ?
+    [UIColor colorNamed:vTabGridSelectedColor].CGColor :
+    [UIColor colorNamed:vTabGridNotSelectedColor].CGColor;
+  _border.layer.borderWidth = !_border.hidden ?
+      vTabGridSelectedBorderWidth : vTabGridNotSelectedBorderWidth;
+}
+// End Vivaldi
 
 @end

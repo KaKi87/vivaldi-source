@@ -138,7 +138,8 @@ bool UsePackagedAppHeaderStyle(const Browser* browser) {
     return false;
   }
 
-  return !browser->SupportsWindowFeature(Browser::FEATURE_TABSTRIP);
+  return !browser->SupportsWindowFeature(
+      Browser::WindowFeature::kFeatureTabStrip);
 }
 
 // Whether or not the window's title should show the avatar. Practically,
@@ -204,9 +205,8 @@ BrowserFrameViewChromeOS::BrowserFrameViewChromeOS(BrowserWidget* widget,
 }
 
 BrowserFrameViewChromeOS::~BrowserFrameViewChromeOS() {
-  ImmersiveModeController* immersive_controller =
-      browser_view()->immersive_mode_controller();
-  if (immersive_controller) {
+  if (auto* immersive_controller =
+          ImmersiveModeController::From(browser_view()->browser())) {
     immersive_controller->RemoveObserver(this);
   }
 
@@ -265,7 +265,7 @@ void BrowserFrameViewChromeOS::Init() {
     UpdateBorderlessModeEnabled();
   }
 
-  browser_view()->immersive_mode_controller()->AddObserver(this);
+  ImmersiveModeController::From(browser_view()->browser())->AddObserver(this);
 }
 
 BrowserLayoutParams BrowserFrameViewChromeOS::GetBrowserLayoutParams() const {
@@ -281,8 +281,13 @@ BrowserLayoutParams BrowserFrameViewChromeOS::GetBrowserLayoutParams() const {
   }
   if (GetShowCaptionButtonsWhenNotInOverview()) {
     const auto caption_bounds = caption_button_container_->bounds();
+    // When the tabstrip is present, the caption button container is cut down to
+    // the preferred height of the tabstrip.
+    const int tabstrip_height = browser_view()->GetTabStripHeight();
+    const int height =
+        tabstrip_height ? tabstrip_height : caption_bounds.height();
     params.trailing_exclusion.content =
-        gfx::SizeF(width() - caption_bounds.x(), caption_bounds.bottom());
+        gfx::SizeF(width() - caption_bounds.x(), height);
   }
   return params;
 }
@@ -299,15 +304,6 @@ gfx::Rect BrowserFrameViewChromeOS::GetBoundsForTabStripRegion(
 
 gfx::Rect BrowserFrameViewChromeOS::GetBoundsForWebAppFrameToolbar(
     const gfx::Size& toolbar_preferred_size) const {
-  if (!GetShowCaptionButtons()) {
-    return gfx::Rect();
-  }
-  if (browser_view()->browser()->is_type_app_popup() &&
-      !browser_view()->AppUsesWindowControlsOverlay() &&
-      !browser_view()->AppUsesBorderlessMode()) {
-    return gfx::Rect();
-  }
-
   const int x = GetToolbarLeftInset();
   const int available_width = caption_button_container_->x() - x;
   int painted_height = GetTopInset(false);
@@ -317,14 +313,28 @@ gfx::Rect BrowserFrameViewChromeOS::GetBoundsForWebAppFrameToolbar(
   return gfx::Rect(x, 0, std::max(0, available_width), painted_height);
 }
 
+bool BrowserFrameViewChromeOS::ShouldShowWebAppFrameToolbar() const {
+  if (!GetShowCaptionButtons()) {
+    return false;
+  }
+
+  if (browser_view()->browser()->is_type_app_popup() &&
+      !browser_view()->AppUsesWindowControlsOverlay() &&
+      !browser_view()->AppUsesBorderlessMode()) {
+    return false;
+  }
+
+  return true;
+}
+
 int BrowserFrameViewChromeOS::GetTopInset(bool restored) const {
   // TODO(estade): why do callsites in this class hardcode false for |restored|?
 
   if (!GetShouldPaint()) {
     // When immersive fullscreen unrevealed, tabstrip is offscreen with normal
-    // tapstrip bounds, the top inset should reach this topmost edge.
-    const ImmersiveModeController* const immersive_controller =
-        browser_view()->immersive_mode_controller();
+    // tabstrip bounds, the top inset should reach this topmost edge.
+    const auto* const immersive_controller =
+        ImmersiveModeController::From(browser_view()->browser());
     if (immersive_controller->IsEnabled() &&
         !immersive_controller->IsRevealed()) {
       return (-1) * browser_view()->GetTabStripHeight();
@@ -362,10 +372,6 @@ void BrowserFrameViewChromeOS::UpdateThrobber(bool running) {
   if (window_icon_) {
     window_icon_->Update();
   }
-}
-
-bool BrowserFrameViewChromeOS::CanUserExitFullscreen() const {
-  return !platform_util::IsBrowserLockedFullscreen(browser_view()->browser());
 }
 
 SkColor BrowserFrameViewChromeOS::GetCaptionColor(
@@ -446,9 +452,8 @@ int BrowserFrameViewChromeOS::NonClientHitTest(const gfx::Point& point) {
   // When the window is restored (and not in tablet split-view mode) we want a
   // large click target above the tabs to drag the window, so redirect clicks in
   // the tab's shadow to caption.
-  if (hit_test == HTCLIENT && !browser_widget()->IsMaximized() &&
-      !browser_widget()->IsFullscreen() &&
-      !display::Screen::Get()->InTabletMode()) {
+  if (hit_test == HTCLIENT &&
+      chromeos::ShouldShowResizeBorder(GetWidget()->GetNativeWindow())) {
     // TODO(crbug.com/40768579): Tab Strip hit calculation and bounds logic
     // should reside in the TabStrip class.
     gfx::Point client_point(point);
@@ -633,12 +638,11 @@ bool BrowserFrameViewChromeOS::DoesIntersectRect(const views::View* target,
     return false;
   }
 
-  bool should_leave_to_top_container = false;
   // In immersive mode, the caption buttons container is reparented to the
   // TopContainerView and hence |rect| should not be claimed here.  See
   // BrowserFrameViewChromeOS::OnImmersiveRevealStarted().
-  should_leave_to_top_container =
-      browser_view()->immersive_mode_controller()->IsRevealed();
+  const bool should_leave_to_top_container =
+      ImmersiveModeController::From(browser_view()->browser())->IsRevealed();
 
   return !should_leave_to_top_container;
 }
@@ -703,7 +707,8 @@ void BrowserFrameViewChromeOS::OnDisplayMetricsChanged(
 }
 
 void BrowserFrameViewChromeOS::OnTabletModeToggled(bool enabled) {
-  if (!enabled && browser_view()->immersive_mode_controller()->IsRevealed()) {
+  if (!enabled &&
+      ImmersiveModeController::From(browser_view()->browser())->IsRevealed()) {
     // Before updating the caption buttons state below (which triggers a
     // relayout), we want to move the caption buttons from the
     // TopContainerView back to this view.
@@ -714,8 +719,8 @@ void BrowserFrameViewChromeOS::OnTabletModeToggled(bool enabled) {
   caption_button_container_->SetVisible(should_show_caption_buttons);
   caption_button_container_->UpdateCaptionButtonState(true /*=animate*/);
 
-  ImmersiveModeController* immersive_mode_controller =
-      browser_view()->immersive_mode_controller();
+  auto* const immersive_mode_controller =
+      ImmersiveModeController::From(browser_view()->browser());
   const bool was_immersive = immersive_mode_controller->IsEnabled();
 
   // Set the immersive mode to what it should be because an immersive mode may
@@ -816,8 +821,8 @@ void BrowserFrameViewChromeOS::OnWindowPropertyChanged(aura::Window* window,
     // fullscreen states (fullscreen <> pinneed), the immersive mode is updated
     // in `BrowserView::FullscreenStateChanged`.
     if (!is_fullscreen && !was_fullscreen) {
-      browser_view()->immersive_mode_controller()->SetEnabled(
-          ShouldEnableImmersiveModeController());
+      ImmersiveModeController::From(browser_view()->browser())
+          ->SetEnabled(ShouldEnableImmersiveModeController());
     }
 
     return;
@@ -895,7 +900,7 @@ bool BrowserFrameViewChromeOS::ShouldEnableImmersiveModeController() const {
     return false;
   }
 
-  if (IsTrustedPinned() &&
+  if (IsLockedFullscreen() &&
       !GetFrameWindow()->GetProperty(chromeos::kUseImmersiveInTrustedPinned)) {
     return false;
   }
@@ -924,9 +929,9 @@ bool BrowserFrameViewChromeOS::ShouldShowAvatarForTesting(
   return ShouldShowAvatar(window);
 }
 
-bool BrowserFrameViewChromeOS::IsTrustedPinned() const {
+bool BrowserFrameViewChromeOS::IsLockedFullscreen() const {
   return ash::WindowState::Get(browser_widget()->GetNativeWindow())
-      ->IsTrustedPinned();
+      ->IsLockedFullscreen();
 }
 
 void BrowserFrameViewChromeOS::PaintAsActiveChanged() {
@@ -970,7 +975,7 @@ bool BrowserFrameViewChromeOS::GetShowCaptionButtonsWhenNotInOverview() const {
   // state. This is to show the three dot menu which is a part of caption button
   // container, rather than showing buttons. Only relevant for non-web browser
   // scenarios.
-  if (IsTrustedPinned() &&
+  if (IsLockedFullscreen() &&
       GetFrameWindow()->GetProperty(chromeos::kUseImmersiveInTrustedPinned)) {
     return true;
   }
@@ -1032,8 +1037,8 @@ bool BrowserFrameViewChromeOS::GetShouldPaint() const {
 
   // We need to paint when the top-of-window views are revealed in immersive
   // fullscreen.
-  ImmersiveModeController* immersive_mode_controller =
-      browser_view()->immersive_mode_controller();
+  auto* const immersive_mode_controller =
+      ImmersiveModeController::From(browser_view()->browser());
   if (immersive_mode_controller->IsEnabled()) {
     return immersive_mode_controller->IsRevealed();
   }
@@ -1070,7 +1075,7 @@ BrowserFrameViewChromeOS::CreateFrameHeader() {
 void BrowserFrameViewChromeOS::UpdateTopViewInset() {
   // In immersive fullscreen mode, the top view inset property should be 0.
   const bool immersive =
-      browser_view()->immersive_mode_controller()->IsEnabled();
+      ImmersiveModeController::From(browser_view()->browser())->IsEnabled();
   const bool tab_strip_visible = browser_view()->GetTabStripVisible();
   const int inset = (tab_strip_visible || immersive ||
                      (AppIsPwaWithBorderlessDisplayMode() &&
@@ -1187,7 +1192,8 @@ bool BrowserFrameViewChromeOS::GetHideCaptionButtonsForFullscreen() const {
     return false;
   }
 
-  auto* immersive_controller = browser_view()->immersive_mode_controller();
+  auto* const immersive_controller =
+      ImmersiveModeController::From(browser_view()->browser());
 
   // In fullscreen view, but not in immersive mode. Hide the caption buttons.
   if (!immersive_controller || !immersive_controller->IsEnabled()) {

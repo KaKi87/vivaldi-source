@@ -76,12 +76,6 @@ class ManagePasswordsUIController
 
   ~ManagePasswordsUIController() override;
 
-#if defined(UNIT_TEST)
-  static void set_save_fallback_timeout_in_seconds(int timeout) {
-    save_fallback_timeout_in_seconds_ = timeout;
-  }
-#endif
-
   // PasswordsClientUIDelegate:
   void OnPasswordSubmitted(
       std::unique_ptr<password_manager::PasswordFormManagerForUI> form_manager)
@@ -222,6 +216,13 @@ class ManagePasswordsUIController
   [[nodiscard]] std::unique_ptr<base::AutoReset<bool>>
   BypassUserAuthtForTesting();
 #if defined(UNIT_TEST)
+  // Returns the dialog controller to check if there is a dialog open.
+  PasswordBaseDialogController* dialog_controller() {
+    return dialog_controller_.get();
+  }
+  static void set_save_fallback_timeout_in_seconds(int timeout) {
+    save_fallback_timeout_in_seconds_ = timeout;
+  }
   // Overwrites the client for |passwords_data_|.
   void set_client(password_manager::PasswordManagerClient* client) {
     passwords_data_.set_client(client);
@@ -230,7 +231,9 @@ class ManagePasswordsUIController
 
   // BubbleControllerBase:
   void ShowBubble() override;
-  void HideBubble() override;
+  void HideBubble(bool initiated_by_bubble_manager) override;
+  void OnBubbleDiscarded() override {}
+  bool CanBeReshown() const override;
   autofill::BubbleType GetBubbleType() const override;
   bool IsShowingBubble() const override;
   bool IsMouseHovered() const override;
@@ -378,6 +381,10 @@ class ManagePasswordsUIController
       const std::u16string& username,
       const std::u16string& password,
       const std::u16string& password_backup) const;
+
+  // Returns true if there exists a password manager bubble yet to be shown in
+  // the `autofill::BubbleManager` queue.
+  bool BubbleManagerHasPasswordBubbleInQueue() const;
 
   // Timeout in seconds for the manual fallback for saving.
   static int save_fallback_timeout_in_seconds_;

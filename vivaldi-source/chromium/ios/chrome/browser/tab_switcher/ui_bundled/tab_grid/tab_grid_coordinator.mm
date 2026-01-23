@@ -47,10 +47,6 @@
 #import "ios/chrome/browser/menu/ui_bundled/tab_context_menu_delegate.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_browser_agent.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_mediator.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_menu_helper.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_presentation_delegate.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller.h"
 #import "ios/chrome/browser/saved_tab_groups/model/ios_tab_group_sync_util.h"
 #import "ios/chrome/browser/saved_tab_groups/model/tab_group_sync_service_factory.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
@@ -145,6 +141,12 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_mediator.h"
+#import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_menu_helper.h"
+#import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_menu_helper.h"
+#import "ios/chrome/browser/recent_tabs/ui/recent_tabs_presentation_delegate.h"
+#import "ios/chrome/browser/recent_tabs/ui/recent_tabs_table_view_controller.h"
+#import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_activity_observer.h"
 #import "ios/panel/panel_interaction_controller.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -188,7 +190,6 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                   HistoryPresentationDelegate,
                                   InactiveTabsCoordinatorDelegate,
                                   LegacyGridTransitionAnimationLayoutProviding,
-                                  RecentTabsPresentationDelegate,
                                   SceneStateObserver,
                                   SnackbarCoordinatorDelegate,
                                   TabContextMenuDelegate,
@@ -196,6 +197,12 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                   TabGridTransitionLayoutProviding,
                                   TabGridViewControllerDelegate,
                                   TabGroupPositioner,
+
+                                  // Vivaldi
+                                  RecentTabsPresentationDelegate,
+                                  TabGridActivityObserver,
+                                  // End Vivaldi
+
                                   TabPresentationDelegate> {
   // Use an explicit ivar instead of synthesizing as the setter isn't using the
   // ivar.
@@ -789,6 +796,12 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       determineTabGridTransitionTypeWithAnimationEnabled:animationEnabled];
 
   Browser* browser = isIncognito ? self.incognitoBrowser : self.regularBrowser;
+  if (!browser) {
+    // The browser can be nil here, for example when switching account. Do not
+    // try to call the completion block as the code assumes there is a browser.
+    // See crbug.com/466376004.
+    return;
+  }
   web::WebState* activeWebState =
       browser->GetWebStateList()->GetActiveWebState();
   BOOL isRegularBrowserNTP = !isIncognito && activeWebState &&
@@ -2173,6 +2186,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                  TabGridPageConfiguration::kIncognitoPageOnly
                       modeHolder:_modeHolder];
   self.remoteTabsMediator.browser = self.regularBrowser;
+  self.remoteTabsMediator.tabGridPage = TabGridPageRemoteTabs;
   self.remoteTabsMediator.consumer = baseViewController.remoteTabsConsumer;
   self.remoteTabsMediator.tabGridHandler = self;
   baseViewController.remoteTabsViewController.imageDataSource =
@@ -2182,7 +2196,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   baseViewController.remoteTabsViewController.loadStrategy =
       UrlLoadStrategy::ALWAYS_NEW_FOREGROUND_TAB;
   baseViewController.remoteTabsViewController.presentationDelegate = self;
-  baseViewController.activityObserver = self.remoteTabsMediator;
+  baseViewController.activityObserver = self;
 
   baseViewController.remoteTabsViewController.page = TabGridPageRemoteTabs;
 
@@ -2231,6 +2245,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                   TabGridPageConfiguration::kIncognitoPageOnly
                        modeHolder:_modeHolder];
 
+  self.closedTabsMediator.tabGridPage = TabGridPageClosedTabs;
   self.closedTabsMediator.consumer = baseViewController.closedTabsConsumer;
   self.closedTabsMediator.tabGridHandler = self;
   baseViewController.closedTabsViewController.imageDataSource =
@@ -2247,6 +2262,13 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     [self.closedTabsMediator initObservers];
     [self.closedTabsMediator refreshSessionsView];
   }
+}
+
+#pragma mark - TabGridActivityObserver
+
+- (void)updateLastActiveTabPage:(TabGridPage)page {
+  [self.remoteTabsMediator updateLastActiveTabPage:page];
+  [self.closedTabsMediator updateLastActiveTabPage:page];
 }
 
 // Initializes the panel interaction controller if not already initialized.

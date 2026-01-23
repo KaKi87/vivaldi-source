@@ -17,8 +17,6 @@ cipd_pick_list = [
   "ui/gl/resources/angle-metal",
   "build/linux/debian_bullseye_amd64-sysroot",
   "build/linux/debian_bullseye_arm64-sysroot",
-  "build/linux/debian_bullseye_armhf-sysroot",
-  "build/linux/debian_bullseye_i386-sysroot",
   "third_party/test_fonts",
   "third_party/subresource-filter-ruleset/data",
   "third_party/node/node_modules",

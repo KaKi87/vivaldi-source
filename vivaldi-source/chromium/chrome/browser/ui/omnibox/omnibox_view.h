@@ -17,6 +17,7 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/safety_checks.h"
 #include "build/build_config.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/omnibox_client.h"
@@ -28,9 +29,11 @@
 
 class OmniboxController;
 class OmniboxEditModel;
-class OmniboxViewMacTest;
 
 class OmniboxView {
+  // TODO(crbug.com/392015004): Remove this macro once it gets fixed.
+  ADVANCED_MEMORY_SAFETY_CHECKS();
+
  public:
   using IconFetchedCallback = base::OnceCallback<void(const gfx::Image& icon)>;
 
@@ -51,12 +54,6 @@ class OmniboxView {
   OmniboxView(const OmniboxView&) = delete;
   OmniboxView& operator=(const OmniboxView&) = delete;
   virtual ~OmniboxView();
-
-  OmniboxEditModel* model();
-  const OmniboxEditModel* model() const;
-
-  OmniboxController* controller();
-  const OmniboxController* controller() const;
 
   // Called when any relevant state changes other than changing tabs.
   virtual void Update() = 0;
@@ -137,11 +134,6 @@ class OmniboxView {
   // Updates the autocomplete popup and other state after the text has been
   // changed by the user.
   virtual void UpdatePopup() = 0;
-
-  // Closes the autocomplete popup, if it's open. The name |ClosePopup|
-  // conflicts with the OSX class override as that has a base class that also
-  // defines a method with that name.
-  virtual void CloseOmniboxPopup();
 
   // Sets the focus to the omnibox. |is_user_initiated| is true when the user
   // explicitly focused the omnibox, and false when the omnibox was
@@ -229,7 +221,7 @@ class OmniboxView {
     gfx::Range selection;
   };
 
-  explicit OmniboxView(std::unique_ptr<OmniboxClient> client);
+  explicit OmniboxView(OmniboxController* controller);
 
   // Returns the current text state.
   State GetState() const;
@@ -267,11 +259,12 @@ class OmniboxView {
                        const bool text_is_url,
                        const AutocompleteSchemeClassifier& classifier);
 
- private:
-  friend class OmniboxViewMacTest;
-  friend class TestOmniboxView;
+  virtual OmniboxController* controller();
+  virtual const OmniboxController* controller() const;
 
-  const std::unique_ptr<OmniboxController> controller_;
+ private:
+  // Owned by the LocationBarView that owns this. Outlives this.
+  raw_ptr<OmniboxController> controller_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_OMNIBOX_OMNIBOX_VIEW_H_

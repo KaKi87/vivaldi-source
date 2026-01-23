@@ -7,21 +7,32 @@
 
 #include "base/memory/raw_ref.h"
 #include "components/wallet/content/browser/content_walletable_pass_ingestion_controller.h"
+#include "components/wallet/core/browser/data_models/walletable_pass.h"
 #include "components/wallet/core/browser/walletable_pass_client.h"
 
 namespace optimization_guide {
 class OptimizationGuideDecider;
-class OptimizationGuideModelExecutor;
+class RemoteModelExecutor;
 }  // namespace optimization_guide
 
+namespace strike_database {
+class StrikeDatabaseBase;
+}  // namespace strike_database
 namespace tabs {
 class TabInterface;
 }  // namespace tabs
+
+class PrefService;
+
+namespace signin {
+class IdentityManager;
+}  // namespace signin
 
 namespace wallet {
 
 class ContentWalletablePassIngestionController;
 class WalletablePassConsentBubbleController;
+class WalletablePassSaveBubbleController;
 
 // The Chrome implementation of `wallet::WalletablePassClient`.
 //
@@ -38,9 +49,19 @@ class ChromeWalletablePassClient : public WalletablePassClient {
   // WalleablePassClient implementation.
   optimization_guide::OptimizationGuideDecider* GetOptimizationGuideDecider()
       override;
-  optimization_guide::OptimizationGuideModelExecutor*
-  GetOptimizationGuideModelExecutor() override;
+
+  optimization_guide::RemoteModelExecutor* GetRemoteModelExecutor() override;
+
+  strike_database::StrikeDatabaseBase* GetStrikeDatabase() override;
+  PrefService* GetPrefService() override;
+  signin::IdentityManager* GetIdentityManager() override;
+  GeoIpCountryCode GetGeoIpCountryCode() override;
+
   void ShowWalletablePassConsentBubble(
+      optimization_guide::proto::PassCategory pass_category,
+      WalletablePassBubbleResultCallback callback) override;
+  void ShowWalletablePassSaveBubble(
+      WalletablePass pass,
       WalletablePassBubbleResultCallback callback) override;
 
  private:
@@ -49,6 +70,7 @@ class ChromeWalletablePassClient : public WalletablePassClient {
   ContentWalletablePassIngestionController controller_;
   std::unique_ptr<WalletablePassConsentBubbleController>
       consent_bubble_controller_;
+  std::unique_ptr<WalletablePassSaveBubbleController> save_bubble_controller_;
 };
 
 }  // namespace wallet

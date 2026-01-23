@@ -13,33 +13,9 @@ namespace tabs {
 // chrome://tab-strip-internals
 BASE_FEATURE(kDebugUITabStrip, base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Splits pinned and unpinned tabs into separate TabStrips.
-// https://crbug.com/1346019
-BASE_FEATURE(kSplitTabStrip, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables tabs to scroll in the tabstrip. https://crbug.com/951078
-BASE_FEATURE(kScrollableTabStrip, base::FEATURE_DISABLED_BY_DEFAULT);
-const char kMinimumTabWidthFeatureParameterName[] = "minTabWidth";
-
-// Enables tab scrolling while dragging tabs in tabstrip
-// https://crbug.com/1145747
-BASE_FEATURE(kScrollableTabStripWithDragging,
-             "kScrollableTabStripWithDragging",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-const char kTabScrollingWithDraggingModeName[] = "tabScrollWithDragMode";
-
-// Enables different methods of overflow when scrolling tabs in tabstrip
-// https://crbug.com/951078
-BASE_FEATURE(kScrollableTabStripOverflow,
-             "kScrollableTabStripOverflow",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-const char kScrollableTabStripOverflowModeName[] = "tabScrollOverflow";
-
 BASE_FEATURE(kTabGroupHome, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kTabSearchPositionSetting, base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kTabGroupShortcuts, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kVerticalTabs, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -57,10 +33,6 @@ bool CanShowTabSearchPositionSetting() {
 #else
   return false;
 #endif
-}
-
-bool AreTabGroupShortcutsEnabled() {
-  return base::FeatureList::IsEnabled(kTabGroupShortcuts);
 }
 
 bool IsVerticalTabsFeatureEnabled() {

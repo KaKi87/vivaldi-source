@@ -23,6 +23,7 @@
 #import "ios/chrome/browser/shared/public/commands/qr_scanner_commands.h"
 #import "ios/chrome/browser/shared/public/commands/save_image_to_photos_command.h"
 #import "ios/chrome/browser/shared/public/commands/save_to_photos_commands.h"
+#import "ios/chrome/browser/shared/public/commands/search_image_with_lens_command.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/pasteboard_util.h"
@@ -35,7 +36,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -91,15 +92,15 @@ using vivaldi::IsVivaldiRunning;
 }
 
 - (UIAction*)actionToOpenInNewIncognitoTabWithBlock:(ProceduralBlock)block {
-
   if (IsVivaldiRunning()) {
-    UIImage* image = [UIImage imageNamed:vMenuPrivateTab];
+    UIImage* image =
+        CustomSymbolWithPointSize(vMenuPrivateTab, kSymbolActionPointSize);
     return [self actionWithTitle:l10n_util::GetNSString(
                                      IDS_IOS_OPEN_IN_PRIVATE_ACTION_TITLE)
                            image:image
                             type:MenuActionType::OpenInNewIncognitoTab
                            block:block];
-  } // End Vivaldi
+  }  // End Vivaldi
 
   UIImage* image =
       CustomSymbolWithPointSize(kIncognitoSymbol, kSymbolActionPointSize);
@@ -154,7 +155,8 @@ using vivaldi::IsVivaldiRunning;
                                               kSymbolActionPointSize);
 
   if (IsVivaldiRunning())
-    image = [UIImage imageNamed:vMenuOpenIn]; // End Vivaldi
+    image = CustomSymbolWithPointSize(vMenuOpenIn,
+                                      kSymbolActionPointSize);  // End Vivaldi
 
   UIAction* action = [self
       actionWithTitle:l10n_util::GetNSString(IDS_IOS_CONTENT_CONTEXT_OPENIMAGE)
@@ -178,7 +180,8 @@ using vivaldi::IsVivaldiRunning;
       CustomSymbolWithPointSize(kPhotoBadgePlusSymbol, kSymbolActionPointSize);
 
   if (IsVivaldiRunning())
-    image = [UIImage imageNamed:vMenuOpenImageInTab]; // End Vivaldi
+    image = CustomSymbolWithPointSize(vMenuOpenImageInTab,
+                                      kSymbolActionPointSize);  // End Vivaldi
 
   UIAction* action =
       [self actionWithTitle:l10n_util::GetNSString(
@@ -199,19 +202,20 @@ using vivaldi::IsVivaldiRunning;
       self.browser->GetCommandDispatcher(), ApplicationCommands);
 
   if (IsVivaldiRunning()) {
-    UIAction* action =
-        [self actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_NEW_TAB)
-                        image:[UIImage imageNamed:vMenuNewTab]
-                         type:MenuActionType::OpenNewTab
-                        block:^{
-                          [handler openURLInNewTab:[OpenNewTabCommand
-                                                       commandWithIncognito:NO]];
-                        }];
+    UIAction* action = [self
+        actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_NEW_TAB)
+                  image:CustomSymbolWithPointSize(vMenuNewTab,
+                                                  kSymbolActionPointSize)
+                   type:MenuActionType::OpenNewTab
+                  block:^{
+                    [handler openURLInNewTab:[OpenNewTabCommand
+                                                 commandWithIncognito:NO]];
+                  }];
     if (IsIncognitoModeForced(self.browser->GetProfile()->GetPrefs())) {
       action.attributes = UIMenuElementAttributesDisabled;
     }
     return action;
-  } // End Vivaldi
+  }  // End Vivaldi
 
   UIAction* action =
       [self actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_NEW_TAB)
@@ -233,20 +237,20 @@ using vivaldi::IsVivaldiRunning;
       self.browser->GetCommandDispatcher(), ApplicationCommands);
 
   if (IsVivaldiRunning()) {
-    UIAction* action =
-        [self actionWithTitle:l10n_util::GetNSString(
-                        IDS_IOS_NEW_INCOGNITO_TAB)
-                        image:[UIImage imageNamed:vMenuPrivateTab]
-                         type:MenuActionType::OpenNewIncognitoTab
-                        block:^{
-                          [handler openURLInNewTab:
-                              [OpenNewTabCommand commandWithIncognito:YES]];
-                        }];
+    UIAction* action = [self
+        actionWithTitle:l10n_util::GetNSString(IDS_IOS_NEW_INCOGNITO_TAB)
+                  image:CustomSymbolWithPointSize(vMenuPrivateTab,
+                                                  kSymbolActionPointSize)
+                   type:MenuActionType::OpenNewIncognitoTab
+                  block:^{
+                    [handler openURLInNewTab:[OpenNewTabCommand
+                                                 commandWithIncognito:YES]];
+                  }];
     if (IsIncognitoModeDisabled(self.browser->GetProfile()->GetPrefs())) {
       action.attributes = UIMenuElementAttributesDisabled;
     }
     return action;
-  } // End Vivaldi
+  }  // End Vivaldi
 
   UIAction* action =
       [self actionWithTitle:l10n_util::GetNSString(
@@ -269,17 +273,17 @@ using vivaldi::IsVivaldiRunning;
       self.browser->GetCommandDispatcher(), BrowserCoordinatorCommands);
 
   if (IsVivaldiRunning()) {
-    UIAction* action =
-        [self actionWithTitle:l10n_util::GetNSString(
-                        IDS_IOS_TOOLS_MENU_CLOSE_TAB)
-                        image:[UIImage imageNamed:vMenuClose]
-                         type:MenuActionType::CloseCurrentTabs
-                        block:^{
-                          [handler closeCurrentTab];
-                        }];
+    UIAction* action = [self
+        actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_CLOSE_TAB)
+                  image:CustomSymbolTemplateWithPointSize(
+                            vMenuClose, kSymbolActionPointSize)
+                   type:MenuActionType::CloseCurrentTabs
+                  block:^{
+                    [handler closeCurrentTab];
+                  }];
     action.attributes = UIMenuElementAttributesDestructive;
     return action;
-  } // End Vivaldi
+  }  // End Vivaldi
 
   UIAction* action =
       [self actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_CLOSE_TAB)
@@ -300,12 +304,13 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     return [self
         actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_QR_SCANNER)
-                  image:[UIImage imageNamed:vMenuQRCode]
+                  image:CustomSymbolWithPointSize(vMenuQRCode,
+                                                  kSymbolActionPointSize)
                    type:MenuActionType::ShowQRScanner
                   block:^{
                     [handler showQRScanner];
                   }];
-  } // End Vivaldi
+  }  // End Vivaldi
 
   return [self
       actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_QR_SCANNER)
@@ -389,7 +394,8 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     UIAction* action = [self
         actionWithTitle:l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_NEW_SEARCH)
-                  image:[UIImage imageNamed:@"toolbar_search"]
+                  image:CustomSymbolWithPointSize(vSearch,
+                                                  kSymbolActionPointSize)
                    type:MenuActionType::StartNewSearch
                   block:^{
                     OpenNewTabCommand* command =
@@ -431,24 +437,24 @@ using vivaldi::IsVivaldiRunning;
       self.browser->GetCommandDispatcher(), ApplicationCommands);
 
   if (IsVivaldiRunning()) {
-    UIAction* action =
-        [self actionWithTitle:l10n_util::GetNSString(
-                        IDS_IOS_NEW_TAB_PRIVATE_SEARCH)
-                        image:[UIImage imageNamed:vMenuPrivateTab]
-                         type:MenuActionType::StartNewIncognitoSearch
-                        block:^{
-                          OpenNewTabCommand* command =
-                              [OpenNewTabCommand commandWithIncognito:YES];
-                          command.shouldFocusOmnibox = YES;
-                          [handler openURLInNewTab:command];
-                        }];
+    UIAction* action = [self
+        actionWithTitle:l10n_util::GetNSString(IDS_IOS_NEW_TAB_PRIVATE_SEARCH)
+                  image:CustomSymbolWithPointSize(vMenuPrivateTab,
+                                                  kSymbolActionPointSize)
+                   type:MenuActionType::StartNewIncognitoSearch
+                  block:^{
+                    OpenNewTabCommand* command =
+                        [OpenNewTabCommand commandWithIncognito:YES];
+                    command.shouldFocusOmnibox = YES;
+                    [handler openURLInNewTab:command];
+                  }];
 
     if (IsIncognitoModeDisabled(self.browser->GetProfile()->GetPrefs())) {
       action.attributes = UIMenuElementAttributesDisabled;
     }
 
     return action;
-  } // End Vivaldi
+  }  // End Vivaldi
 
   UIAction* action =
       [self actionWithTitle:l10n_util::GetNSString(
@@ -470,6 +476,36 @@ using vivaldi::IsVivaldiRunning;
   }
 
   return action;
+}
+
+- (UIAction*)actionToLensCopiedImage {
+  __weak id<LensCommands> handler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), LensCommands);
+  void (^clipboardAction)(std::optional<gfx::Image>) =
+      ^(std::optional<gfx::Image> optionalImage) {
+        if (!optionalImage || !handler) {
+          return;
+        }
+
+        UIImage* image = [optionalImage.value().ToUIImage() copy];
+        SearchImageWithLensCommand* command =
+            [[SearchImageWithLensCommand alloc]
+                initWithImage:image
+                   entryPoint:LensEntrypoint::PlusButton];
+        [handler searchImageWithLens:command];
+      };
+
+  return
+      [self actionWithTitle:l10n_util::GetNSString(
+                                IDS_IOS_SEARCH_COPIED_IMAGE_WITH_LENS)
+                      image:DefaultSymbolWithPointSize(kClipboardActionSymbol,
+                                                       kSymbolActionPointSize)
+                       type:MenuActionType::SearchCopiedImage
+                      block:^{
+                        ClipboardRecentContent::GetInstance()
+                            ->GetRecentImageFromClipboard(
+                                base::BindOnce(clipboardAction));
+                      }];
 }
 
 - (UIAction*)actionToSearchCopiedImage {
@@ -499,14 +535,14 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     return [self actionWithTitle:l10n_util::GetNSString(
                                      IDS_IOS_TOOLS_MENU_SEARCH_COPIED_IMAGE)
-                           image:[UIImage imageNamed:vMenuCopy]
-                            type:MenuActionType::SearchCopiedImage
-                           block:^{
-                             ClipboardRecentContent::GetInstance()
-                                 ->GetRecentImageFromClipboard(
-                                     base::BindOnce(clipboardAction));
-                           }];
-  } // End Vivaldi
+                           image:CustomSymbolWithPointSize(
+                                     vMenuCopy, kSymbolActionPointSize)
+                            type:MenuActionType::SearchCopiedImage block:^{
+                              ClipboardRecentContent::GetInstance()
+                                  ->GetRecentImageFromClipboard(
+                                      base::BindOnce(clipboardAction));
+                            }];
+  }  // End Vivaldi
 
   return
       [self actionWithTitle:l10n_util::GetNSString(
@@ -539,14 +575,15 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     return [self actionWithTitle:l10n_util::GetNSString(
                                      IDS_IOS_TOOLS_MENU_VISIT_COPIED_LINK)
-                           image:[UIImage imageNamed:vMenuCopy]
+                           image:CustomSymbolWithPointSize(
+                                     vMenuCopy, kSymbolActionPointSize)
                             type:MenuActionType::VisitCopiedLink
                            block:^{
                              ClipboardRecentContent::GetInstance()
                                  ->GetRecentURLFromClipboard(
                                      base::BindOnce(clipboardAction));
                            }];
-  } // End Vivaldi
+  }  // End Vivaldi
 
   return
       [self actionWithTitle:l10n_util::GetNSString(
@@ -579,14 +616,15 @@ using vivaldi::IsVivaldiRunning;
   if (IsVivaldiRunning()) {
     return [self actionWithTitle:l10n_util::GetNSString(
                                      IDS_IOS_TOOLS_MENU_SEARCH_COPIED_TEXT)
-                           image:[UIImage imageNamed:vMenuCopy]
+                           image:CustomSymbolWithPointSize(
+                                     vMenuCopy, kSymbolActionPointSize)
                             type:MenuActionType::SearchCopiedText
                            block:^{
                              ClipboardRecentContent::GetInstance()
                                  ->GetRecentTextFromClipboard(
                                      base::BindOnce(clipboardAction));
                            }];
-  } // End Vivaldi
+  }  // End Vivaldi
 
   return
       [self actionWithTitle:l10n_util::GetNSString(
@@ -628,29 +666,28 @@ using vivaldi::IsVivaldiRunning;
   }];
 }
 
-- (UIAction*)actionOpenImageInNewBackgroundTabWithUrlLoadParams:
-    (UrlLoadParams)params
-                                                     completion:
-    (ProceduralBlock)completion {
-
+- (UIAction*)
+    actionOpenImageInNewBackgroundTabWithUrlLoadParams:(UrlLoadParams)params
+                                            completion:
+                                                (ProceduralBlock)completion {
   UrlLoadingBrowserAgent* loadingAgent =
       UrlLoadingBrowserAgent::FromBrowser(self.browser);
-  UIImage* image = [UIImage imageNamed:vMenuNewBackgroundTab];
+  UIImage* image = CustomSymbolWithPointSize(vMenuNewBackgroundTab,
+                                             kSymbolActionPointSize);
 
-  UIAction* action =
-    [self actionWithTitle:
-                l10n_util::GetNSString(
-                    IDS_IOS_CONTENT_CONTEXT_OPENIMAGENEWBACKGROUNDTAB)
-                    image:image
-                     type:MenuActionType::OpenImageInNewTab
-                    block:^{
-      loadingAgent->Load(params);
-      if (completion) {
-        completion();
-      }
-    }];
+  UIAction* action = [self
+      actionWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_CONTENT_CONTEXT_OPENIMAGENEWBACKGROUNDTAB)
+                image:image
+                 type:MenuActionType::OpenImageInNewTab
+                block:^{
+                  loadingAgent->Load(params);
+                  if (completion) {
+                    completion();
+                  }
+                }];
   return action;
 }
-#endif // End Vivaldi
+#endif  // End Vivaldi
 
 @end

@@ -16,9 +16,6 @@
 #include "ui/native_window_tracker/native_window_tracker.h"
 #endif
 
-#include "app/vivaldi_apptools.h"
-#include "base/check_is_test.h"
-
 #if defined(USE_AURA)
 #include "ui/aura/window.h"
 #endif
@@ -56,12 +53,6 @@ ExtensionInstallPromptShowParams::ExtensionInstallPromptShowParams(
     // window to track in this case. Reset the WebContents pointer and just keep
     // the profile. If we keep web contents in this case, WasParentDestroyed()
     // will always return true, even though there is no real window to check.
-
-    // WebContents passed here might not return TopLevelNativeWindow
-    // when importing extensions. It doesn't matter as we're not going to show
-    // UI prompt anyway.
-    if(!vivaldi::IsVivaldiRunning())
-    CHECK_IS_TEST();
     parent_web_contents_.reset();
   }
 }

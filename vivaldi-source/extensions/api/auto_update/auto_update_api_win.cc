@@ -23,7 +23,7 @@
 #include "extensions/api/auto_update/auto_update_status.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "installer/util/vivaldi_install_util.h"
-#include "update/update_service_factory.h"
+#include "update/vivaldi_update_service_factory.h"
 #include "update_notifier/update_notifier_switches.h"
 
 #include "base/debug/stack_trace.h"
@@ -32,8 +32,8 @@ namespace extensions {
 
 namespace {
 
-using update::UpdateService;
-using update::UpdateServiceFactory;
+using update::VivaldiUpdateService;
+using update::VivaldiUpdateServiceFactory;
 
 void StartManualUpdateCheck() {
   base::CommandLine update_notifier_command =
@@ -121,7 +121,7 @@ ExtensionFunction::ResponseAction AutoUpdateStartUpdateFunction::Run() {
   std::optional<vivaldi::auto_update::StartUpdate::Params> params(
       vivaldi::auto_update::StartUpdate::Params::Create(args()));
 
-  UpdateService* service = UpdateServiceFactory::GetForProfile(GetProfile());
+  VivaldiUpdateService* service = VivaldiUpdateServiceFactory::GetForProfile(GetProfile());
   service->StartUpdate(
       params->should_start_update,
       base::BindOnce(&AutoUpdateStartUpdateFunction::StartUpdateCB, this),

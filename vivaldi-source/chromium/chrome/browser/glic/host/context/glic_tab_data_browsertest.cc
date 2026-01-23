@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/task/current_thread.h"
 #include "base/test/mock_callback.h"
 #include "base/test/run_until.h"
@@ -112,7 +111,7 @@ IN_PROC_BROWSER_TEST_F(GlicTabDataBrowserTest, NavigateSendsUpdate) {
       GetUpdates(),
       testing::Contains(testing::Truly([](const TabDataChange& change) {
         return change.causes.Has(TabDataChangeCause::kCrossDocNavigation) &&
-               change.tab_data->url.path() == "/simple.html";
+               change.tab_data->url.GetPath() == "/simple.html";
       })));
 }
 
@@ -128,14 +127,14 @@ IN_PROC_BROWSER_TEST_F(GlicTabDataBrowserTest, NavigateToSamePageSendsUpdate) {
       GetUpdates(),
       testing::Contains(testing::Truly([](const TabDataChange& change) {
         return change.causes.Has(TabDataChangeCause::kCrossDocNavigation) &&
-               change.tab_data->url.path() == "/simple.html" &&
-               change.tab_data->url.ref() == "";
+               change.tab_data->url.GetPath() == "/simple.html" &&
+               change.tab_data->url.GetRef() == "";
       })));
   ASSERT_THAT(
       GetUpdates(),
       testing::Contains(testing::Truly([](const TabDataChange& change) {
         return change.causes.Has(TabDataChangeCause::kSameDocNavigation) &&
-               change.tab_data->url.ref() == "1";
+               change.tab_data->url.GetRef() == "1";
       })));
 }
 
@@ -177,7 +176,7 @@ IN_PROC_BROWSER_TEST_F(GlicTabDataBrowserTest, ChangeTitleUpdatesAreThrottled) {
     updates.erase(updates.begin());
   }
   ASSERT_EQ(updates.size(), 5ul);
-  ASSERT_EQ(updates[0].tab_data->url.path(), "/simple.html");
+  ASSERT_EQ(updates[0].tab_data->url.GetPath(), "/simple.html");
   ASSERT_EQ(updates[1].tab_data->title,
             "OK");  // actual page title, after load.
   ASSERT_EQ(updates[2].tab_data->title, "A");

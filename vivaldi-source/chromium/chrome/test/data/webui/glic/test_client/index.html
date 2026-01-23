@@ -21,6 +21,12 @@ found in the LICENSE file.
   #pageHeader.connected {
     background-color: green;
   }
+  .draggable {
+    -webkit-app-region: drag;
+  }
+  .not-draggable {
+    -webkit-app-region: no-drag;
+  }
   #pageHeader {
     background-color: blue;
     color: white;
@@ -174,12 +180,23 @@ found in the LICENSE file.
     max-width: 100%;
     height: auto;
   }
+  #captureRegionBtn[pressed] {
+    background-color: red;
+    color: white;
+  }
 </style>
-<div id="pageHeader">
+<div id="pageHeader" class="draggable">
   <h1>Test Web Client</h1>
-  <button id="refreshbn">🔄</button>
-  <button id="closebn">❌</button>
-  <button id="shutdownbn">⏻</button>
+  <div class="permission-switch not-draggable">
+    <label>Interaction Mode:</label>
+    <input type="radio" id="textmode" name="interactionMode" value="text" checked>
+    <label for="textmode">Text</label>
+    <input type="radio" id="audiomode" name="interactionMode" value="audio">
+    <label for="audiomode">Audio</label>
+  </div>
+  <button id="refreshbn" class="not-draggable">🔄</button>
+  <button id="closebn" class="not-draggable">❌</button>
+  <button id="shutdownbn" class="not-draggable">⏻</button>
 </div>
 <div id="content">
   <div class="section">
@@ -215,6 +232,10 @@ found in the LICENSE file.
     <div class="permission-switch">
       <label for="defaultTabContextSwitch">Default Tab Context:</label>
       <input type="checkbox" id="defaultTabContextSwitch" disabled />
+    </div>
+    <div class="permission-switch">
+      <label for="actuationOnWebSwitch">Actuation on Web:</label>
+      <input type="checkbox" id="actuationOnWebSwitch" disabled />
     </div>
     <select id="permissionSelect">
       <option value="geolocation">Geolocation</option>
@@ -455,6 +476,11 @@ found in the LICENSE file.
     <img id="desktopScreenshotImg" />
   </div>
   <div class="section">
+    <h1>Region Capture</h1>
+    <button id="captureRegionBtn">Capture Region</button>
+    <ul id="captureRegionResultList"></ul>
+  </div>
+  <div class="section">
     <h1>Scroll-To and Highlight</h1>
     <div>
       <button id="scrollToFetchAPCBn">Fetch AnnotatedPageContent</button>
@@ -544,6 +570,23 @@ found in the LICENSE file.
       <button id="executeAction">Perform Actions</button>
     </div>
     <span id="actionStatus"></span>
+    <div id="credentialSelection" style="display: none">
+      <label for="selectCredential">Select credential:</label>
+      <select id="selectCredential"></select>
+      <button id="credentialOnce">Allow once</button>
+      <button id="credentialAlways">Allow always</button>
+    </div>
+  </div>
+  <div class="section" id="autofillSuggestionsDialogSection">
+    <h1>Autofill Suggestion Dialog</h1>
+    <span id="autofillSuggestionsDialogStatus"></span>
+    <ul id="autofillSuggestionsList"></ul>
+    <div>
+      <label for="selectedAutofillSuggestionId">Selected ID:</label>
+      <input id="selectedAutofillSuggestionId" type="text" style="width: 8ch" />
+      <button id="sendAutofillSuggestionsResponse">Send Response</button>
+      <button id="cancelAutofillSuggestionsDialog">Send Empty Response</button>
+    </div>
   </div>
   <div class="section" id="multiTabSection">
     <h1>Multi-Tab</h1>

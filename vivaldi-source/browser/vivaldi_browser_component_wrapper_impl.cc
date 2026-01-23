@@ -47,6 +47,7 @@
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
@@ -106,6 +107,7 @@
 #include "chrome/browser/send_tab_to_self/send_tab_to_self_util.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
+#include "components/navigation_throttle/vivaldi_exdata_util.h"
 #include "components/send_tab_to_self/send_tab_to_self_bridge.h"
 #include "components/send_tab_to_self/send_tab_to_self_entry.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
@@ -282,9 +284,9 @@ Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserWithTab(
 Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserWithWindowId(
     int window_id) {
   BrowserList* list = BrowserList::GetInstance();
-  for (size_t i = 0; i < list->size(); i++) {
-    if (list->get(i)->session_id().id() == window_id) {
-      return list->get(i);
+  for (auto it: *list) {
+    if (it->session_id().id() == window_id) {
+      return it;
     }
   }
   return nullptr;
@@ -379,7 +381,7 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
   nav_params.tabstrip_add_types = AddTabTypes::ADD_NONE;
   nav_params.should_create_guestframe = true;
   if (params.user_gesture) {
-    nav_params.window_action = NavigateParams::SHOW_WINDOW;
+    nav_params.window_action = NavigateParams::WindowAction::kShowWindow;
   }
 
   if (params.disposition != WindowOpenDisposition::CURRENT_TAB) {
@@ -411,8 +413,6 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
     load_url_params.href_translate = nav_params.href_translate;
     load_url_params.reload_type = nav_params.reload_type;
     load_url_params.impression = nav_params.impression;
-    load_url_params.suggested_system_entropy =
-        nav_params.suggested_system_entropy;
 
     if (nav_params.post_data) {
       load_url_params.load_type =
@@ -450,7 +450,8 @@ VivaldiBrowserComponentWrapperImpl::WebViewGuestOpenUrlFromTab(
       load_url_params.source_site_instance = nullptr;
       load_url_params.referrer = content::Referrer();
 
-      webcontents_create_params.opener_render_frame_id = MSG_ROUTING_NONE;
+      webcontents_create_params.opener_render_frame_id =
+          IPC::mojom::kRoutingIdNone;
       webcontents_create_params.opener_render_process_id =
           content::ChildProcessHost::kInvalidUniqueID;
 
@@ -624,6 +625,21 @@ void VivaldiBrowserComponentWrapperImpl::SetContentSettingCustomScope(
                                     content_type, setting);
 }
 
+content::WebContents* VivaldiBrowserComponentWrapperImpl::GetFollowerTab(
+    Browser* browser,
+    const std::string follower_tab_ext_id) {
+  TabStripModel* tab_strip = browser->tab_strip_model();
+  for (int i = 0; i < tab_strip->count(); ++i) {
+    content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
+    auto target_ext_id = vivaldi::GetExtId(web_contents);
+
+    if (target_ext_id == follower_tab_ext_id) {
+      return web_contents;
+    }
+  }
+  return nullptr;
+}
+
 Browser* VivaldiBrowserComponentWrapperImpl::GetWorkspaceBrowser(
     const double workspace_id) {
   for (Browser* browser : *BrowserList::GetInstance()) {
@@ -766,11 +782,8 @@ VivaldiBrowserComponentWrapperImpl::FindActiveTabContentsInThisProfile(
     content::BrowserContext* context) {
   Profile* profile = Profile::FromBrowserContext(context);
   BrowserList* browser_list = BrowserList::GetInstance();
-  for (BrowserList::const_reverse_iterator browser_iterator =
-           browser_list->begin_browsers_ordered_by_activation();
-       browser_iterator != browser_list->end_browsers_ordered_by_activation();
-       ++browser_iterator) {
-    Browser* browser = *browser_iterator;
+  for (auto browser_iterator : *browser_list) {
+    Browser* browser = browser_iterator;
     // TODO: Make this into an utility-method.
     bool is_vivaldi_settings =
         (browser->is_vivaldi() &&
@@ -1171,16 +1184,9 @@ bool VivaldiBrowserComponentWrapperImpl::GetControllerFromWindowID(
 
 void VivaldiBrowserComponentWrapperImpl::LoadViaLifeCycleUnit(
     content::WebContents* web_contents) {
-  for (resource_coordinator::LifecycleUnit* lifecycle_unit :
-       g_browser_process->GetTabManager()->GetSortedLifecycleUnits()) {
-    resource_coordinator::TabLifecycleUnitExternal*
-        tab_lifecycle_unit_external =
-            lifecycle_unit->AsTabLifecycleUnitExternal();
-    if (tab_lifecycle_unit_external->GetWebContents() == web_contents) {
-      lifecycle_unit->Load();
-      break;
-    }
-  }
+  // Simplified, used to be more elaborate. Hence the name.
+  web_contents->GetController().SetNeedsReload();
+  web_contents->GetController().LoadIfNecessary();
 }
 
 bool VivaldiBrowserComponentWrapperImpl::SetTabAudioMuted(

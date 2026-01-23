@@ -35,7 +35,7 @@
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "net/dns/mock_host_resolver.h"
 #include "ui/base/interaction/interactive_test_internal.h"
-#include "ui/compositor/scoped_animation_duration_scale_mode.h"
+#include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
@@ -186,8 +186,8 @@ void FamilyLiveTest::TurnOnSyncFor(BrowserUser& browser_user) {
 void FamilyLiveTest::SetUp() {
   signin::test::LiveTest::SetUp();
   // Always disable animation for stability.
-  ui::ScopedAnimationDurationScaleMode disable_animation(
-      ui::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+  gfx::ScopedAnimationDurationScaleMode disable_animation(
+      gfx::ScopedAnimationDurationScaleMode::ZERO_DURATION);
 }
 
 void FamilyLiveTest::SetUpOnMainThread() {
@@ -308,7 +308,7 @@ GURL FamilyLiveTest::GetRoutedUrl(std::string_view url_spec) const {
   GURL url(url_spec);
 
   for (std::string_view enabled_host : extra_enabled_hosts_) {
-    if (url.host() == enabled_host) {
+    if (url.GetHost() == enabled_host) {
       return url;
     }
   }
@@ -317,11 +317,12 @@ GURL FamilyLiveTest::GetRoutedUrl(std::string_view url_spec) const {
 
 InteractiveFamilyLiveTest::InteractiveFamilyLiveTest(
     FamilyLiveTest::RpcMode rpc_mode)
-    : InteractiveBrowserTestT<FamilyLiveTest>(rpc_mode) {}
+    : InteractiveBrowserTestMixin<FamilyLiveTest>(rpc_mode) {}
 InteractiveFamilyLiveTest::InteractiveFamilyLiveTest(
     FamilyLiveTest::RpcMode rpc_mode,
     const std::vector<std::string_view>& extra_enabled_hosts)
-    : InteractiveBrowserTestT<FamilyLiveTest>(rpc_mode, extra_enabled_hosts) {}
+    : InteractiveBrowserTestMixin<FamilyLiveTest>(rpc_mode,
+                                                  extra_enabled_hosts) {}
 
 ui::test::internal::InteractiveTestPrivate::MultiStep
 InteractiveFamilyLiveTest::WaitForStateSeeding(

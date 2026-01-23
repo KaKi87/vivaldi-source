@@ -94,6 +94,14 @@ found in the LICENSE file.
             android:title="@string/add_page_to_reading_list"
             android:visible="false"
             app:showAsAction="never" />
+        <item
+            android:id="@+id/import_bookmarks"
+            android:title="@string/import_bookmarks_title"
+            android:showAsAction="never"/>
+        <item
+            android:id="@+id/export_bookmarks"
+            android:title="@string/export_bookmarks_title"
+            android:showAsAction="never"/>
         <!-- Vivaldi -->
         <item
             android:id="@+id/close_menu_id"

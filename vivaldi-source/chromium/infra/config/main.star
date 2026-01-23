@@ -41,6 +41,7 @@ lucicfg.config(
         "builders/gn_args_locations.json",
         "builder-owners/*.txt",
         "cq-builders.md",
+        "cq-tests.md",
         "cq-usage/default.cfg",
         "cq-usage/full.cfg",
         "cq-usage/mega_cq_bots.txt",
@@ -164,8 +165,11 @@ chromium_luci.configure_project(
     is_main = settings.is_main,
     platforms = settings.platforms,
     experiments = [
+        "builder_config.targets_spec_directory_relative_to_source_dir",
         "targets.module_name_without_slash",
+        "targets.module_scheme_generator",
         "targets.module_scheme_junit_tests",
+        "targets.module_scheme_regex",
         "targets.module_scheme_script_tests",
     ],
 )
@@ -180,6 +184,9 @@ chromium_luci.configure_builder_config(
     mega_cq_excluded_gardener_rotations = mega_cq_excluded_gardener_rotations,
     standalone_trybot_excluded_builder_groups = standalone_trybot_excluded_builder_groups,
     standalone_trybot_excluded_builders = standalone_trybot_excluded_builders,
+    cq_groups_to_generate_test_coverage_files = {
+        "cq": "cq-tests.md",
+    },
 )
 
 chromium_luci.configure_builder_health_indicators(
@@ -214,7 +221,7 @@ chromium_luci.configure_gardener_rotations(
 
 chromium_luci.configure_targets(
     generate_pyl_files = True,
-    autoshard_exceptions_file = "//targets/autoshard_exceptions.json",
+    autoshard_exceptions_file = "//autoshard_exceptions.json",
 )
 
 chromium_luci.configure_try(
@@ -234,6 +241,11 @@ luci.realm(
         luci.binding(
             roles = "role/resultdb.invocationCreator",
             groups = "project-chromium-tryjob-access",
+        ),
+        # Allow everyone to view Turbo CI workflows
+        luci.binding(
+            roles = "role/turboci.graph.reader",
+            groups = "all",
         ),
         # Other roles are inherited from @root which grants them to group:all.
     ],
@@ -267,6 +279,11 @@ luci.realm(
                 "chromium-led-users",
                 "project-chromium-tryjob-access",
             ],
+        ),
+        # Allow everyone to view Turbo CI workflows
+        luci.binding(
+            roles = "role/turboci.graph.reader",
+            groups = "all",
         ),
     ],
 )
@@ -318,6 +335,7 @@ luci.realm(
             users = [
                 "chromium-status-hr@appspot.gserviceaccount.com",
                 "luci-notify@appspot.gserviceaccount.com",
+                "luci-bisection@appspot.gserviceaccount.com",
             ],
         ),
         # Only allow Googlers and service accounts.
@@ -328,6 +346,7 @@ luci.realm(
             ],
             users = [
                 "luci-notify@appspot.gserviceaccount.com",
+                "luci-bisection@appspot.gserviceaccount.com",
             ],
         ),
     ],
@@ -350,15 +369,8 @@ exec("//swarming.star")
 
 exec("//recipes.star")
 exec("//gn_args/gn_args.star")
-exec("//targets/basic_suites.star")
-exec("//targets/binaries.star")
-exec("//targets/bundles.star")
-exec("//targets/compile_targets.star")
-exec("//targets/compound_suites.star")
-exec("//targets/matrix_compound_suites.star")
-exec("//targets/mixins.star")
-exec("//targets/tests.star")
-exec("//targets/variants.star")
+
+exec("@chromium-targets//declarations.star")
 
 exec("//notifiers.star")
 

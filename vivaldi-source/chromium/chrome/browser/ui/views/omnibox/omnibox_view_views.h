@@ -22,6 +22,7 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/template_url_service_observer.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/window_open_disposition.h"
@@ -40,8 +41,7 @@
 #endif
 
 class LocationBarView;
-class OmniboxClient;
-class PageActionIconView;
+class IconLabelBubbleView;
 
 namespace content {
 class WebContents;
@@ -64,15 +64,27 @@ class OmniboxViewViews
 #endif
       public views::TextfieldController,
       public ui::CompositorObserver,
-      public TemplateURLServiceObserver {
+      public TemplateURLServiceObserver,
+      public content::WebContentsObserver {
+  // TODO(crbug.com/392015004): Remove this macro once it gets fixed.
+  //
+  // Both `OmniboxView` and `views::Textfield` (*1) have the
+  // `ADVANCED_MEMORY_SAFETY_CHECKS` macro, hence there is ambiguity about which
+  // `operator new` should be used (although the two `operator new` are
+  // eventually equivalent). Choose `OmniboxView` with no deep reason.
+  //
+  // (*1) Note that `views::Textfield` inherits from `views::View`, which has
+  // the `ADVANCED_MEMORY_SAFETY_CHECKS` macro.
+  INHERIT_MEMORY_SAFETY_CHECKS(OmniboxView);
+
   METADATA_HEADER(OmniboxViewViews, views::Textfield)
 
  public:
   // Max width of the gradient mask used to smooth ElideAnimation edges.
   static const int kSmoothingGradientMaxWidth = 15;
 
-  OmniboxViewViews(std::unique_ptr<OmniboxClient> client,
-                   bool popup_window_mode,
+  OmniboxViewViews(bool popup_window_mode,
+                   OmniboxController* controller,
                    LocationBarView* location_bar_view,
                    const gfx::FontList& font_list);
   OmniboxViewViews(const OmniboxViewViews&) = delete;
@@ -173,11 +185,21 @@ class OmniboxViewViews
   FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsTest, DoNotNavigateOnDrop);
   FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsTest, AyncDropCallback);
   FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsTest, AccessibleTextSelectBoundTest);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsAIMButtonPreferenceTest,
+                           ButtonVisibilityTogglesWithPref_OmniboxFocused);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsPlaceholderTest,
+                           ContextualTasksPlaceholderForContextualTasksPage);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsPlaceholderTest,
+                           DefaultSearchEnginePlaceholderForNewTabPage);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsPlaceholderTest,
+                           NavigationToAndFromContextualTasks);
+  FRIEND_TEST_ALL_PREFIXES(OmniboxViewViewsPlaceholderTest,
+                           TitleChangeUpdatesPlaceholder);
 
   enum class UnelisionGesture {
-    HOME_KEY_PRESSED,
-    MOUSE_RELEASE,
-    OTHER,
+    kHomeKeyPressed,
+    kMouseRelease,
+    kOther,
   };
 
   // Update the field with |text| and set the selection. |ranges| should not be
@@ -301,6 +323,11 @@ class OmniboxViewViews
   // TemplateURLServiceObserver:
   void OnTemplateURLServiceChanged() override;
 
+  // content::WebContentsObserver:
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
+  void TitleWasSet(content::NavigationEntry* entry) override;
+
   // Permits launch of the external protocol handler after user actions in
   // the omnibox. The handler needs to be informed that omnibox input should
   // always be considered "user gesture-triggered", lest it always return BLOCK.
@@ -325,6 +352,10 @@ class OmniboxViewViews
   // DSE placeholder text.
   bool ShouldInstallAimPlaceholderText() const;
 
+  // Returns true if the Contextual Tasks placeholder text should be installed
+  // instead of the DSE placeholder text.
+  bool ShouldInstallContextualTasksPlaceholderText() const;
+
   // Returns true if the AIM placeholder text should be visible. This differs
   // from ShouldInstallAimPlaceholderText() because there are certain scenarios
   // where the AIM placeholder text is installed but not visible.
@@ -335,7 +366,7 @@ class OmniboxViewViews
 
   // Returns the AI Mode page action icon view, if present, or nullptr if the
   // view doesn't exist.
-  PageActionIconView* GetAiModePageActionIconView() const;
+  IconLabelBubbleView* GetAiModePageActionIconView() const;
 
   // When true, the location bar view is read only and also is has a slightly
   // different presentation (smaller font size). This is used for popups.
@@ -404,12 +435,12 @@ class OmniboxViewViews
 
   // The state machine for logging the Omnibox.CharTypedToRepaintLatency
   // histogram.
-  enum {
-    NOT_ACTIVE,           // Not currently tracking a char typed event.
-    CHAR_TYPED,           // Character was typed.
-    ON_PAINT_CALLED,      // Character was typed and OnPaint() called.
-    COMPOSITING_COMMIT,   // Compositing was committed after OnPaint().
-    COMPOSITING_STARTED,  // Compositing was started.
+  enum class LatencyHistogramState {
+    kNotActive,           // Not currently tracking a char typed event.
+    kCharTyped,           // Character was typed.
+    kOnPaintCalled,       // Character was typed and OnPaint() called.
+    kCompositingCommit,   // Compositing was committed after OnPaint().
+    kCompositingStarted,  // Compositing was started.
   } latency_histogram_state_;
 
   // The currently selected match, if any, with additional labelling text

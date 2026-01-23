@@ -15,8 +15,8 @@
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
-#include "chrome/browser/ui/extensions/extensions_container.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/browser/ui/views/extensions/extensions_container_views.h"
 #include "chrome/browser/ui/views/extensions/extensions_request_access_button.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_action_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
@@ -29,14 +29,14 @@
 
 class Browser;
 class ExtensionsToolbarButton;
-class ToolbarActionViewController;
+class ToolbarActionViewModel;
 class ExtensionsMenuCoordinator;
 
 // Container for extensions shown in the toolbar. These include pinned
 // extensions and extensions that are 'popped out' transitively to show dialogs
 // or be called out to the user.
 class ExtensionsToolbarContainer : public ToolbarIconContainerView,
-                                   public ExtensionsContainer,
+                                   public ExtensionsContainerViews,
                                    public ToolbarActionView::Delegate,
                                    public views::WidgetObserver {
   METADATA_HEADER(ExtensionsToolbarContainer, ToolbarIconContainerView)
@@ -120,9 +120,7 @@ class ExtensionsToolbarContainer : public ToolbarIconContainerView,
   // Updates the controls visibility.
   void UpdateControlsVisibility();
 
-  ToolbarActionViewController* popup_owner_for_testing() {
-    return popup_owner_;
-  }
+  ToolbarActionViewModel* popup_owner_for_testing() { return popup_owner_; }
 
   // Gets the extension menu button for the toolbar.
   ExtensionsToolbarButton* GetExtensionsButton() const {
@@ -190,14 +188,11 @@ class ExtensionsToolbarContainer : public ToolbarIconContainerView,
   void OnMouseMoved(const ui::MouseEvent& event) override;
 
   // ExtensionsContainer:
-  ToolbarActionViewController* GetActionForId(
-      const std::string& action_id) override;
+  ToolbarActionViewModel* GetActionForId(const std::string& action_id) override;
   std::optional<extensions::ExtensionId> GetPoppedOutActionId() const override;
-  void OnContextMenuShownFromToolbar(const std::string& action_id) override;
-  void OnContextMenuClosedFromToolbar() override;
   bool IsActionVisibleOnToolbar(const std::string& action_id) const override;
   void UndoPopOut() override;
-  void SetPopupOwner(ToolbarActionViewController* popup_owner) override;
+  void SetPopupOwner(ToolbarActionViewModel* popup_owner) override;
   void HideActivePopup() override;
   bool CloseOverflowMenuIfOpen() override;
   void PopOutAction(const extensions::ExtensionId& action_id,
@@ -206,16 +201,25 @@ class ExtensionsToolbarContainer : public ToolbarIconContainerView,
                                         ShowPopupCallback callback) override;
   void ToggleExtensionsMenu() override;
   bool HasAnyExtensions() const override;
-  void UpdateToolbarActionHoverCard(
-      ToolbarActionView* action_view,
-      ToolbarActionHoverCardUpdateType update_type) override;
   void CollapseConfirmation() override;
+  void ShowContextMenuAsFallback(
+      const extensions::ExtensionId& action_id) override;
+  void OnPopupShown(const extensions::ExtensionId& action_id,
+                    bool by_user) override;
+  void OnPopupClosed(const extensions::ExtensionId& action_id) override;
+  views::FocusManager* GetFocusManagerForAccelerator() override;
+  views::BubbleAnchor GetReferenceButtonForPopup(
+      const extensions::ExtensionId& action_id) override;
 
   // ToolbarActionView::Delegate:
   content::WebContents* GetCurrentWebContents() override;
   views::LabelButton* GetOverflowReferenceView() const override;
   gfx::Size GetToolbarActionSize() override;
   void MovePinnedActionBy(const std::string& action_id, int move_by) override;
+  void UpdateHoverCard(ToolbarActionView* action_view,
+                       ToolbarActionHoverCardUpdateType update_type) override;
+  void OnContextMenuShown(const std::string& action_id) override;
+  void OnContextMenuClosed(const std::string& action_id) override;
   void WriteDragDataForView(View* sender,
                             const gfx::Point& press_pt,
                             ui::OSExchangeData* data) override;
@@ -329,14 +333,14 @@ class ExtensionsToolbarContainer : public ToolbarIconContainerView,
   // (lazily). Currently code expects GetActionForId() to return actions for
   // extensions that aren't visible.
   // Actions for all extensions.
-  std::vector<std::unique_ptr<ToolbarActionViewController>> actions_;
+  std::vector<std::unique_ptr<ToolbarActionViewModel>> actions_;
   // View for every action, does not imply pinned or currently shown.
   ToolbarIcons icons_;
 
   // Popped-out extension, if any.
   std::optional<extensions::ExtensionId> popped_out_action_;
   // The action that triggered the current popup, if any.
-  raw_ptr<ToolbarActionViewController> popup_owner_ = nullptr;
+  raw_ptr<ToolbarActionViewModel> popup_owner_ = nullptr;
   // Extension with an open context menu, if any.
   std::optional<extensions::ExtensionId> extension_with_open_context_menu_id_;
   // View for closing the extension side panel.

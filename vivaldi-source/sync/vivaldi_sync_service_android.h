@@ -48,6 +48,8 @@ class VivaldiSyncServiceAndroid : public syncer::SyncServiceObserver {
   // syncer::SyncServiceObserver implementation.
   void OnSyncCycleCompleted(syncer::SyncService* sync) override;
 
+  void OnSyncShutdown(syncer::SyncService* sync) override;
+
  private:
   raw_ptr<syncer::SyncService> sync_service_;
 

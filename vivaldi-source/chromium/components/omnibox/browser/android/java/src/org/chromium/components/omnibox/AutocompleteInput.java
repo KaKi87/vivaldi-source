@@ -9,7 +9,12 @@ import android.text.TextUtils;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
+import org.chromium.components.omnibox.AimToolsAndModelsProto.ChromeAimToolsAndModels;
 import org.chromium.url.GURL;
+
+// Vivaldi
+import org.chromium.build.BuildConfig;
+// End Vivaldi
 
 /** AutocompleteInput encompasses the input to autocomplete. */
 @NullMarked
@@ -19,6 +24,8 @@ public class AutocompleteInput {
     private String mPageTitle;
     private String mUserText;
     private boolean mAllowExactKeywordMatch;
+    private boolean mHasAttachments;
+    private @AutocompleteRequestType int mRequestType;
 
     public AutocompleteInput() {
         reset();
@@ -37,7 +44,12 @@ public class AutocompleteInput {
 
     /** Returns the current page classification. */
     public int getPageClassification() {
-        return mPageClassification;
+        return switch (mRequestType) {
+            case AutocompleteRequestType.AI_MODE -> PageClassification.NTP_COMPOSEBOX_VALUE;
+            case AutocompleteRequestType.IMAGE_GENERATION ->
+                    PageClassification.NTP_COMPOSEBOX_VALUE;
+            default -> mPageClassification;
+        };
     }
 
     /**
@@ -72,6 +84,27 @@ public class AutocompleteInput {
         return mPageTitle;
     }
 
+    /** Set the AutocompleteRequestType */
+    public void setRequestType(@AutocompleteRequestType int type) {
+        mRequestType = type;
+    }
+
+    /** Returns the AutocompleteRequestType value. */
+    public @AutocompleteRequestType int getRequestType() {
+        return mRequestType;
+    }
+
+    /** Returns the Autocomplete Tool to use to fulfill the Request. */
+    public /* ChromeAimToolsAndModels */ int getToolMode() {
+        return switch (mRequestType) {
+            case AutocompleteRequestType.IMAGE_GENERATION ->
+                    mHasAttachments
+                            ? ChromeAimToolsAndModels.TOOL_MODE_IMAGE_GEN_UPLOAD_VALUE
+                            : ChromeAimToolsAndModels.TOOL_MODE_IMAGE_GEN_VALUE;
+            default -> ChromeAimToolsAndModels.TOOL_MODE_UNSPECIFIED_VALUE;
+        };
+    }
+
     /**
      * Set the text as currently typed by the User. This also updates the state for keyword
      * matching.
@@ -85,10 +118,12 @@ public class AutocompleteInput {
         boolean newTextUsesKeywordActivator =
                 !TextUtils.isEmpty(text) && TextUtils.indexOf(text, ' ') > 0;
 
+        if (!BuildConfig.IS_VIVALDI) { // ref. VAB-12083
         // Allow engaging Keyword mode only if the user input introduces first space.
         mAllowExactKeywordMatch |= !oldTextUsesKeywordActivator && newTextUsesKeywordActivator;
         // Suppress Keyword mode when reverting back to the url.
         mAllowExactKeywordMatch &= !(oldTextUsesKeywordActivator && !newTextUsesKeywordActivator);
+        } // End Vivaldi
 
         mUserText = text;
         return this;
@@ -130,6 +165,10 @@ public class AutocompleteInput {
         }
     }
 
+    public void setHasAttachments(boolean hasAttachments) {
+        mHasAttachments = hasAttachments;
+    }
+
     /**
      * Resets the AutocompleteInput to its default state.
      *
@@ -141,6 +180,7 @@ public class AutocompleteInput {
         mAllowExactKeywordMatch = false;
         mPageUrl = GURL.emptyGURL();
         mPageTitle = "";
+        mHasAttachments = false;
         mPageClassification = PageClassification.BLANK_VALUE;
 
         return this;

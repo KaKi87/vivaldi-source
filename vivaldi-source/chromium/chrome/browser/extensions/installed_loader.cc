@@ -288,14 +288,15 @@ void InstalledLoader::Load(const ExtensionInfo& info, bool write_to_prefs) {
       invalid_extensions_.end())
     return;
 
-  std::string error;
   scoped_refptr<const Extension> extension;
+  std::u16string error;
   if (info.extension_manifest) {
     extension = Extension::Create(info.extension_path, info.extension_location,
                                   *info.extension_manifest,
                                   GetCreationFlags(&info), &error);
   } else {
-    error = manifest_errors::kManifestUnreadable;
+    error = base::UTF8ToUTF16(
+        std::string_view(manifest_errors::kManifestUnreadable));
   }
 
   // Once installed, non-unpacked extensions cannot change their IDs (e.g., by
@@ -303,7 +304,8 @@ void InstalledLoader::Load(const ExtensionInfo& info, bool write_to_prefs) {
   // TODO(jstritar): migrate preferences when unpacked extensions change IDs.
   if (extension.get() && !Manifest::IsUnpackedLocation(extension->location()) &&
       info.extension_id != extension->id()) {
-    error = manifest_errors::kCannotChangeExtensionID;
+    error = base::UTF8ToUTF16(
+        std::string_view(manifest_errors::kCannotChangeExtensionID));
     extension = nullptr;
   }
 
@@ -383,7 +385,7 @@ void InstalledLoader::LoadAllExtensions(Profile* profile) {
       // thread.
       base::ScopedAllowBlocking allow_blocking;
 
-      std::string error;
+      std::u16string error;
       scoped_refptr<const Extension> extension(
           file_util::LoadExtension(info.extension_path, info.extension_location,
                                    GetCreationFlags(&info), &error));
@@ -485,6 +487,7 @@ void InstalledLoader::RecordExtensionsMetrics(Profile* profile) {
   int web_request_count = 0;
   int enabled_not_allowlisted_count = 0;
   int disabled_not_allowlisted_count = 0;
+  int native_messaging_count = 0;
 
   struct ManifestVersion2And3Counts {
     int version_2_count = 0;
@@ -570,6 +573,11 @@ void InstalledLoader::RecordExtensionsMetrics(Profile* profile) {
     if (extension->permissions_data()->HasAPIPermission(
             mojom::APIPermissionID::kWebRequest)) {
       web_request_count++;
+    }
+
+    if (extension->permissions_data()->HasAPIPermission(
+            mojom::APIPermissionID::kNativeMessaging)) {
+      native_messaging_count++;
     }
 
     // 10 is arbitrarily chosen.
@@ -985,6 +993,8 @@ void InstalledLoader::RecordExtensionsMetrics(Profile* profile) {
   base::UmaHistogramCounts100("Extensions.WebRequestBlockingCount2",
                               web_request_blocking_count);
   base::UmaHistogramCounts100("Extensions.WebRequestCount2", web_request_count);
+  base::UmaHistogramCounts100("Extensions.Messaging.NativeMessagingCount",
+                              native_messaging_count);
   base::UmaHistogramCounts100("Extensions.NotAllowlistedEnabled2",
                               enabled_not_allowlisted_count);
   base::UmaHistogramCounts100("Extensions.NotAllowlistedDisabled2",

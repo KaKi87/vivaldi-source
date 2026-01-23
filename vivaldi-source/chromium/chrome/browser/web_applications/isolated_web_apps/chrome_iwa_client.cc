@@ -19,6 +19,7 @@
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/url_constants.h"
 #include "components/web_package/signed_web_bundles/signed_web_bundle_id.h"
+#include "components/webapps/isolated_web_apps/iwa_key_distribution_info_provider.h"
 #include "components/webapps/isolated_web_apps/types/url_loading_types.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/isolated_web_apps_policy.h"
@@ -94,7 +95,7 @@ void GetIwaSourceForRequestImpl(
     if (const auto& source =
             IsolatedWebAppPendingInstallInfo::FromWebContents(*web_contents)
                 .source()) {
-      if (request.url.path() == kInstallPagePath) {
+      if (request.url.GetPath() == kInstallPagePath) {
         std::move(callback).Run(
             GeneratedResponse{.response_body = kInstallPageContent});
       } else {
@@ -164,6 +165,10 @@ void ChromeIwaClient::GetIwaSourceForRequest(
       FROM_HERE, base::BindOnce(&GetIwaSourceForRequestImpl,
                                 profile->GetWeakPtr(), web_bundle_id, request,
                                 frame_tree_node, std::move(callback)));
+}
+
+IwaRuntimeDataProvider* ChromeIwaClient::GetRuntimeDataProvider() {
+  return &IwaKeyDistributionInfoProvider::GetInstance();
 }
 
 }  // namespace web_app

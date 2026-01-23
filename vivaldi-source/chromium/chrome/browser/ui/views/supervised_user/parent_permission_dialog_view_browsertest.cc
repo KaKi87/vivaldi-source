@@ -12,7 +12,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
@@ -209,7 +208,7 @@ class ParentPermissionDialogViewHarness
 // internal logic that orchestrates the parental permission process.
 class ParentPermissionDialogViewTest
     : public SupportsTestDialog<
-          InteractiveBrowserTestT<MixinBasedInProcessBrowserTest>> {
+          InteractiveBrowserTestMixin<MixinBasedInProcessBrowserTest>> {
  protected:
   void ShowUi(const std::string& name) override {
     if (name == "LongNameExtension") {
@@ -232,7 +231,7 @@ class ParentPermissionDialogViewTest
 
   void SetUpOnMainThread() override {
     // Default ::SetUpOnMainThread() of all dependent mixins are invoked here.
-    InteractiveBrowserTestT::SetUpOnMainThread();
+    InteractiveBrowserTestMixin::SetUpOnMainThread();
 
     supervised_user_test_util::
         SetSupervisedUserExtensionsMayRequestPermissionsPref(
@@ -247,7 +246,7 @@ class ParentPermissionDialogViewTest
 
   void TearDownOnMainThread() override {
     supervised_user_extensions_delegate_.reset();
-    InteractiveBrowserTestT::TearDownOnMainThread();
+    InteractiveBrowserTestMixin::TearDownOnMainThread();
   }
 
   const extensions::Extension* test_extension() {

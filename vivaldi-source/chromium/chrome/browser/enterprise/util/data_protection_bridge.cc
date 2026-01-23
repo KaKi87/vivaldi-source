@@ -35,7 +35,8 @@ namespace {
 // CreateDataEndpoint
 std::unique_ptr<ui::DataTransferEndpoint> CreateDataEndpoint(
     RenderFrameHost* render_frame_host) {
-  if (!render_frame_host->GetMainFrame()->GetLastCommittedURL().is_valid()) {
+  if (render_frame_host == nullptr ||
+      !render_frame_host->GetMainFrame()->GetLastCommittedURL().is_valid()) {
     return nullptr;
   }
   return std::make_unique<ui::DataTransferEndpoint>(
@@ -140,7 +141,7 @@ void VerifyGenericCopyActionIsAllowedByPolicy(
 }  // namespace
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyCopyTextIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyCopyTextIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_text,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -160,7 +161,7 @@ void JNI_DataProtectionBridge_VerifyCopyTextIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyCopyUrlIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyCopyUrlIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_url,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -180,7 +181,7 @@ void JNI_DataProtectionBridge_VerifyCopyUrlIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyCopyImageIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyCopyImageIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_image_uri,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -202,7 +203,7 @@ void JNI_DataProtectionBridge_VerifyCopyImageIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyShareTextIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyShareTextIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_text,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -222,7 +223,7 @@ void JNI_DataProtectionBridge_VerifyShareTextIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyShareUrlIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyShareUrlIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_url,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -242,7 +243,7 @@ void JNI_DataProtectionBridge_VerifyShareUrlIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyShareImageIsAllowedByPolicy(
+static void JNI_DataProtectionBridge_VerifyShareImageIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_image_uri,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -264,7 +265,8 @@ void JNI_DataProtectionBridge_VerifyShareImageIsAllowedByPolicy(
 }
 
 // TODO(crbug.com/387484337) Add instrumentation tests
-void JNI_DataProtectionBridge_VerifyGenericCopyImageActionIsAllowedByPolicy(
+static void
+JNI_DataProtectionBridge_VerifyGenericCopyImageActionIsAllowedByPolicy(
     JNIEnv* env,
     const JavaParamRef<jstring>& j_image_uri,
     const base::android::JavaParamRef<jobject>& jrender_frame_host,
@@ -284,3 +286,5 @@ void JNI_DataProtectionBridge_VerifyGenericCopyImageActionIsAllowedByPolicy(
       },
       data);
 }
+
+DEFINE_JNI(DataProtectionBridge)

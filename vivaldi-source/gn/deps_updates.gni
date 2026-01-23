@@ -132,6 +132,11 @@ if (!is_ios) {
         data_deps -= [ "//third_party/screen-ai:screen_ai" ]
       }
     }
+    if(is_mac) {
+      update_template_instance("//chrome/test:browser_tests") {
+        deps -= [ "//chrome/app_shim:browser_tests" ]
+      }
+    }
     update_template_instance("//ui/views:views_unittests") {
       deps += [
         "//printing/buildflags",
@@ -267,6 +272,12 @@ if (!is_ios) {
   update_target("//ui/gfx:gfx") {
     deps += [
       "//printing/buildflags",
+    ]
+  }
+
+  update_template_instance("//third_party/blink/renderer/core:core_hot") {
+    deps += [
+      ":xml_ffi",
     ]
   }
 

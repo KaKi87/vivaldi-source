@@ -8,8 +8,8 @@
 // SDK versions which causes headaches building in some environments. The
 // VERSIONINFO resource will always be at index 1.
 1 VERSIONINFO
- FILEVERSION @VIVALDI_MAJOR@,@VIVALDI_MINOR@,@VIVALDI_NIGHTLY@,@VIVALDI_BUILD@
- PRODUCTVERSION @VIVALDI_MAJOR@,@VIVALDI_MINOR@,@VIVALDI_NIGHTLY@,@VIVALDI_BUILD@
+ FILEVERSION @MAJOR@,@MINOR@,@BUILD@,@PATCH@
+ PRODUCTVERSION @MAJOR@,@MINOR@,@BUILD@,@PATCH@
  FILEFLAGSMASK 0x17L
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -26,12 +26,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "@COMPANY_FULLNAME@"
             VALUE "FileDescription", "@PRODUCT_INSTALLER_FULLNAME@"
-            VALUE "FileVersion", "@VIVALDI_MAJOR@.@VIVALDI_MINOR@.@VIVALDI_NIGHTLY@.@VIVALDI_BUILD@"
+            VALUE "FileVersion", "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
             VALUE "InternalName", "mini_installer"
             VALUE "LegalCopyright", "@COPYRIGHT@"
             VALUE "ProductName", "@PRODUCT_INSTALLER_FULLNAME@"
-            VALUE "ProductVersion", "@VIVALDI_MAJOR@.@VIVALDI_MINOR@.@VIVALDI_NIGHTLY@.@VIVALDI_BUILD@"
-            VALUE "SourceVersion", "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
+            VALUE "ProductVersion", "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
             VALUE "CompanyShortName", "@COMPANY_SHORTNAME@"
             VALUE "ProductShortName", "@PRODUCT_INSTALLER_SHORTNAME@"
             VALUE "LastChange", "@LASTCHANGE@"

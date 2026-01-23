@@ -13,15 +13,15 @@ base::FilePath GetProfileDir(bool mail) {
   if (mail)
     return base::FilePath();
 
-  base::FilePath ini_file;
+  base::FilePath profile_dir;
   // The default location of the profile folder containing user data is
   // under user HOME directory in .opera folder on Linux.
   base::FilePath home = base::GetHomeDir();
   if (!home.empty()) {
-    ini_file = home.Append(".opera/operaprefs.ini");
+    profile_dir = home.Append(".opera/");
   }
-  if (base::PathExists(ini_file))
-    return ini_file;
+  if (base::PathExists(profile_dir))
+    return profile_dir;
 
   return base::FilePath();
 }

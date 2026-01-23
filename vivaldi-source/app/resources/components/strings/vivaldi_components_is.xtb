@@ -25,4 +25,14 @@
           Ef þetta leysir ekki vandmálið þá mælum við með því að setja hak aftur í
           þessa stillingu til þess að bæta frammistöðu.</translation>
 <translation id="7496505986576158197">Vivaldi er mögulegt vegna opna hugbúnaðarverkefnisins <ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" /> og annars <ph name="BEGIN_LINK_OSS" />opins hugbúnaðar<ph name="END_LINK_OSS" />.</translation>
+<translation id="89559930087159128">Farðu í
+          valmynd Vivaldi &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          Net &gt; Stillingar milliþjóns
+          og hakaðu úr "Uppgötva stillingar sjálfkrafa".</translation>
 </translationbundle>

@@ -23,6 +23,7 @@
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -36,6 +37,7 @@
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
+#include "chrome/test/base/chrome_test_utils.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/test_browser_window.h"
 #include "chrome/test/base/test_chrome_web_ui_controller_factory.h"
@@ -285,10 +287,10 @@ IN_PROC_BROWSER_TEST_F(InlineLoginUIBrowserTest, MAYBE_DifferentStorageId) {
 }
 
 IN_PROC_BROWSER_TEST_F(InlineLoginUIBrowserTest, OneProcessLimit) {
-  GURL test_url_1 = ui_test_utils::GetTestUrl(
+  GURL test_url_1 = chrome_test_utils::GetTestUrl(
       base::FilePath(base::FilePath::kCurrentDirectory),
       base::FilePath(FILE_PATH_LITERAL("title1.html")));
-  GURL test_url_2 = ui_test_utils::GetTestUrl(
+  GURL test_url_2 = chrome_test_utils::GetTestUrl(
       base::FilePath(base::FilePath::kCurrentDirectory)
           .Append(FILE_PATH_LITERAL("frame_tree")),
       base::FilePath(FILE_PATH_LITERAL("simple.htm")));
@@ -358,7 +360,7 @@ class InlineLoginHelperBrowserTest : public DialogBrowserTest {
     oauth2_token_exchange_success_ =
         std::make_unique<net::test_server::ControllableHttpResponse>(
             embedded_test_server(),
-            GaiaUrls::GetInstance()->oauth2_token_url().path(),
+            GaiaUrls::GetInstance()->oauth2_token_url().GetPath(),
             /*relative_url_is_prefix=*/true);
 
     embedded_test_server()->StartAcceptingConnections();
@@ -488,9 +490,9 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   ASSERT_NE(entry, nullptr);
   entry->LockForceSigninProfile(true);
 
-  ASSERT_EQ(0ul, BrowserList::GetInstance()->size());
+  ASSERT_EQ(0ul, chrome::GetTotalBrowserCount());
   SimulateOnClientOAuthSuccess(helper, "refresh_token");
-  ASSERT_EQ(0ul, BrowserList::GetInstance()->size());
+  ASSERT_EQ(0ul, chrome::GetTotalBrowserCount());
   // if |force_sign_in_with_user_manager| is false, the profile should be
   // unlocked early and InlineLoginHelper won't try to do it again
   ASSERT_TRUE(entry->IsSigninRequired());
@@ -622,9 +624,9 @@ IN_PROC_BROWSER_TEST_F(InlineLoginHelperBrowserTest,
   ASSERT_NE(entry, nullptr);
   entry->LockForceSigninProfile(true);
 
-  ASSERT_EQ(0ul, BrowserList::GetInstance()->size());
+  ASSERT_EQ(0ul, chrome::GetTotalBrowserCount());
   SimulateOnClientOAuthSuccess(helper, "refresh_token");
-  ASSERT_EQ(1ul, BrowserList::GetInstance()->size());
+  ASSERT_EQ(1ul, chrome::GetTotalBrowserCount());
   ASSERT_FALSE(entry->IsSigninRequired());
 }
 
@@ -670,12 +672,13 @@ class InlineLoginUISafeIframeBrowserTest : public InProcessBrowserTest {
     factory_registration_ =
         std::make_unique<content::ScopedWebUIControllerFactoryRegistration>(
             test_factory_.get(), ChromeWebUIControllerFactory::GetInstance());
-    test_factory_->AddFactoryOverride(content::GetWebUIURL("foo/").host(),
+    test_factory_->AddFactoryOverride(content::GetWebUIURL("foo/").GetHost(),
                                       &foo_provider_);
   }
 
   void TearDownOnMainThread() override {
-    test_factory_->RemoveFactoryOverride(content::GetWebUIURL("foo/").host());
+    test_factory_->RemoveFactoryOverride(
+        content::GetWebUIURL("foo/").GetHost());
     // |factory_registration_| must be reset before |test_factory_| to remove
     // any pointers to |test_factory_| from the factory registry before its
     // destruction.
@@ -775,7 +778,7 @@ class HtmlRequestTracker {
 
  private:
   static GURL StripParams(const GURL& url) {
-    return url.GetWithEmptyPath().Resolve(url.path());
+    return url.GetWithEmptyPath().Resolve(url.GetPath());
   }
 
   // Given a URL, gives the parameters of each request made to it.

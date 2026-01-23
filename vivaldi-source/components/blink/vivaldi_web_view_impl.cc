@@ -1,30 +1,28 @@
 // Copyright (c) 2018 Vivaldi Technologies AS. All rights reserved
 
-#include "app/vivaldi_apptools.h"
-#include "third_party/blink/public/web/web_node.h"
 #include "third_party/blink/renderer/core/exported/web_settings_impl.h"
 #include "third_party/blink/renderer/core/exported/web_view_impl.h"
 #include "third_party/blink/renderer/core/frame/frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/html/html_collection.h"
 #include "third_party/blink/renderer/core/html/html_image_element.h"
-#include "third_party/blink/renderer/core/page/plugin_data.h"
-#include "third_party/blink/renderer/platform/graphics/bitmap_image.h"
 #include "third_party/blink/renderer/platform/graphics/unaccelerated_static_bitmap_image.h"
-#include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkImage.h"
 
 namespace blink {
 
 void WebViewImpl::UpdateVivaldiRendererPreferences() {
-    SetServeResourceFromCacheOnly(
-        renderer_preferences_.serve_resources_only_from_cache);
-    SetAllowTabCycleIntoUI(
-        renderer_preferences_.allow_tab_cycle_from_webpage_into_ui);
-    SetVivaldiShowContextMenuOnDoubleClick(
-        web_preferences_.vivaldi_show_context_menu_on_double_click);
+  SetServeResourceFromCacheOnly(
+      renderer_preferences_.serve_resources_only_from_cache);
+  SetAllowTabCycleIntoUI(
+      renderer_preferences_.allow_tab_cycle_from_webpage_into_ui);
+}
+
+void WebViewImpl::UpdateVivaldiWebPreferences() {
+  SetVivaldiShowContextMenuOnDoubleClick(
+      web_preferences_.vivaldi_show_context_menu_on_double_click);
+  SetHasVivaldiFollowerTab(web_preferences_.has_vivaldi_follower_tab);
 }
 
 void WebViewImpl::SetImagesEnabled(const bool images_enabled) {
@@ -71,6 +69,10 @@ void WebViewImpl::SetServeResourceFromCacheOnly(
 void WebViewImpl::SetAllowTabCycleIntoUI(
     bool allow_tab_cycle_from_webpage_into_ui) {
   web_settings_->SetAllowTabCycleIntoUI(allow_tab_cycle_from_webpage_into_ui);
+}
+
+void WebViewImpl::SetHasVivaldiFollowerTab(const bool has_follower_tab) {
+  web_settings_->SetHasVivaldiFollowerTab(has_follower_tab);
 }
 
 void WebViewImpl::SetVivaldiShowContextMenuOnDoubleClick(const bool value) {

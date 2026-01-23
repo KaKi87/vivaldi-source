@@ -117,8 +117,29 @@ ExtensionFunction::ResponseAction DevtoolsPrivateToggleDevtoolsFunction::Run() {
   Browser* browser =
       ::vivaldi::FindBrowserByWindowId(windowId);
 
+  if (!browser) {
+    return RespondNow(NoArguments());
+  }
+
   content::WebContents* current_tab =
       browser->tab_strip_model()->GetActiveWebContents();
+  if (!current_tab) {
+    auto* profile = browser->GetProfile();
+    for (Browser* br : *BrowserList::GetInstance()) {
+      // Ensure the same profile.
+      if (br->GetProfile() != profile)
+        continue;
+      current_tab = br->tab_strip_model()->GetActiveWebContents();
+      if (current_tab) {
+        browser = br;
+        break;
+      }
+    }
+    // Hmmm, what else we can do?
+    if (!current_tab)
+      return RespondNow(NoArguments());
+  }
+
   DevToolsWindow* window =
       DevToolsWindow::GetInstanceForInspectedWebContents(current_tab);
   if (window) {

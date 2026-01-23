@@ -6,3 +6,8 @@ float f() {
   int i = 1;
   return v[min(uint(i), 2u)];
 }
+
+[[max_total_threads_per_threadgroup(1)]]
+kernel void v_1() {
+  f();
+}

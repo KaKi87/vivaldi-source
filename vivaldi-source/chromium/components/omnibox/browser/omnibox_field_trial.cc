@@ -217,20 +217,7 @@ size_t OmniboxFieldTrial::GetProviderMaxMatches(
   return default_max_matches_per_provider;
 }
 
-bool OmniboxFieldTrial::IsMaxURLMatchesFeatureEnabled() {
-  return base::FeatureList::IsEnabled(omnibox::kOmniboxMaxURLMatches);
-}
 
-size_t OmniboxFieldTrial::GetMaxURLMatches() {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-  constexpr size_t kDefaultMaxURLMatches = 5;
-#else
-  constexpr size_t kDefaultMaxURLMatches = 7;
-#endif
-  return base::GetFieldTrialParamByFeatureAsInt(
-      omnibox::kOmniboxMaxURLMatches,
-      OmniboxFieldTrial::kOmniboxMaxURLMatchesParam, kDefaultMaxURLMatches);
-}
 
 void OmniboxFieldTrial::GetDefaultHUPScoringParams(
     HUPScoringParams* scoring_params) {
@@ -564,8 +551,6 @@ const char
 
 const char OmniboxFieldTrial::kMaxZeroSuggestMatchesParam[] =
     "MaxZeroSuggestMatches";
-const char OmniboxFieldTrial::kOmniboxMaxURLMatchesParam[] =
-    "OmniboxMaxURLMatches";
 const char OmniboxFieldTrial::kUIMaxAutocompleteMatchesByProviderParam[] =
     "UIMaxAutocompleteMatchesByProvider";
 const char OmniboxFieldTrial::kUIMaxAutocompleteMatchesParam[] =
@@ -668,19 +653,6 @@ bool IsHideSuggestionGroupHeadersEnabledInContext(
     default:
       return false;
   }
-}
-
-bool IsDeterministicAimActionInTypedStateEnabled(
-    AutocompleteProviderClient* client) {
-  ui::DeviceFormFactor factor = ui::GetDeviceFormFactor();
-  if (!(factor == ui::DEVICE_FORM_FACTOR_PHONE ||
-        factor == ui::DEVICE_FORM_FACTOR_FOLDABLE)) {
-    return false;
-  }
-
-  return AimEligibilityService::GenericKillSwitchFeatureCheck(
-      client->GetAimEligibilityService(),
-      omnibox::kOmniboxAimShortcutTypedState);
 }
 
 bool IsAimOmniboxEntrypointEnabled(

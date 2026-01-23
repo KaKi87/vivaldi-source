@@ -6,16 +6,19 @@
 #import <Foundation/Foundation.h>
 
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_consumer.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_entry_point.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_entry_reason.h"
 
 class ProfileIOS;
-class TemplateURL;
 
 @interface VivaldiSearchEngineEditorMediator
     : NSObject <VivaldiSearchEngineEditorConsumer>
 
 - (instancetype)initWithProfile:(ProfileIOS*)profile
-                      isEditing:(BOOL)isEditing
-                    editingItem:(const TemplateURL*)editingItem
+                    entryReason:
+                        (VivaldiSearchEngineEditorEntryReason)entryReason
+                     entryPoint:(VivaldiSearchEngineEditorEntryPoint)entryPoint
+                           item:(VivaldiSearchEngineEditorItem*)item
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

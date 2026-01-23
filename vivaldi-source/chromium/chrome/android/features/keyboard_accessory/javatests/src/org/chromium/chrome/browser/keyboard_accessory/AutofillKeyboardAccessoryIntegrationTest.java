@@ -42,6 +42,7 @@ import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisableIf;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -65,9 +66,11 @@ import java.util.function.Supplier;
 
 /** Integration tests for autofill keyboard accessory. */
 // TODO(crbug.com/447076444): Enable Keyboard Accessory revamp flag
+// TODO(crbug.com/462636368): Turn on the dynamic positioning flag after blink bug is fixed.
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.PER_CLASS)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableFeatures(ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING)
 public class AutofillKeyboardAccessoryIntegrationTest {
     @Rule
     public FreshCtaTransitTestRule mActivityTestRule =
@@ -130,16 +133,15 @@ public class AutofillKeyboardAccessoryIntegrationTest {
     /** Switching fields should re-scroll the keyboard accessory to the left. */
     @Test
     @MediumTest
+    @DisabledTest(message = "crbug.com/377939398, crbug.com/453679696")
     public void testSwitchFieldsRescrollsKeyboardAccessory() throws TimeoutException {
         startAtTestPage(FakeKeyboard::new);
         mHelper.clickNodeAndShowKeyboard("EMAIL_ADDRESS", 8);
         mHelper.waitForKeyboardAccessoryToBeShown(true);
 
-        // Scroll to the second position and check it actually happened.
-        ThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mHelper.getAccessoryBarView().scrollToPosition(2);
-                });
+        // Scroll to the tab switcher and check that the scroll offset is greater than zero.
+        whenDisplayed(withId(R.id.bar_items_view))
+                .perform(scrollTo(isAssignableFrom(KeyboardAccessoryButtonGroupView.class)));
         CriteriaHelper.pollUiThread(
                 () -> {
                     return mHelper.getAccessoryBarView().computeHorizontalScrollOffset() > 0;
@@ -193,6 +195,10 @@ public class AutofillKeyboardAccessoryIntegrationTest {
     @Test
     @MediumTest
     @DisableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_SECURITY_TOUCH_EVENT_FILTERING_ANDROID})
+    @DisableIf.Build(
+            sdk_is_less_than = Build.VERSION_CODES.S,
+            supported_abis_includes = "x86",
+            message = "crbug.com/455491374")
     public void testClicksThroughOtherSurfaceAreAreProcessed()
             throws ExecutionException, TimeoutException, InterruptedException {
         MultiWindowUtils.getInstance().setIsInMultiWindowModeForTesting(true);
@@ -215,6 +221,10 @@ public class AutofillKeyboardAccessoryIntegrationTest {
     @Test
     @MediumTest
     @EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_SECURITY_TOUCH_EVENT_FILTERING_ANDROID})
+    @DisableIf.Build(
+            sdk_is_less_than = Build.VERSION_CODES.S,
+            supported_abis_includes = "x86",
+            message = "crbug.com/455491374")
     public void testClicksThroughOtherSurfaceAreIgnored()
             throws ExecutionException, TimeoutException, InterruptedException {
         MultiWindowUtils.getInstance().setIsInMultiWindowModeForTesting(true);

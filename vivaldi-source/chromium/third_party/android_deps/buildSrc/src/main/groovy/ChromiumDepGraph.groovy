@@ -90,15 +90,10 @@ class ChromiumDepGraph {
             com_google_guava_failureaccess: new PropertyOverride(
                     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0.txt',
                     licenseName: 'Apache 2.0'),
-            // This targets needs to conditionally support android. When no internal android override is defined, this
-            // target needs to set supports_android=true as both android and non-android targets use guava, but when an
-            // internal android override is defined, android targets should use that instead (and fail compile if they
-            // use this one) but non-android targets still needs this guava target to exist.
             com_google_guava_guava: new PropertyOverride(
                     cpePrefix: 'cpe:/a:google:guava',
                     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0.txt',
-                    licenseName: 'Apache 2.0',
-                    supportsAndroid: false),
+                    licenseName: 'Apache 2.0'),
             com_google_testparameterinjector_test_parameter_injector: new PropertyOverride(
                     licenseUrl: 'https://www.apache.org/licenses/LICENSE-2.0.txt',
                     licenseName: 'Apache 2.0'),
@@ -354,6 +349,8 @@ class ChromiumDepGraph {
         String[] configNames = [
                 'compile',
                 'compileLatest',
+                'supportsAndroidCompile',
+                'supportsAndroidCompileLatest',
                 'buildCompile',
                 'buildCompileLatest',
                 'testCompile',
@@ -403,6 +400,7 @@ class ChromiumDepGraph {
         Set<String> testIds = [] as Set
         Set<String> androidTestIds = [] as Set
         Set<String> buildIds = [] as Set
+        Set<String> supportsIds = [] as Set
         Set<String> autorolledIds = [] as Set
         resolvedDeps.each { key, values ->
             if (key.startsWith('compile')) {
@@ -413,6 +411,8 @@ class ChromiumDepGraph {
                 androidTestIds.addAll(values);
             } else if (key.startsWith('build')) {
                 buildIds.addAll(values);
+            } else if (key.startsWith('supportsAndroid')) {
+                supportsIds.addAll(values);
             } else {
                 assert false : 'Unknown config ' + key
             }
@@ -423,12 +423,17 @@ class ChromiumDepGraph {
 
         dependencies.each { id, dep ->
             dep.visible = topLevelIds.contains(id)
-            dep.isRobolectric = !anyContains(id, compileIds, androidTestIds, buildIds)
-            dep.testOnly = !anyContains(id, compileIds, buildIds)
-            dep.supportsAndroid = anyContains(id, compileIds, androidTestIds)
-            dep.requiresAndroid = dep.supportsAndroid && !anyContains(id, buildIds)
+            // These lists of ids contain all transitive deps of a target of this type. So, for
+            // robolectric and testonly, we only want ids that match, but aren't also matched by
+            // another group that would prevent it from being robolectric or testonly.
+            dep.isRobolectric = anyContains(id, testIds) &&
+                                !anyContains(id, compileIds, androidTestIds, buildIds, supportsIds)
+            dep.testOnly = anyContains(id, androidTestIds, testIds) &&
+                           !anyContains(id, compileIds, buildIds, supportsIds)
+            dep.supportsAndroid = anyContains(id, compileIds, androidTestIds, supportsIds)
+            dep.requiresAndroid = dep.supportsAndroid && !anyContains(id, buildIds, supportsIds)
             dep.usedInBuild = anyContains(id, buildIds)
-            dep.isShipped = anyContains(id, compileIds)
+            dep.isShipped = dep.supportsAndroid && !dep.testOnly
             dep.isAutorolled = anyContains(id, autorolledIds)
         }
 

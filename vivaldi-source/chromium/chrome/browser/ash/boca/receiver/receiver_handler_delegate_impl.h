@@ -12,8 +12,7 @@
 #include "chromeos/ash/components/boca/receiver/receiver_handler_delegate.h"
 
 namespace ash::boca {
-class InvalidationService;
-class InvalidationServiceDelegate;
+class FCMHandler;
 class SpotlightRemotingClientManager;
 }  // namespace ash::boca
 
@@ -42,17 +41,14 @@ class ReceiverHandlerDelegateImpl : public ReceiverHandlerDelegate {
   ~ReceiverHandlerDelegateImpl() override;
 
   // ReceiverHandlerDelegate:
-  std::unique_ptr<boca::InvalidationService> CreateInvalidationService(
-      boca::InvalidationServiceDelegate* invalidation_service_delegate)
-      const override;
+  boca::FCMHandler* GetFcmHandler() const override;
 
   std::unique_ptr<google_apis::RequestSender> CreateRequestSender(
       std::string_view requester_id,
       const net::NetworkTrafficAnnotationTag& traffic_annotation)
       const override;
 
-  std::unique_ptr<boca::SpotlightRemotingClientManager>
-  CreateRemotingClientManager() override;
+  boca::SpotlightRemotingClientManager* GetRemotingClient() const override;
 
   bool IsAppEnabled(std::string_view url) override;
 

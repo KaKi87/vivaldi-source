@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">నారింజలు</translation>
 <translation id="1275718070701477396">ఎంచుకోబడింది</translation>
 <translation id="1290331692326790741">సిగ్నల్ బలహీనంగా ఉంది</translation>
+<translation id="1292474106138697109">క్లాస్ టూల్స్ డిస్‌ప్లే</translation>
 <translation id="1300115153046603471">APN అనేది ఆటోమేటిక్ సెట్టింగ్ రకం, <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">మార్చండి</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> ఇమేజ్‌లు</translation>
 <translation id="4300272766492248925">యాప్‌ను తెరువు</translation>
 <translation id="430786093962686457">షిఫాన్</translation>
+<translation id="4309762678330556039">ఆటోమేటిక్‌గా మాటల టైపింగ్‌లను క్రియేట్ చేయండి, ఆడియోను సెర్చ్ చేయండి. మీరు ఇంటర్నెట్‌కు కనెక్ట్ కానప్పటికీ రికార్డింగ్‌లను క్రియేట్ చేయవచ్చు.</translation>
 <translation id="4310735698903592804">ఇటీవలి వాల్‌పేపర్‌లు Googleకు చెందిన AI టెక్నాలజీల ద్వారా అందించబడుతున్నాయి</translation>
 <translation id="4320904097188876154">నియాన్ గులాబి రంగు</translation>
 <translation id="432961742358282111">నిర్వచనాలను, అనువాదాలను, లేదా యూనిట్ కన్వర్షన్‌లను పొందడానికి రైట్-క్లిక్ చేయండి లేదా నొక్కి, పట్టుకోండి. ఈ ఫీచర్‌ను మేనేజ్ చేయడానికి ఎడమ వైపు బాణం లేదా కుడి వైపు బాణం కీలను ఉపయోగించండి.</translation>
@@ -791,7 +793,7 @@
 <translation id="445059817448385655">పాత పాస్‌వర్డ్</translation>
 <translation id="4453205916657964690">సబ్‌నెట్ మాస్క్</translation>
 <translation id="4454245904991689773">స్కాన్ చేసి ఇక్కడ సేవ్ చేయండి</translation>
-<translation id="4456812688969919973">APNను సేవ్ చేయండి బటన్ డిజేబుల్ చేయబడింది</translation>
+<translation id="4456812688969919973">APNను సేవ్ చేయండి బటన్ డిజేబుల్ అయింది</translation>
 <translation id="4469288414739283461">ఎర్త్ ఫ్లో స్క్రీన్ సేవర్</translation>
 <translation id="4474142134969976028">మ్యాచ్ అయ్యే ఫలితాలు ఏవీ లేవు</translation>
 <translation id="4479639480957787382">ఈథర్నెట్</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">మరిన్ని ఆప్షన్‌లు</translation>
 <translation id="5600027863942488546"><ph name="KEY_NAME" /> కీని పరీక్షించారు</translation>
 <translation id="5606865426897221650">Tab</translation>
+<translation id="5612205513582918357">క్లాస్ టూల్స్ మీ స్క్రీన్‌ను <ph name="RECEIVER_NAME" />‌కు షేర్ చేస్తోంది</translation>
 <translation id="5613201299517339763">మీరు సైన్ అవుట్ అయ్యారు</translation>
 <translation id="5620281292257375798">అంతర్గతం మాత్రమే</translation>
 <translation id="5628106863521633649">అందుబాటులో ఉన్న భాషలు</translation>
@@ -1108,7 +1111,7 @@
 <translation id="5915794087373112615">మీ టీచర్ మీ స్క్రీన్‌ను<ph name="NUM_SECONDS" /> సెకన్లలలో చూస్తారు</translation>
 <translation id="5916084858004523819">నిషేధించబడింది</translation>
 <translation id="5916664084637901428">ఆన్‌లో ఉంది</translation>
-<translation id="5921506667911082617">{COUNT,plural, =1{మీ ఫైల్ విజయవంతంగా స్కాన్ చేయబడి, <ph name="LINK_BEGIN" /><ph name="FOLDER_NAME" /><ph name="LINK_END" />కు సేవ్ చేయబడింది.}other{మీ ఫైళ్లు విజయవంతంగా స్కాన్ చేయబడి, <ph name="LINK_BEGIN" /><ph name="FOLDER_NAME" /><ph name="LINK_END" />కు సేవ్ చేయబడ్డాయి.}}</translation>
+<translation id="5921506667911082617">{COUNT,plural, =1{మీ ఫైల్ విజయవంతంగా స్కాన్ అయి, <ph name="LINK_BEGIN" /><ph name="FOLDER_NAME" /><ph name="LINK_END" />లో సేవ్ అయింది.}other{మీ ఫైళ్లు విజయవంతంగా స్కాన్ అయి, <ph name="LINK_BEGIN" /><ph name="FOLDER_NAME" /><ph name="LINK_END" />లో సేవ్ అయ్యాయి.}}</translation>
 <translation id="5928411637936685857"><ph name="ACCELERATOR_INFO" /> కోసం తొలగించు బటన్.</translation>
 <translation id="5930669310554144537">డ్రీమ్‌స్పేస్</translation>
 <translation id="5931523347251946569">ఫైల్ కనుగొనబడలేదు</translation>
@@ -1825,7 +1828,7 @@
 <translation id="9036971622563146214">ఫలితాలు</translation>
 <translation id="9039663905644212491">PEAP</translation>
 <translation id="9045842401566197375">పుస్తకాలు</translation>
-<translation id="9049868303458988905">APNను సేవ్ చేయండి బటన్ ఎనేబుల్ చేయబడింది</translation>
+<translation id="9049868303458988905">APNను సేవ్ చేయండి బటన్ ఎనేబుల్ అయింది</translation>
 <translation id="9058932992221914855">IPv6</translation>
 <translation id="9062831201344759865">DNS రిజల్యూషన్ అధిక ప్రతిస్పందన సమయాన్ని కలిగి ఉంది</translation>
 <translation id="9065203028668620118">ఎడిట్</translation>

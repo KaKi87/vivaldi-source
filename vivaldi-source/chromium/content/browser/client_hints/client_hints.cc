@@ -156,7 +156,7 @@ double GetDeviceScaleFactor() {
 double GetZoomFactor(BrowserContext* context, const GURL& url) {
   double zoom_level = HostZoomMap::GetDefaultForBrowserContext(context)
                           ->GetZoomLevelForHostAndScheme(
-                              url.scheme(), net::GetHostOrSpecFromURL(url));
+                              url.GetScheme(), net::GetHostOrSpecFromURL(url));
 
   if (zoom_level == 0.0) {
     // Get default zoom level.
@@ -404,7 +404,7 @@ void AddRttHeader(net::HttpRequestHeaders* headers,
         net::EFFECTIVE_CONNECTION_TYPE_UNKNOWN);
   }
   SetHeaderToInt(headers, WebClientHintsType::kRtt_DEPRECATED,
-                 RoundRtt(url.host(), http_rtt));
+                 RoundRtt(url.GetHost(), http_rtt));
 }
 
 void AddDownlinkHeader(net::HttpRequestHeaders* headers,
@@ -430,7 +430,7 @@ void AddDownlinkHeader(net::HttpRequestHeaders* headers,
   }
 
   SetHeaderToDouble(headers, WebClientHintsType::kDownlink_DEPRECATED,
-                    RoundKbpsToMbps(url.host(), downlink_throughput_kbps));
+                    RoundKbpsToMbps(url.GetHost(), downlink_throughput_kbps));
 }
 
 void AddEctHeader(net::HttpRequestHeaders* headers,
@@ -696,8 +696,9 @@ void UpdateNavigationRequestClientUaHeadersImpl(
                       ? nav_delegate
                             ->GetUserAgentOverride(
                                 ftn_for_web_contents_override->frame_tree())
-                                .GetUaMetaDataOverride(
-                  request_url.value_or(GURL()).host(), is_ua_override_on)
+                            .GetUaMetaDataOverride(
+                               std::string(request_url.value_or(GURL()).host()),
+                               is_ua_override_on)
                       : std::nullopt;
     // If a custom UA override is set, but no value is provided for UA client
     // hints, disable them.

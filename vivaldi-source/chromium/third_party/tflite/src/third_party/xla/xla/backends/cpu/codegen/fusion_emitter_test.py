@@ -54,7 +54,9 @@ class LoopFusionTest(parameterized.TestCase):
     jit_compiler = testlib_cpu.JitCompiler(hlo_module.get_config())
     mlir_context = testlib_cpu.MLIRContext()
     kernel_definition = testlib_cpu.emit_fusion_kernel(
-        mlir_context, hlo_module.get_root_instruction(), buffer_assignment
+        mlir_context,
+        hlo_module.get_root_instruction(),
+        buffer_assignment,
     )
 
     kernel_runner = testlib_cpu.KernelRunner.create(
@@ -112,7 +114,9 @@ class LoopFusionTest(parameterized.TestCase):
     jit_compiler = testlib_cpu.JitCompiler(hlo_module.get_config())
     mlir_context = testlib_cpu.MLIRContext()
     kernel_definition = testlib_cpu.emit_fusion_kernel(
-        mlir_context, hlo_module.get_root_instruction(), buffer_assignment
+        mlir_context,
+        hlo_module.get_root_instruction(),
+        buffer_assignment,
     )
 
     kernel_runner = testlib_cpu.KernelRunner.create(
@@ -165,7 +169,9 @@ class LoopFusionTest(parameterized.TestCase):
     jit_compiler = testlib_cpu.JitCompiler(hlo_module.get_config())
     mlir_context = testlib_cpu.MLIRContext()
     kernel_definition = testlib_cpu.emit_fusion_kernel(
-        mlir_context, hlo_module.get_root_instruction(), buffer_assignment
+        mlir_context,
+        hlo_module.get_root_instruction(),
+        buffer_assignment,
     )
 
     kernel_runner = testlib_cpu.KernelRunner.create(
@@ -215,7 +221,9 @@ class LoopFusionTest(parameterized.TestCase):
     jit_compiler = testlib_cpu.JitCompiler(hlo_module.get_config())
     mlir_context = testlib_cpu.MLIRContext()
     kernel_definition = testlib_cpu.emit_fusion_kernel(
-        mlir_context, hlo_module.get_root_instruction(), buffer_assignment
+        mlir_context,
+        hlo_module.get_root_instruction(),
+        buffer_assignment,
     )
 
     kernel_runner = testlib_cpu.KernelRunner.create(
@@ -262,7 +270,9 @@ class FusionEmitterTest(parameterized.TestCase):
     jit_compiler = testlib_cpu.JitCompiler(hlo_module.get_config())
     mlir_context = testlib_cpu.MLIRContext()
     kernel_definition = testlib_cpu.emit_fusion_kernel(
-        mlir_context, hlo_module.get_root_instruction(), buffer_assignment
+        mlir_context,
+        hlo_module.get_root_instruction(),
+        buffer_assignment,
     )
 
     kernel_runner = testlib_cpu.KernelRunner.create(

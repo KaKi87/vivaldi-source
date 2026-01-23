@@ -25,7 +25,7 @@ UIImageConfiguration* DefaultSymbolConfigurationWithPointSize(
   if (vivaldi::IsVivaldiRunning()) {
     return [UIImageSymbolConfiguration
         configurationWithPointSize:point_size
-                            weight:UIImageSymbolWeightLight
+                            weight:UIImageSymbolWeightRegular
                              scale:UIImageSymbolScaleDefault];
   } // End Vivaldi
 

@@ -20,9 +20,6 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.R;
 
-// Vivaldi
-import org.chromium.build.BuildConfig;
-
 /**
  * Implementation of SelectableItemViewBase which requires the caller to inflate their own view.
  * Useful for when you need to diverge from the built-in layout of SelectableItemView, but want

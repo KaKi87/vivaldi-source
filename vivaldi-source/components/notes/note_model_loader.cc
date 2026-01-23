@@ -5,7 +5,6 @@
 
 #include "components/notes/note_model_loader.h"
 
-#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -27,7 +26,7 @@ void LoadNotes(const base::FilePath& profile_path, NoteLoadDetails* details) {
     std::unique_ptr<base::Value> root(
         deserializer.Deserialize(nullptr, nullptr));
 
-    if (root) {
+    if (root && root->is_dict()) {
       // Building the index can take a while, so we do it on the background
       // thread.
       int64_t max_node_id = 0;
@@ -35,12 +34,10 @@ void LoadNotes(const base::FilePath& profile_path, NoteLoadDetails* details) {
       NotesCodec codec;
 
       codec.Decode(details->main_notes_node(), details->other_notes_node(),
-                   details->trash_notes_node(), &max_node_id, *root,
+                   details->trash_notes_node(), &max_node_id, root->GetDict(),
                    &sync_metadata_str);
       details->set_sync_metadata_str(std::move(sync_metadata_str));
       details->set_max_id(std::max(max_node_id, details->max_id()));
-      details->set_computed_checksum(codec.computed_checksum());
-      details->set_stored_checksum(codec.stored_checksum());
       details->set_ids_reassigned(codec.ids_reassigned());
       details->set_uuids_reassigned(codec.uuids_reassigned());
       details->set_has_deprecated_attachments(

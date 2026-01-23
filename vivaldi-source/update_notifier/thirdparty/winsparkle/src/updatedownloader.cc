@@ -71,7 +71,7 @@ namespace {
 const wchar_t kExpandExe[] = L"expand.exe";
 
 // TODO(igor@vivaldi.com): Figure out how to use installer::kChromeArchive here.
-// That constant is defined in //chrome/installer/setup:lib static library  but
+// That constant is defined in //vivaldi/installer/mini_installer/setup:lib static library  but
 // adding that as a dependency may increase the binary size significantly.
 const wchar_t kChromeArchive[] = L"vivaldi.7z";
 

@@ -33,9 +33,9 @@
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_strip/ui/vivaldi_tab_strip_group_stroke_view.h"
 #import "ios/chrome/browser/ui/tab_strip/vivaldi_tab_strip_constants.h"
-#import "ios/ui/context_menu/vivaldi_context_menu_constants.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
+#import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 // End Vivaldi
 
 namespace {
@@ -191,10 +191,8 @@ NSString* closeSymbolName = @"tabstrip_close_tab";
 
     self.selected = NO;
 
-    if (@available(iOS 17, *)) {
-      NSArray<UITrait>* traits = TraitCollectionSetForTraits(nil);
-      [self registerForTraitChanges:traits withAction:@selector(updateColors)];
-    }
+    NSArray<UITrait>* traits = TraitCollectionSetForTraits(nil);
+    [self registerForTraitChanges:traits withAction:@selector(updateColors)];
   }
   return self;
 }
@@ -871,7 +869,7 @@ NSString* closeSymbolName = @"tabstrip_close_tab";
 - (UIActivityIndicatorView*)createActivityIndicatior {
   UIActivityIndicatorView* activityIndicator =
       [[UIActivityIndicatorView alloc] init];
-  activityIndicator.color = [UIColor colorNamed:kBlueColor];
+  activityIndicator.color = [UIColor colorNamed:kGrey900Color];
   activityIndicator.transform = CGAffineTransformScale(
       activityIndicator.transform, kIndicatorScale, kIndicatorScale);
   activityIndicator.translatesAutoresizingMaskIntoConstraints = NO;

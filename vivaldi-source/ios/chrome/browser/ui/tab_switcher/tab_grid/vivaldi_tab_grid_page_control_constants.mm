@@ -37,6 +37,8 @@ NSString* const vBackgroundColor = @"page_control_background_color";
 
 // Color for slider
 UIColor* const vSliderColor = UIColor.whiteColor;
+UIColor* const vSliderColoriOS26 =
+  [UIColor colorNamed:@"page_control_slider_color"];
 
 // Color for icons in unselected state
 NSString* const vNotSelectedColor = @"page_control_icon_not_selected_color";

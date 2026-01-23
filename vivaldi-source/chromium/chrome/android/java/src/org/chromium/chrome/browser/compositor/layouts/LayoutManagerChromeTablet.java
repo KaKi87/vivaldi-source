@@ -15,7 +15,6 @@ import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker;
 import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager.TabModelStartupInfo;
@@ -97,7 +96,6 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
      * @param shareDelegateSupplier Supplies {@link ShareDelegate} to share tab URLs.
      * @param xrSceneCoreSessionManager The {@link XrSceneCoreSessionManager} to switch between
      *     space modes on XR.
-     * @param topControlsStacker The {@link TopControlsStacker} for the owner of this instance.
      */
     @SuppressWarnings("NullAway") // TODO(jarle@vivaldi.com): check use of mLayerTitleCache being
     // null when instantiating StripLayoutHelperManager
@@ -124,7 +122,6 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
             BottomSheetController bottomSheetController,
             Supplier<ShareDelegate> shareDelegateSupplier,
             @Nullable XrSceneCoreSessionManager xrSceneCoreSessionManager,
-            TopControlsStacker topControlsStacker,
             ViewStub tabHoverCardViewStubStack) { // Vivaldi
         super(
                 host,
@@ -165,7 +162,6 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                         bottomSheetController,
                         shareDelegateSupplier,
                         xrSpaceModeObservableSupplier,
-                        topControlsStacker,
                         /* isStackStrip */ false); // Vivaldi
         addSceneOverlay(mTabStripLayoutHelperManager);
         addObserver(mTabStripLayoutHelperManager.getTabSwitcherObserver());
@@ -197,7 +193,6 @@ public class LayoutManagerChromeTablet extends LayoutManagerChrome {
                     bottomSheetController,
                     shareDelegateSupplier,
                     xrSpaceModeObservableSupplier,
-                    topControlsStacker,
                     /* isStackStrip */ (i > 0))); // Vivaldi
             addObserver(mTabStrips.get(i).getTabSwitcherObserver());
             addSceneOverlay(mTabStrips.get(i));

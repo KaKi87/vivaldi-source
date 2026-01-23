@@ -146,7 +146,6 @@ BOOL emailIsValid;
           initWithType:ItemTypeNextButton];
   self.nextButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_NEXT);
-  self.nextButton.textAlignment = NSTextAlignmentNatural;
   self.nextButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
   self.nextButton.buttonTextColor = [UIColor colorNamed:kSolidButtonTextColor];
   self.nextButton.cellBackgroundColor = self.nextButton.buttonBackgroundColor;

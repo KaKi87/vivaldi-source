@@ -32,6 +32,7 @@
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_metrics_collector_factory.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/sync/model/ios_user_event_service_factory.h"
+#import "ios/chrome/test/ios_chrome_scoped_testing_local_state.h"
 #import "ios/components/security_interstitials/safe_browsing/fake_safe_browsing_service.h"
 #import "ios/web/public/navigation/referrer.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
@@ -236,6 +237,7 @@ class ChromePasswordProtectionServiceTest : public PlatformTest {
   web::WebState* web_state() { return web_state_.get(); }
 
   web::WebTaskEnvironment task_environment_;
+  IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<web::WebState> web_state_;
 
@@ -321,6 +323,21 @@ TEST_F(ChromePasswordProtectionServiceTest,
        VerifyUserPopulationForPasswordOnFocusPing) {
   LoginReputationClientRequest::TriggerType trigger_type =
       LoginReputationClientRequest::UNFAMILIAR_LOGIN_PAGE;
+  ReusedPasswordAccountType reused_password_type;
+  reused_password_type.set_account_type(ReusedPasswordAccountType::UNKNOWN);
+
+  service_->SetIsIncognito(false);
+  EXPECT_FALSE(service_->IsPingingEnabled(trigger_type, reused_password_type));
+
+  service_->SetIsIncognito(true);
+  EXPECT_FALSE(service_->IsPingingEnabled(trigger_type, reused_password_type));
+}
+
+// OTP pinging is disabled on iOS because OTP integration on iOS is not yet
+// supported.
+TEST_F(ChromePasswordProtectionServiceTest, VerifyUserPopulationForOtpPing) {
+  LoginReputationClientRequest::TriggerType trigger_type =
+      LoginReputationClientRequest::ONE_TIME_PASSWORD_FIELD_DETECTED;
   ReusedPasswordAccountType reused_password_type;
   reused_password_type.set_account_type(ReusedPasswordAccountType::UNKNOWN);
 

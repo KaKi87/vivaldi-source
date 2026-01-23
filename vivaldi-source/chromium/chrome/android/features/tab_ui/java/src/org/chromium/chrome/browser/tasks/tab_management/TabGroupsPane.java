@@ -115,7 +115,7 @@ public class TabGroupsPane implements Pane {
                             new ResourceButtonData(
                                     R.string.button_new_tab_group,
                                     R.string.button_new_tab_group,
-                                    R.drawable.new_tab_icon),
+                                    R.drawable.tab_switcher_new_tab_56dp), // Vivaldi
                             flow::newTabGroupFlow));
         }
         mReferenceButtonSupplier.set(
@@ -227,6 +227,11 @@ public class TabGroupsPane implements Pane {
 
     @Override
     public ObservableSupplier<Boolean> getHubSearchEnabledStateSupplier() {
+        return mHubSearchEnabledStateSupplier;
+    }
+
+    @Override
+    public ObservableSupplier<Boolean> getHubSearchBoxVisibilitySupplier() {
         return mHubSearchEnabledStateSupplier;
     }
 }

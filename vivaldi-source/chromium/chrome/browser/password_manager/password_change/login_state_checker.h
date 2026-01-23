@@ -26,6 +26,12 @@ namespace password_manager {
 class PasswordManagerClient;
 }  // namespace password_manager
 
+enum class LoginCheckResult {
+  kLoggedIn = 0,
+  kLoggedOut = 1,
+  kError = 2,
+};
+
 // Helper class which checks if the user is fully signed in on the main tab
 // before starting a password change flow in a background tab.
 // If the initial check fails, it waits for a navigation to occur before
@@ -34,10 +40,8 @@ class LoginStateChecker : public content::WebContentsObserver {
  public:
   // Maximum amount of login state checks.
   static constexpr int kMaxLoginChecks = 5;
-  using LoginStateResultCallback = base::RepeatingCallback<void(bool)>;
-  using QualityStatus = optimization_guide::proto::
-      PasswordChangeQuality_StepQuality_SubmissionStatus;
-  using IsLoggedIn = base::StrongAlias<class IsLoggedInTag, bool>;
+  using LoginStateResultCallback =
+      base::RepeatingCallback<void(LoginCheckResult)>;
 
   LoginStateChecker(content::WebContents* web_contents,
                     ModelQualityLogsUploader* logs_uploader,
@@ -48,12 +52,12 @@ class LoginStateChecker : public content::WebContentsObserver {
 
   bool ReachedAttemptsLimit() const;
 
+  void RetryLoginCheck();
+
 #if defined(UNIT_TEST)
   AnnotatedPageContentCapturer* capturer() { return capturer_.get(); }
-  void RespondWithLoginStatus(IsLoggedIn is_logged_in) {
-    SetLoginCheckQuality(is_logged_in);
-    state_checks_count_++;
-    result_check_callback_.Run(is_logged_in.value());
+  void RespondWithLoginStatus(LoginCheckResult result) {
+    result_check_callback_.Run(result);
   }
 #endif
 
@@ -63,21 +67,24 @@ class LoginStateChecker : public content::WebContentsObserver {
   void TerminateLoginChecks();
 
   // Sets the quality log state based on the last check performed.
-  void SetLoginCheckQuality(IsLoggedIn is_logged_in);
+  void SetLoginCheckQuality(
+      std::unique_ptr<
+          optimization_guide::proto::PasswordChangeSubmissionLoggingData>
+          logging_data);
 
   OptimizationGuideKeyedService* GetOptimizationService();
 
   // Checks if the user is fully signed in on the site.
   // The result will be passed to the callback on success, otherwise it will
   // set up a retry on the next navigation.
-  void CheckLoginState();
+  void CheckLoginState(bool ignore_attempts_limit);
 
   // content::WebContentsObserver:
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
 
   void OnPageContentReceived(
-      std::optional<optimization_guide::AIPageContentResult> content);
+      optimization_guide::AIPageContentResultOrError content);
 
   void OnExecutionResponseCallback(
       optimization_guide::OptimizationGuideModelExecutionResult
@@ -89,6 +96,7 @@ class LoginStateChecker : public content::WebContentsObserver {
   std::unique_ptr<AnnotatedPageContentCapturer> capturer_;
 
   // Whether a server request is ongoing.
+  const base::Time creation_time_;
   bool is_request_in_flight_ = false;
   std::optional<optimization_guide::AIPageContentResult> cached_page_content_;
   const raw_ref<ModelQualityLogsUploader> logs_uploader_;

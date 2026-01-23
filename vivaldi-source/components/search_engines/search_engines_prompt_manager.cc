@@ -106,8 +106,34 @@ bool SearchEnginesPromptManager::ShouldPrompt(
   return true;
 }
 
-std::vector<TemplateURL*>
-SearchEnginesPromptManager::GetPartnerSearchEnginesToPrompt(
+std::vector<TemplateURL*> SearchEnginesPromptManager::GetSearchEnginesToPrompt(
+    TemplateURLService* template_url_service) const {
+  std::vector<TemplateURL*> to_prompt_engines;
+
+  if (!template_url_service || !template_url_service->loaded()) {
+    return to_prompt_engines;
+  }
+
+  const TemplateURLService::TemplateURLVector template_urls =
+      template_url_service->GetTemplateURLs();
+  for (TemplateURL* template_url : template_urls) {
+    const SearchTermsData& search_terms_data =
+        template_url_service->search_terms_data();
+    const SearchEngineType default_search_type =
+        template_url->GetEngineType(search_terms_data);
+    const GURL default_search_url =
+        template_url->GenerateSearchURL(search_terms_data);
+
+    if (!ShouldPromptForTypeOrURL(default_search_type, default_search_url)) {
+      continue;
+    }
+    to_prompt_engines.push_back(template_url);
+  }
+
+  return to_prompt_engines;
+}
+
+std::vector<TemplateURL*> SearchEnginesPromptManager::GetPartnerSearchEngines(
     country_codes::CountryId country_id,
     const std::string_view application_locale,
     PrefService& prefs,
@@ -118,11 +144,11 @@ SearchEnginesPromptManager::GetPartnerSearchEnginesToPrompt(
     return partners;
   }
 
-  ParsedSearchEngines::EnginesListWithDefaults prepopulated_engines =
+  const ParsedSearchEngines::EnginesListWithDefaults prepopulated_engines =
       TemplateURLPrepopulateData::GetPrepopulatedSearchEngines(
           country_id, prefs, application_locale);
 
-  TemplateURLService::TemplateURLVector template_urls =
+  const TemplateURLService::TemplateURLVector template_urls =
       template_url_service->GetTemplateURLs();
   for (const TemplateURLPrepopulateData::PrepopulatedEngine* engine :
        prepopulated_engines.list) {

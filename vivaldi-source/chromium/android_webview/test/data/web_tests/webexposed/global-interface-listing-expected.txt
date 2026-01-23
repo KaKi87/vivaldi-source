@@ -119,6 +119,7 @@ interface AnimationTrigger
     attribute @@toStringTag
     method addAnimation
     method constructor
+    method getAnimations
     method removeAnimation
 interface AsyncDisposableStack
     attribute @@toStringTag
@@ -350,13 +351,6 @@ interface AudioWorkletNode : AudioNode
     getter port
     method constructor
     setter onprocessorerror
-interface AutomationDelegate
-    attribute @@toStringTag
-    method clearContext
-    method constructor
-    method provideContext
-    method registerTool
-    method unregisterTool
 interface BackForwardCacheRestoration : PerformanceEntry
     attribute @@toStringTag
     getter pageshowEventEnd
@@ -539,9 +533,6 @@ interface CSSColorValue
     static method parse
     attribute @@toStringTag
     method constructor
-    method toHSL
-    method toHWB
-    method toRGB
 interface CSSConditionRule : CSSGroupingRule
     attribute @@toStringTag
     getter conditionText
@@ -954,7 +945,7 @@ interface CSSPropertyRule : CSSRule
     getter name
     getter syntax
     method constructor
-interface CSSPseudoElement : EventTarget
+interface CSSPseudoElement
     attribute @@toStringTag
     getter element
     getter parent
@@ -1271,7 +1262,6 @@ interface CanvasRenderingContext2D
     method roundRect
     method save
     method scale
-    method setHitTestRegions
     method setLineDash
     method setTransform
     method stroke
@@ -2417,7 +2407,6 @@ interface Element : Node
     getter computedRole
     getter containerTiming
     getter containerTimingIgnore
-    getter containerTimingNesting
     getter currentCSSZoom
     getter currentPatch
     getter elementTiming
@@ -2512,6 +2501,7 @@ interface Element : Node
     method setHTMLUnsafe
     method setPointerCapture
     method startViewTransition
+    method streamAppendHTMLUnsafe
     method toggleAttribute
     method webkitMatchesSelector
     method webkitRequestFullScreen
@@ -2573,7 +2563,6 @@ interface Element : Node
     setter className
     setter containerTiming
     setter containerTimingIgnore
-    setter containerTimingNesting
     setter elementTiming
     setter headingOffset
     setter headingReset
@@ -2752,6 +2741,7 @@ interface Event
     getter currentTarget
     getter defaultPrevented
     getter eventPhase
+    getter pseudoTarget
     getter returnValue
     getter srcElement
     getter target
@@ -2967,6 +2957,8 @@ interface FontFaceSetLoadEvent : Event
 interface FormControlRange : AbstractRange
     attribute @@toStringTag
     method constructor
+    method getBoundingClientRect
+    method getClientRects
     method setFormControlRange
     method toString
 interface FormData
@@ -3093,6 +3085,7 @@ interface GPUComputePassEncoder
     method popDebugGroup
     method pushDebugGroup
     method setBindGroup
+    method setImmediates
     method setPipeline
     method writeTimestamp
     setter label
@@ -3173,6 +3166,7 @@ interface GPUQueue
     attribute @@toStringTag
     getter label
     method constructor
+    method copyElementImageToTexture
     method copyExternalImageToTexture
     method onSubmittedWorkDone
     method submit
@@ -3197,6 +3191,7 @@ interface GPURenderBundleEncoder
     method popDebugGroup
     method pushDebugGroup
     method setBindGroup
+    method setImmediates
     method setIndexBuffer
     method setPipeline
     method setVertexBuffer
@@ -3220,6 +3215,7 @@ interface GPURenderPassEncoder
     method pushDebugGroup
     method setBindGroup
     method setBlendConstant
+    method setImmediates
     method setIndexBuffer
     method setPipeline
     method setScissorRect
@@ -3279,6 +3275,7 @@ interface GPUSupportedLimits
     getter maxComputeWorkgroupsPerDimension
     getter maxDynamicStorageBuffersPerPipelineLayout
     getter maxDynamicUniformBuffersPerPipelineLayout
+    getter maxImmediateSize
     getter maxInterStageShaderVariables
     getter maxSampledTexturesPerShaderStage
     getter maxSamplersPerShaderStage
@@ -3361,6 +3358,14 @@ interface GamepadHapticActuator
     method constructor
     method playEffect
     method reset
+interface GamepadRawInputChangeEvent : GamepadEvent
+    attribute @@toStringTag
+    getter axesChanged
+    getter buttonsPressed
+    getter buttonsReleased
+    getter buttonsValueChanged
+    getter touchesChanged
+    method constructor
 interface GamepadTouch
     attribute @@toStringTag
     getter position
@@ -3548,6 +3553,9 @@ interface HTMLBodyElement : HTMLElement
     getter onblur
     getter onerror
     getter onfocus
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter onhashchange
     getter onlanguagechange
     getter onload
@@ -3580,6 +3588,9 @@ interface HTMLBodyElement : HTMLElement
     setter onblur
     setter onerror
     setter onfocus
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter onhashchange
     setter onlanguagechange
     setter onload
@@ -3649,6 +3660,7 @@ interface HTMLCanvasElement : HTMLElement
     method configureHighDynamicRange
     method constructor
     method getContext
+    method getElementTransform
     method toBlob
     method toDataURL
     method transferControlToOffscreen
@@ -4112,6 +4124,9 @@ interface HTMLFrameSetElement : HTMLElement
     getter onblur
     getter onerror
     getter onfocus
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter onhashchange
     getter onlanguagechange
     getter onload
@@ -4140,6 +4155,9 @@ interface HTMLFrameSetElement : HTMLElement
     setter onblur
     setter onerror
     setter onfocus
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter onhashchange
     setter onlanguagechange
     setter onload
@@ -4784,12 +4802,14 @@ interface HTMLScriptElement : HTMLElement
     getter event
     getter fetchPriority
     getter htmlFor
+    getter innerText
     getter integrity
     getter noModule
     getter referrerPolicy
     getter signature
     getter src
     getter text
+    getter textContent
     getter type
     method constructor
     setter async
@@ -4801,12 +4821,14 @@ interface HTMLScriptElement : HTMLElement
     setter event
     setter fetchPriority
     setter htmlFor
+    setter innerText
     setter integrity
     setter noModule
     setter referrerPolicy
     setter signature
     setter src
     setter text
+    setter textContent
     setter type
 interface HTMLSelectElement : HTMLElement
     attribute @@toStringTag
@@ -6247,6 +6269,13 @@ interface MimeTypeArray
     method constructor
     method item
     method namedItem
+interface ModelContext
+    attribute @@toStringTag
+    method clearContext
+    method constructor
+    method provideContext
+    method registerTool
+    method unregisterTool
 interface Mojo
     static method bindInterface
     static method createDataPipe
@@ -6485,6 +6514,7 @@ interface Navigator
     getter connection
     getter contacts
     getter cookieEnabled
+    getter cpuPerformance
     getter credentials
     getter deviceMemory
     getter doNotTrack
@@ -6502,6 +6532,8 @@ interface Navigator
     getter mediaCapabilities
     getter mediaDevices
     getter mimeTypes
+    getter modelContext
+    getter modelContextTesting
     getter onLine
     getter pdfViewerEnabled
     getter permissions
@@ -6541,6 +6573,8 @@ interface Navigator
     method share
     method vibrate
     method webkitGetUserMedia
+    setter modelContext
+    setter modelContextTesting
 interface NavigatorManagedData : EventTarget
     attribute @@toStringTag
     getter onmanagedconfigurationchange
@@ -6853,15 +6887,12 @@ interface OrientationSensor : Sensor
     method constructor
     method populateMatrix
 interface Origin
-    static method fromURL
-    static method parse
+    static method from
     attribute @@toStringTag
     getter opaque
     method constructor
     method isSameOrigin
     method isSameSite
-    method toJSON
-    method toString
 interface OscillatorNode : AudioScheduledSourceNode
     attribute @@toStringTag
     getter detune
@@ -7039,6 +7070,7 @@ interface PerformanceContainerTiming : PerformanceEntry
     getter identifier
     getter intersectionRect
     getter lastPaintedElement
+    getter rootElement
     getter size
     method constructor
     method toJSON
@@ -7073,6 +7105,7 @@ interface PerformanceEventTiming : PerformanceEntry
     getter processingEnd
     getter processingStart
     getter target
+    getter targetSelector
     method constructor
     method toJSON
 interface PerformanceLongAnimationFrameTiming : PerformanceEntry
@@ -7829,27 +7862,56 @@ interface RouteMap
 interface RtcReceivedPacket
     attribute @@toStringTag
     getter data
+    getter receiveTime
     method constructor
 interface RtcTransport
     attribute @@toStringTag
+    getter fingerprint
+    getter fingerprintDigestAlgorithm
     getter onicecandidate
+    getter onwritablechange
+    method addRemoteCandidate
     method constructor
     method getReceivedPackets
     method sendPackets
+    method setRemoteDtlsParameters
+    method writable
     setter onicecandidate
+    setter onwritablechange
+interface RtcTransportIceCandidate
+    attribute @@toStringTag
+    getter address
+    getter password
+    getter port
+    getter type
+    getter usernameFragment
+    method constructor
+    method toJSON
+interface RtcTransportIceEvent : Event
+    attribute @@toStringTag
+    getter candidate
+    method constructor
 interface SVGAElement : SVGGraphicsElement
     attribute @@toStringTag
     getter download
     getter href
+    getter hreflang
     getter interestForElement
+    getter ping
+    getter referrerPolicy
     getter rel
     getter relList
     getter target
+    getter type
     method constructor
     setter download
+    setter hreflang
     setter interestForElement
+    setter ping
+    setter referrerPolicy
     setter rel
     setter relList
+    setter type
 interface SVGAngle
     attribute @@toStringTag
     attribute SVG_ANGLETYPE_DEG
@@ -8899,7 +8961,7 @@ interface SVGStyleElement : SVGElement
 interface SVGSwitchElement : SVGGraphicsElement
     attribute @@toStringTag
     method constructor
-interface SVGSymbolElement : SVGElement
+interface SVGSymbolElement : SVGGraphicsElement
     attribute @@toStringTag
     getter preserveAspectRatio
     getter viewBox
@@ -9235,6 +9297,7 @@ interface ShadowRoot : DocumentFragment
     method getSelection
     method setHTML
     method setHTMLUnsafe
+    method streamAppendHTMLUnsafe
     setter adoptedStyleSheets
     setter fullscreenElement
     setter innerHTML
@@ -10069,6 +10132,7 @@ interface ViewTransition
     getter updateCallbackDone
     method constructor
     method skipTransition
+    method waitUntil
 interface ViewTransitionTypeSet
     attribute @@toStringTag
     getter size
@@ -10867,7 +10931,6 @@ interface WebGL2RenderingContext
     method samplerParameterf
     method samplerParameteri
     method scissor
-    method setHitTestRegions
     method shaderSource
     method stencilFunc
     method stencilFuncSeparate
@@ -11371,7 +11434,6 @@ interface WebGLRenderingContext
     method renderbufferStorage
     method sampleCoverage
     method scissor
-    method setHitTestRegions
     method shaderSource
     method stencilFunc
     method stencilFuncSeparate
@@ -12073,6 +12135,17 @@ namespace GPUTextureUsage
     attribute RENDER_ATTACHMENT
     attribute STORAGE_BINDING
     attribute TEXTURE_BINDING
+namespace Temporal
+    attribute @@toStringTag
+    attribute Now
+    method Duration
+    method Instant
+    method PlainDate
+    method PlainDateTime
+    method PlainMonthDay
+    method PlainTime
+    method PlainYearMonth
+    method ZonedDateTime
 namespace console
     attribute @@toStringTag
     getter memory
@@ -12106,7 +12179,6 @@ namespace console
     attribute awConsole
     attribute globalThis
     attribute propertyNamesInGlobal
-    getter automationDelegate
     getter caches
     getter clientInformation
     getter closed
@@ -12182,6 +12254,9 @@ namespace console
     getter onerror
     getter onfocus
     getter onformdata
+    getter ongamepadconnected
+    getter ongamepaddisconnected
+    getter ongamepadrawinputchanged
     getter ongotpointercapture
     getter onhashchange
     getter oninput
@@ -12320,13 +12395,9 @@ namespace console
     method getScreenDetails
     method getSelection
     method matchMedia
-    method maximize
-    method minimize
     method moveBy
     method moveTo
     method open
-    method popinContextType
-    method popinContextTypesSupported
     method postMessage
     method print
     method prompt
@@ -12335,14 +12406,13 @@ namespace console
     method reportError
     method requestAnimationFrame
     method requestIdleCallback
+    method requestResize
     method resizeBy
     method resizeTo
-    method restore
     method scroll
     method scrollBy
     method scrollTo
     method setInterval
-    method setResizable
     method setTimeout
     method showDirectoryPicker
     method showOpenFilePicker
@@ -12351,7 +12421,6 @@ namespace console
     method structuredClone
     method webkitCancelAnimationFrame
     method webkitRequestAnimationFrame
-    setter automationDelegate
     setter clientInformation
     setter devicePixelRatio
     setter event
@@ -12410,6 +12479,9 @@ namespace console
     setter onerror
     setter onfocus
     setter onformdata
+    setter ongamepadconnected
+    setter ongamepaddisconnected
+    setter ongamepadrawinputchanged
     setter ongotpointercapture
     setter onhashchange
     setter oninput

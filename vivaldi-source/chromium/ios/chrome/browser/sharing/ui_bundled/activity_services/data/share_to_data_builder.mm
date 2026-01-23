@@ -28,6 +28,7 @@
 #import "url/gurl.h"
 
 // Vivaldi
+#import "ios/chrome/common/ui/util/image_util.h"
 #import "ios/ui/settings/sync/manager/vivaldi_account_sync_manager.h"
 // End Vivaldi
 
@@ -100,6 +101,14 @@ ShareToData* ShareToDataForWebState(web::WebState* web_state,
     UIImage* thumbnail = SnapshotTabHelper::FromWebState(web_state)
                              ->GenerateSnapshotWithoutOverlays();
     if (thumbnail) {
+
+#if defined(VIVALDI_BUILD)
+      // Share sheet needs opaque image. This is a chromium bug however.
+      thumbnail = ResizeImage(thumbnail, thumbnail.size,
+                              ProjectionMode::kAspectFillNoClipping,
+                              /*opaque=*/YES);
+#endif  // End Vivaldi
+
       metadata.imageProvider =
           [[NSItemProvider alloc] initWithObject:thumbnail];
     }

@@ -14,6 +14,7 @@
 #import "components/ntp_tiles/metrics.h"
 #import "components/ntp_tiles/most_visited_sites.h"
 #import "components/ntp_tiles/ntp_tile.h"
+#import "components/ntp_tiles/pref_names.h"
 #import "components/prefs/pref_change_registrar.h"
 #import "components/prefs/pref_service.h"
 #import "components/strings/grit/components_strings.h"
@@ -22,7 +23,6 @@
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_tile_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_tile_saver.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_stack_view_consumer.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_constants.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_consumer.h"
 #import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_delegate.h"
@@ -32,6 +32,7 @@
 #import "ios/chrome/browser/menu/ui_bundled/browser_action_factory.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_actions_delegate.h"
+#import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp_tiles/model/most_visited_sites_observer_bridge.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
@@ -131,7 +132,8 @@ const CGFloat kMagicStackMostVisitedFaviconMinimalSize = 18;
 }
 
 - (void)disableModule {
-  _prefService->SetBoolean(prefs::kHomeCustomizationMostVisitedEnabled, false);
+  _prefService->SetBoolean(ntp_tiles::prefs::kMostVisitedHomeModuleEnabled,
+                           false);
 }
 
 - (MostVisitedTilesConfig*)mostVisitedTilesConfig {
@@ -155,7 +157,6 @@ const CGFloat kMagicStackMostVisitedFaviconMinimalSize = 18;
     item.incognitoAvailable = _incognitoAvailable;
     item.index = index;
     item.menuElementsProvider = self;
-    DCHECK(index < kShortcutMinimumIndex);
     index++;
     [_freshMostVisitedItems addObject:item];
   }
@@ -206,7 +207,7 @@ const CGFloat kMagicStackMostVisitedFaviconMinimalSize = 18;
       static_cast<ContentSuggestionsMostVisitedTileView*>(sender.view);
   ContentSuggestionsMostVisitedItem* mostVisitedItem =
       base::apple::ObjCCastStrict<ContentSuggestionsMostVisitedItem>(
-          mostVisitedView.config);
+          mostVisitedView.configuration);
 
   [self logMostVisitedOpening:mostVisitedItem atIndex:mostVisitedItem.index];
 
@@ -304,10 +305,30 @@ const CGFloat kMagicStackMostVisitedFaviconMinimalSize = 18;
                                                           title:item.title
                                                        fromView:view];
                 }]];
+  if (item.isPinned) {
+    CHECK(IsContentSuggestionsCustomizable(), base::NotFatalUntil::M148);
+    [menuElements
+        addObject:[self.actionFactory
+                      actionToEditPinnedSiteOnMostVisitedTileWithBlock:^{
+                          // TODO(crbug.com/459873750): Edit.
+                      }]];
+    [menuElements addObject:[self.actionFactory
+                                actionToUnpinSiteFromMostVisitedTileWithBlock:^{
+                                    // TODO(crbug.com/459873750): Unpin.
+                                }]];
+  } else {
+    if (IsContentSuggestionsCustomizable()) {
+      [menuElements
+          addObject:[self.actionFactory
+                        actionToPinSiteToMostVisitedTileWithBlock:^{
+                            // TODO(crbug.com/459873750): Pin the site.
+                        }]];
+    }
+    [menuElements addObject:[self.actionFactory actionToRemoveWithBlock:^{
+                    [weakSelf removeMostVisited:item];
+                  }]];
+  }
 
-  [menuElements addObject:[self.actionFactory actionToRemoveWithBlock:^{
-                  [weakSelf removeMostVisited:item];
-                }]];
   return menuElements;
 }
 

@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> üçün miqyaslama səviyyəsi</translation>
 <translation id="1921508034244765766">Vivladi yavaşdır, çökür və cihazı qızdırır</translation>
 <translation id="1929299157575856072">STANDART ƏNGƏLLƏMƏ SƏVİYYƏSİ</translation>
+<translation id="1933618400514506228">Serb-Xorvatca (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Şəkili arxa vərəqdə açın</translation>
 <translation id="1986733655397734221">Bunlardan heç biri</translation>
 <translation id="1994506778397655062">Yeni arxa vərəqdə açın</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">Əlfəcinlər və Sürətli keçidlərin öncədən yüklənməsini istəmirəm</translation>
 <translation id="3091563570137981919">İzləyici və reklamın əngəllənməs</translation>
 <translation id="3097968995088564986">Əlavə etmək düyməsini göstərmək</translation>
-<translation id="3102790820790869053">Sonuncu vərəqləri axtarmaq</translation>
 <translation id="3134385238404760368">Son açılan vərəq yoxdur</translation>
 <translation id="3142562627629111859">Yeni qrup</translation>
 <translation id="3157931365184549694">Bərpa edin</translation>
@@ -226,6 +226,7 @@
 <translation id="383723620494271391">Başqa nə isə əlavə etmək istərdiniz?</translation>
 <translation id="3842727926262967527">Vərəq panelinin və ünvan sətrinin harada olmasını seçin.</translation>
 <translation id="3845564230651302310">Yeni əngəlləyici ayarları tətbiq edilir...</translation>
+<translation id="385051799172605136">Geriyə</translation>
 <translation id="3858860766373142691">Adı</translation>
 <translation id="3861379244432690245">Birbaşa oxşarlığı aktiv edin</translation>
 <translation id="3866249974567520381">Açıqlaması</translation>
@@ -310,7 +311,6 @@
 <translation id="462860218383788109">Dəyişiklik tarixi</translation>
 <translation id="4640946580087069269">Qeydə kopyala</translation>
 <translation id="4643117005422448078">Tanınmış saytlar</translation>
-<translation id="4654428449690716275">Tərcümələr təklif edildikdən öncə və ya sonra elanlar göstərməmək</translation>
 <translation id="4654578955713250802">Reklamları və izləyiciləri əngəlləmək</translation>
 <translation id="4655510151391078468">Bu kod bizm göndərdiyimiz kod ilə eyni deyil.
            Sizin <ph name="ATTEMPTS" /> cəhdiniz qaldı.</translation>
@@ -663,6 +663,7 @@
 <translation id="8948792607467387336">Arxa fon şəkli kimi seçmək</translation>
 <translation id="8964449607824577665">Cari ifrələmə şifrəsi olmadan verilənlərinizi eyniləşdirə bilmərik. Bu şifrənin silinməsi Vivaldi serverləri ilə eyniləşdirilmiş bütün verilənlərin silinməsini tələb edəcək.</translation>
 <translation id="8965371804397726192">Bütün verilənlərin eyniləşdirilməsini başladın</translation>
+<translation id="896787570003733070">Tərcümə təklif edildikdən əvvəl və ya sonra elanlar göstərməmək</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {Əlfəcin bura köçürüldü: "{title}"}
           other {Əlfəcinlər bura köçürüldü: "{title}"}}</translation>

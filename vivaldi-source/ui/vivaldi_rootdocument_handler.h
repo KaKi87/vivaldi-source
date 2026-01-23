@@ -159,10 +159,10 @@ class VivaldiRootDocumentHandler : public KeyedService,
   };
 
   // Overridden from CommandService::Observer
-  void OnExtensionCommandAdded(const std::string& extension_id,
-                               const Command& added_command) override;
-  void OnExtensionCommandRemoved(const std::string& extension_id,
-                                 const Command& removed_command) override;
+  void OnExtensionCommandAdded(const extensions::ExtensionId& extension_id,
+                               const std::string& added_command) override;
+  void OnExtensionCommandRemoved(const extensions::ExtensionId& extension_id,
+                                 const std::string& removed_command) override;
 
   // KeyedService implementation.
   void Shutdown() override;

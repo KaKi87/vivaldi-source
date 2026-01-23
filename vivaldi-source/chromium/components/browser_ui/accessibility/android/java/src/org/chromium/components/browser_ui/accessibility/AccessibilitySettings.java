@@ -18,6 +18,7 @@ import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
+import org.chromium.components.browser_ui.settings.CustomDividerFragment;
 import org.chromium.components.browser_ui.settings.EmbeddableSettingsPage;
 import org.chromium.components.browser_ui.settings.SettingsFragment;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
@@ -27,6 +28,7 @@ import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
 import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
+import org.chromium.ui.base.UiAndroidFeatureList;
 
 // Vivaldi
 import org.chromium.base.Log;
@@ -36,7 +38,9 @@ import org.vivaldi.browser.preferences.VivaldiPreferences;
 /** Fragment to keep track of all the accessibility related preferences. */
 @NullMarked
 public class AccessibilitySettings extends PreferenceFragmentCompat
-        implements EmbeddableSettingsPage, Preference.OnPreferenceChangeListener {
+        implements EmbeddableSettingsPage,
+                Preference.OnPreferenceChangeListener,
+                CustomDividerFragment {
     public static final String PREF_PAGE_ZOOM_DEFAULT_ZOOM = "page_zoom_default_zoom";
     public static final String PREF_PAGE_ZOOM_INCLUDE_OS_ADJUSTMENT =
             "page_zoom_include_os_adjustment";
@@ -46,14 +50,19 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     public static final String PREF_CAPTIONS = "captions";
     public static final String PREF_ZOOM_INFO = "zoom_info";
     public static final String PREF_IMAGE_DESCRIPTIONS = "image_descriptions";
+    public static final String PREF_CARET_BROWSING = "caret_browsing";
+    public static final String PREF_TOUCHPAD_OVERSCROLL_HISTORY_NAVIGATION =
+            "touchpad_overscroll_history_navigation";
 
     private PageZoomPreference mPageZoomDefaultZoomPref;
     private ChromeSwitchPreference mPageZoomIncludeOSAdjustment;
     private ChromeSwitchPreference mPageZoomAlwaysShowPref;
     private ChromeSwitchPreference mForceEnableZoomPref;
+    private ChromeSwitchPreference mCaretBrowsingPref;
     private ChromeSwitchPreference mJumpStartOmnibox;
     private AccessibilitySettingsDelegate mDelegate;
     private double mPageZoomLatestDefaultZoomPrefValue;
+    private ChromeSwitchPreference mTouchpadOverscrollHistoryNavigationPref;
 
     private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
@@ -170,12 +179,16 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
                     initialArguments.putString(
                             SingleCategorySettings.EXTRA_CATEGORY,
                             SiteSettingsCategory.preferenceKey(SiteSettingsCategory.Type.ZOOM));
+                    initialArguments.putString(
+                            AllSiteSettings.EXTRA_TITLE,
+                            getString(R.string.zoom_info_preference_title));
                     mDelegate
                             .getSiteSettingsNavigation()
                             .startSettings(
                                     ContextUtils.getApplicationContext(),
                                     AllSiteSettings.class,
-                                    initialArguments);
+                                    initialArguments,
+                                    /* addToBackStack= */ true);
                     return true;
                 });
 
@@ -187,9 +200,32 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
             mPageZoomIncludeOSAdjustment.setVisible(false);
         }
 
-        Preference imageDescriptionsPreference =
-                findPreference(PREF_IMAGE_DESCRIPTIONS);
+        Preference imageDescriptionsPreference = findPreference(PREF_IMAGE_DESCRIPTIONS);
         imageDescriptionsPreference.setVisible(mDelegate.shouldShowImageDescriptionsSetting());
+
+        // Caret Browsing Settings
+        mCaretBrowsingPref = findPreference(PREF_CARET_BROWSING);
+
+        if (ContentFeatureList.sAndroidCaretBrowsing.isEnabled()) {
+            mCaretBrowsingPref.setChecked(mDelegate.isCaretBrowsingEnabled());
+            mCaretBrowsingPref.setOnPreferenceChangeListener(this);
+        } else {
+            mCaretBrowsingPref.setVisible(false);
+        }
+
+        // Touchpad swipe-to-navigate settings.
+        mTouchpadOverscrollHistoryNavigationPref =
+                findPreference(PREF_TOUCHPAD_OVERSCROLL_HISTORY_NAVIGATION);
+        if (UiAndroidFeatureList.sAndroidTouchpadOverscrollHistoryNavigation.isEnabled()) {
+            mTouchpadOverscrollHistoryNavigationPref.setVisible(true);
+            mTouchpadOverscrollHistoryNavigationPref.setOnPreferenceChangeListener(this);
+            mTouchpadOverscrollHistoryNavigationPref.setChecked(
+                    mDelegate
+                            .getTouchpadOverscrollHistoryNavigationAccessibilityDelegate()
+                            .getValue());
+        } else {
+            mTouchpadOverscrollHistoryNavigationPref.setVisible(false);
+        }
     }
 
     @Override
@@ -225,6 +261,12 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
             // TODO(mschillaci): Implement the override behavior for OS level.
         } else if (OmniboxFeatures.KEY_JUMP_START_OMNIBOX.equals(preference.getKey())) {
             OmniboxFeatures.setJumpStartOmniboxEnabled((Boolean) newValue);
+        } else if (PREF_CARET_BROWSING.equals(preference.getKey())) {
+            mDelegate.setCaretBrowsingEnabled((Boolean) newValue);
+        } else if (PREF_TOUCHPAD_OVERSCROLL_HISTORY_NAVIGATION.equals(preference.getKey())) {
+            mDelegate
+                    .getTouchpadOverscrollHistoryNavigationAccessibilityDelegate()
+                    .setValue((Boolean) newValue);
         }
         return true;
     }
@@ -232,5 +274,15 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
     @Override
     public @SettingsFragment.AnimationType int getAnimationType() {
         return SettingsFragment.AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "accessibility";
+    }
+
+    @Override
+    public boolean hasDivider() {
+        return false;
     }
 }

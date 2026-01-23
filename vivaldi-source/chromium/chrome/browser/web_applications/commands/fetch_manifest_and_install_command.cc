@@ -12,7 +12,6 @@
 #include "base/debug/crash_logging.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
@@ -123,7 +122,7 @@ void LogInstallInfoForFallbackData(base::Value::Dict& dict,
                                    const WebAppInstallInfo& install_info) {
   dict.Set("manifest_id", install_info.manifest_id().spec());
   dict.Set("start_url", install_info.start_url().spec());
-  dict.Set("name", install_info.title);
+  dict.Set("name", install_info.title.AsDebugValue());
 }
 
 bool IsShortcutCreated(WebAppRegistrar& registrar,
@@ -141,9 +140,12 @@ static bool& ShouldBypassVisibilityChecks() {
   return g_bypass_visibility_checking;
 }
 
+// Fallback to using `kMinimumScreenshotSizeInPx` if there are no sizes
+// specified in the manifest for the screenshots, or if the size has been set to
+// `any`, which gets parsed as (0, 0).
 int ComputeIdealScreenshotSize(
     const blink::mojom::ManifestScreenshotPtr& screenshot) {
-  return screenshot->image.sizes.empty()
+  return screenshot->image.sizes.empty() || screenshot->image.sizes[0].IsEmpty()
              ? webapps::kMinimumScreenshotSizeInPx
              : std::max(screenshot->image.sizes[0].width(),
                         screenshot->image.sizes[0].height());
@@ -730,10 +732,10 @@ void FetchManifestAndInstallCommand::OnInstallCompleted(
       command_manager()->LogToInstallManager(
           install_error_log_entry_.TakeErrorDict());
     }
-    base::Value::Dict install_info_dict =
+    base::Value install_info_dict =
         manifest_to_install_info_job_
             ->GetManifestToWebAppInfoGenerationErrors();
-    if (!install_info_dict.empty()) {
+    if (!install_info_dict.is_none()) {
       command_manager()->LogToInstallManager(std::move(install_info_dict));
     }
   }
@@ -796,7 +798,8 @@ void FetchManifestAndInstallCommand::StartPreloadingScreenshots() {
     }
 
     // Since narrow screenshots are filtered out, this is guaranteed to return
-    // either the minimum screen shot size, or the width.
+    // either the minimum screen shot size, or the width of the screenshot,
+    // provided the manifest has it declared extensively.
     int ideal_size = ComputeIdealScreenshotSize(screenshot);
     gfx::Size size_to_use = (ideal_size == webapps::kMinimumScreenshotSizeInPx)
                                 ? gfx::Size(ideal_size, ideal_size)

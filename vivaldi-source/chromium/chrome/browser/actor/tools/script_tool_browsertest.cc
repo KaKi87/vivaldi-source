@@ -20,10 +20,10 @@ namespace actor {
 
 namespace {
 
-class ActorToolsTestScriptTool : public ActorToolsGeneralPageStabilityTest {
+class ActorToolsTestScriptTool : public ActorToolsTest {
  public:
   ActorToolsTestScriptTool() {
-    features_.InitAndEnableFeature(blink::features::kScriptTools);
+    features_.InitAndEnableFeature(blink::features::kWebMCP);
   }
 
   void SetUpOnMainThread() override {
@@ -36,13 +36,7 @@ class ActorToolsTestScriptTool : public ActorToolsGeneralPageStabilityTest {
   base::test::ScopedFeatureList features_;
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    ,
-    ActorToolsTestScriptTool,
-    testing::ValuesIn(kActorGeneralPageStabilityModeValues),
-    ActorToolsGeneralPageStabilityTest::DescribeParam);
-
-IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, Basic) {
+IN_PROC_BROWSER_TEST_F(ActorToolsTestScriptTool, Basic) {
   const GURL url = embedded_test_server()->GetURL("/actor/script_tool.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -62,7 +56,7 @@ IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, Basic) {
             "This is an example sentence.");
 }
 
-IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, BadToolName) {
+IN_PROC_BROWSER_TEST_F(ActorToolsTestScriptTool, BadToolName) {
   const GURL url = embedded_test_server()->GetURL("/actor/script_tool.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
 
@@ -74,10 +68,10 @@ IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, BadToolName) {
       MakeScriptToolRequest(*main_frame(), "invalid", input_arguments);
   ActResultFuture result;
   actor_task().Act(ToRequestList(action), result.GetCallback());
-  ExpectErrorResult(result, mojom::ActionResultCode::kError);
+  ExpectErrorResult(result, mojom::ActionResultCode::kScriptToolNoResponse);
 }
 
-IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, ProvideContext) {
+IN_PROC_BROWSER_TEST_F(ActorToolsTestScriptTool, ProvideContext) {
   const GURL url =
       embedded_test_server()->GetURL("/actor/script_tool_provide_context.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -114,7 +108,7 @@ IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, ProvideContext) {
             "321cba");
 }
 
-IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, ClearContext) {
+IN_PROC_BROWSER_TEST_F(ActorToolsTestScriptTool, ClearContext) {
   const GURL url =
       embedded_test_server()->GetURL("/actor/script_tool_provide_context.html");
   ASSERT_TRUE(content::NavigateToURL(web_contents(), url));
@@ -129,14 +123,15 @@ IN_PROC_BROWSER_TEST_P(ActorToolsTestScriptTool, ClearContext) {
   ExpectOkResult(echo_result);
 
   ASSERT_TRUE(content::ExecJs(web_contents(),
-                              "window.automationDelegate.clearContext();"));
+                              "navigator.modelContext.clearContext();"));
 
   auto echo_action_after_clear =
       MakeScriptToolRequest(*main_frame(), "echo", echo_input);
   ActResultFuture echo_result_after_clear;
   actor_task().Act(ToRequestList(echo_action_after_clear),
                    echo_result_after_clear.GetCallback());
-  ExpectErrorResult(echo_result_after_clear, mojom::ActionResultCode::kError);
+  ExpectErrorResult(echo_result_after_clear,
+                    mojom::ActionResultCode::kScriptToolNoResponse);
 }
 
 }  // namespace

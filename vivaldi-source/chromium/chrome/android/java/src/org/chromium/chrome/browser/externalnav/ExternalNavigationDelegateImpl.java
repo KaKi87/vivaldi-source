@@ -22,6 +22,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.IntentUtils;
 import org.chromium.base.PackageManagerUtils;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ChromeTabbedActivity2;
@@ -32,6 +33,7 @@ import org.chromium.chrome.browser.password_manager.CctPasswordSavingMetricsReco
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingBridge;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -44,6 +46,7 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.url.GURL;
 
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /** The main implementation of the {@link ExternalNavigationDelegate}. */
@@ -55,6 +58,9 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
     private final @Nullable Supplier<TabModelSelector> mTabModelSelectorSupplier;
 
     private boolean mIsTabDestroyed;
+    private @TabLaunchType int mTabLaunchType;
+
+    private static @Nullable Predicate<Intent> sWillChromeHandleIntentHookForTesting;
 
     public ExternalNavigationDelegateImpl(Tab tab) {
         mTab = tab;
@@ -68,6 +74,7 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
                     }
                 };
         mTab.addObserver(mTabObserver);
+        mTabLaunchType = tab.getLaunchType();
     }
 
     @Override
@@ -88,6 +95,11 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
         return activityContext;
     }
 
+    public static void setWillChromeHandleIntentHookForTesting(Predicate<Intent> hook) {
+        sWillChromeHandleIntentHookForTesting = hook;
+        ResettersForTesting.register(() -> sWillChromeHandleIntentHookForTesting = null);
+    }
+
     /**
      * Determines whether Chrome would handle this Intent if fired immediately. Note that this does
      * not guarantee that Chrome actually will handle the intent, as another app may be installed,
@@ -99,6 +111,9 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
      * @return True if Chrome will definitely handle the intent, false otherwise.
      */
     public static boolean willChromeHandleIntent(Intent intent, boolean matchDefaultOnly) {
+        if (sWillChromeHandleIntentHookForTesting != null) {
+            return sWillChromeHandleIntentHookForTesting.test(intent);
+        }
         // Early-out if the intent targets Chrome.
         if (IntentUtils.intentTargetsSelf(intent)) return true;
 
@@ -207,7 +222,7 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
     }
 
     @Override
-    public boolean canCloseTabOnIncognitoIntentLaunch() {
+    public boolean canCloseTabOnIntentLaunch() {
         return (mTab != null && !mTab.isClosing() && mTab.isInitialized());
     }
 
@@ -281,5 +296,28 @@ public class ExternalNavigationDelegateImpl implements ExternalNavigationDelegat
         intent.putExtra(WebappConstants.REUSE_URL_MATCHING_TAB_ELSE_NEW_TAB, true);
 
         return intent;
+    }
+
+    @Override
+    public boolean wasTabLaunchedFromLinkCreatingNewForegroundTab() {
+        return mTabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND
+                || mTabLaunchType == TabLaunchType.FROM_LONGPRESS_FOREGROUND_IN_GROUP;
+    }
+
+    @Override
+    public boolean wasTabLaunchedFromLinkCreatingNewWindow() {
+        return mTabLaunchType == TabLaunchType.FROM_LINK_CREATING_NEW_WINDOW;
+    }
+
+    /**
+     * Sets the {@link TabLaunchType} for this delegate for testing purposes. This has no effect on
+     * the related Tab launch type.
+     *
+     * @param launchType The {@link TabLaunchType} to set for this delegate.
+     */
+    public void setTabLaunchTypeForTesting(@TabLaunchType int launchType) {
+        @TabLaunchType int originalTabLaunchType = mTabLaunchType;
+        mTabLaunchType = launchType;
+        ResettersForTesting.register(() -> mTabLaunchType = originalTabLaunchType);
     }
 }

@@ -99,7 +99,7 @@ new RuleTester().run('es-modules-import', rule, {
     },
     {
       code: 'import * as Bindings from \'../../../../front_end/bindings/bindings.js\';',
-      filename: 'test/unittests/front_end/bindings/LiveLocation_test.ts',
+      filename: 'test/unittests/front_end/bindings/LiveLocation.test.ts',
     },
     {
       code: 'import * as Marked from \'../third_party/marked/marked.js\';',
@@ -156,6 +156,11 @@ new RuleTester().run('es-modules-import', rule, {
     },
     {
       code: 'import { type Exporting } from \'../namespace/Exporting.js\';',
+      filename: 'front_end/common/Importing.js',
+    },
+    // Allow ui kit module named imports
+    {
+      code: 'import { Icon } from \'../ui/kit/kit.js\';',
       filename: 'front_end/common/Importing.js',
     },
   ],
@@ -238,7 +243,7 @@ new RuleTester().run('es-modules-import', rule, {
     },
     {
       code: 'import \'../../../../front_end/common/common\';',
-      filename: 'test/unittests/front_end/common/Unit_test.ts',
+      filename: 'test/unittests/front_end/common/Unit.test.ts',
       errors: [
         {
           messageId: 'missingExtension',

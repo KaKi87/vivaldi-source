@@ -4,8 +4,8 @@
 namespace vivaldi_flag {
 
 // Internal names of the features MUST be globally unique, thus prefix those
-// with 'vivaldi-'. Also, please follow naming convension, k...InternalName, k...Name,
-// k...Description.
+// with 'vivaldi-'. Also, please follow naming convension, k...InternalName,
+// k...Name, k...Description.
 
 const char kChromePagesInternalName[] = "vivaldi-chrome-pages";
 const char kChromePagesName[] = "Enable Chrome Pages";
@@ -17,29 +17,50 @@ const char kCssModsName[] = "Allow CSS modifications";
 const char kCssModsDescription[] =
     "Allow user interface CSS modifications set in Appearance settings.";
 
+const char kDesktopBackgroundInternalName[] =
+    "vivaldi-desktop-background-image";
+const char kDesktopBackgroundName[] = "Enable daily background image";
+const char kDesktopBackgroundDescription[] = "Enable daily background image.";
+
+const char kDnDTilingInternalName[] = "vivaldi-drag-and-drop-tiling";
+const char kDnDTilingMenuName[] = "Drag-and-drop tiling";
+const char kDnDTilingMenuDescription[] = "Tile tabs using the mouse";
+
 const char kDoubleClickMenuInternalName[] = "vivaldi-double-click-menu";
 const char kDoubleClickMenuName[] = "Show context menu on a double click";
 const char kDoubleClickMenuDescription[] =
     "Use a double click anywhere in the page to show its context menu. "
     "Requires a restart of Vivaldi to take effect.";
 
-extern const char kInternalPageReaderModeInternalName[] = "vivaldi-internal-page-reader-mode";
-extern const char kInternalPageReaderModeName[] = "Use internal page for reader mode";
-extern const char kInternalPageReaderModeDescription[] = "Should give better results on most pages but is lacking in translation features.";
+const char kFollowerTabInternalName[] = "vivaldi-follower-tab";
+const char kFollowerTabName[] =
+    "Show Open link as follower tab navigation context menu";
+const char kFollowerTabDescription[] =
+    "Enable Open link as follower tab navigation context menu.";
+
+extern const char kInternalPageReaderModeInternalName[] =
+    "vivaldi-internal-page-reader-mode";
+extern const char kInternalPageReaderModeName[] =
+    "Use internal page for reader mode";
+extern const char kInternalPageReaderModeDescription[] =
+    "Should give better results on most pages but is lacking in translation "
+    "features.";
 
 const char kLocationOverrideInternalName[] = "vivaldi-location-override";
 const char kLocationOverrideName[] = "Enable Location Override";
 const char kLocationOverrideDescription[] =
     "Spoof and protect your geolocation with Location Override.";
 
-const char kNewAboutPageInternalName[] = "vivaldi-new-about-page";
-const char kNewAboutPageName[] = "Use new About Page";
-const char kNewAboutPageDescription[] = "Enable the new vivaldi:about page.";
-
 const char kNewPrivacyReportInternalName[] = "vivaldi-new-privacy-report";
 const char kNewPrivacyReportName[] = "Use new Privacy Report";
 const char kNewPrivacyReportDescription[] =
     "When enabled, the new redesigned privacy report is presented.";
+
+const char kOpenLinkTiledInternalName[] = "vivaldi-open-link-tiled";
+const char kOpenLinkTiledName[] =
+    "Enable Open Link Tiled navigation context menu";
+const char kOpenLinkTiledDescription[] =
+    "When enabled, Open Link Tiled navigation context menu is presented.";
 
 const char kShowNewSpeedDialDialogInternalName[] = "vivaldi-show-new-sd-dialog";
 const char kShowNewSpeedDialDialogName[] = "Enable new speed dial dialog";
@@ -50,11 +71,6 @@ const char kShowTopSitesInternalName[] = "vivaldi-show-top-sites";
 const char kShowTopSitesName[] = "Enable top sites";
 const char kShowTopSitesDescription[] =
     "When enabled, top sites are shown in start page and speed dial add dialog";
-
-const char kSpeeddialWidgetsInternalName[] = "vivaldi-speeddial-widgets";
-const char kSpeeddialWidgetsName[] = "Enable Widgets on Speed Dial Groups";
-const char kSpeeddialWidgetsDescription[] =
-    "Allow dashboard widgets to be added on speed dial groups.";
 
 const char kViewMarkdownAsHTMLInternalName[] = "vivaldi-view-markdown-as-html";
 const char kViewMarkdownAsHTMLName[] =
@@ -67,12 +83,25 @@ const char kAddCustomSearchEngineOptionInternalName[] =
 const char kAddCustomSearchEngineOption[] =
     "Show Add Custom Search Engine option";
 const char kAddCustomSearchEngineOptionDescription[] =
-    "When enabled, Add Custom Search Engine option is visible on Search Engine Settings";
+    "When enabled, Add Custom Search Engine option is visible on Search Engine "
+    "Settings";
 
 const char kNoteEditorName[] = "vivaldi-note-editor";
 const char kNoteEditorOption[] = "Use the new note editor";
 const char kNoteEditorDescription[] =
     "Give access to a new note editor with more features.";
+
+const char kRestrictPinnedTabInternalName[] = "vivaldi-restrict-tab";
+const char kRestrictPinnedTabName[] =
+    "Enable navigation option: Restrict Pinned Tab to Current Site";
+const char kRestrictPinnedTabDescription[] =
+    "Enable navigation option: Restrict Pinned Tab to Current Site.";
+
+const char kTabsAutoHideName[] = "vivaldi-auto-hide";
+const char kTabsAutoHideOption[] = "Can use the Auto-Hide settings";
+const char kTabsAutoHideDescription[] =
+    "Give access to a new setting that allows to hide the UI"
+    " and show it when hovering the corresponding edge";
 
 #if defined(OEM_AUTOMOTIVE_BUILD)
 const char kCinemaModeInternalName[] = "vivaldi-cinema-mode";

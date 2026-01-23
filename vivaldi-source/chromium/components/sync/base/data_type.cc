@@ -16,11 +16,11 @@ namespace syncer {
 
 namespace {
 
-static_assert(58 + 1 /* notes */ == syncer::GetNumDataTypes(),
+static_assert(59 + 1 /* notes */ == syncer::GetNumDataTypes(),
               "When adding a new type, update enum SyncDataTypes in enums.xml "
               "and suffix SyncDataType in histograms.xml.");
 
-static_assert(58 + 1 /* notes */ == syncer::GetNumDataTypes(),
+static_assert(59 + 1 /* notes */ == syncer::GetNumDataTypes(),
               "When adding a new type, follow the integration checklist in "
               "https://www.chromium.org/developers/design-documents/sync/"
               "integration-checklist/");
@@ -108,6 +108,8 @@ constexpr kSpecificsFieldNumberToDataTypeMap specifics_field_number2data_type =
          PLUS_ADDRESS_SETTING},
         {sync_pb::EntitySpecifics::kAutofillValuableFieldNumber,
          AUTOFILL_VALUABLE},
+        {sync_pb::EntitySpecifics::kAutofillValuableMetadataFieldNumber,
+         AUTOFILL_VALUABLE_METADATA},
         {sync_pb::EntitySpecifics::kSharedTabGroupAccountDataFieldNumber,
          SHARED_TAB_GROUP_ACCOUNT_DATA},
         {sync_pb::EntitySpecifics::kAccountSettingFieldNumber, ACCOUNT_SETTING},
@@ -284,6 +286,9 @@ void AddDefaultFieldValue(DataType type, sync_pb::EntitySpecifics* specifics) {
     case AUTOFILL_VALUABLE:
       specifics->mutable_autofill_valuable();
       break;
+    case AUTOFILL_VALUABLE_METADATA:
+      specifics->mutable_autofill_valuable_metadata();
+      break;
     case ACCOUNT_SETTING:
       specifics->mutable_account_setting();
       break;
@@ -426,6 +431,8 @@ int GetSpecificsFieldNumberFromDataType(DataType data_type) {
       return sync_pb::EntitySpecifics::kPlusAddressSettingFieldNumber;
     case AUTOFILL_VALUABLE:
       return sync_pb::EntitySpecifics::kAutofillValuableFieldNumber;
+    case AUTOFILL_VALUABLE_METADATA:
+      return sync_pb::EntitySpecifics::kAutofillValuableMetadataFieldNumber;
     case ACCOUNT_SETTING:
       return sync_pb::EntitySpecifics::kAccountSettingFieldNumber;
     case SHARED_TAB_GROUP_ACCOUNT_DATA:
@@ -458,7 +465,7 @@ void internal::GetDataTypeSetFromSpecificsFieldNumberListHelper(
 }
 
 DataType GetDataTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
-  static_assert(58 + 1 /* notes */ == syncer::GetNumDataTypes(),
+  static_assert(59 + 1 /* notes */ == syncer::GetNumDataTypes(),
                 "When adding new protocol types, the following type lookup "
                 "logic must be updated.");
   if (specifics.has_bookmark()) {
@@ -617,6 +624,9 @@ DataType GetDataTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
   if (specifics.has_autofill_valuable()) {
     return AUTOFILL_VALUABLE;
   }
+  if (specifics.has_autofill_valuable_metadata()) {
+    return AUTOFILL_VALUABLE_METADATA;
+  }
   if (specifics.has_account_setting()) {
     return ACCOUNT_SETTING;
   }
@@ -643,11 +653,11 @@ DataType GetDataTypeFromSpecifics(const sync_pb::EntitySpecifics& specifics) {
 }
 
 DataTypeSet AlwaysPreferredUserTypes() {
-  DataTypeSet types = {DEVICE_INFO,          USER_CONSENTS,
-                       PLUS_ADDRESS,         PLUS_ADDRESS_SETTING,
-                       PRIORITY_PREFERENCES, SECURITY_EVENTS,
-                       SEND_TAB_TO_SELF,     SUPERVISED_USER_SETTINGS,
-                       SHARING_MESSAGE};
+  DataTypeSet types = {
+      ACCOUNT_SETTING, DEVICE_INFO,          USER_CONSENTS,
+      PLUS_ADDRESS,    PLUS_ADDRESS_SETTING, PRIORITY_PREFERENCES,
+      SECURITY_EVENTS, SEND_TAB_TO_SELF,     SUPERVISED_USER_SETTINGS,
+      SHARING_MESSAGE};
   // TODO(crbug.com/412602018): Mark AlwaysPreferredUserTypes() method as
   // constexpr when removing the feature flag.
   if (!base::FeatureList::IsEnabled(
@@ -658,10 +668,9 @@ DataTypeSet AlwaysPreferredUserTypes() {
 }
 
 DataTypeSet EncryptableUserTypes() {
-  static_assert(58 + 1 /* notes */ == syncer::GetNumDataTypes(),
+  static_assert(59+ 1 /* notes */ == syncer::GetNumDataTypes(),
                 "If adding an unencryptable type, remove from "
                 "encryptable_user_types below.");
-  DataTypeSet encryptable_user_types = UserTypes();
   // NOTE(julien):
   // Chromium disables encryptions for a number of types that it uses for
   // communicating with the server. We do not need any of them. The chromium
@@ -669,6 +678,14 @@ DataTypeSet EncryptableUserTypes() {
   // unsynced type is added, it will trigger a conflict and we will know about
   // it.
   //
+  DataTypeSet encryptable_user_types = UserTypes();
+  // // Account settings are read-only and therefore never encrypted.
+  // encryptable_user_types.Remove(ACCOUNT_SETTING);
+  // if (base::FeatureList::IsEnabled(kSyncMakeAutofillValuableNonEncryptable)) {
+    // // Valuables are never encrypted because they can be generated from outside
+    // // of Chrome.
+    // encryptable_user_types.Remove(AUTOFILL_VALUABLE);
+  // }
   // // Wallet data is not encrypted since it actually originates on the server.
   // encryptable_user_types.Remove(AUTOFILL_WALLET_DATA);
   // encryptable_user_types.Remove(AUTOFILL_WALLET_OFFER);
@@ -701,6 +718,8 @@ DataTypeSet EncryptableUserTypes() {
   // // originate from outside Chrome.
   // // encryptable_user_types.Remove(PLUS_ADDRESS);
   // encryptable_user_types.Remove(PLUS_ADDRESS_SETTING);
+  // // Valuable metadata is accessed on the server.
+  // encryptable_user_types.Remove(AUTOFILL_VALUABLE_METADATA);
   //
   return encryptable_user_types;
 }
@@ -812,6 +831,8 @@ const char* DataTypeToDebugString(DataType data_type) {
       return "Plus Address Setting";
     case AUTOFILL_VALUABLE:
       return "Autofill Valuable";
+    case AUTOFILL_VALUABLE_METADATA:
+      return "Autofill Valuable Metadata";
     case ACCOUNT_SETTING:
       return "Account Setting";
     case SHARED_TAB_GROUP_ACCOUNT_DATA:
@@ -939,6 +960,8 @@ const char* DataTypeToHistogramSuffix(DataType data_type) {
       return "PLUS_ADDRESS_SETTING";
     case AUTOFILL_VALUABLE:
       return "AUTOFILL_VALUABLE";
+    case AUTOFILL_VALUABLE_METADATA:
+      return "AUTOFILL_VALUABLE_METADATA";
     case SHARED_TAB_GROUP_ACCOUNT_DATA:
       return "SHARED_TAB_GROUP_ACCOUNT_DATA";
     case SHARED_COMMENT:
@@ -1066,6 +1089,8 @@ DataTypeForHistograms DataTypeHistogramValue(DataType data_type) {
       return DataTypeForHistograms::kPlusAddressSettings;
     case AUTOFILL_VALUABLE:
       return DataTypeForHistograms::kAutofillValuable;
+    case AUTOFILL_VALUABLE_METADATA:
+      return DataTypeForHistograms::kAutofillValuableMetadata;
     case ACCOUNT_SETTING:
       return DataTypeForHistograms::kAccountSetting;
     case SHARED_TAB_GROUP_ACCOUNT_DATA:
@@ -1210,6 +1235,8 @@ const char* DataTypeToStableLowerCaseString(DataType data_type) {
       return "plus_address_setting";
     case AUTOFILL_VALUABLE:
       return "autofill_valuable";
+    case AUTOFILL_VALUABLE_METADATA:
+      return "autofill_valuable_metadata";
     case ACCOUNT_SETTING:
       return "account_setting";
     case SHARED_TAB_GROUP_ACCOUNT_DATA:

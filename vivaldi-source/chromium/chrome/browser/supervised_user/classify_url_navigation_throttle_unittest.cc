@@ -13,8 +13,8 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
-#include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_content_filters_service_factory.h"
+#include "chrome/browser/supervised_user/supervised_user_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_settings_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_test_util.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
@@ -91,7 +91,8 @@ std::unique_ptr<KeyedService> BuildTestSupervisedUserService(
               identity_manager, url_loader_factory, *profile->GetPrefs(),
               platform_delegate->GetCountryCode(),
               platform_delegate->GetChannel())),
-      std::make_unique<SupervisedUserServicePlatformDelegate>(*profile));
+      std::make_unique<SupervisedUserServicePlatformDelegate>(*profile),
+      InitialSupervisionState::kUnsupervised);
 }
 
 class ClassifyUrlNavigationThrottleTest
@@ -200,7 +201,7 @@ TEST_F(ClassifyUrlNavigationThrottleUnsupervisedUserTest,
 TEST_F(ClassifyUrlNavigationThrottleTest, AllowedUrlsRecordedInAllowBucket) {
   GURL allowed_url(kExampleURL);
   supervised_user_test_util::SetManualFilterForHost(
-      profile(), allowed_url.host(), /*allowlist=*/true);
+      profile(), allowed_url.GetHost(), /*allowlist=*/true);
 
   std::unique_ptr<content::MockNavigationThrottleRegistry> registry =
       CreateNavigationThrottle(allowed_url);
@@ -221,7 +222,7 @@ TEST_F(ClassifyUrlNavigationThrottleTest,
        BlocklistedUrlsRecordedInBlockManualBucket) {
   GURL blocked_url(kExampleURL);
   supervised_user_test_util::SetManualFilterForHost(
-      profile(), blocked_url.host(), /*allowlist=*/false);
+      profile(), blocked_url.GetHost(), /*allowlist=*/false);
   ASSERT_TRUE(GetSupervisedUserURLFilter()
                   ->GetFilteringBehavior(blocked_url)
                   .IsBlocked());

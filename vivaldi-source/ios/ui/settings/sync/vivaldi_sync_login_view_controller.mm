@@ -5,7 +5,6 @@
 #import "base/apple/foundation_util.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_link_header_footer_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_cell.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_link_item.h"
@@ -177,6 +176,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.switchItemSavePassword.text = l10n_util::GetNSString(
       IDS_VIVALDI_ACCOUNT_SAVE_CREDENTIALS);
   self.switchItemSavePassword.on = NO;
+  self.switchItemSavePassword.target = self;
+  self.switchItemSavePassword.selector =
+      @selector(savePasswordSwitchToggled);
+  self.switchItemSavePassword.tag = ItemTypeSavePasswordSwitch;
   [model addItem:self.switchItemSavePassword
       toSectionWithIdentifier:SectionIdentifierSavePassword];
 
@@ -199,7 +202,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.loginButton.activityInProgress = NO;
   self.loginButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_LOG_IN);
-  self.loginButton.textAlignment = NSTextAlignmentNatural;
   self.loginButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
   self.loginButton.buttonTextColor = [UIColor colorNamed:kSolidButtonTextColor];
   self.loginButton.cellBackgroundColor = _loginButton.buttonBackgroundColor;
@@ -266,14 +268,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
       VivaldiTableViewIllustratedCell* titleCell =
           base::apple::ObjCCast<VivaldiTableViewIllustratedCell>(cell);
       titleCell.subtitleLabel.delegate = self;
-      break;
-    }
-    case ItemTypeSavePasswordSwitch: {
-      TableViewSwitchCell* switchCell =
-          base::apple::ObjCCastStrict<TableViewSwitchCell>(cell);
-      [switchCell.switchView addTarget:self
-                                action:@selector(savePasswordSwitchToggled)
-                      forControlEvents:UIControlEventValueChanged];
       break;
     }
     case ItemTypeForgotUsernamePassword: {

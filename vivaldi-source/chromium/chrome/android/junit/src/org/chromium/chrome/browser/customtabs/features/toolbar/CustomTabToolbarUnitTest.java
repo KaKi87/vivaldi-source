@@ -230,7 +230,8 @@ public class CustomTabToolbarUnitTest {
                 /* homeButtonDisplay= */ null,
                 null,
                 mThemeColorProvider,
-                mIncognitoStateProvider);
+                mIncognitoStateProvider,
+                /* incognitoWindowCountSupplier= */ null);
         if (!ChromeFeatureList.sCctToolbarRefactor.isEnabled()) {
             mToolbar.initVisibilityRule(mActivity, () -> mAppMenuHandler, mIntentDataProvider);
         }
@@ -581,30 +582,14 @@ public class CustomTabToolbarUnitTest {
     }
 
     @Test
-    @DisableFeatures({
-        ChromeFeatureList.CCT_REVAMPED_BRANDING,
-        ChromeFeatureList.CCT_NESTED_SECURITY_ICON
-    })
-    public void testSecurityIconVisibility() {
-        assertEquals(View.INVISIBLE, mSecurityButton.getVisibility());
-        assertEquals(View.GONE, mSecurityIcon.getVisibility());
-    }
-
-    @Test
-    @EnableFeatures({
-        ChromeFeatureList.CCT_REVAMPED_BRANDING,
-        ChromeFeatureList.CCT_NESTED_SECURITY_ICON
-    })
+    @EnableFeatures({ChromeFeatureList.CCT_NESTED_SECURITY_ICON})
     public void testSecurityIconVisibility_nestedIcon() {
         assertEquals(View.GONE, mSecurityButton.getVisibility());
         assertEquals(View.INVISIBLE, mSecurityIcon.getVisibility());
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.CCT_REVAMPED_BRANDING,
-        ChromeFeatureList.CCT_NESTED_SECURITY_ICON
-    })
+    @EnableFeatures({ChromeFeatureList.CCT_NESTED_SECURITY_ICON})
     public void testSecurityIconHidden() {
         when(mLocationBarModel.getSecurityIconResource(anyBoolean()))
                 .thenReturn(R.drawable.omnibox_https_valid_page_info);
@@ -616,10 +601,7 @@ public class CustomTabToolbarUnitTest {
     }
 
     @Test
-    @EnableFeatures({
-        ChromeFeatureList.CCT_REVAMPED_BRANDING,
-        ChromeFeatureList.CCT_NESTED_SECURITY_ICON
-    })
+    @EnableFeatures({ChromeFeatureList.CCT_NESTED_SECURITY_ICON})
     public void testSecurityIconShown() {
         when(mLocationBarModel.getSecurityIconResource(anyBoolean()))
                 .thenReturn(R.drawable.omnibox_not_secure_warning);

@@ -12,7 +12,6 @@
 #import "components/password_manager/core/browser/ui/password_check_referrer.h"
 #import "ios/chrome/browser/default_browser/model/promo_source.h"
 #import "ios/chrome/browser/omnibox/model/suggestions/omnibox_pedal_swift.h"
-#import "ios/chrome/browser/settings/ui_bundled/clear_browsing_data/features.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/omnibox_commands.h"
@@ -24,14 +23,10 @@
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/image_util.h"
 #import "ios/chrome/grit/ios_strings.h"
+#import "ios/components/webui/web_ui_url_constants.h"
 #import "ui/base/l10n/l10n_util.h"
 
 namespace {
-
-/// Hard-coded here to avoid dependency on //content. This needs to be kept in
-/// sync with kChromeUIScheme in `content/public/common/url_constants.h`.
-const char kChromeUIScheme[] = "chrome";
-
 const CGFloat kSymbolSize = 18;
 }  // namespace
 
@@ -99,14 +94,11 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       if (IsIosQuickDeleteEnabled()) {
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
                          [quickDeleteHandler
-                             showQuickDeleteAndCanPerformTabsClosureAnimation:
+                             showQuickDeleteAndCanPerformRadialWipeAnimation:
                                  YES];
-                       } else {
-                         [settingsHandler showClearBrowsingDataSettings];
-                       }
+                       }];
                      }];
     }
     case OmniboxPedalId::SET_CHROME_AS_DEFAULT_BROWSER: {
@@ -120,9 +112,10 @@ const CGFloat kSymbolSize = 18;
       DefaultBrowserSettingsPageSource source =
           DefaultBrowserSettingsPageSource::kOmnibox;
       ProceduralBlock action = ^{
-        [omniboxHandler cancelOmniboxEdit];
-        [settingsHandler showDefaultBrowserSettingsFromViewController:nil
-                                                         sourceForUMA:source];
+        [omniboxHandler cancelOmniboxEditWithCompletion:^{
+          [settingsHandler showDefaultBrowserSettingsFromViewController:nil
+                                                           sourceForUMA:source];
+        }];
       };
       return [[OmniboxPedalData alloc]
               initWithTitle:hint
@@ -155,9 +148,10 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [settingsHandler
-                           showSavedPasswordsSettingsFromViewController:nil];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [settingsHandler
+                             showSavedPasswordsSettingsFromViewController:nil];
+                       }];
                      }];
     }
     case OmniboxPedalId::UPDATE_CREDIT_CARD: {
@@ -175,8 +169,9 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [settingsHandler showCreditCardSettings];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [settingsHandler showCreditCardSettings];
+                       }];
                      }];
     }
     case OmniboxPedalId::LAUNCH_INCOGNITO: {
@@ -192,10 +187,11 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [applicationHandler
-                           openURLInNewTab:[OpenNewTabCommand
-                                               incognitoTabCommand]];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [applicationHandler
+                             openURLInNewTab:[OpenNewTabCommand
+                                                 incognitoTabCommand]];
+                       }];
                      }];
     }
     case OmniboxPedalId::RUN_CHROME_SAFETY_CHECK: {
@@ -213,11 +209,12 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [settingsHandler
-                           showAndStartSafetyCheckForReferrer:
-                               password_manager::PasswordCheckReferrer::
-                                   kSafetyCheck];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [settingsHandler
+                             showAndStartSafetyCheckForReferrer:
+                                 password_manager::PasswordCheckReferrer::
+                                     kSafetyCheck];
+                       }];
                      }];
     }
     case OmniboxPedalId::MANAGE_CHROME_SETTINGS: {
@@ -235,8 +232,10 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [applicationHandler showSettingsFromViewController:nil];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [applicationHandler
+                             showSettingsFromViewController:nil];
+                       }];
                      }];
     }
     case OmniboxPedalId::VIEW_CHROME_HISTORY: {
@@ -254,8 +253,9 @@ const CGFloat kSymbolSize = 18;
            imageBorderColor:nil
                        type:pedalType
                      action:^{
-                       [omniboxHandler cancelOmniboxEdit];
-                       [applicationHandler showHistory];
+                       [omniboxHandler cancelOmniboxEditWithCompletion:^{
+                         [applicationHandler showHistory];
+                       }];
                      }];
     }
       // If a new case is added here, make sure to update the method returning

@@ -75,7 +75,7 @@ void VivaldiDataSource::StartDataRequest(
     content::URLDataSource::GotDataCallback callback) {
   std::string data;
   std::optional<PathType> type =
-      vivaldi_data_url_utils::ParsePath(url.path_piece(), &data);
+      vivaldi_data_url_utils::ParsePath(url.path(), &data);
   if (type) {
     auto it = data_class_handlers_.find(*type);
     if (it != data_class_handlers_.end()) {
@@ -99,7 +99,7 @@ std::string VivaldiDataSource::GetMimeType(const GURL& url) {
 
   std::string data;
   std::optional<PathType> type =
-      vivaldi_data_url_utils::ParsePath(url.path_piece(), &data);
+      vivaldi_data_url_utils::ParsePath(url.path(), &data);
   if (type) {
     auto it = data_class_handlers_.find(*type);
     if (it != data_class_handlers_.end()) {

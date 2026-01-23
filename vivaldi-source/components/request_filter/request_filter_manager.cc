@@ -7,7 +7,6 @@
 #include <optional>
 #include <utility>
 
-#include "base/not_fatal_until.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/request_filter/request_filter_manager_factory.h"
 #include "components/request_filter/request_filter_proxying_url_loader_factory.h"
@@ -181,8 +180,7 @@ void RequestFilterManager::ProxyWebSocket(
     mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  const bool has_extra_headers =
-      request_handler_.WantsExtraHeadersForAnyRequest();
+  const bool has_extra_headers = request_handler_.HasAnyExtraHeadersListener();
 
   RequestFilterProxyingWebSocket::StartProxying(
       std::move(factory), site_for_cookies, user_agent, url,
@@ -300,18 +298,35 @@ RequestFilterManager::RequestHandler::RequestHandler(
 
 RequestFilterManager::RequestHandler::~RequestHandler() = default;
 
-bool RequestFilterManager::RequestHandler::WantsExtraHeadersForAnyRequest() {
+bool RequestFilterManager::RequestHandler::HasAnyExtraHeadersListener() {
   for (const auto& filter : filter_manager_->request_filters_) {
-    if (filter->WantsExtraHeadersForAnyRequest())
+    if (filter->HasAnyExtraHeadersListener())
       return true;
   }
   return false;
 }
 
-bool RequestFilterManager::RequestHandler::WantsExtraHeadersForRequest(
+bool RequestFilterManager::RequestHandler::HasExtraHeadersListenerForRequest(
     FilteredRequestInfo* request) {
   for (const auto& filter : filter_manager_->request_filters_) {
-    if (filter->WantsExtraHeadersForRequest(request))
+    if (filter->HasExtraHeadersListenerForRequest(request))
+      return true;
+  }
+  return false;
+}
+
+bool RequestFilterManager::RequestHandler::HasAnySecurityInfoListener() {
+  for (const auto& filter : filter_manager_->request_filters_) {
+    if (filter->HasAnySecurityInfoListener())
+      return true;
+  }
+  return false;
+}
+
+bool RequestFilterManager::RequestHandler::HasSecurityInfoListenerForRequest(
+    FilteredRequestInfo* request) {
+  for (const auto& filter : filter_manager_->request_filters_) {
+    if (filter->HasSecurityInfoListenerForRequest(request))
       return true;
   }
   return false;

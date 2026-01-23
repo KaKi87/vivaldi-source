@@ -1,7 +1,9 @@
 // Copyright (c) 2024 Vivaldi Technologies AS. All rights reserved
 
 #include "launch_bar_gnome_support.h"
+
 #include <algorithm>
+#include <vector>
 
 #include "base/environment.h"
 #include "base/logging.h"

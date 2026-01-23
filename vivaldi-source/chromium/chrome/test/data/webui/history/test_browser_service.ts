@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {BrowserService, ForeignSession} from 'chrome://history/history.js';
+import type {BrowserService, ForeignSession, HistoryIdentityState} from 'chrome://history/history.js';
+import {HistorySignInState, SyncState} from 'chrome://history/history.js';
 import {
   PageCallbackRouter,
   PageHandlerRemote,
@@ -22,11 +23,13 @@ export class TestBrowserService extends TestBrowserProxy implements
   histogramMap: {[key: string]: {[key: string]: number}} = {};
   actionMap: {[key: string]: number} = {};
   private foreignSessions_: ForeignSession[] = [];
+  private initialIdentityState_: HistoryIdentityState;
 
   constructor() {
     super([
       'deleteForeignSession',
       'getForeignSessions',
+      'getInitialIdentityState',
       'historyLoaded',
       'navigateToUrl',
       'openForeignSessionTab',
@@ -34,12 +37,19 @@ export class TestBrowserService extends TestBrowserProxy implements
       'recordBooleanHistogram',
       'recordHistogram',
       'recordLongTime',
+      'recordSigninPendingOffered',
       'startTurnOnSyncFlow',
     ]);
 
     this.handler = TestMock.fromClass(PageHandlerRemote);
     this.callbackRouter = new PageCallbackRouter();
     this.pageRemote = this.callbackRouter.$.bindNewPipeAndPassRemote();
+
+    this.initialIdentityState_ = {
+      signIn: HistorySignInState.SIGNED_OUT,
+      tabsSync: SyncState.TURNED_OFF,
+      historySync: SyncState.TURNED_OFF,
+    };
 
     this.handler.setResultFor('queryHistory', Promise.resolve({
       results: {
@@ -55,6 +65,13 @@ export class TestBrowserService extends TestBrowserProxy implements
         accountImageSrc: {url: 'http://example.com/image.png'},
       },
     }));
+
+    // <if expr="not is_chromeos">
+    this.handler.setResultFor(
+        'shouldShowHistoryPageHistorySyncPromo', Promise.resolve({
+          shouldShow: false,
+        }));
+    // </if>
   }
 
 
@@ -65,6 +82,15 @@ export class TestBrowserService extends TestBrowserProxy implements
   getForeignSessions() {
     this.methodCalled('getForeignSessions');
     return Promise.resolve(this.foreignSessions_);
+  }
+
+  getInitialIdentityState(): Promise<HistoryIdentityState> {
+    this.methodCalled('getInitialIdentityState');
+    return Promise.resolve(this.initialIdentityState_);
+  }
+
+  setInitialIdentityState(identityState: HistoryIdentityState) {
+    this.initialIdentityState_ = identityState;
   }
 
   setForeignSessions(sessions: ForeignSession[]) {
@@ -123,6 +149,10 @@ export class TestBrowserService extends TestBrowserProxy implements
 
   recordLongTime(histogram: string, value: number) {
     this.methodCalled('recordLongTime', histogram, value);
+  }
+
+  recordSigninPendingOffered() {
+    this.methodCalled('recordSigninPendingOffered');
   }
 
   removeBookmark() {}

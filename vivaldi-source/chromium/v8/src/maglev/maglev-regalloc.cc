@@ -378,6 +378,7 @@ void StraightForwardRegisterAllocator::AllocateRegisters() {
     printing_visitor_->PreProcessGraph(graph_);
   }
 
+  // LINT.IfChange(maglev_constant_nodes)
   for (const auto& [ref, constant] : graph_->constants()) {
     constant->regalloc_info()->SetConstantLocation();
     USE(ref);
@@ -402,11 +403,16 @@ void StraightForwardRegisterAllocator::AllocateRegisters() {
     constant->regalloc_info()->SetConstantLocation();
     USE(value);
   }
+  DCHECK(graph_->shifted_int53().empty());
   for (const auto& [value, constant] : graph_->intptr()) {
     constant->regalloc_info()->SetConstantLocation();
     USE(value);
   }
   for (const auto& [value, constant] : graph_->float64()) {
+    constant->regalloc_info()->SetConstantLocation();
+    USE(value);
+  }
+  for (const auto& [value, constant] : graph_->holey_float64()) {
     constant->regalloc_info()->SetConstantLocation();
     USE(value);
   }
@@ -418,6 +424,7 @@ void StraightForwardRegisterAllocator::AllocateRegisters() {
     constant->regalloc_info()->SetConstantLocation();
     USE(ref);
   }
+  // LINT.ThenChange()
 
   for (block_it_ = graph_->begin(); block_it_ != graph_->end(); ++block_it_) {
     BasicBlock* block = *block_it_;
@@ -635,6 +642,9 @@ void StraightForwardRegisterAllocator::AllocateRegisters() {
     AllocateControlNode(block->control_node(), block);
     ApplyPatches(block);
   }
+
+  // Clean up remaining register allocations at the end
+  ClearRegisters();
 }
 
 void StraightForwardRegisterAllocator::FreeRegistersUsedBy(ValueNode* node) {
@@ -698,6 +708,7 @@ void StraightForwardRegisterAllocator::AllocateEagerDeopt(
     UpdateUse(node, input);
     input++;
   });
+  CHECK_EQ(input, deopt_info.input_locations_end());
 }
 
 void StraightForwardRegisterAllocator::AllocateLazyDeopt(
@@ -712,6 +723,7 @@ void StraightForwardRegisterAllocator::AllocateLazyDeopt(
     UpdateUse(node, input);
     input++;
   });
+  CHECK_EQ(input, deopt_info.input_locations_end());
 }
 
 #ifdef DEBUG
@@ -1110,9 +1122,15 @@ void StraightForwardRegisterAllocator::AllocateControlNode(ControlNode* node,
           UpdateUse(phi->input(predecessor_id));
         }
       }
+    } else if (target->is_edge_split_block()) {
+      // MaglevOptimizer can rewrite control flow when folding conditionals.
+      // This can make a spurious edge split block connected by unconditional
+      // jumps.
+      // TODO(victorgomes): consider eliminating those empty blocks before
+      // regalloc.
+      InitializeEmptyBlockRegisterValues(node, target);
     } else {
       // Fallthrough.
-      DCHECK(!target->is_edge_split_block());
       DCHECK_EQ(unconditional->id() + 1, target->first_id());
       DCHECK(AllUsedRegistersLiveAt(target));
     }
@@ -1622,8 +1640,8 @@ void StraightForwardRegisterAllocator::SpillRegisters() {
   double_registers_.ForEachUsedRegister(spill);
 }
 
-template <typename RegisterT>
-void StraightForwardRegisterAllocator::SpillAndClearRegisters(
+template <typename RegisterT, bool spill>
+void StraightForwardRegisterAllocator::ClearRegisters(
     RegisterFrameState<RegisterT>& registers) {
   while (registers.used() != registers.empty()) {
     RegisterT reg = registers.used().first();
@@ -1632,7 +1650,9 @@ void StraightForwardRegisterAllocator::SpillAndClearRegisters(
       printing_visitor_->os()
           << "  clearing registers with " << PrintNodeLabel(node) << "\n";
     }
-    Spill(node);
+    if (spill) {
+      Spill(node);
+    }
     registers.FreeRegistersUsedBy(node);
     DCHECK(!registers.used().has(reg));
   }
@@ -1641,6 +1661,11 @@ void StraightForwardRegisterAllocator::SpillAndClearRegisters(
 void StraightForwardRegisterAllocator::SpillAndClearRegisters() {
   SpillAndClearRegisters(general_registers_);
   SpillAndClearRegisters(double_registers_);
+}
+
+void StraightForwardRegisterAllocator::ClearRegisters() {
+  ClearRegisters(general_registers_);
+  ClearRegisters(double_registers_);
 }
 
 void StraightForwardRegisterAllocator::SaveRegisterSnapshot(NodeBase* node) {
@@ -1684,6 +1709,7 @@ void StraightForwardRegisterAllocator::SaveRegisterSnapshot(NodeBase* node) {
       }
       input++;
     });
+    CHECK_EQ(input, node->eager_deopt_info()->input_locations_end());
   }
   node->set_register_snapshot(snapshot);
 }
@@ -2367,7 +2393,7 @@ void StraightForwardRegisterAllocator::MergeRegisterValues(ControlNode* control,
       // This can only happen for conversion nodes, as they can split and take
       // over the liveness of the node they are converting.
       // TODO(v8:7700): Overeager DCHECK.
-      // DCHECK(node->properties().is_conversion());
+      // DCHECK(node->is_conversion());
       if (v8_flags.trace_maglev_regalloc) {
         printing_visitor_->os()
             << "  " << reg << " - can't load " << PrintNodeLabel(node)
@@ -2416,7 +2442,7 @@ void StraightForwardRegisterAllocator::MergeRegisterValues(ControlNode* control,
       // TODO(v8:7700): This DCHECK is overeager, {incoming} can be a Phi node
       // containing conversion nodes.
       // DCHECK_IMPLIES(!IsInRegister(target_state, incoming),
-      //                incoming->properties().is_conversion());
+      //                incoming->is_conversion());
       if (v8_flags.trace_maglev_regalloc) {
         printing_visitor_->os()
             << "  " << reg << " - can't load incoming "

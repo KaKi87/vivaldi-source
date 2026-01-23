@@ -13,7 +13,6 @@ import androidx.annotation.IntDef;
 import org.chromium.base.Callback;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.TimeUtils;
-import org.chromium.base.UnownedUserData;
 import org.chromium.base.UnownedUserDataKey;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -40,7 +39,7 @@ import org.chromium.build.BuildConfig;
  * with a rationale.
  */
 @NullMarked
-public class NotificationPermissionController implements UnownedUserData {
+public class NotificationPermissionController {
     /** Field trial param controlling rationale behavior. */
     public static final String FIELD_TRIAL_ALWAYS_SHOW_RATIONALE_BEFORE_REQUESTING_PERMISSION =
             "always_show_rationale_before_requesting_permission";
@@ -117,7 +116,7 @@ public class NotificationPermissionController implements UnownedUserData {
     }
 
     private static final UnownedUserDataKey<NotificationPermissionController> KEY =
-            new UnownedUserDataKey<>(NotificationPermissionController.class);
+            new UnownedUserDataKey<>();
 
     private final AndroidPermissionDelegate mAndroidPermissionDelegate;
     private final Supplier<RationaleDelegate> mRationaleDelegateSupplier;

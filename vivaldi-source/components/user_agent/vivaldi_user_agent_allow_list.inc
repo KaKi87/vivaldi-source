@@ -32,3 +32,6 @@
 
 // VB-81592: Used in redirects, e.g to Chrome Web Store
 "vvld.in",
+
+// VB-123276: Ilya request 
+"kontur.ru",

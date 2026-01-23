@@ -9,6 +9,7 @@
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/password_manager/password_change/change_password_form_finder.h"
+#include "chrome/browser/password_manager/password_change/login_state_checker.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/passwords/password_change_ui_controller.h"
 #include "chrome/browser/ui/passwords/passwords_leak_dialog_delegate_mock.h"
@@ -83,6 +84,19 @@ class MockManagePasswordsUIController : public ManagePasswordsUIController {
               (override));
 };
 
+class MockPasswordChangeDelegateObserver
+    : public PasswordChangeDelegate::Observer {
+ public:
+  MOCK_METHOD(void,
+              OnStateChanged,
+              (PasswordChangeDelegate::State),
+              (override));
+  MOCK_METHOD(void,
+              OnPasswordChangeStopped,
+              (PasswordChangeDelegate*),
+              (override));
+};
+
 const ukm::mojom::UkmEntry* GetUkmEntry(
     const ukm::TestAutoSetUkmRecorder& test_ukm_recorder) {
   auto ukm_entries = test_ukm_recorder.GetEntriesByName(UkmEntry::kEntryName);
@@ -144,8 +158,13 @@ class PasswordChangeDelegateImplTest : public ChromeRenderViewHostTestHarness {
   PasswordChangeDelegate* delegate() { return delegate_.get(); }
 
   void CreateDelegate() {
+    password_manager::PasswordForm form;
+    form.url = GURL(kChangePasswordURL);
+    form.signon_realm = GURL(kChangePasswordURL).GetWithEmptyPath().spec();
+    form.username_value = kTestEmail;
+    form.password_value = kPassword;
     delegate_ = std::make_unique<PasswordChangeDelegateImpl>(
-        GURL(kChangePasswordURL), kTestEmail, kPassword, tab_interface_.get());
+        GURL(kChangePasswordURL), std::move(form), tab_interface_.get());
     delegate_->SetCustomUIController(
         std::make_unique<MockPasswordChangeUIController>(delegate_.get()));
   }
@@ -171,6 +190,7 @@ class PasswordChangeDelegateImplTest : public ChromeRenderViewHostTestHarness {
 };
 
 TEST_F(PasswordChangeDelegateImplTest, WaitingForAgreement) {
+  base::HistogramTester histogram_tester;
   CreateDelegate();
   EXPECT_EQ(
       prefs()->GetInteger(optimization_guide::prefs::GetSettingEnabledPrefName(
@@ -192,6 +212,10 @@ TEST_F(PasswordChangeDelegateImplTest, WaitingForAgreement) {
       static_cast<int>(optimization_guide::prefs::FeatureOptInState::kEnabled));
   EXPECT_EQ(delegate()->GetCurrentState(),
             PasswordChangeDelegate::State::kWaitingForChangePasswordForm);
+  ResetDelegate();
+
+  histogram_tester.ExpectTotalCount(
+      PasswordChangeDelegateImpl::kPasswordChangeTimeOverallHistogram, 1);
 }
 
 TEST_F(PasswordChangeDelegateImplTest, PasswordChangeFormNotFound) {
@@ -201,10 +225,14 @@ TEST_F(PasswordChangeDelegateImplTest, PasswordChangeFormNotFound) {
   ukm::TestAutoSetUkmRecorder test_ukm_recorder;
 
   delegate()->StartPasswordChangeFlow();
+  static_cast<PasswordChangeDelegateImpl*>(delegate())
+      ->login_checker()
+      ->RespondWithLoginStatus(LoginCheckResult::kLoggedIn);
 
   EXPECT_EQ(delegate()->GetCurrentState(),
             PasswordChangeDelegate::State::kWaitingForChangePasswordForm);
 
+  FastForwardBy(base::Milliseconds(1234));
   static_cast<PasswordChangeDelegateImpl*>(delegate())
       ->form_finder()
       ->RespondWithFormNotFound();
@@ -220,6 +248,8 @@ TEST_F(PasswordChangeDelegateImplTest, PasswordChangeFormNotFound) {
       PasswordChangeDelegateImpl::kCoarseFinalPasswordChangeStatusHistogram,
       PasswordChangeDelegate::CoarseFinalPasswordChangeState::kFormNotDetected,
       /*expected_bucket_count=*/1);
+  histogram_tester.ExpectUniqueSample(
+      PasswordChangeDelegateImpl::kPasswordChangeTimeOverallHistogram, 1234, 1);
   ukm::TestUkmRecorder::ExpectEntryMetric(
       GetUkmEntry(test_ukm_recorder),
       UkmEntry::kCoarseFinalPasswordChangeStatusName,
@@ -372,4 +402,34 @@ TEST_F(PasswordChangeDelegateImplTest, OnPasswordChangeDeclined) {
   EXPECT_CALL(mock_leak_delegate, OnLeakDialogHidden);
 
   task_environment()->RunUntilIdle();
+}
+
+TEST_F(PasswordChangeDelegateImplTest, LoginPasswordFormIsLogged) {
+  CreateDelegate();
+  delegate()->StartPasswordChangeFlow();
+
+  optimization_guide::proto::PasswordChangeQuality quality =
+      static_cast<PasswordChangeDelegateImpl*>(delegate())
+          ->logs_uploader()
+          ->GetFinalLog()
+          .password_change_submission()
+          .quality();
+  EXPECT_TRUE(quality.has_login_form_data());
+}
+
+TEST_F(PasswordChangeDelegateImplTest, DelegateNotifiesObserver) {
+  CreateDelegate();
+
+  MockPasswordChangeDelegateObserver observer;
+  delegate()->AddObserver(&observer);
+
+  EXPECT_EQ(delegate()->GetCurrentState(),
+            PasswordChangeDelegate::State::kWaitingForAgreement);
+
+  EXPECT_CALL(
+      observer,
+      OnStateChanged(
+          PasswordChangeDelegate::State::kWaitingForChangePasswordForm));
+  delegate()->OnPrivacyNoticeAccepted();
+  delegate()->RemoveObserver(&observer);
 }

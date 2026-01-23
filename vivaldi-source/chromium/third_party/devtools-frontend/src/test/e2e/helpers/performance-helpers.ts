@@ -4,9 +4,9 @@
 
 import type * as puppeteer from 'puppeteer-core';
 
-import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
-import type {InspectedPage} from '../../e2e_non_hosted/shared/target-helper.js';
 import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+import type {InspectedPage} from '../shared/target-helper.js';
 
 import {openCommandMenu} from './quick_open-helpers.js';
 import {
@@ -15,11 +15,11 @@ import {
   veClick,
   veImpression,
   veImpressionsUnder,
-  veKeyDown,
   veResize,
 } from './visual-logging-helpers.js';
 
 export const FILTER_TEXTBOX_SELECTOR = '[aria-label="Filter"]';
+export const CLEAR_BUTTON_SELECTOR = '[aria-label="Clear"]';
 export const RECORD_BUTTON_SELECTOR = '[aria-label="Record"]';
 export const RELOAD_AND_RECORD_BUTTON_SELECTOR = '[aria-label="Record and reload"]';
 export const STOP_BUTTON_SELECTOR = '[aria-label="Stop"]';
@@ -87,27 +87,16 @@ export async function searchForComponent(
     searchEntry: string, devToolsPage: DevToolsPage = getBrowserAndPagesWrappers().devToolsPage) {
   await devToolsPage.waitFor('devtools-performance-timeline-summary');
   await devToolsPage.summonSearchBox();
-  await devToolsPage.waitFor('.search-bar');
-  await devToolsPage.page.keyboard.type(searchEntry);
+
+  const inputEl = await devToolsPage.waitFor('input#search-input-field');
+  await inputEl.focus();
+  await inputEl.evaluate((el, searchEntry) => {
+    el.value = searchEntry;
+    el.blur();
+    el.dispatchEvent(new Event('input'));
+  }, searchEntry);
+  await devToolsPage.evaluate(async () => await new Promise(requestAnimationFrame));
   await devToolsPage.timeout(300);
-  await devToolsPage.page.keyboard.press('Tab');
-  await devToolsPage.timeout(300);
-  await expectVeEvents(
-      [
-        veKeyDown(''),
-        veImpressionsUnder('Panel: timeline', [veImpression(
-                                                  'Toolbar', 'search',
-                                                  [
-                                                    veImpression('TextField', 'search'),
-                                                    veImpression('Action', 'regular-expression'),
-                                                    veImpression('Action', 'match-case'),
-                                                    veImpression('Action', 'select-previous'),
-                                                    veImpression('Action', 'select-next'),
-                                                    veImpression('Action', 'close-search'),
-                                                  ])]),
-        veChange('Panel: timeline > Toolbar: search > TextField: search'),
-      ],
-      undefined, devToolsPage);
 }
 
 export async function navigateToBottomUpTab(
@@ -228,6 +217,7 @@ export async function toggleMatchWholeWordButtonBottomUp(
 }
 
 export async function startRecording(devToolsPage: DevToolsPage = getBrowserAndPagesWrappers().devToolsPage) {
+  await devToolsPage.click(CLEAR_BUTTON_SELECTOR);
   await devToolsPage.click(RECORD_BUTTON_SELECTOR);
 
   // Wait for the button to turn to its stop state.
@@ -240,7 +230,7 @@ export async function startRecording(devToolsPage: DevToolsPage = getBrowserAndP
 /**
  * Increases the timeout for the tests in the given context.
  * Useful for performance as tests that import or record a trace often get over the default timeout on slower bots.
- * Note that in e2e_non_hosted this can only be used on a `describe`, not an
+ * Note that in e2e this can only be used on a `describe`, not an
  * `it`, hence why the type of the argument is `Mocha.Suite`
  */
 export function increaseTimeoutForPerfPanel(context: Mocha.Suite): void {

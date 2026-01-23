@@ -91,7 +91,7 @@ bool MakeEventSecurityDescriptor(std::vector<uint8_t>* owner_buffer,
     return process_token_handle;
   }());
 
-  if (!process_token.IsValid())
+  if (!process_token.is_valid())
     return false;
 
   if (!SafeGetTokenInformation(process_token.Get(), TokenOwner, owner_buffer))
@@ -195,14 +195,14 @@ base::win::ScopedHandle MakeGlobalEvent(const std::wstring& event_name) {
   for (int i = 0; i < 3; i++) {
     event_handle.Set(
         CreateEvent(&security_attributes, TRUE, FALSE, event_name.c_str()));
-    if (event_handle.IsValid())
+    if (event_handle.is_valid())
       break;
     event_handle.Set(OpenEvent(SYNCHRONIZE, FALSE, event_name.c_str()));
-    if (event_handle.IsValid())
+    if (event_handle.is_valid())
       break;
   }
 
-  LOG_IF(ERROR, !event_handle.IsValid())
+  LOG_IF(ERROR, !event_handle.is_valid())
       << "Failed to listen for " << event_name;
   return event_handle;
 }
@@ -249,7 +249,8 @@ std::wstring ReadLocaleStateLanguage() {
     LOG(WARNING) << "Failed to read " << local_state_path;
     return std::wstring();
   }
-  std::optional<base::Value> json = base::JSONReader::Read(json_text);
+  std::optional<base::Value> json =
+      base::JSONReader::Read(json_text, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!json) {
     LOG(WARNING) << "Failed to parse " << local_state_path << " as json";
     return std::wstring();
@@ -402,7 +403,7 @@ void UpdateNotifierManager::InitEvents(bool& already_runs) {
   base::win::ScopedHandle check_for_updates_event_handle(
       CreateEvent(nullptr, TRUE, FALSE, check_for_updates_event_name.c_str()));
   DWORD create_event_error = ::GetLastError();
-  PCHECK(check_for_updates_event_handle.IsValid());
+  PCHECK(check_for_updates_event_handle.is_valid());
   check_for_updates_event_.emplace(std::move(check_for_updates_event_handle));
   if (create_event_error == ERROR_ALREADY_EXISTS) {
     // The proces instance that checks for updates already runs.
@@ -422,7 +423,7 @@ void UpdateNotifierManager::InitEvents(bool& already_runs) {
         vivaldi::GetUpdateNotifierEventName(kQuitEventPrefix, GetExeDir());
     base::win::ScopedHandle quit_event_handle(
         CreateEvent(nullptr, TRUE, FALSE, quit_event_name.c_str()));
-    PCHECK(quit_event_handle.IsValid());
+    PCHECK(quit_event_handle.is_valid());
     quit_event_.emplace(std::move(quit_event_handle));
     quit_event_watch_.StartWatching(
         &quit_event_.value(),
@@ -438,7 +439,7 @@ void UpdateNotifierManager::InitEvents(bool& already_runs) {
           kGlobalQuitEventPrefix, GetExeDir());
       base::win::ScopedHandle global_quit_handle =
           MakeGlobalEvent(global_quit_event_name);
-      if (global_quit_handle.IsValid()) {
+      if (global_quit_handle.is_valid()) {
         global_quit_event_.emplace(std::move(global_quit_handle));
         global_quit_event_watch_.StartWatching(
             &global_quit_event_.value(),

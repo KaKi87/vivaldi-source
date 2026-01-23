@@ -113,17 +113,9 @@
             "type": "boolean",
             "description": "Does profile support open tab import."
           },
-          "hasDefaultInstall": {
-            "type": "boolean",
-            "description": "Is a default installation detected."
-          },
-          "detectedProfilePath": {
+          "profilePath": {
             "type": "string",
-            "description": "Is the path on disk to the detected profile."
-          },
-          "requiresInteractiveImport": {
-            "type": "boolean",
-            "description": "Does the profile require interactive (file/directory picker dialog) selection by the user."
+            "description": "Path on disk to the profile, empty if the profile was not detected."
           },
           "requiresAccessPermission": {
             "type": "boolean",
@@ -139,7 +131,7 @@
           },
           "mailPath": {
             "type": "string",
-            "description": "The path on disk to the detected mail profile"
+            "description": "The path on disk to the detected mail profile, empty if the profile was not detected."
           },
           "UserProfiles": {
             "name": "Profiles",
@@ -177,11 +169,6 @@
             "name": "profileIndex",
             "type": "integer",
             "description": "Index of the profile we want to import. This is a null based index of results from getProfiles."
-          },
-          {
-            "name": "askUserForFileLocation",
-            "type": "boolean",
-            "description": "Show file dialog to user."
           },
           {
             "name": "profileName",

@@ -4,11 +4,14 @@
 
 package org.chromium.chrome.browser.omnibox.suggestions;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -40,7 +43,6 @@ import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 // Vivaldi
@@ -60,17 +62,17 @@ class DropdownItemViewInfoListBuilder {
     private GroupSeparatorProcessor mGroupSeparatorProcessor;
     private HeaderProcessor mHeaderProcessor;
     private @Nullable Supplier<ShareDelegate> mShareDelegateSupplier;
-    private Optional<OmniboxImageSupplier> mImageSupplier;
+    private @Nullable OmniboxImageSupplier mImageSupplier;
     private final BookmarkState mBookmarkState;
-    private final Supplier<@ControlsPosition Integer> mToolbarPositionSupplier;
+    private final ObservableSupplier<@ControlsPosition Integer> mToolbarPositionSupplier;
 
     DropdownItemViewInfoListBuilder(
             Supplier<@Nullable Tab> tabSupplier,
             BookmarkState bookmarkState,
-            Supplier<@ControlsPosition Integer> toolbarPositionSupplier) {
+            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier) {
         mPriorityOrderedSuggestionProcessors = new ArrayList<>();
         mActivityTabSupplier = tabSupplier;
-        mImageSupplier = Optional.empty();
+        mImageSupplier = null;
         mBookmarkState = bookmarkState;
         mToolbarPositionSupplier = toolbarPositionSupplier;
     }
@@ -109,9 +111,7 @@ class DropdownItemViewInfoListBuilder {
         assert mPriorityOrderedSuggestionProcessors.size() == 0 : "Processors already initialized.";
 
         mImageSupplier =
-                OmniboxFeatures.isLowMemoryDevice()
-                        ? Optional.empty()
-                        : Optional.of(new OmniboxImageSupplier(context));
+                OmniboxFeatures.isLowMemoryDevice() ? null : new OmniboxImageSupplier(context);
 
         AutocompleteUIContext uiContext = createUIContext(context, host, textProvider);
 
@@ -130,8 +130,10 @@ class DropdownItemViewInfoListBuilder {
     }
 
     void destroy() {
-        mImageSupplier.ifPresent(s -> s.destroy());
-        mImageSupplier = Optional.empty();
+        if (mImageSupplier != null) {
+            mImageSupplier.destroy();
+        }
+        mImageSupplier = null;
     }
 
     /**
@@ -169,7 +171,9 @@ class DropdownItemViewInfoListBuilder {
      * @param profile Current user profile.
      */
     void setProfile(Profile profile) {
-        mImageSupplier.ifPresent(s -> s.setProfile(profile));
+        if (mImageSupplier != null) {
+            mImageSupplier.setProfile(profile);
+        }
     }
 
     /**
@@ -187,7 +191,9 @@ class DropdownItemViewInfoListBuilder {
      * @param activated Indicates whether omnibox session is activated.
      */
     void onOmniboxSessionStateChange(boolean activated) {
-        if (!activated) mImageSupplier.ifPresent(s -> s.resetCache());
+        if (!activated && mImageSupplier != null) {
+            mImageSupplier.resetCache();
+        }
 
         mHeaderProcessor.onOmniboxSessionStateChange(activated);
         for (int index = 0; index < mPriorityOrderedSuggestionProcessors.size(); index++) {
@@ -198,7 +204,9 @@ class DropdownItemViewInfoListBuilder {
     /** Signals that native initialization has completed. */
     void onNativeInitialized() {
         mHeaderProcessor.onNativeInitialized();
-        mImageSupplier.ifPresent(s -> s.onNativeInitialized());
+        if (mImageSupplier != null) {
+            mImageSupplier.onNativeInitialized();
+        }
 
         for (int index = 0; index < mPriorityOrderedSuggestionProcessors.size(); index++) {
             mPriorityOrderedSuggestionProcessors.get(index).onNativeInitialized();
@@ -251,7 +259,7 @@ class DropdownItemViewInfoListBuilder {
 
         boolean toolbarOnBottom =
                 ChromeFeatureList.sAndroidBottomToolbarV2ReverseOrderSuggestionsList.getValue()
-                        && mToolbarPositionSupplier.get() == ControlsPosition.BOTTOM;
+                        && assumeNonNull(mToolbarPositionSupplier.get()) == ControlsPosition.BOTTOM;
         var roundingStartEdge =
                 toolbarOnBottom
                         ? DropdownCommonProperties.BG_BOTTOM_CORNER_ROUNDED

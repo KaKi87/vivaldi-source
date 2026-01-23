@@ -51,11 +51,11 @@
 #include "ui/base/resource/resource_scale_factor.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/favicon_size.h"
-#include "ui/gfx/icon_util.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_family.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
+#include "ui/gfx/win/icon_util.h"
 #include "url/gurl.h"
 
 #include "app/vivaldi_apptools.h"
@@ -658,10 +658,12 @@ void JumpList::PostRunUpdate() {
     update_transaction->recently_closed_icons =
         std::move(recently_closed_icons_);
   }
+
   if (vivaldi_speed_dials_should_update_) {
     update_transaction->vivaldi_speed_dial_icons =
         std::move(vivaldi_speed_dial_icons_);
   }
+
   // Parameter evaluation order is unspecified in C++. Do the first bind and
   // then move it into PostTaskAndReply to ensure the pointer value is obtained
   // before std::move() is called.

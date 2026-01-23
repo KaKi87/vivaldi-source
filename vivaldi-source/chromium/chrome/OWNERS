@@ -15,6 +15,7 @@ victorvianna@google.com
 # Reviewers in CET (GMT+1)
 alexilin@chromium.org
 blundell@chromium.org
+bsazonov@chromium.org
 droger@chromium.org
 grt@chromium.org
 jkeitel@google.com
@@ -38,6 +39,8 @@ ssid@chromium.org
 sophiechang@chromium.org
 tedchoc@chromium.org
 thestig@chromium.org
+tiborg@chromium.org
+tluk@chromium.org
 twellington@chromium.org
 
 # Temporary reviewers for the purposes of work on the Ash //chrome refactor
@@ -65,6 +68,7 @@ per-file chrome_branch_deps.json=chrome-official-brancher@chops-service-accounts
 per-file app/theme/default_100_percent/google_chrome=*
 per-file app/theme/default_200_percent/google_chrome=*
 per-file app/theme/google_chrome=*
+per-file browser/cpu_performance_internal=*
 per-file browser/enterprise/connectors/internal=*
 per-file browser/google/linkdoctor_internal=*
 per-file browser/internal=*

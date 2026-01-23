@@ -134,10 +134,10 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
   enum class AccountState {
     // There isn't a primary account, or enclave support is disabled.
     kNone,
-    // The enclave state is still being loaded from disk.
+    // The GPM state is still being loaded. This may be loading the enclave
+    // state from disk, checking for biometric availability, or pending network
+    // requests.
     kLoading,
-    // The state of the account is unknown pending network requests.
-    kChecking,
     // The account can be recovered via user action.
     kRecoverable,
     // The account cannot be recovered, but could be reset.
@@ -237,6 +237,8 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
 
   // EnclaveManager::Observer:
   void OnKeysStored() override;
+  void OnOutOfContextRecoveryCompletion(
+      EnclaveManager::OutOfContextRecoveryOutcome outcome) override;
 
   // Called when the local device has been added to the security domain.
   void OnDeviceAdded(bool success);
@@ -313,6 +315,13 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
   // PWA.)
   bool BrowserIsApp() const;
 
+  // Configures the user-visible method of authenticating for security domain
+  // recovery.
+  void ShowSecurityDomainRecoveryUI();
+
+  void RefreshStateAndRepeatOperation();
+  bool ShouldRefreshState();
+
   content::WebContents* web_contents() const;
 
   const content::GlobalRenderFrameHostId render_frame_host_id_;
@@ -334,7 +343,7 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
   base::ScopedObservation<EnclaveManager, EnclaveManager::Observer>
       enclave_manager_observer_{this};
 
-  AccountState account_state_ = AccountState::kNone;
+  AccountState account_state_ = AccountState::kLoading;
   bool pin_is_arbitrary_ = false;
   std::optional<std::string> pin_;
   std::vector<sync_pb::WebauthnCredentialSpecifics> creds_;
@@ -378,6 +387,10 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
       std::unique_ptr<device::enclave::CredentialRequest>)>
       enclave_request_callback_;
 
+  // Represents this object's claim to handle any keys provided by
+  // accounts.google.com.
+  std::unique_ptr<EnclaveManager::StoreKeysLock> store_keys_lock_;
+
   // Whether the initial UI is being blocked while enclave state is loaded.
   bool ready_for_ui_ = false;
 
@@ -403,6 +416,8 @@ class GPMEnclaveController : public AuthenticatorRequestDialogModel::Observer,
 
   // Whether the user confirmed GPM PIN creation in the flow.
   bool gpm_pin_creation_confirmed_ = false;
+
+  bool is_state_stale_ = false;
 
   // The gaia id of the user at the time the account state was downloaded.
   GaiaId user_gaia_id_;

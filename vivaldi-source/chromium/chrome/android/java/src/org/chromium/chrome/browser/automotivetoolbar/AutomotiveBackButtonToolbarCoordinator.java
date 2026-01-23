@@ -106,7 +106,6 @@ public class AutomotiveBackButtonToolbarCoordinator {
             new FullscreenManager.Observer() {
                 @Override
                 public void onEnterFullscreen(Tab tab, FullscreenOptions options) {
-                    // TODO(https://crbug.com/376737727): Evaluate if lazy inflation is needed.
                     mTouchEventProvider.addTouchEventObserver(mEdgeSwipeGestureDetector);
                     // Vivaldi
                     if (!BuildConfig.IS_OEM_GAS_BUILD)
@@ -162,7 +161,6 @@ public class AutomotiveBackButtonToolbarCoordinator {
     }
 
     private void setOnSwipeBackButtonToolbar(ViewStub onSwipeAutomotiveToolbarStub) {
-        // TODO(https://crbug.com/376737727): Revisit when toolbar improvements is fully launched.
         mOnSwipeAutomotiveToolbar = (Toolbar) onSwipeAutomotiveToolbarStub.inflate();
         assert mOnSwipeAutomotiveToolbar != null;
         mOnSwipeAutomotiveToolbar.setNavigationOnClickListener(

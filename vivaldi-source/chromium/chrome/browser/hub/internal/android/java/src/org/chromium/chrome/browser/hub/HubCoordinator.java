@@ -15,11 +15,11 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import org.chromium.base.Callback;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.OneshotSupplier;
-import org.chromium.base.supplier.TransitiveObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -33,7 +33,6 @@ import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.ui.edge_to_edge.EdgeToEdgePadAdjuster;
-import org.chromium.ui.util.XrUtils;
 
 import java.util.function.Function;
 
@@ -61,7 +60,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
      * Warning: {@link #getFocusedPane()} may return null if no pane is focused or {@link
      * Pane#getHandleBackPressChangedSupplier()} contains null.
      */
-    private final TransitiveObservableSupplier<Pane, Boolean> mFocusedPaneHandleBackPressSupplier;
+    private final ObservableSupplier<Boolean> mFocusedPaneHandleBackPressSupplier;
 
     private final PaneBackStackHandler mPaneBackStackHandler;
     private final ObservableSupplier<@Nullable Tab> mCurrentTabSupplier;
@@ -101,14 +100,14 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mBackPressStateChangeCallback = (ignored) -> updateHandleBackPressSupplier();
         mPaneManager = paneManager;
         mFocusedPaneHandleBackPressSupplier =
-                new TransitiveObservableSupplier<>(
-                        paneManager.getFocusedPaneSupplier(),
-                        p -> p.getHandleBackPressChangedSupplier());
+                paneManager
+                        .getFocusedPaneSupplier()
+                        .createTransitive(BackPressHandler::getHandleBackPressChangedSupplier);
         mFocusedPaneHandleBackPressSupplier.addObserver(
                 castCallback(mBackPressStateChangeCallback));
 
         mContainerView = containerView;
-        int layoutId = XrUtils.isXrDevice() ? R.layout.hub_xr_layout : R.layout.hub_layout;
+        int layoutId = DeviceInfo.isXr() ? R.layout.hub_xr_layout : R.layout.hub_layout;
         mMainHubParent = (ViewGroup) LayoutInflater.from(context).inflate(layoutId, null);
         mContainerView.addView(mMainHubParent);
 
@@ -150,7 +149,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
         // Dynamically add bottom toolbar if delegate is available and enabled
         if (bottomToolbarDelegate != null && bottomToolbarDelegate.isBottomToolbarEnabled()) {
-            ViewGroup mainContainer = mContainerView.findViewById(R.id.hub_main_container);
+            ViewGroup mainContainer = mContainerView.findViewById(R.id.hub_pane_host_container);
             mHubBottomToolbarCoordinator =
                     new HubBottomToolbarCoordinator(
                             context,
@@ -174,10 +173,11 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
                         defaultPaneId);
 
         ObservableSupplier<@Nullable View> overlayViewSupplier =
-                new TransitiveObservableSupplier<Pane, @Nullable View>(
-                        mPaneManager.getFocusedPaneSupplier(),
-                        (Function<Pane, ObservableSupplier<@Nullable View>>)
-                                pane -> pane.getHubOverlayViewSupplier());
+                mPaneManager
+                        .getFocusedPaneSupplier()
+                        .createTransitive(
+                                (Function<Pane, ObservableSupplier<@Nullable View>>)
+                                        Pane::getHubOverlayViewSupplier);
         mOverlayViewManager =
                 new SingleChildViewManager(
                         mContainerView.findViewById(R.id.hub_overlay_container),

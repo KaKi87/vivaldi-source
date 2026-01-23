@@ -138,7 +138,7 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
     public static final String GOOGLE_ACCOUNT_WORK_ADDRESS_EDIT_URL =
             "https://myaccount.google.com/address/work?utm_source=chrome&utm_campaign=manage_addresses";
     public static final String GOOGLE_ACCOUNT_NAME_EMAIL_ADDRESS_EDIT_URL =
-            "https://myaccount.google.com/personal-info";
+            "https://myaccount.google.com/personal-info?utm_source=chrome-settings&utm_medium=autofill";
 
     private @Nullable AddressEditorCoordinator mAddressEditor;
     private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
@@ -223,11 +223,11 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
                 new CardWithButtonPreference(getStyledContext(), null);
         disabledSettingsInfoPref.setKey(DISABLED_SETTINGS_INFO);
         disabledSettingsInfoPref.setTitle(R.string.autofill_disable_settings_explanation_title);
-            if (!BuildConfig.IS_VIVALDI)
         disabledSettingsInfoPref.setSummary(R.string.autofill_disable_settings_explanation);
         disabledSettingsInfoPref.setButtonText(
                 getResources().getString(R.string.autofill_disable_settings_button_label));
         disabledSettingsInfoPref.setIconResource(R.drawable.ic_google_services_24dp);
+        disabledSettingsInfoPref.setIconResource(R.drawable.ic_vivaldi_main_menu_24dp); // Vivaldi
         disabledSettingsInfoPref.setOnButtonClick(
                 () -> {
                     SettingsNavigation settingsNavigation =
@@ -451,6 +451,11 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
     @Override
     public @SettingsFragment.AnimationType int getAnimationType() {
         return SettingsFragment.AnimationType.PROPERTY;
+    }
+
+    @Override
+    public @Nullable String getMainMenuKey() {
+        return "autofill_addresses";
     }
 
     private boolean disabledSettingsInThirdPartyMode() {

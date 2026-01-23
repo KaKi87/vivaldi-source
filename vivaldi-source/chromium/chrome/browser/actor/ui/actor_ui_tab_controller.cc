@@ -5,11 +5,13 @@
 #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
 
 #include "base/functional/bind.h"
+#include "base/functional/concurrent_closures.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_task.h"
 #include "chrome/browser/actor/ui/actor_border_view_controller.h"
+#include "chrome/browser/actor/ui/actor_ui_metrics.h"
 #include "chrome/browser/actor/ui/actor_ui_tab_controller_interface.h"
 #include "chrome/browser/actor/ui/actor_ui_window_controller.h"
 #include "chrome/browser/actor/ui/handoff_button_controller.h"
@@ -26,19 +28,13 @@ DEFINE_USER_DATA(actor::ui::ActorUiTabController);
 
 namespace actor::ui {
 using ::tabs::TabInterface;
-using enum actor::ui::HandoffButtonState::ControlOwnership;
 
 void LogAndIgnoreCallbackError(const std::string_view source_name,
                                bool result) {
   if (!result) {
     LOG(DFATAL) << "Unexpected error in callback from " << source_name;
+    RecordTabControllerError(ActorUiTabControllerError::kCallbackError);
   }
-}
-
-std::unique_ptr<HandoffButtonController>
-ActorUiTabControllerFactory::CreateHandoffButtonController(
-    tabs::TabInterface& tab) {
-  return std::make_unique<HandoffButtonController>(tab);
 }
 
 ActorUiTabController::ActorUiTabController(
@@ -48,16 +44,14 @@ ActorUiTabController::ActorUiTabController(
     : ActorUiTabControllerInterface(tab),
       tab_(tab),
       actor_keyed_service_(actor_keyed_service),
-      controller_factory_(std::move(controller_factory)),
       update_scrim_background_debounce_timer_(
           FROM_HERE,
-          kUpdateScrimBackgroundDebounceDelay,
+          features::kGlicActorUiDebounceTimer.Get(),
           base::BindRepeating(&ActorUiTabController::UpdateScrimBackground,
                               base::Unretained(this))),
       scoped_unowned_user_data_(tab.GetUnownedUserDataHost(), *this) {
   CHECK(actor_keyed_service_);
-  handoff_button_controller_ =
-      controller_factory_->CreateHandoffButtonController(tab);
+
   RegisterTabSubscriptions();
 }
 
@@ -84,17 +78,6 @@ void ActorUiTabController::OnUiTabStateChange(const UiTabState& ui_tab_state,
 
   current_ui_tab_state_ = ui_tab_state;
   UpdateUi(std::move(callback));
-}
-
-bool ActorUiTabController::ShouldShowActorTabIndicator() {
-  return features::kGlicActorUiTabIndicator.Get() &&
-         should_show_actor_tab_indicator_;
-}
-
-base::CallbackListSubscription
-ActorUiTabController::RegisterActorTabIndicatorStateChangedCallback(
-    ActorTabIndicatorStateChangedCallback callback) {
-  return on_actor_tab_indicator_changed_callbacks_.Add(std::move(callback));
 }
 
 void ActorUiTabController::OnTabWillDetach(
@@ -131,61 +114,107 @@ void ActorUiTabController::UpdateOmniboxTabHelperObserver() {
   }
 }
 
-base::CallbackListSubscription
-ActorUiTabController::RegisterActorOverlayBackgroundChange(
-    ActorOverlayBackgroundChangeCallback callback) {
-  return actor_overlay_background_changed_callbacks_.Add(std::move(callback));
+[[nodiscard]] base::ScopedClosureRunner
+ActorUiTabController::RegisterActorTabIndicatorStateChangedCallback(
+    ActorTabIndicatorStateChangedCallback callback) {
+  // Crash if attempting to register a null callback, or if a callback is
+  // already registered.
+  CHECK(!callback.is_null());
+  CHECK(on_actor_tab_indicator_changed_callback_.is_null());
+  on_actor_tab_indicator_changed_callback_ = std::move(callback);
+  return base::ScopedClosureRunner(base::BindOnce(
+      &ActorUiTabController::UnregisterActorTabIndicatorStateChange,
+      weak_factory_.GetWeakPtr()));
 }
 
-base::CallbackListSubscription
+[[nodiscard]] base::ScopedClosureRunner
+ActorUiTabController::RegisterActorOverlayBackgroundChange(
+    ActorOverlayBackgroundChangeCallback callback) {
+  // Crash if attempting to register a null callback, or if a callback is
+  // already registered.
+  CHECK(!callback.is_null());
+  CHECK(actor_overlay_background_changed_callback_.is_null());
+  actor_overlay_background_changed_callback_ = std::move(callback);
+  return base::ScopedClosureRunner(base::BindOnce(
+      &ActorUiTabController::UnregisterActorOverlayBackgroundChange,
+      weak_factory_.GetWeakPtr()));
+}
+
+[[nodiscard]] base::ScopedClosureRunner
 ActorUiTabController::RegisterActorOverlayStateChange(
     ActorOverlayStateChangeCallback callback) {
-  return on_actor_overlay_state_changed_callbacks_.Add(std::move(callback));
+  // Crash if attempting to register a null callback, or if a callback is
+  // already registered.
+  CHECK(!callback.is_null());
+  CHECK(on_actor_overlay_state_changed_callback_.is_null());
+  on_actor_overlay_state_changed_callback_ = std::move(callback);
+  return base::ScopedClosureRunner(
+      base::BindOnce(&ActorUiTabController::UnregisterActorOverlayStateChange,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void ActorUiTabController::SetActorTabIndicatorVisibility(
-    bool should_show_tab_indicator) {
+    TabIndicatorStatus tab_indicator_status,
+    base::OnceClosure callback) {
   // When GLIC isn't enabled, we never set the tab indicator.
-  // TODO(crbug.com/422538779) remove GLIC dependency once the ACTOR_ACCESSING
+  // TODO(crbug.com/461457730) remove GLIC dependency once the ACTOR_ACCESSING
   // alert migrates away from the GLIC_ACCESSING resources.
 #if BUILDFLAG(ENABLE_GLIC)
-  if (should_show_actor_tab_indicator_ == should_show_tab_indicator) {
-    return;
+  if (tab_indicator_ != tab_indicator_status) {
+    tab_indicator_ = tab_indicator_status;
+    if (on_actor_tab_indicator_changed_callback_) {
+      on_actor_tab_indicator_changed_callback_.Run(tab_indicator_);
+      // Notify tab strip model of state change.
+      tab_->GetBrowserWindowInterface()->GetTabStripModel()->NotifyTabChanged(
+          base::to_address(tab_), TabChangeType::kAll);
+    }
   }
-  should_show_actor_tab_indicator_ = should_show_tab_indicator;
-  on_actor_tab_indicator_changed_callbacks_.Notify(
-      should_show_actor_tab_indicator_);
-  // Notify tab strip model of state change.
-  tab_->GetBrowserWindowInterface()->GetTabStripModel()->NotifyTabChanged(
-      base::to_address(tab_), TabChangeType::kAll);
 #endif
+  std::move(callback).Run();
   return;
 }
 
+void ActorUiTabController::OnViewBoundsChanged() {
+  if (!actor_keyed_service_->GetTaskFromTab(*tab_)) {
+    return;
+  }
+  UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError, "OnViewBoundsChanged"));
+}
+
 void ActorUiTabController::UpdateUi(UiResultCallback callback) {
+  // TODO(crbug.com/447593256): Propagate errors when component update fails.
   // TODO(crbug.com/428216197): Only notify relevant UI components on change and
   // decouple visibility + state changes into 2 functions.
-  if (features::kGlicActorUiOverlay.Get()) {
-    on_actor_overlay_state_changed_callbacks_.Notify(
-        ComputeActorOverlayVisibility(), current_ui_tab_state_.actor_overlay);
+  // TODO(crbug.com/454339982): Use ConcurrentCallback for each UI component to
+  // signal if their update was successful or not, rather than just signaling
+  // that the update is complete.
+  base::ConcurrentClosures concurrent_closures;
+  // Actor Overlay
+  if (features::kGlicActorUiOverlay.Get() &&
+      on_actor_overlay_state_changed_callback_) {
+    on_actor_overlay_state_changed_callback_.Run(
+        ComputeActorOverlayVisibility(), current_ui_tab_state_.actor_overlay,
+        concurrent_closures.CreateClosure());
   }
-  if (features::kGlicActorUiHandoffButton.Get()) {
+  // Handoff Button
+  if (features::kGlicActorUiHandoffButton.Get() && handoff_button_controller_) {
     handoff_button_controller_->UpdateState(
-        current_ui_tab_state_.handoff_button, ComputeHandoffButtonVisibility());
+        current_ui_tab_state_.handoff_button, ComputeHandoffButtonVisibility(),
+        concurrent_closures.CreateClosure());
   }
-
+  // Tab Indicator
   if (features::kGlicActorUiTabIndicator.Get()) {
-    SetActorTabIndicatorVisibility(current_ui_tab_state_.tab_indicator_visible);
+    SetActorTabIndicatorVisibility(current_ui_tab_state_.tab_indicator,
+                                   concurrent_closures.CreateClosure());
   }
-
-  // Notify the TabGlow controllers.
+  // Border Glow
   if (features::kGlicActorUiBorderGlow.Get()) {
-    SetBorderGlowVisibility();
+    SetBorderGlowVisibility(concurrent_closures.CreateClosure());
   }
-  if (callback) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), true));
-  }
+  // Once all UI components have been updated, we can run the final callback.
+  std::move(concurrent_closures)
+      .Done(callback ? base::BindOnce(std::move(callback), true)
+                     : base::DoNothing());
 }
 
 void ActorUiTabController::OnOmniboxFocusChanged(
@@ -199,41 +228,19 @@ void ActorUiTabController::OnWebContentsAttached() {
   UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError, "OnWebContentsAttached"));
 }
 
-void ActorUiTabController::InitializeImmersiveModeObserver() {
-  if (immersive_mode_observer_.IsObserving()) {
-    return;
-  }
-  immersive_mode_observer_.Observe(
-      tab_->GetBrowserWindowInterface()->GetImmersiveModeController());
+void ActorUiTabController::OnImmersiveModeChanged() {
+  UpdateUi(
+      base::BindOnce(&LogAndIgnoreCallbackError, "OnImmersiveModeChanged"));
 }
 
-void ActorUiTabController::OnImmersiveFullscreenEntered() {
-  if (!actor_keyed_service_->GetTaskFromTab(*tab_)) {
-    return;
-  }
-  UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError,
-                          "OnImmersiveFullscreenEntered"));
-}
-
-void ActorUiTabController::OnImmersiveFullscreenExited() {
-  if (!actor_keyed_service_->GetTaskFromTab(*tab_)) {
-    return;
-  }
-  UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError,
-                          "OnImmersiveFullscreenExited"));
-}
-
-void ActorUiTabController::OnImmersiveModeControllerDestroyed() {
-  immersive_mode_observer_.Reset();
-}
-
-void ActorUiTabController::SetBorderGlowVisibility() {
+void ActorUiTabController::SetBorderGlowVisibility(base::OnceClosure callback) {
   if (auto* controller =
           ActorBorderViewController::From(tab_->GetBrowserWindowInterface())) {
     controller->SetGlowEnabled(
         base::to_address(tab_),
         current_ui_tab_state_.border_glow_visible && tab_->IsSelected());
   }
+  std::move(callback).Run();
 }
 
 bool ActorUiTabController::ComputeActorOverlayVisibility() {
@@ -249,31 +256,30 @@ bool ActorUiTabController::ComputeHandoffButtonVisibility() {
   // BrowserView exists, we can check if ActorUiWindowController has been
   // created, since its creation relies on a valid BrowserView. Once those tests
   // are cleaned up, this null checks on the window controller can be removed.
-  if (!ActorUiWindowController::From(tab_->GetBrowserWindowInterface())) {
+  auto* window_controller =
+      ActorUiWindowController::From(tab_->GetBrowserWindowInterface());
+  if (!window_controller) {
     return false;
   }
-  InitializeImmersiveModeObserver();
-  if (tab_->GetBrowserWindowInterface()
-          ->GetImmersiveModeController()
-          ->IsEnabled()) {
-    return false;
+  if (window_controller->IsImmersiveModeEnabled()) {
+    if (!base::FeatureList::IsEnabled(
+            features::kGlicHandoffButtonShowInImmersiveMode)) {
+      return false;
+    }
+    // Still hide the button in the specific scenario where the toolbar is
+    // revealed temporarily but not pinned.
+    if (window_controller->IsToolbarRevealed() &&
+        !window_controller->IsToolbarPinned()) {
+      return false;
+    }
   }
   UpdateOmniboxTabHelperObserver();
   if (is_focusing_omnibox_) {
     return false;
   }
 
-  bool is_button_active = current_ui_tab_state_.handoff_button.is_active;
-  bool is_client_control =
-      current_ui_tab_state_.handoff_button.controller == kClient;
-
-  // Only visible when:
-  // 1. Its state and the associated tab is selected and the mouse is hovering
-  //    over the overlay or the button.
-  // 2. Its state and the associated tab is selected and the client is in
-  //    control.
-  return tab_->IsSelected() && is_button_active &&
-         (should_show_scrim_background_ || is_client_control);
+  // Only visible when its state is active and the associated tab is selected.
+  return tab_->IsSelected() && current_ui_tab_state_.handoff_button.is_active;
 }
 
 void ActorUiTabController::SetActorTaskPaused() {
@@ -300,18 +306,25 @@ void ActorUiTabController::SetActorTaskResume() {
   }
 }
 
+// TODO(crbug.com/447624564): After migrating the Handoff button off the TDM
+// and onto contents container, investigate removing debouncing on the tab
+// controller side and handle it on the ui component side.
 void ActorUiTabController::UpdateScrimBackground() {
   bool should_show_scrim_background =
-      is_overlay_hovered_ || handoff_button_controller_->IsHovering();
+      is_overlay_hovered_ || (handoff_button_controller_ &&
+                              (handoff_button_controller_->IsHovering() ||
+                               handoff_button_controller_->IsFocused()));
   if (should_show_scrim_background_ == should_show_scrim_background) {
     return;
   }
   should_show_scrim_background_ = should_show_scrim_background;
-  if (features::kGlicActorUiOverlay.Get()) {
-    actor_overlay_background_changed_callbacks_.Notify(
+  // TODO(chrstne): Move this notify to UpdateUI + consolidate visibility &
+  // background into 1 struct.
+  if (features::kGlicActorUiOverlay.Get() &&
+      actor_overlay_background_changed_callback_) {
+    actor_overlay_background_changed_callback_.Run(
         should_show_scrim_background_);
   }
-  UpdateUi(base::BindOnce(&LogAndIgnoreCallbackError, "UpdateScrimBackground"));
 }
 
 void ActorUiTabController::OnOverlayHoverStatusChanged(bool is_hovering) {
@@ -321,6 +334,35 @@ void ActorUiTabController::OnOverlayHoverStatusChanged(bool is_hovering) {
 
 void ActorUiTabController::OnHandoffButtonHoverStatusChanged() {
   update_scrim_background_debounce_timer_.Reset();
+}
+
+void ActorUiTabController::UnregisterActorOverlayStateChange() {
+  on_actor_overlay_state_changed_callback_.Reset();
+}
+
+void ActorUiTabController::UnregisterActorOverlayBackgroundChange() {
+  actor_overlay_background_changed_callback_.Reset();
+}
+
+void ActorUiTabController::UnregisterActorTabIndicatorStateChange() {
+  on_actor_tab_indicator_changed_callback_.Reset();
+}
+
+void ActorUiTabController::UnregisterHandoffButtonController() {
+  handoff_button_controller_ = nullptr;
+}
+
+void ActorUiTabController::OnHandoffButtonFocusStatusChanged() {
+  update_scrim_background_debounce_timer_.Reset();
+}
+
+[[nodiscard]] base::ScopedClosureRunner
+ActorUiTabController::RegisterHandoffButtonController(
+    HandoffButtonController* controller) {
+  handoff_button_controller_ = controller;
+  return base::ScopedClosureRunner(
+      base::BindOnce(&ActorUiTabController::UnregisterHandoffButtonController,
+                     weak_factory_.GetWeakPtr()));
 }
 
 base::WeakPtr<ActorUiTabControllerInterface>

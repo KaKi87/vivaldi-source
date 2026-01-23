@@ -82,6 +82,7 @@
 <translation id="1871058849247304245"><ph name="HOST" /> のズームレベル</translation>
 <translation id="1921508034244765766">Vivaldi遅い、クラッシュする、またはデバイス熱なる</translation>
 <translation id="1929299157575856072">デフォルトブロックレベル</translation>
+<translation id="1933618400514506228">セルビア・クロアチア語（<ph name="ORIGIN" />）</translation>
 <translation id="1968240832686794952">画像をバックグラウンドタブで開く</translation>
 <translation id="1986733655397734221">どれでもない</translation>
 <translation id="1994506778397655062">さらのバックグラウンドタブで開く</translation>
@@ -167,7 +168,6 @@
 <translation id="309084557304084991">最初から入ってるブックマークやスピードダイヤル要らん</translation>
 <translation id="3091563570137981919">トラッカー・広告ブロック</translation>
 <translation id="3097968995088564986">追加ボタン出す</translation>
-<translation id="3102790820790869053">最近閉じたタブ検索</translation>
 <translation id="3134385238404760368">最近開いたタブなし</translation>
 <translation id="3142562627629111859">さらのグループ</translation>
 <translation id="3157931365184549694">復元</translation>
@@ -310,7 +310,6 @@
 <translation id="462860218383788109">変えた日</translation>
 <translation id="4640946580087069269">メモにコピー</translation>
 <translation id="4643117005422448078">トップサイト</translation>
-<translation id="4654428449690716275">翻訳出す前後でバナー出させん</translation>
 <translation id="4654578955713250802">広告とトラッカーブロック</translation>
 <translation id="4655510151391078468">送ったコードとちゃうで。
         あと<ph name="ATTEMPTS" />回入力できるで。</translation>
@@ -663,6 +662,7 @@
 <translation id="8948792607467387336">壁紙にする</translation>
 <translation id="8964449607824577665">今の暗号化パスワードがないと、うちらではあんたのデータ復号化できへんで。このパスワードリセットしたら、今Vivaldiサーバーにある同期データ全部消えるで。</translation>
 <translation id="8965371804397726192">データ全部同期する</translation>
+<translation id="896787570003733070">翻訳の提案前後にバナー出さへん</translation>
 <translation id="8993821994276892302">{count, plural,
           =1 {ブックマークは "{title}"}に移したで
           other {ブックマークは "{title}"}}に移したで</translation>

@@ -14,7 +14,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import static org.chromium.base.test.util.CriteriaHelper.pollUiThread;
@@ -61,6 +60,7 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
+import org.chromium.chrome.browser.ntp_customization.edge_to_edge.TopInsetCoordinator;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.Tab;
@@ -140,6 +140,7 @@ public class SensitiveContentTest {
     @Mock private TopUiThemeColorProvider mTopUiThemeColorProvider;
     @Mock private TabWindowManager mTabWindowManager;
     @Mock private ObservableSupplier<CompositorViewHolder> mCompositorViewHolderSupplier;
+    @Mock private ObservableSupplier<TopInsetCoordinator> mTopInsetCoordinatorSupplier;
     @Mock private ObservableSupplier<Boolean> mScrimVisibilitySupplier;
     @Mock private ToolbarManager mToolbarManager;
     @Mock private ViewGroup mContentView;
@@ -292,7 +293,7 @@ public class SensitiveContentTest {
         HistogramWatcher histogramWatcherForTrueBucket =
                 HistogramWatcher.newSingleRecordWatcher(histogram, /* value= */ true);
         // Open the first incognito tab.
-        CtaPageStation page = mPage.openNewIncognitoTabFast();
+        CtaPageStation page = mPage.openNewIncognitoTabOrWindowFast();
         // Open the second incognito tab.
         page = page.openNewIncognitoTabFast();
         final Tab secondIncognitoTab = page.loadedTabElement.value();
@@ -356,7 +357,7 @@ public class SensitiveContentTest {
     @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testIncognitoTabSwitcherBecomesSensitiveWithTabGroups() {
         // Open the first incognito tab.
-        CtaPageStation page = mPage.openNewIncognitoTabFast();
+        CtaPageStation page = mPage.openNewIncognitoTabOrWindowFast();
         final Tab firstIncognitoTab = page.loadedTabElement.value();
         // Open the second incognito tab.
         page = page.openNewIncognitoTabFast();
@@ -624,7 +625,6 @@ public class SensitiveContentTest {
                     assertEquals(2, tabModel.getCount());
                     secondTabAfterFreeze[0] = tabModel.getTabAt(1);
                     assertNotNull(secondTabAfterFreeze[0]);
-                    assertNull(secondTabAfterFreeze[0].getWebContents());
                 });
 
         // Select the second tab.
@@ -638,7 +638,7 @@ public class SensitiveContentTest {
                         () ->
                                 SensitiveContentClient.fromWebContents(
                                         secondTabAfterFreeze[0].getWebContents()));
-        assertTrue(client.getContentRestoredFromTabStateIsSensitive().orElse(false));
+        assertTrue(Boolean.TRUE.equals(client.getContentRestoredFromTabStateIsSensitive()));
         assertEquals(
                 View.CONTENT_SENSITIVITY_SENSITIVE,
                 secondTabAfterFreeze[0].getContentView().getContentSensitivity());
@@ -714,7 +714,8 @@ public class SensitiveContentTest {
                         mCompositorViewHolderSupplier,
                         mContentView,
                         mToolbarManager,
-                        mScrimVisibilitySupplier);
+                        mScrimVisibilitySupplier,
+                        mTopInsetCoordinatorSupplier);
 
         tabContentManagerSupplier.set(tabContentManager);
         CompositorAnimationHandler.setTestingMode(true);

@@ -452,7 +452,7 @@ void WebAppRegistrar::NotifyWebAppUserLinkCapturingPreferencesChanged(
 void WebAppRegistrar::NotifyPendingUpdateInfoChanged(
     const webapps::AppId& app_id,
     bool pending_update_available,
-    base::PassKey<ManifestSilentUpdateCommand>) {
+    PendingUpdateInfoChangePassKey) {
   DVLOG(1) << "NotifyPendingUpdateInfoChanged " << app_id << ", "
            << pending_update_available;
   for (WebAppRegistrarObserver& observer : observers_) {
@@ -525,17 +525,16 @@ GURL WebAppRegistrar::GetAppLaunchUrl(const webapps::AppId& app_id) const {
   }
 
   GURL::Replacements replacements;
-  if (start_url.query_piece().empty()) {
+  if (start_url.query().empty()) {
     replacements.SetQueryStr(*launch_query_params);
     return start_url.ReplaceComponents(replacements);
   }
 
-  if (start_url.query_piece().find(*launch_query_params) !=
-      std::string_view::npos) {
+  if (start_url.query().find(*launch_query_params) != std::string_view::npos) {
     return start_url;
   }
 
-  std::string query_params = start_url.query() + "&" + *launch_query_params;
+  std::string query_params = start_url.GetQuery() + "&" + *launch_query_params;
   replacements.SetQueryStr(query_params);
   return start_url.ReplaceComponents(replacements);
 }
@@ -783,6 +782,12 @@ WebAppRegistrar::GetSingleTrustedAppIconForSecuritySurfaces(
     }
     size_to_info.emplace(icon.square_size_px.value(), icon);
   }
+
+  // Exit early if there are no sizes specified in the metadata.
+  if (size_to_info.empty()) {
+    return std::nullopt;
+  }
+
   auto icon_size_greater_or_equal = size_to_info.lower_bound(input_size);
   if (icon_size_greater_or_equal != size_to_info.end()) {
     return icon_size_greater_or_equal->second;
@@ -976,6 +981,12 @@ bool WebAppRegistrar::IsInstallState(
 
 bool WebAppRegistrar::AppMatches(const webapps::AppId& app_id,
                                  const WebAppFilter& filter) const {
+  if (filter.is_isolated_apps_including_uninstalling_) {
+    return IsIsolated(app_id);
+  }
+
+  // All filters below this line rely on the app not being a stub app, which can
+  // happen if the app is marked for uninstallation.
   std::optional<proto::InstallState> install_state = GetInstallState(app_id);
   if (install_state == std::nullopt) {
     return false;
@@ -1011,6 +1022,11 @@ bool WebAppRegistrar::AppMatches(const webapps::AppId& app_id,
     return !IsDiyApp(app_id);
   }
 
+  if (filter.is_crafted_app_and_opens_in_dedicated_window_) {
+    return !IsDiyApp(app_id) &&
+           GetAppEffectiveDisplayMode(app_id) != DisplayMode::kBrowser;
+  }
+
   if (filter.is_diy_with_os_shortcut_) {
     const WebApp* app = GetAppById(app_id);
     return app && app->is_diy_app() &&
@@ -1036,12 +1052,18 @@ bool WebAppRegistrar::AppMatches(const webapps::AppId& app_id,
            GetAppEffectiveDisplayMode(app_id) != DisplayMode::kBrowser;
   }
 
+  if (filter.is_app_trusted_) {
+    const WebApp* app = GetAppById(app_id);
+    return (app && app->WasInstalledByTrustedSources());
+  }
+
   return false;
 }
 
 std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
     const GURL& url,
-    const WebAppFilter& filter) const {
+    const WebAppFilter& filter,
+    WebAppScopeScoreOptions scope_score_options) const {
   if (!url.is_valid()) {
     return std::nullopt;
   }
@@ -1051,7 +1073,8 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
 
   for (const webapps::AppId& app_id :
        GetAppIdsForAppSet(GetAppsIncludingStubs())) {
-    if (!GetAppScope(app_id).is_valid()) {
+    std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
+    if (!scope.has_value()) {
       continue;
     }
 
@@ -1060,7 +1083,7 @@ std::optional<webapps::AppId> WebAppRegistrar::FindBestAppWithUrlInScope(
       continue;
     }
 
-    int score = GetAppExtendedScopeScore(url, app_id);
+    int score = scope->GetScopeScore(url, scope_score_options);
     if (score > 0 && score > best_score) {
       best_app_id = app_id;
       best_score = score;
@@ -1127,11 +1150,6 @@ bool WebAppRegistrar::DoesScopeContainAnyApp(
 bool WebAppRegistrar::IsUninstalling(const webapps::AppId& app_id) const {
   const WebApp* web_app = GetAppById(app_id);
   return web_app && web_app->is_uninstalling();
-}
-
-bool WebAppRegistrar::IsIsolated(const webapps::AppId& app_id) const {
-  auto* web_app = GetAppById(app_id);
-  return web_app && web_app->isolation_data().has_value();
 }
 
 bool WebAppRegistrar::IsInstalledByDefaultManagement(
@@ -1550,7 +1568,9 @@ bool WebAppRegistrar::IsPreferredAppForCapturingUrl(
 #endif
 
 base::flat_map<webapps::AppId, std::string>
-WebAppRegistrar::GetAllAppsControllingUrl(const GURL& url) const {
+WebAppRegistrar::GetAllAppsControllingUrl(
+    const GURL& url,
+    WebAppScopeScoreOptions scope_score_options) const {
   base::flat_map<webapps::AppId, std::string> all_controlling_apps;
   for (const webapps::AppId& app_id : GetAppIds()) {
     if (!IsInstallState(app_id,
@@ -1563,9 +1583,9 @@ WebAppRegistrar::GetAllAppsControllingUrl(const GURL& url) const {
       continue;
     }
 
-    const GURL scope = GetAppScope(app_id);
-    if (base::StartsWith(url.spec(), scope.spec(),
-                         base::CompareCase::SENSITIVE)) {
+    std::optional<WebAppScope> scope = GetEffectiveScope(app_id);
+    if (scope.has_value() &&
+        scope->GetScopeScore(url, scope_score_options) > 0) {
       all_controlling_apps.insert_or_assign(app_id, GetAppShortName(app_id));
     }
   }
@@ -2158,6 +2178,11 @@ std::vector<webapps::AppId> WebAppRegistrar::GetAppIdsForAppSet(
   }
 
   return app_ids;
+}
+
+bool WebAppRegistrar::IsIsolated(const webapps::AppId& app_id) const {
+  auto* web_app = GetAppById(app_id);
+  return web_app && web_app->isolation_data().has_value();
 }
 
 int WebAppRegistrar::CountUserInstalledNotLocallyInstalledApps() const {

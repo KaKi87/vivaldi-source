@@ -28,6 +28,7 @@ function_registration("generated_api_registration") {
     ":generated_api_json_strings",
     ":generated_api_types",
 
+    "//chrome/browser/resources/certificate_manager:mojom",
     "//chrome/common:buildflags",
     "//chrome/common/extensions/api",
     "//components/autofill/core/common/mojom:mojo_types",

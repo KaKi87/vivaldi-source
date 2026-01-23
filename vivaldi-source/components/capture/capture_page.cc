@@ -15,6 +15,7 @@
 #include "components/paint_preview/browser/paint_preview_client.h"
 #include "components/paint_preview/common/mojom/paint_preview_recorder.mojom.h"
 #include "components/paint_preview/common/recording_map.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -44,13 +45,13 @@ void ReleaseSharedMemoryPixels(void* addr, void* context) {
 
 void OnCopySurfaceDone(float device_scale_factor,
                        CapturePage::CaptureVisibleCallback callback,
-                       const SkBitmap& bitmap) {
+                       const viz::CopyOutputBitmapWithMetadata& bitmap) {
   bool success = true;
-  if (bitmap.drawsNothing()) {
+  if (bitmap.bitmap.drawsNothing()) {
     LOG(ERROR) << "Failed RenderWidgetHostView::CopyFromSurface()";
     success = false;
   }
-  std::move(callback).Run(success, device_scale_factor, bitmap);
+  std::move(callback).Run(success, device_scale_factor, bitmap.bitmap);
 }
 
 SkBitmap ConvertCaptureMemoryToBitmap(gfx::Size image_size,

@@ -74,6 +74,7 @@
 <translation id="1274654146705270731">naranjas</translation>
 <translation id="1275718070701477396">Seleccionada</translation>
 <translation id="1290331692326790741">Señal débil</translation>
+<translation id="1292474106138697109">Pantalla de Herramientas de clase</translation>
 <translation id="1300115153046603471">El APN es de tipo predeterminado y <ph name="ATTACH" />.</translation>
 <translation id="1301069673413256657">GSM</translation>
 <translation id="1301340234286078471">Convertir</translation>
@@ -756,6 +757,7 @@
 <translation id="4300073214558989"><ph name="IMAGE_COUNT" /> Imágenes</translation>
 <translation id="4300272766492248925">Abrir app</translation>
 <translation id="430786093962686457">chifón</translation>
+<translation id="4309762678330556039">Crea transcripciones y busca audio automáticamente. Puedes crear grabaciones incluso cuando no tengas conexión a Internet.</translation>
 <translation id="4310735698903592804">Fondos de pantalla recientes potenciados por la IA de Google</translation>
 <translation id="4320904097188876154">rosa neón</translation>
 <translation id="432961742358282111">Haz clic con el botón derecho o mantén presionado para obtener definiciones, traducciones o conversiones de unidades. Usa las teclas de flecha hacia la izquierda o la derecha para administrar esta función.</translation>
@@ -1045,6 +1047,7 @@
 <translation id="5596627076506792578">Más opciones</translation>
 <translation id="5600027863942488546">Se probó la tecla <ph name="KEY_NAME" /></translation>
 <translation id="5606865426897221650">Tab</translation>
+<translation id="5612205513582918357">Herramientas de clase está compartiendo tu pantalla con <ph name="RECEIVER_NAME" /></translation>
 <translation id="5613201299517339763">Saliste de la cuenta</translation>
 <translation id="5620281292257375798">Solo para uso interno</translation>
 <translation id="5628106863521633649">Idiomas disponibles</translation>
@@ -1599,7 +1602,7 @@ Descarga el modelo de transcripción (hasta 100 MB) para obtener estas transcri
 <translation id="8028993641010258682">Tamaño</translation>
 <translation id="8031884997696620457">HSPA+</translation>
 <translation id="80398733265834479">Habilitar el modo de color automático</translation>
-<translation id="8041089156583427627">Enviar comentario</translation>
+<translation id="8041089156583427627">Enviar comentarios</translation>
 <translation id="8045012663542226664">Micrófono silenciado</translation>
 <translation id="8054112564438735763">beige</translation>
 <translation id="8062968459344882447"><ph name="CHARACTERS_SUBJECTS" /> de color <ph name="CHARACTERS_COLOR" /> sobre un fondo <ph name="CHARACTERS_BACKGROUND" /></translation>
@@ -1866,7 +1869,7 @@ Descarga el modelo de transcripción (hasta 100 MB) para obtener estas transcri
 <translation id="921080052717160800">Se estableció la imagen como fondo de la cámara</translation>
 <translation id="9211490828691860325">Todos los escritorios</translation>
 <translation id="9218016617214286986">Mostrar los APN conocidos</translation>
-<translation id="932327136139879170">Página principal</translation>
+<translation id="932327136139879170">Casa</translation>
 <translation id="939519157834106403">SSID</translation>
 <translation id="945522503751344254">Enviar comentarios</translation>
 <translation id="950520315903467048">No está configurada la tecla para <ph name="DIRECTION" />. <ph name="ASSIGN_INSTRUCTION" /></translation>
